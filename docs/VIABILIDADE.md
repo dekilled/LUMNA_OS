@@ -112,7 +112,6 @@ em CSS pesa muito nele. Regras:
   transparente no Tauri.
 - Animações só com `transform` e `opacity`.
 - Interface de Gaming/Mídia **escondida e congelada** enquanto um jogo ou vídeo roda.
-- Placas NVIDIA podem precisar de `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
 
 ### 3.3 Memória
 Cada webview do WebKitGTK custa memória. Estimativa (a medir no spike): compositor ~80 MB + shell
@@ -194,7 +193,7 @@ LUMNA_OS/
 | 4. Mídia | Cards de streaming (navegador em modo app), vídeos locais com mpv/Jellyfin, "continuar assistindo" local | Netflix abre em tela cheia; vídeo local retoma de onde parou |
 | 5. Multi-monitor | "Um modo por tela" e "Estender modo", tela de configuração "Telas" | 3 monitores com 3 modos diferentes |
 | 6. Emma | Painel lateral, voz, ligação com o backend LUMNA | "O que vamos fazer hoje?" funcionando |
-| 7. Distro completa | Calamares com tema LUMNA, formatação (Btrfs, LUKS, dual boot), drivers, repo próprio, snapshots (seção 6) | Pendrive → formatar → instalar → primeiro boot no LUMNA, no PC real |
+| 7. Distro completa | Calamares com tema LUMNA, formatação (Btrfs, LUKS, dual boot), Mesa (AMD/Intel), repo próprio, snapshots (seção 6) | Pendrive → formatar → instalar → primeiro boot no LUMNA, no PC real |
 
 ---
 
@@ -216,7 +215,21 @@ um caminho separado.
 Arch tem pacotes recentes (Hyprland, Mesa, kernel), e isso importa para Gaming. Para ajudar no
 desempenho dá para usar os repositórios e kernels otimizados do **CachyOS** como opção.
 
-### 6.2 O caminho completo
+### 6.2 Hardware: só AMD e Intel
+
+O LUMNA OS **suporta apenas GPUs AMD e Intel**. NVIDIA fica fora: nenhum driver proprietário,
+nenhum ajuste, nenhum teste. Isso deixa a distro bem mais simples:
+
+- **Um único driver aberto (Mesa)**, que já vem no kernel e no ISO. Não existe passo de
+  "detectar a placa e instalar driver" no instalador: o mesmo sistema roda em qualquer AMD ou Intel.
+- **Pacotes de vídeo fixos:** `mesa`, `vulkan-radeon`, `vulkan-intel`, as versões `lib32-*` (para a
+  Steam e o Proton) e `libva-mesa-driver` + `intel-media-driver` (vídeo por hardware no modo Mídia).
+- **Wayland, Hyprland, gamescope e WebKitGTK** funcionam bem nesse hardware sem gambiarra.
+- **Alvo de teste:** uma AMD Radeon (RDNA 2 ou mais nova) e uma Intel (Iris Xe ou Arc).
+- Quem tentar com NVIDIA pode até conseguir dar boot pelo driver aberto `nouveau`, mas sem garantia
+  e sem suporte. O site e o instalador avisam isso.
+
+### 6.3 O caminho completo
 
 | Etapa | O que acontece | Peças |
 |---|---|---|
@@ -226,20 +239,20 @@ desempenho dá para usar os repositórios e kernels otimizados do **CachyOS** co
 | **4. Sessão live** | Entra direto no LUMNA (Desktop) com login automático. No dock, o ícone **"Instalar LUMNA OS"** | `greetd` com autologin, Hyprland + `lumna-shell` |
 | **5. Instalador** | Idioma (pt-BR), teclado, fuso, **disco**, usuário, resumo, instalar | **Calamares** com tema LUMNA |
 | **6. Formatação** | Apagar o disco todo, instalar ao lado do Windows, ou manual. Criptografia opcional | Calamares: GPT, partição EFI, **Btrfs** com subvolumes, LUKS opcional |
-| **7. Instalação** | Copia o sistema, instala o bootloader, detecta a placa de vídeo | `unpackfs`, GRUB com `os-prober` (dual boot) ou systemd-boot, script de driver (NVIDIA/AMD/Intel) |
+| **7. Instalação** | Copia o sistema e instala o bootloader. Sem detecção de placa: AMD e Intel usam o mesmo Mesa | `unpackfs`, GRUB com `os-prober` (dual boot) ou systemd-boot |
 | **8. Primeiro boot** | Tela de login LUMNA → boas-vindas (Wi-Fi, conta da Emma, Steam) | `greetd` com tela própria, assistente de boas-vindas em Tauri |
 | **9. Atualizações** | `pacman` normal + **repositório próprio** com os pacotes `lumna-*` | PKGBUILDs em `packages/`, repo servido pelas Releases do GitHub |
 | **10. Volta segura** | Atualização quebrou? Escolhe um snapshot no menu de boot | `snapper` + `grub-btrfs` |
 
-### 6.3 Pacotes da distro
+### 6.4 Pacotes da distro
 - `lumna-shell`: o app Tauri + Vue.
 - `lumna-session`: configuração do Hyprland, regras, `lumna-ctl`, entrada da sessão.
 - `lumna-branding`: wallpapers, tema GTK/Qt, ícones, Plymouth, tema do Calamares e do boot.
-- `lumna-gaming`: Steam, gamescope, gamemode, MangoHud, Vulkan 32 bits (multilib).
+- `lumna-gaming`: Steam, gamescope, gamemode, MangoHud, Vulkan AMD/Intel 32 bits (multilib).
 - `lumna-media`: Chromium (com Widevine), mpv, codecs.
 - `lumna-installer`: Calamares e a configuração dele (só no ISO).
 
-### 6.4 Testando na VM
+### 6.5 Testando na VM
 - **QEMU/KVM com virt-manager**, firmware **UEFI (OVMF)** para testar o mesmo boot do PC real.
 - Vídeo **virtio-gpu com OpenGL (virgl)** e SPICE com OpenGL ligado. Sem aceleração o Hyprland
   fica lento ou nem abre. VirtualBox e VMware costumam ir mal com compositores Wayland.
@@ -247,14 +260,12 @@ desempenho dá para usar os repositórios e kernels otimizados do **CachyOS** co
   testar "um modo por tela" com 3 telas virtuais.
 - Um **disco virtual vazio** para rodar o instalador de verdade, formatação incluída, quantas vezes
   precisar. Um segundo cenário com Windows instalado testa o dual boot.
-- O que a VM **não** mostra direito: desempenho de jogos, drivers NVIDIA e HDR. Isso é testado no PC
+- O que a VM **não** mostra direito: desempenho de jogos, decodificação de vídeo por hardware e HDR. Isso é testado no PC
   real, primeiro pelo pendrive em modo live, sem instalar nada.
 
-### 6.5 Riscos da distro
+### 6.6 Riscos da distro
 - **Secure Boot:** o ISO do Arch não dá boot com Secure Boot ligado. No começo, desligar na BIOS.
   Depois dá para assinar com `sbctl`/shim, mas é trabalho à parte.
-- **NVIDIA:** precisa de driver proprietário (ou o novo `nvidia-open`) e ajustes para Wayland. É o
-  hardware que mais vai dar trabalho.
 - **Formatação errada apaga dados:** o instalador tem que mostrar com clareza o que vai ser apagado
   e testar muito o modo "ao lado do Windows" na VM antes do PC de verdade.
 - **Manutenção:** com Arch, a distro acompanha atualizações toda semana. O CI que gera o ISO também
