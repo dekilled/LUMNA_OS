@@ -1,0 +1,6 @@
+#!/bin/sh
+# Inicia a sessão LUMNA: Hyprland com a configuração do LUMNA, pelo watchdog oficial.
+export XDG_CURRENT_DESKTOP=Hyprland:LUMNA
+export XDG_SESSION_DESKTOP=lumna
+export XDG_SESSION_TYPE=wayland
+exec start-hyprland -- --config /usr/share/lumna/hyprland.lua

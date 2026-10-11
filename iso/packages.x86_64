@@ -1,0 +1,11 @@
+# Pacotes do LUMNA somados aos do perfil releng do archiso.
+lumna-shell
+lumna-session
+greetd
+# Vídeo: só AMD e Intel (Mesa). Ver docs/VIABILIDADE.md, 6.2.
+mesa
+vulkan-radeon
+vulkan-intel
+intel-media-driver
+# Testes em VM
+spice-vdagent

@@ -31,7 +31,7 @@ tela, por cima de tudo, as janelas do Tauri viram superfícies **layer-shell** (
 
 | Opção | Prós | Contras | Veredito |
 |---|---|---|---|
-| **Hyprland** | Animações muito fluidas, blur real, IPC por socket (crate `hyprland` em Rust), workspaces por monitor, plugins, `allow_tearing` para jogos | Pensado para tiling (dá para deixar tudo flutuante por regra); sem barra de título por padrão (plugin `hyprbars`); API muda entre versões | **MVP** |
+| **Hyprland** | Animações muito fluidas, blur real, IPC por socket (cliente próprio em `crates/lumna-hypr`), workspaces por monitor, plugins, `allow_tearing` para jogos | Pensado para tiling (dá para deixar tudo flutuante por regra); sem barra de título por padrão (plugin `hyprbars`); API muda entre versões (a 0.56 trocou a config para **Lua**, `hl.*`) | **MVP** |
 | Wayfire | Janelas flutuantes de verdade, plugins, animações, IPC | Comunidade menor, menos polido | Plano B |
 | labwc | Muito leve, flutuante, estilo Openbox | Animações e blur fracos, pouca "fluidez" | Não combina com o visual |
 | KWin (KDE) | Completo, efeitos, scripts | Pesado, puxa o Plasma junto | Contra o "leve" |
@@ -238,6 +238,12 @@ nenhum ajuste, nenhum teste. Isso deixa a distro bem mais simples:
 | Desempenho | Ativar **Resizable BAR** (SAM) na BIOS. Controle de ventoinha e limite de energia pelo **LACT**, que pode virar uma tela de ajustes do modo Gaming |
 | Emma local (opcional) | ROCm não suporta essa placa oficialmente. Para voz e IA locais, usar **Vulkan** (whisper.cpp, llama.cpp) |
 | VM | Uma placa só: a VM usa virgl (OpenGL virtual). O desempenho real só se mede com o pendrive live no PC |
+
+#### Próxima placa: RX 7600 XT
+RDNA 3 (Navi 33), **16 GB** em barramento de **128 bits** (a de 192 bits da geração é a RX 7700 XT,
+com 12 GB). Muda pouco para o LUMNA: mesmo driver RADV, e ganha **codificação AV1** por hardware
+(gravar e transmitir jogos). Os 16 GB ajudam em texturas altas e em IA local (Emma); ROCm continua
+sem suporte oficial, então a IA local segue por Vulkan.
 - Quem tentar com NVIDIA pode até conseguir dar boot pelo driver aberto `nouveau`, mas sem garantia
   e sem suporte. O site e o instalador avisam isso.
 

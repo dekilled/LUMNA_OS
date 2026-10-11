@@ -1,0 +1,29 @@
+# Pacote do shell do LUMNA OS, compilado a partir deste repositório.
+pkgname=lumna-shell
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="Shell do LUMNA OS: topbar, dock e telas dos modos (Tauri + Vue)"
+arch=(x86_64)
+url="https://github.com/dekilled/LUMNA_OS"
+license=(GPL-3.0-or-later)
+depends=(webkit2gtk-4.1 gtk3 gtk-layer-shell hyprland)
+makedepends=(rust nodejs pnpm)
+options=(!lto !debug)
+
+_root="$(realpath "$startdir/../..")"
+_target="${CARGO_TARGET_DIR:-$_root/target}"
+
+build() {
+  cd "$_root/shell"
+  pnpm install --frozen-lockfile
+  pnpm tauri build --no-bundle
+}
+
+check() {
+  cd "$_root"
+  cargo test --release -p lumna-core -p lumna-hypr
+}
+
+package() {
+  install -Dm755 "$_target/release/lumna-shell" "$pkgdir/usr/bin/lumna-shell"
+}

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=LUMNA
+Comment=Seu espaço. Seus modos. Sua Emma.
+Exec=/usr/bin/lumna-session
+TryExec=/usr/bin/lumna-session
+Type=Application
+DesktopNames=Hyprland;LUMNA

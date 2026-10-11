@@ -1,0 +1,23 @@
+# Sessão LUMNA: configuração do Hyprland, entrada na tela de login e arte.
+pkgname=lumna-session
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="Sessão Wayland do LUMNA OS (Hyprland + lumna-shell)"
+arch=(any)
+url="https://github.com/dekilled/LUMNA_OS"
+license=(GPL-3.0-or-later)
+depends=(
+  lumna-shell hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
+  swaybg foot fuzzel pipewire pipewire-pulse wireplumber polkit
+  noto-fonts noto-fonts-emoji inter-font
+)
+
+_root="$(realpath "$startdir/../..")"
+
+package() {
+  cd "$_root/session"
+  install -Dm755 lumna-session "$pkgdir/usr/bin/lumna-session"
+  install -Dm644 hyprland.lua "$pkgdir/usr/share/lumna/hyprland.lua"
+  install -Dm644 wallpaper.png "$pkgdir/usr/share/lumna/wallpaper.png"
+  install -Dm644 lumna.desktop "$pkgdir/usr/share/wayland-sessions/lumna.desktop"
+}

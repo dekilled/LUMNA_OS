@@ -1,0 +1,11 @@
+# Sessão live do pendrive: entra direto no LUMNA, sem senha.
+[terminal]
+vt = 1
+
+[default_session]
+command = "agreety --cmd /usr/bin/lumna-session"
+user = "greeter"
+
+[initial_session]
+command = "/usr/bin/lumna-session"
+user = "lumna"
