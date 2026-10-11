@@ -69,6 +69,42 @@ tocam dentro da interface Vue**. Saída: os cards da tela Mídia abrem o Chromiu
 streamings costumam limitar a qualidade (Netflix historicamente em 720p no navegador). É limite das
 empresas, não do LUMNA.
 
+#### Continuidade visual: o navegador não pode parecer "outro app"
+A ideia é o card da tela Mídia **virar** o player, sem piscar janela de navegador. O Hyprland
+sozinho não sabe animar uma janela "saindo" de um card (as animações dele, como `popin` e `slide`,
+partem do centro ou da borda). Por isso a transição é dividida em duas partes: o Tauri cuida do
+movimento e o Hyprland esconde as costuras.
+
+**Abrir (card → player):**
+1. A tela Mídia fica numa superfície layer-shell na camada `overlay`, **acima** das janelas comuns.
+2. Clicou no card: o Vue anima o card crescendo até ocupar a tela (técnica FLIP, só `transform`)
+   e termina numa tela de abertura (fundo e logo do serviço).
+3. Ao mesmo tempo o Rust abre o Chromium em modo app. Uma regra do Hyprland manda essa janela para
+   `special:media`, já em tela cheia e **sem animação própria** (`noanim`), por baixo do overlay.
+4. O Rust escuta o evento `openwindow` no socket de eventos do Hyprland (`.socket2.sock`), espera
+   a página pintar e avisa o Vue.
+5. O Vue apaga o overlay com fade. O player aparece por baixo exatamente onde o card terminou.
+   Para quem olha, foi uma animação só.
+
+**Fechar (player → card):** com o evento `closewindow`, o overlay volta com a última imagem e o
+card encolhe de volta para o lugar dele na fileira "Continuar assistindo".
+
+**Bônus:** antes de fechar, dá para capturar o último quadro da janela (`grim` com a geometria vinda
+do `hyprctl clients`) e usar como capa do card. Assim o "Continuar assistindo" mostra onde você
+parou, mesmo sem API da Netflix. Falta testar se o DRM deixa a captura preta.
+
+**Riscos a medir no spike:**
+- **Tempo de abertura do Chromium** (~1 s a frio). Se a tela de abertura ficar longa demais, deixar
+  um Chromium "morno" em segundo plano enquanto o modo Mídia estiver aberto (gasta RAM).
+- **Achar a janela certa:** no Wayland o Chromium em modo app recebe um `app_id` próprio por site
+  (algo como `chrome-www.netflix.com__-Default`). As regras do Hyprland usam esse nome; confirmar o
+  formato exato na versão instalada.
+- **Plugin próprio** (C++, API de plugins do Hyprland) para animar a janela real a partir do
+  retângulo do card fica como evolução, se o truque do overlay não bastar.
+
+O mesmo truque vale para abrir jogos no modo Gaming (a capa vira o jogo) e para trocar de modo
+(`animation = specialWorkspace, ...` com uma curva `bezier` própria do LUMNA, igual em todo o sistema).
+
 ### 3.2 Desempenho do WebKitGTK
 O WebKitGTK é mais lento que o Chromium. O visual "vidro fosco" da imagem com `backdrop-filter`
 em CSS pesa muito nele. Regras:
@@ -147,7 +183,7 @@ LUMNA_OS/
 
 | Fase | Entrega | Critério de pronto |
 |---|---|---|
-| **0. Spikes** (1-2 semanas) | Topbar Tauri em layer-shell no Hyprland; troca de workspace por IPC; medir RAM e FPS; testar Netflix no Chromium `--app` | Topbar presa no topo com blur do compositor, RAM medida, decisão final de compositor |
+| **0. Spikes** (1-2 semanas) | Topbar Tauri em layer-shell no Hyprland; troca de workspace por IPC; medir RAM e FPS; testar Netflix no Chromium `--app` com a transição card → player | Topbar presa no topo com blur do compositor, RAM medida, decisão final de compositor |
 | 1. Desktop MVP | Sessão LUMNA no login, topbar (relógio, bateria, volume, rede), dock, launcher, notificações | Dá para usar no dia a dia |
 | 2. Troca de modo | `lumna-ctl`, `Super + Tab`, seletor visual "Alternar modo" | Trocar entre os 3 modos sem perder janelas |
 | 3. Gaming | Biblioteca Steam/Heroic/Lutris, capas, filtros por gênero, controle, ajustes de desempenho | Abrir um jogo da Steam pelo controle |
