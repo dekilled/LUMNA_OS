@@ -225,7 +225,19 @@ nenhum ajuste, nenhum teste. Isso deixa a distro bem mais simples:
 - **Pacotes de vídeo fixos:** `mesa`, `vulkan-radeon`, `vulkan-intel`, as versões `lib32-*` (para a
   Steam e o Proton) e `libva-mesa-driver` + `intel-media-driver` (vídeo por hardware no modo Mídia).
 - **Wayland, Hyprland, gamescope e WebKitGTK** funcionam bem nesse hardware sem gambiarra.
-- **Alvo de teste:** uma AMD Radeon (RDNA 2 ou mais nova) e uma Intel (Iris Xe ou Arc).
+- **Hardware de referência nº 1: AMD Radeon RX 6600 XT** (RDNA 2, Navi 23, 8 GB). É a placa em que
+  tudo é testado primeiro e onde o "pronto" de cada fase é validado. Intel (Iris Xe ou Arc) vem depois.
+
+#### O que a RX 6600 XT define no projeto
+| Área | Na prática |
+|---|---|
+| Vulkan | Driver **RADV** (Mesa). É o que o Proton usa para os jogos do Windows |
+| Alvo do modo Gaming | Jogar em **1080p**. Para 1440p pesado, **FSR** pelo gamescope |
+| Vídeo no modo Mídia | Decodifica por hardware H.264, HEVC, VP9 e **AV1** (VA-API). O mpv usa isso direto; no Chromium precisa ligar a aceleração por VA-API e conferir |
+| Gravação/stream de jogo | Codifica H.264 e HEVC por hardware. **AV1 não** (só a partir da RX 7000) |
+| Desempenho | Ativar **Resizable BAR** (SAM) na BIOS. Controle de ventoinha e limite de energia pelo **LACT**, que pode virar uma tela de ajustes do modo Gaming |
+| Emma local (opcional) | ROCm não suporta essa placa oficialmente. Para voz e IA locais, usar **Vulkan** (whisper.cpp, llama.cpp) |
+| VM | Uma placa só: a VM usa virgl (OpenGL virtual). O desempenho real só se mede com o pendrive live no PC |
 - Quem tentar com NVIDIA pode até conseguir dar boot pelo driver aberto `nouveau`, mas sem garantia
   e sem suporte. O site e o instalador avisam isso.
 
