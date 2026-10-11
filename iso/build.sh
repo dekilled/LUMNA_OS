@@ -41,6 +41,9 @@ cp -a "$SRC/iso/overlay/airootfs/." "$profile/airootfs/"
 # O greetd assume o tty1 no lugar do login automático do root.
 rm -rf "$profile/airootfs/etc/systemd/system/getty@tty1.service.d"
 grep -v '^#' "$SRC/iso/packages.x86_64" | sed '/^$/d' >> "$profile/packages.x86_64"
+# Sem NVIDIA: troca o metapacote linux-firmware pelos firmwares separados, menos o da NVIDIA.
+sed -i '/^linux-firmware$/d' "$profile/packages.x86_64"
+printf '%s\n' linux-firmware-{amd,amdgpu,radeon,intel,atheros,broadcom,cirrus,mediatek,realtek,ti,other} >> "$profile/packages.x86_64"
 cat >> "$profile/pacman.conf" <<CONF
 
 [lumna]
