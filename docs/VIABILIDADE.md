@@ -56,7 +56,7 @@ Para não ficar preso ao Hyprland, o lado Rust conversa com o compositor por uma
 | Modo Mídia, Netflix, Prime, Disney+ | **Média, com limites** | Ver seção 3 |
 | "Continuar assistindo" da Netflix | **Baixa** | Não existe API pública; só dá para ter isso de verdade nos vídeos locais/Jellyfin |
 | Emma | **Alta** | Já existe no LUMNA (backend FastAPI em `127.0.0.1:8001`, voz pela Fish Audio). O OS só abre o painel e fala com esse backend |
-| Distro instalável (ISO) | **Média** | Possível, mas é o último passo (seção 6) |
+| Distro própria (pendrive → formatação → instalação) | **Alta**, com trabalho | Arch + archiso + Calamares com tema LUMNA (seção 6) |
 
 ---
 
@@ -174,6 +174,9 @@ LUMNA_OS/
 │   ├── src-tauri/     # app Tauri v2 (layer-shell, D-Bus, comandos)
 │   └── src/           # Vue 3 + Vite + Pinia (topbar, dock, Gaming, Mídia, Emma)
 ├── session/           # hyprland.conf, lumna.desktop (entrada no login), regras
+├── packages/          # PKGBUILDs dos pacotes lumna-*
+├── iso/               # perfil archiso (sessão live)
+├── installer/         # configuração e tema do Calamares
 └── docs/
 ```
 
@@ -184,26 +187,78 @@ LUMNA_OS/
 | Fase | Entrega | Critério de pronto |
 |---|---|---|
 | **0. Spikes** (1-2 semanas) | Topbar Tauri em layer-shell no Hyprland; troca de workspace por IPC; medir RAM e FPS; testar Netflix no Chromium `--app` com a transição card → player | Topbar presa no topo com blur do compositor, RAM medida, decisão final de compositor |
+| **0.5 ISO mínimo** | Perfil archiso que dá boot na VM (UEFI) direto no Hyprland com a topbar do spike | Desde o começo, tudo é testado pelo mesmo caminho do pendrive |
 | 1. Desktop MVP | Sessão LUMNA no login, topbar (relógio, bateria, volume, rede), dock, launcher, notificações | Dá para usar no dia a dia |
 | 2. Troca de modo | `lumna-ctl`, `Super + Tab`, seletor visual "Alternar modo" | Trocar entre os 3 modos sem perder janelas |
 | 3. Gaming | Biblioteca Steam/Heroic/Lutris, capas, filtros por gênero, controle, ajustes de desempenho | Abrir um jogo da Steam pelo controle |
 | 4. Mídia | Cards de streaming (navegador em modo app), vídeos locais com mpv/Jellyfin, "continuar assistindo" local | Netflix abre em tela cheia; vídeo local retoma de onde parou |
 | 5. Multi-monitor | "Um modo por tela" e "Estender modo", tela de configuração "Telas" | 3 monitores com 3 modos diferentes |
 | 6. Emma | Painel lateral, voz, ligação com o backend LUMNA | "O que vamos fazer hoje?" funcionando |
-| 7. Distro | Imagem instalável (seção 6) | ISO que inicia direto no LUMNA |
+| 7. Distro completa | Calamares com tema LUMNA, formatação (Btrfs, LUKS, dual boot), drivers, repo próprio, snapshots (seção 6) | Pendrive → formatar → instalar → primeiro boot no LUMNA, no PC real |
 
 ---
 
-## 6. Base de distribuição
+## 6. A distro LUMNA OS: do pendrive à instalação
 
-Primeiro o LUMNA OS é **uma sessão instalável** (aparece no GDM/SDDM como "LUMNA") em cima de uma
-distro comum. Isso deixa testar tudo sem montar distro. Quando estiver estável:
+O objetivo final é uma **distro própria**: o ISO é gravado no pendrive, o PC dá boot direto no
+LUMNA, um instalador com a cara do LUMNA formata o disco e instala, e o primeiro boot já entra no
+sistema pronto. A VM serve para testar, mas testa **o mesmo ISO** que vai para o pendrive. Não é
+um caminho separado.
 
-- **Fedora Atomic / Bazzite + BlueBuild:** imagem imutável, atualizações atômicas, drivers e
-  ajustes de jogos já prontos (Bazzite). Melhor encaixe para o modo Gaming.
-- **Arch (archiso) / CachyOS:** mais controle e pacotes recentes, mais manutenção.
+### 6.1 Base: Arch Linux + archiso + Calamares
 
-Recomendação: começar a sessão em **Arch ou Fedora**, e a ISO final em **Bazzite + BlueBuild**.
+| Opção | Controle do ISO e do instalador | Veredito |
+|---|---|---|
+| **Arch + archiso + Calamares** | Total: sessão live, pacotes, instalador (com tema em QML) e marca. É o caminho do EndeavourOS e do CachyOS | **Escolhida** |
+| Fedora Atomic / Bazzite + BlueBuild | Imagem imutável e drivers de jogo prontos, mas o instalador é o Anaconda, com pouca liberdade de visual e de fluxo | Descartada para a distro final |
+| Debian/Ubuntu + live-build | Estável, mas Hyprland, Mesa e drivers ficam velhos para jogos | Descartada |
+
+Arch tem pacotes recentes (Hyprland, Mesa, kernel), e isso importa para Gaming. Para ajudar no
+desempenho dá para usar os repositórios e kernels otimizados do **CachyOS** como opção.
+
+### 6.2 O caminho completo
+
+| Etapa | O que acontece | Peças |
+|---|---|---|
+| **1. Gerar o ISO** | O GitHub Actions monta o ISO a cada versão e publica na Release | `archiso` (perfil próprio em `iso/`), container `archlinux` no CI |
+| **2. Gravar o pendrive** | O usuário grava o ISO | Ventoy, balenaEtcher, Rufus (modo DD) ou `dd`. Um "LUMNA Media Creator" próprio fica para depois |
+| **3. Boot do pendrive** | UEFI → menu de boot com tema LUMNA → sessão live | `systemd-boot` (UEFI) e `syslinux` (BIOS antiga), Plymouth com o cristal animado |
+| **4. Sessão live** | Entra direto no LUMNA (Desktop) com login automático. No dock, o ícone **"Instalar LUMNA OS"** | `greetd` com autologin, Hyprland + `lumna-shell` |
+| **5. Instalador** | Idioma (pt-BR), teclado, fuso, **disco**, usuário, resumo, instalar | **Calamares** com tema LUMNA |
+| **6. Formatação** | Apagar o disco todo, instalar ao lado do Windows, ou manual. Criptografia opcional | Calamares: GPT, partição EFI, **Btrfs** com subvolumes, LUKS opcional |
+| **7. Instalação** | Copia o sistema, instala o bootloader, detecta a placa de vídeo | `unpackfs`, GRUB com `os-prober` (dual boot) ou systemd-boot, script de driver (NVIDIA/AMD/Intel) |
+| **8. Primeiro boot** | Tela de login LUMNA → boas-vindas (Wi-Fi, conta da Emma, Steam) | `greetd` com tela própria, assistente de boas-vindas em Tauri |
+| **9. Atualizações** | `pacman` normal + **repositório próprio** com os pacotes `lumna-*` | PKGBUILDs em `packages/`, repo servido pelas Releases do GitHub |
+| **10. Volta segura** | Atualização quebrou? Escolhe um snapshot no menu de boot | `snapper` + `grub-btrfs` |
+
+### 6.3 Pacotes da distro
+- `lumna-shell`: o app Tauri + Vue.
+- `lumna-session`: configuração do Hyprland, regras, `lumna-ctl`, entrada da sessão.
+- `lumna-branding`: wallpapers, tema GTK/Qt, ícones, Plymouth, tema do Calamares e do boot.
+- `lumna-gaming`: Steam, gamescope, gamemode, MangoHud, Vulkan 32 bits (multilib).
+- `lumna-media`: Chromium (com Widevine), mpv, codecs.
+- `lumna-installer`: Calamares e a configuração dele (só no ISO).
+
+### 6.4 Testando na VM
+- **QEMU/KVM com virt-manager**, firmware **UEFI (OVMF)** para testar o mesmo boot do PC real.
+- Vídeo **virtio-gpu com OpenGL (virgl)** e SPICE com OpenGL ligado. Sem aceleração o Hyprland
+  fica lento ou nem abre. VirtualBox e VMware costumam ir mal com compositores Wayland.
+- **Vários monitores na VM:** o virtio-gpu aceita várias saídas (`heads`/`max_outputs`). Dá para
+  testar "um modo por tela" com 3 telas virtuais.
+- Um **disco virtual vazio** para rodar o instalador de verdade, formatação incluída, quantas vezes
+  precisar. Um segundo cenário com Windows instalado testa o dual boot.
+- O que a VM **não** mostra direito: desempenho de jogos, drivers NVIDIA e HDR. Isso é testado no PC
+  real, primeiro pelo pendrive em modo live, sem instalar nada.
+
+### 6.5 Riscos da distro
+- **Secure Boot:** o ISO do Arch não dá boot com Secure Boot ligado. No começo, desligar na BIOS.
+  Depois dá para assinar com `sbctl`/shim, mas é trabalho à parte.
+- **NVIDIA:** precisa de driver proprietário (ou o novo `nvidia-open`) e ajustes para Wayland. É o
+  hardware que mais vai dar trabalho.
+- **Formatação errada apaga dados:** o instalador tem que mostrar com clareza o que vai ser apagado
+  e testar muito o modo "ao lado do Windows" na VM antes do PC de verdade.
+- **Manutenção:** com Arch, a distro acompanha atualizações toda semana. O CI que gera o ISO também
+  roda um teste de boot na VM (QEMU sem tela) para pegar quebra cedo.
 
 ---
 
