@@ -7,7 +7,7 @@ O shell é feito em **Tauri + Vue** e roda sobre o **Hyprland**, com base no **A
 Suporta só GPUs **AMD e Intel**.
 
 - Por que é assim: [docs/VIABILIDADE.md](docs/VIABILIDADE.md)
-- Onde estamos: **Fase 3**. O ISO dá boot direto no LUMNA, com topbar, dock, launcher, avisos, troca entre os modos Desktop, Gaming e Mídia, e a biblioteca de jogos com controle.
+- Onde estamos: **Fase 4**. O ISO dá boot direto no LUMNA: Desktop (topbar, dock, launcher, avisos), troca de modo, biblioteca de jogos com controle, e a tela de Mídia com controle pelo celular.
 
 ![LUMNA OS: topbar, dock e um aviso da Emma](docs/fase1-desktop.png)
 
@@ -16,6 +16,8 @@ Suporta só GPUs **AMD e Intel**.
 ![Alternar modo (Super + Tab)](docs/fase2-switcher.png)
 
 ![Biblioteca de jogos (modo Gaming)](docs/fase3-biblioteca.png)
+
+![Tela de Mídia](docs/fase4-midia.png)
 
 ## Estrutura
 
@@ -27,6 +29,7 @@ shell/                lumna-shell: app Tauri (src-tauri/) + interface Vue (src/)
 session/              config do Hyprland em Lua, script da sessão, entrada do login, wallpaper
 packages/             PKGBUILDs dos pacotes lumna-*
 iso/                  perfil do ISO (releng do archiso + overlay do LUMNA) e ambiente de build
+remote/android/        LUMNA Controle: app Android de controle remoto (Kotlin)
 scripts/              build-iso.sh, run-vm.sh, make-art.py
 ```
 
@@ -104,6 +107,28 @@ Para o teclado, clique na tela do modo. Sem controle à mão: `lumna-ctl pad rig
 
 A Steam ainda não vem no pendrive (o ISO passaria do limite de 2 GB das Releases do GitHub). No
 sistema live: habilite o `[multilib]` em `/etc/pacman.conf` e `sudo pacman -Syu steam`.
+
+## Mídia
+
+- **Streaming** (Netflix, YouTube, Prime Video, Disney+, Música) abre no Firefox em tela cheia,
+  num perfil só da TV com o DRM ligado. Na primeira vez o Firefox baixa o Widevine sozinho.
+- **Seus vídeos** são os da pasta Vídeos. Tocam no mpv, que guarda onde você parou: é daí que vêm
+  o destaque e o "Continuar assistindo".
+
+## LUMNA Controle (celular)
+
+App Android em `remote/android`. O GitHub Actions gera o APK (artefato `lumna-controle-apk`).
+
+1. Celular e TV na mesma rede Wi-Fi.
+2. Na TV, modo Mídia → **Controle pelo celular**: aparece um código de 6 dígitos.
+3. No app, toque na TV (ela aparece sozinha pela rede) e digite o código.
+
+Depois disso o celular entra sozinho. O app tem direcional, OK, voltar, início (fecha o que está
+na frente), menu, volume, play/pausa, ±10 s, os três modos e um campo para digitar na TV.
+"Esquecer celulares", na mesma tela da TV, desfaz todos os pareamentos.
+
+A TV só aceita conexões da rede local (porta 47800, WebSocket sem TLS) e só de celulares
+pareados; o código vale 5 minutos e uma vez só.
 
 ## Problemas
 
