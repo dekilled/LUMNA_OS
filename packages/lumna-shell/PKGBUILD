@@ -2,11 +2,12 @@
 pkgname=lumna-shell
 pkgver=0.0.1
 pkgrel=1
-pkgdesc="Shell do LUMNA OS: topbar, dock e telas dos modos (Tauri + Vue)"
+pkgdesc="Shell do LUMNA OS: topbar, dock, launcher e avisos (Tauri + Vue)"
 arch=(x86_64)
 url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
-depends=(webkit2gtk-4.1 gtk3 gtk-layer-shell hyprland)
+depends=(webkit2gtk-4.1 gtk3 gtk-layer-shell hyprland wireplumber)
+provides=(notification-daemon)
 makedepends=(rust nodejs pnpm)
 options=(!lto !debug)
 
@@ -17,13 +18,16 @@ build() {
   cd "$_root/shell"
   pnpm install --frozen-lockfile
   pnpm tauri build --no-bundle
+  cd "$_root"
+  cargo build --release -p lumna-ctl
 }
 
 check() {
   cd "$_root"
-  cargo test --release -p lumna-core -p lumna-hypr
+  cargo test --release -p lumna-core -p lumna-hypr -p lumna-shell
 }
 
 package() {
   install -Dm755 "$_target/release/lumna-shell" "$pkgdir/usr/bin/lumna-shell"
+  install -Dm755 "$_target/release/lumna-ctl" "$pkgdir/usr/bin/lumna-ctl"
 }

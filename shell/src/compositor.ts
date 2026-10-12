@@ -13,6 +13,15 @@ export interface Monitor {
   name: string;
   focused: boolean;
   active_workspace: number;
+  x: number;
+  y: number;
+}
+
+export interface Window {
+  address: string;
+  class: string;
+  title: string;
+  workspace: number;
 }
 
 export type CompositorEvent =
@@ -25,6 +34,7 @@ export type CompositorEvent =
 
 export const workspaces = () => invoke<Workspace[]>("workspaces");
 export const monitors = () => invoke<Monitor[]>("monitors");
+export const windows = () => invoke<Window[]>("windows");
 export const focusWorkspace = (id: number) => invoke<void>("focus_workspace", { id });
 
 export const onCompositorEvent = (handler: (event: CompositorEvent) => void) =>

@@ -15,7 +15,6 @@ hl.env("GDK_BACKEND", "wayland,x11")
 hl.env("QT_QPA_PLATFORM", "wayland;xcb")
 
 local terminal = "foot"
-local launcher = "fuzzel"
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("swaybg -m fill -i /usr/share/lumna/wallpaper.png")
@@ -87,6 +86,28 @@ hl.layer_rule({
     ignore_alpha = 0.2,
 })
 
+hl.layer_rule({
+    name = "lumna-dock-blur",
+    match = { namespace = "^lumna-dock$" },
+    blur = true,
+    ignore_alpha = 0.2,
+})
+
+-- O launcher cobre a tela com um véu: blur no véu inteiro, sem animação própria (o Vue anima).
+hl.layer_rule({
+    name = "lumna-launcher",
+    match = { namespace = "^lumna-launcher$" },
+    blur = true,
+    no_anim = true,
+})
+
+hl.layer_rule({
+    name = "lumna-notifications-blur",
+    match = { namespace = "^lumna-notifications$" },
+    blur = true,
+    ignore_alpha = 0.3,
+})
+
 -------------------------------
 ---- JANELAS (Desktop) ----
 -------------------------------
@@ -112,7 +133,9 @@ hl.window_rule({
 local mod = "SUPER"
 
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd(terminal))
-hl.bind(mod .. " + Space", hl.dsp.exec_cmd(launcher))
+hl.bind(mod .. " + Space", hl.dsp.exec_cmd("lumna-ctl launcher toggle"))
+hl.bind(mod .. " + E", hl.dsp.exec_cmd("thunar"))
+hl.bind(mod .. " + B", hl.dsp.exec_cmd("firefox"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))

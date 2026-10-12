@@ -20,6 +20,18 @@ pub struct Monitor {
     pub name: String,
     pub focused: bool,
     pub active_workspace: i64,
+    /// Posição no layout (coordenadas lógicas), usada para achar o mesmo monitor no GTK.
+    pub x: i32,
+    pub y: i32,
+}
+
+/// Janela de um app, como o compositor a enxerga.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Window {
+    pub address: String,
+    pub class: String,
+    pub title: String,
+    pub workspace: i64,
 }
 
 /// Eventos que o shell precisa acompanhar. Chegam em tempo real pelo compositor.
@@ -40,10 +52,18 @@ pub enum CompositorEvent {
 
 pub type Result<T> = std::result::Result<T, String>;
 
+/// Socket em que o shell recebe ordens do `lumna-ctl` (uma linha por conexão, resposta até o EOF).
+pub fn control_socket_path() -> Option<std::path::PathBuf> {
+    std::env::var_os("XDG_RUNTIME_DIR").map(|dir| std::path::PathBuf::from(dir).join("lumna").join("shell.sock"))
+}
+
 pub trait Compositor: Send + Sync {
     fn workspaces(&self) -> Result<Vec<Workspace>>;
     fn monitors(&self) -> Result<Vec<Monitor>>;
+    fn windows(&self) -> Result<Vec<Window>>;
     fn focus_workspace(&self, id: i64) -> Result<()>;
+    /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
+    fn exec(&self, command: &str) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.
     fn listen(&self, on_event: &mut dyn FnMut(CompositorEvent)) -> Result<()>;
 }

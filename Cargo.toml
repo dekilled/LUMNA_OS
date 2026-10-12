@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/lumna-core", "crates/lumna-hypr", "shell/src-tauri"]
+members = ["crates/lumna-core", "crates/lumna-hypr", "crates/lumna-ctl", "shell/src-tauri"]
 
 [workspace.package]
 version = "0.0.1"

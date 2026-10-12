@@ -7,7 +7,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 
-use lumna_core::{Compositor, CompositorEvent, Monitor, Result, Workspace};
+use lumna_core::{Compositor, CompositorEvent, Monitor, Result, Window, Workspace};
 use serde_json::Value;
 
 pub struct Hyprland {
@@ -59,6 +59,14 @@ fn int(v: &Value, key: &str) -> i64 {
 
 fn text(v: &Value, key: &str) -> String {
     v.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
+}
+
+/// Monta `hl.dsp.exec_cmd(...)` com o comando numa string longa do Lua, que não interpreta escapes.
+fn lua_exec(command: &str) -> Result<String> {
+    if command.contains("]==]") || command.contains('\n') {
+        return Err(format!("comando não pode ser passado ao Hyprland: {command:?}"));
+    }
+    Ok(format!("hl.dsp.exec_cmd([==[{command}]==])"))
 }
 
 /// Converte uma linha do socket de eventos. Devolve vazio para eventos que o shell ignora.
@@ -124,8 +132,30 @@ impl Compositor for Hyprland {
                 name: text(m, "name"),
                 focused: m.get("focused").and_then(Value::as_bool).unwrap_or(false),
                 active_workspace: m.get("activeWorkspace").map(|w| int(w, "id")).unwrap_or_default(),
+                x: int(m, "x") as i32,
+                y: int(m, "y") as i32,
             })
             .collect())
+    }
+
+    fn windows(&self) -> Result<Vec<Window>> {
+        let list = self.request_json("clients")?;
+        Ok(list
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|c| c.get("mapped").and_then(Value::as_bool).unwrap_or(true))
+            .map(|c| Window {
+                address: text(c, "address"),
+                class: text(c, "class"),
+                title: text(c, "title"),
+                workspace: c.get("workspace").map(|w| int(w, "id")).unwrap_or_default(),
+            })
+            .collect())
+    }
+
+    fn exec(&self, command: &str) -> Result<()> {
+        self.dispatch(&lua_exec(command)?, &format!("exec {command}"))
     }
 
     fn focus_workspace(&self, id: i64) -> Result<()> {
@@ -165,6 +195,12 @@ mod tests {
             events[0],
             CompositorEvent::WindowOpened { address: "55d3a0".into(), class: "foot".into(), title: "oi, tudo bem?".into() }
         );
+    }
+
+    #[test]
+    fn exec_is_a_lua_long_string() {
+        assert_eq!(lua_exec("foot -e 'a \"b\"'").unwrap(), "hl.dsp.exec_cmd([==[foot -e 'a \"b\"']==])");
+        assert!(lua_exec("x ]==] y").is_err());
     }
 
     #[test]

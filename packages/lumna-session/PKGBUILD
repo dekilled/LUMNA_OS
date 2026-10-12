@@ -8,7 +8,8 @@ url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
 depends=(
   lumna-shell hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-  swaybg foot fuzzel pipewire pipewire-pulse wireplumber polkit
+  swaybg foot pipewire pipewire-pulse wireplumber polkit
+  firefox thunar mousepad gvfs
   noto-fonts noto-fonts-emoji inter-font
 )
 
