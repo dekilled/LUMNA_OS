@@ -9,6 +9,8 @@ Suporta só GPUs **AMD e Intel**.
 - Por que é assim: [docs/VIABILIDADE.md](docs/VIABILIDADE.md)
 - Onde estamos: **Fase 0**. O ISO dá boot direto no LUMNA, com a topbar.
 
+![LUMNA OS na VM: topbar, área de trabalho 2 e terminal](docs/fase0-topbar.png)
+
 ## Estrutura
 
 ```
