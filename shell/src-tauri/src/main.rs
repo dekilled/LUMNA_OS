@@ -2,9 +2,11 @@ mod apps;
 mod control;
 mod games;
 mod layer;
+mod media;
 mod modes;
 mod notifications;
 mod pad;
+mod remote;
 mod status;
 mod vdf;
 
@@ -30,6 +32,9 @@ struct AppsCache(Mutex<Vec<apps::App>>);
 
 #[derive(Default)]
 struct GamesCache(Mutex<Vec<games::Game>>);
+
+#[derive(Default)]
+struct VideosCache(Mutex<Vec<media::Video>>);
 
 /// Posição lógica (x, y) do monitor GTK de cada janela por monitor (`topbar-0`, `mode-0`...),
 /// para achar o mesmo monitor na lista do compositor.
@@ -305,6 +310,78 @@ pub fn pad_action(app: &AppHandle, action: pad::Action) {
     let _ = app.emit("lumna://pad", PadEvent { action, monitor });
 }
 
+// ---- mídia ----
+
+#[tauri::command]
+fn media_services() -> &'static [media::Service] {
+    media::SERVICES
+}
+
+/// Vídeos locais. As miniaturas que faltam são geradas em segundo plano; quando ficam prontas,
+/// sai o evento `lumna://videos-updated` e a tela pede a lista de novo.
+#[tauri::command]
+fn videos(app: AppHandle, cache: tauri::State<'_, VideosCache>) -> Vec<media::Video> {
+    let _ = app.asset_protocol_scope().allow_directory(media::thumbs_dir(), false);
+    let list = media::videos();
+    *cache.0.lock().unwrap() = list.clone();
+    if list.iter().any(|v| v.thumb.is_none()) {
+        let missing = list.clone();
+        std::thread::spawn(move || {
+            if media::make_missing_thumbs(&missing) > 0 {
+                let _ = app.emit("lumna://videos-updated", ());
+            }
+        });
+    }
+    list
+}
+
+#[tauri::command]
+fn play_video(
+    cache: tauri::State<'_, VideosCache>,
+    compositor: tauri::State<'_, SharedCompositor>,
+    id: String,
+) -> Result<(), String> {
+    let command = {
+        let cache = cache.0.lock().unwrap();
+        cache.iter().find(|v| v.id == id).map(media::video_command).ok_or_else(|| format!("vídeo {id} não encontrado"))?
+    };
+    compositor.exec(&command)
+}
+
+#[tauri::command]
+fn open_service(compositor: tauri::State<'_, SharedCompositor>, id: String) -> Result<(), String> {
+    let command = media::service_command(&id)?;
+    // Um serviço por vez: o Firefox da TV anterior fecha antes de abrir o próximo.
+    let _ = std::process::Command::new("pkill").args(["-f", "lumna/firefox-tv"]).status();
+    compositor.exec(&command)
+}
+
+#[tauri::command]
+fn remote_pairing(remote: tauri::State<'_, remote::Remote>) -> remote::Pairing {
+    remote.start_pairing()
+}
+
+#[tauri::command]
+fn remote_stop_pairing(remote: tauri::State<'_, remote::Remote>) {
+    remote.stop_pairing();
+}
+
+#[tauri::command]
+fn remote_forget(remote: tauri::State<'_, remote::Remote>) -> Result<(), String> {
+    remote.forget_all()
+}
+
+/// Botão "início" do celular: fecha o que estiver na frente (streaming, vídeo) ou, se não houver
+/// nada, vai para a tela de Mídia.
+pub fn remote_home(app: &AppHandle) -> Result<(), String> {
+    let compositor = app.state::<SharedCompositor>();
+    if compositor.active_window()?.is_some() {
+        compositor.close_active_window()
+    } else {
+        switch_mode(app, Target::Set(Mode::Media))
+    }
+}
+
 // ---- modos ----
 
 /// Nome do monitor (no compositor) onde está a janela que chamou.
@@ -457,6 +534,8 @@ fn main() {
         .manage(compositor.clone())
         .manage(AppsCache::default())
         .manage(GamesCache::default())
+        .manage(VideosCache::default())
+        .manage(remote::Remote::default())
         .manage(status::StatusState::default())
         .manage(Modes::load())
         .manage(MonitorPositions::default())
@@ -482,6 +561,13 @@ fn main() {
             show_switcher,
             games,
             launch_game,
+            media_services,
+            videos,
+            play_video,
+            open_service,
+            remote_pairing,
+            remote_stop_pairing,
+            remote_forget,
         ])
         .setup(move |app| {
             let display = gtk::gdk::Display::default().expect("sem display GTK");
@@ -502,6 +588,7 @@ fn main() {
             notifications::start(app.handle().clone());
             control::listen(app.handle().clone());
             pad::watch(app.handle().clone());
+            remote::start(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -19,6 +19,9 @@ const paths: Record<string, string> = {
   play: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 8.5v7l5.5-3.5z",
   screens: "M2 5h9v7H2zM13 5h9v7h-9zM6 15v3M17 15v3M4 18h4M15 18h4",
   extend: "M2 5h20v10H2zM8 19h8M12 15v4",
+  phone: "M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2",
+  folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
 };
 </script>
 

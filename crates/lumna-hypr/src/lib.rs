@@ -183,6 +183,10 @@ impl Compositor for Hyprland {
         }))
     }
 
+    fn close_active_window(&self) -> Result<()> {
+        self.dispatch("hl.dsp.window.close()", "killactive")
+    }
+
     fn exec(&self, command: &str) -> Result<()> {
         self.dispatch(&lua_exec(command)?, &format!("exec {command}"))
     }

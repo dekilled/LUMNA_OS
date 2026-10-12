@@ -68,6 +68,8 @@ pub trait Compositor: Send + Sync {
     /// Vai para um workspace com nome (ex.: `gaming-DP-1`), criando-o no monitor em foco.
     fn focus_named_workspace(&self, name: &str) -> Result<()>;
     fn focus_monitor(&self, name: &str) -> Result<()>;
+    /// Fecha a janela em foco (pede para o app fechar, como `Super + Q`).
+    fn close_active_window(&self) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.

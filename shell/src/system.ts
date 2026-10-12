@@ -111,3 +111,32 @@ export function keyToPad(event: KeyboardEvent): PadAction | null {
   };
   return map[event.key] ?? null;
 }
+
+export interface Service {
+  id: string;
+  name: string;
+}
+
+export interface Video {
+  id: string;
+  title: string;
+  thumb: string | null;
+  progress: number;
+  watched_at: number;
+}
+
+export interface Pairing {
+  code: string;
+  addresses: string[];
+  port: number;
+  expires_in: number;
+  devices: string[];
+}
+
+export const mediaServices = () => invoke<Service[]>("media_services");
+export const videos = () => invoke<Video[]>("videos");
+export const playVideo = (id: string) => invoke<void>("play_video", { id });
+export const openService = (id: string) => invoke<void>("open_service", { id });
+export const remotePairing = () => invoke<Pairing>("remote_pairing");
+export const remoteStopPairing = () => invoke<void>("remote_stop_pairing");
+export const remoteForget = () => invoke<void>("remote_forget");
