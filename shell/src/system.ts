@@ -62,6 +62,104 @@ export const wifiDisconnect = () => invoke<void>("wifi_disconnect");
 export const wifiForget = (path: string) => invoke<void>("wifi_forget", { path });
 export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
+// ---- Configurações ----
+
+export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "sistema";
+export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
+
+export interface NetInterface {
+  name: string;
+  kind: "wifi" | "ethernet";
+  connected: boolean;
+  speed: number | null;
+  mac: string;
+  ipv4: string[];
+  ipv6: string[];
+  gateway: string | null;
+  dns: string[];
+}
+export const networkInterfaces = () => invoke<NetInterface[]>("network_interfaces");
+
+export interface BtDevice {
+  path: string;
+  address: string;
+  name: string;
+  icon: string;
+  paired: boolean;
+  connected: boolean;
+  battery: number | null;
+}
+export interface BluetoothState {
+  available: boolean;
+  powered: boolean;
+  discovering: boolean;
+  devices: BtDevice[];
+}
+export interface BtConfirm {
+  device: string;
+  name: string;
+  code: string;
+  kind: "confirm" | "type";
+}
+export const bluetoothState = () => invoke<BluetoothState>("bluetooth_state");
+export const bluetoothPower = (on: boolean) => invoke<void>("bluetooth_power", { on });
+export const bluetoothScan = (on: boolean) => invoke<void>("bluetooth_scan", { on });
+export const bluetoothPair = (path: string) => invoke<void>("bluetooth_pair", { path });
+export const bluetoothConnect = (path: string) => invoke<void>("bluetooth_connect", { path });
+export const bluetoothDisconnect = (path: string) => invoke<void>("bluetooth_disconnect", { path });
+export const bluetoothForget = (path: string) => invoke<void>("bluetooth_forget", { path });
+export const bluetoothConfirm = (device: string, accept: boolean) => invoke<void>("bluetooth_confirm", { device, accept });
+
+export interface AudioNode {
+  id: number;
+  name: string;
+  volume: number;
+  muted: boolean;
+  default: boolean;
+}
+export interface AudioState {
+  outputs: AudioNode[];
+  inputs: AudioNode[];
+  apps: AudioNode[];
+}
+export const audioState = () => invoke<AudioState>("audio_state");
+export const audioSetDefault = (id: number) => invoke<void>("audio_set_default", { id });
+export const audioSetVolume = (id: number, volume: number) => invoke<void>("audio_set_volume", { id, volume });
+export const audioToggleMute = (id: number) => invoke<void>("audio_toggle_mute", { id });
+
+export interface Printer {
+  name: string;
+  state: "idle" | "printing" | "disabled";
+  default: boolean;
+  uri: string;
+  jobs: number;
+}
+export interface FoundPrinter {
+  uri: string;
+  info: string;
+  class: string;
+}
+export const printers = () => invoke<Printer[]>("printers");
+export const printersDiscover = () => invoke<FoundPrinter[]>("printers_discover");
+export const printerAdd = (uri: string, info: string) => invoke<string>("printer_add", { uri, info });
+export const printerRemove = (name: string) => invoke<void>("printer_remove", { name });
+export const printerSetDefault = (name: string) => invoke<void>("printer_set_default", { name });
+export const printerTestPage = (name: string) => invoke<void>("printer_test_page", { name });
+
+export interface SystemInfo {
+  hostname: string;
+  os: string;
+  kernel: string;
+  cpu: string;
+  cores: number;
+  gpus: string[];
+  memory: number;
+  disk_total: number;
+  disk_used: number;
+  uptime: number;
+}
+export const systemInfo = () => invoke<SystemInfo>("system_info");
+
 /** Ajusta a camada desta janela ao tamanho do conteúdo. */
 export const layerResize = (width: number, height: number) =>
   invoke<void>("layer_resize", { width: Math.ceil(width), height: Math.ceil(height) });

@@ -12,6 +12,8 @@ depends=(
   firefox thunar mousepad gvfs
   mpv mpv-mpris ffmpeg playerctl wtype
   noto-fonts noto-fonts-emoji inter-font
+  # Configurações: Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware
+  iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
 )
 
 _root="$(realpath "$startdir/../..")"
@@ -22,4 +24,6 @@ package() {
   install -Dm644 hyprland.lua "$pkgdir/usr/share/lumna/hyprland.lua"
   install -Dm644 wallpaper.png "$pkgdir/usr/share/lumna/wallpaper.png"
   install -Dm644 lumna.desktop "$pkgdir/usr/share/wayland-sessions/lumna.desktop"
+  install -Dm644 lumna-settings.desktop "$pkgdir/usr/share/applications/lumna-settings.desktop"
+  install -Dm644 icons/settings.svg "$pkgdir/usr/share/lumna/icons/settings.svg"
 }

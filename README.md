@@ -73,6 +73,7 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + Enter` | Terminal |
 | `Super + E` | Arquivos (Thunar) |
 | `Super + B` | Firefox |
+| `Super + I` | Configurações |
 | `Super + Q` | Fechar janela |
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
@@ -94,6 +95,24 @@ nas abertas e nas já salvas com um clique e pede a senha nas novas. Na rede con
 Por baixo é o **iwd**, o mesmo do pendrive do Arch: as senhas ficam salvas por ele em
 `/var/lib/iwd`. Redes com usuário e senha (empresa, faculdade) ainda não entram pelo menu; no
 terminal, `iwctl` resolve.
+
+## Configurações
+
+`Super + I`, o app "Configurações" no launcher ou "Configurações de rede…" no menu do Wi-Fi.
+
+- **Rede**: o Wi-Fi (o mesmo do menu) e os detalhes de cada conexão, cabo ou Wi-Fi: endereço,
+  roteador, DNS, velocidade.
+- **Bluetooth**: liga e desliga, procura aparelhos enquanto a página está aberta, pareia (confirmando
+  o código na tela quando o aparelho pede), conecta, desconecta e esquece. Mostra a bateria dos fones
+  e controles. Fora de um pareamento começado aqui, pedidos de outros aparelhos são recusados.
+- **Som**: saída e entrada padrão, volume e mudo de cada uma, e o volume de cada app tocando.
+- **Impressoras**: procura impressoras na rede e no USB, adiciona sem driver (AirPrint / IPP
+  Everywhere), página de teste, impressora padrão e remover.
+- **Sistema**: processador, placa de vídeo, memória, disco e versão.
+
+Por baixo: iwd (Wi-Fi), BlueZ (Bluetooth), PipeWire (som), CUPS + Avahi (impressoras).
+
+![Configurações](docs/configuracoes.png)
 
 ## Modos e telas
 

@@ -14,7 +14,9 @@ comandos:
   mode desktop | gaming | media      vai direto para um modo
   mode layout per-screen | extend    um modo por tela, ou o mesmo modo em todas
   pad up|down|left|right|accept|back|menu|guide
-                                     simula o controle (testes e controle remoto)";
+                                     simula o controle (testes e controle remoto)
+  settings [rede|bluetooth|som|impressoras|sistema]
+                                     abre as Configurações (na página pedida)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();

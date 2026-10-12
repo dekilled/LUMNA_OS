@@ -1,13 +1,18 @@
 mod apps;
+mod audio;
+mod bluetooth;
 mod control;
 mod games;
 mod layer;
 mod media;
 mod modes;
+mod network;
 mod notifications;
 mod pad;
+mod printers;
 mod remote;
 mod status;
+mod system_info;
 mod vdf;
 mod wifi;
 
@@ -290,6 +295,35 @@ fn toggle_wifi(app: AppHandle, window: WebviewWindow, positions: tauri::State<'_
         let _ = handle.emit_to("wifi", "lumna://wifi-opened", ());
     })
     .map_err(|e| e.to_string())
+}
+
+// ---- configurações ----
+
+/// Abre a janela de Configurações (uma janela comum, não uma camada) na página pedida.
+pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(page) = page {
+            let _ = window.emit_to("settings", "lumna://settings-page", page);
+        }
+        return Ok(());
+    }
+    let url = format!("index.html#{}", page.unwrap_or_default());
+    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
+        .title("Configurações")
+        .inner_size(1000.0, 680.0)
+        .min_inner_size(760.0, 520.0)
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn settings_open(app: AppHandle, page: Option<String>) -> Result<(), String> {
+    open_settings(&app, page)
 }
 
 // ---- jogos e controle ----
@@ -603,6 +637,27 @@ fn main() {
             remote_stop_pairing,
             remote_forget,
             toggle_wifi,
+            settings_open,
+            network::network_interfaces,
+            bluetooth::bluetooth_state,
+            bluetooth::bluetooth_power,
+            bluetooth::bluetooth_scan,
+            bluetooth::bluetooth_pair,
+            bluetooth::bluetooth_connect,
+            bluetooth::bluetooth_disconnect,
+            bluetooth::bluetooth_forget,
+            bluetooth::bluetooth_confirm,
+            audio::audio_state,
+            audio::audio_set_default,
+            audio::audio_set_volume,
+            audio::audio_toggle_mute,
+            printers::printers,
+            printers::printers_discover,
+            printers::printer_add,
+            printers::printer_remove,
+            printers::printer_set_default,
+            printers::printer_test_page,
+            system_info::system_info,
             wifi::wifi_state,
             wifi::wifi_scan,
             wifi::wifi_connect,
@@ -632,6 +687,7 @@ fn main() {
             pad::watch(app.handle().clone());
             remote::start(app.handle().clone());
             wifi::watch(app.handle().clone());
+            bluetooth::watch(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -204,6 +204,7 @@ buscas. Ele manda as **mesmas ações** que o controle de videogame (`up`, `down
 | 2. Troca de modo | `lumna-ctl`, `Super + Tab`, seletor visual "Alternar modo" | Trocar entre os 3 modos sem perder janelas |
 | 3. Gaming | Biblioteca Steam/Heroic/Lutris com capas, filtros por loja e recentes, navegação por controle (gilrs) e teclado | Abrir um jogo da Steam pelo controle |
 | 4. Mídia | Cards de streaming (navegador em modo app), vídeos locais com mpv/Jellyfin, "continuar assistindo" local e **controle pelo celular** (seção 4.1) | Netflix abre em tela cheia; vídeo local retoma de onde parou; navegar pelo celular |
+| **4.5 Apps do sistema** | **Configurações** (Wi-Fi e cabo, Bluetooth, som, impressoras, sistema), **Loja** (pacman + Flatpak/Flathub + AUR, com repositórios e atualizações; polkit para pedir a senha) e **Explorador de arquivos** próprio no lugar do Thunar | Usar o PC sem abrir o terminal para nada do dia a dia |
 | 5. Multi-monitor | "Um modo por tela" e "Estender modo", tela de configuração "Telas" | 3 monitores com 3 modos diferentes |
 | 6. Emma | Painel lateral, voz, ligação com o backend LUMNA | "O que vamos fazer hoje?" funcionando |
 | 7. Visual | Wallpaper próprio por modo, videopaper (mpvpaper), animações e efeitos mais modernos em todas as telas | Cada modo com cara própria, sem perder fluidez |

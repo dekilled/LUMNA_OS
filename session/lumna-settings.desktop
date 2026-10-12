@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Configurações
+Comment=Rede, Bluetooth, som, impressoras e sistema
+Exec=lumna-ctl settings
+Icon=/usr/share/lumna/icons/settings.svg
+Categories=Settings;
+Keywords=wifi;rede;bluetooth;som;audio;volume;impressora;sistema;configuracoes;
