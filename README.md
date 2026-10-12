@@ -7,15 +7,18 @@ O shell é feito em **Tauri + Vue** e roda sobre o **Hyprland**, com base no **A
 Suporta só GPUs **AMD e Intel**.
 
 - Por que é assim: [docs/VIABILIDADE.md](docs/VIABILIDADE.md)
-- Onde estamos: **Fase 0**. O ISO dá boot direto no LUMNA, com a topbar.
+- Onde estamos: **Fase 1**. O ISO dá boot direto no LUMNA, com topbar, dock, launcher de apps e avisos.
 
-![LUMNA OS na VM: topbar, área de trabalho 2 e terminal](docs/fase0-topbar.png)
+![LUMNA OS: topbar, dock e um aviso da Emma](docs/fase1-desktop.png)
+
+![Launcher de apps](docs/fase1-launcher.png)
 
 ## Estrutura
 
 ```
 crates/lumna-core     tipos e o contrato Compositor (não sabe qual compositor é)
 crates/lumna-hypr     Compositor implementado para o Hyprland (IPC por socket)
+crates/lumna-ctl      comando que os atalhos usam para falar com o shell
 shell/                lumna-shell: app Tauri (src-tauri/) + interface Vue (src/)
 session/              config do Hyprland em Lua, script da sessão, entrada do login, wallpaper
 packages/             PKGBUILDs dos pacotes lumna-*
@@ -51,14 +54,23 @@ A VM usa virtio-gpu com OpenGL (virgl). VirtualBox e VMware costumam ir mal com 
 Grave o ISO com Ventoy, balenaEtcher ou `dd`, desligue o **Secure Boot** e dê boot pelo pendrive.
 Ele roda direto do pendrive (modo live) e não mexe no disco.
 
-## Atalhos (Fase 0)
+## Atalhos
 
 | Atalho | Ação |
 |---|---|
+| `Super + Espaço` | Launcher de apps (busca sem acento; setas e Enter; Esc fecha) |
 | `Super + Enter` | Terminal |
-| `Super + Espaço` | Abrir apps |
+| `Super + E` | Arquivos (Thunar) |
+| `Super + B` | Firefox |
 | `Super + Q` | Fechar janela |
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
 | `Super + F` | Tela cheia |
 | `Super + Shift + E` | Sair da sessão |
+
+Na topbar: clique no cristal abre o launcher, clique no volume silencia e a roda do mouse ajusta.
+Os avisos dos apps (`notify-send`, Firefox...) aparecem no canto superior direito.
+
+## Problemas
+
+O log do shell fica no journal: `journalctl -t lumna-shell`.

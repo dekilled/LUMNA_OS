@@ -73,7 +73,7 @@ pub fn make_layer(window: &WebviewWindow, monitor: &gtk::gdk::Monitor, spec: &La
     layer.add(&content);
     content.show_all();
     if spec.visible {
-        layer.show_all();
+        show(&layer);
     }
     LAYERS.with(|layers| layers.borrow_mut().insert(window.label().to_string(), layer));
     Ok(())
@@ -89,14 +89,34 @@ fn with_layer(label: &str, f: impl FnOnce(&gtk::ApplicationWindow)) {
 
 pub fn is_visible(label: &str) -> bool {
     let mut visible = false;
-    with_layer(label, |layer| visible = layer.is_visible());
+    with_layer(label, |layer| visible = layer.is_mapped());
     visible
+}
+
+/// Mostra a camada e confere se ela apareceu de fato.
+///
+/// O gtk-layer-shell espera só 1 s pela primeira resposta do compositor; se ela atrasar (VM lenta,
+/// sistema ocupado no login), a camada é desmapeada em silêncio e fica "visível" sem aparecer.
+/// Aqui ela é mostrada de novo até aparecer, ou até alguém pedir para escondê-la.
+fn show(layer: &gtk::ApplicationWindow) {
+    layer.show_all();
+    retry_until_mapped(layer.clone(), 5);
+}
+
+fn retry_until_mapped(layer: gtk::ApplicationWindow, attempts: u32) {
+    gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(1500), move || {
+        if layer.is_visible() && !layer.is_mapped() && attempts > 0 {
+            layer.hide();
+            layer.show_all();
+            retry_until_mapped(layer, attempts - 1);
+        }
+    });
 }
 
 pub fn set_visible(label: &str, visible: bool) {
     with_layer(label, |layer| {
-        if visible && !layer.is_visible() {
-            layer.show_all();
+        if visible && !layer.is_mapped() {
+            show(layer);
         } else if !visible && layer.is_visible() {
             layer.hide();
         }
@@ -126,7 +146,7 @@ pub fn move_to_monitor_at(label: &str, x: i32, y: i32) {
             }
             layer.set_monitor(&monitor);
             if was_visible {
-                layer.show_all();
+                show(layer);
             }
         });
     }
