@@ -4,12 +4,12 @@ export XDG_CURRENT_DESKTOP=Hyprland:LUMNA
 export XDG_SESSION_DESKTOP=lumna
 export XDG_SESSION_TYPE=wayland
 
-# O WebKit (interface do shell) usa dmabuf para desenhar, o que só funciona bem com driver de GPU
-# de verdade. Em GPU virtual (VM) ou sem aceleração, cai para o caminho sem dmabuf.
+# O WebKit (interface do shell) desenha pela GPU. Em GPU virtual (VM) ou sem aceleração esse caminho
+# falha ou desenha só pedaços da tela; aí ele desenha pela CPU, que é leve para o tamanho do shell.
 driver="$(basename "$(readlink -f /sys/class/drm/renderD128/device/driver 2>/dev/null)" 2>/dev/null)"
 case "$driver" in
   amdgpu | radeon | i915 | xe) ;;
-  *) export WEBKIT_DISABLE_DMABUF_RENDERER=1 ;;
+  *) export WEBKIT_SKIA_ENABLE_CPU_RENDERING=1 ;;
 esac
 
 exec start-hyprland -- --config /usr/share/lumna/hyprland.lua
