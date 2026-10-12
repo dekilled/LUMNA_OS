@@ -19,7 +19,8 @@ local launcher = "fuzzel"
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("swaybg -m fill -i /usr/share/lumna/wallpaper.png")
-    hl.exec_cmd("lumna-shell")
+    -- A saída do shell vai para o journal: journalctl -t lumna-shell
+    hl.exec_cmd("systemd-cat -t lumna-shell lumna-shell")
 end)
 
 -----------------

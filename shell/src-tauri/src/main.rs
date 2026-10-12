@@ -26,14 +26,23 @@ fn focus_workspace(compositor: tauri::State<'_, SharedCompositor>, id: i64) -> R
 
 /// Repassa os eventos do compositor para todas as janelas. Se a conexão cair, tenta de novo.
 fn forward_events(app: tauri::AppHandle, compositor: SharedCompositor) {
-    std::thread::spawn(move || loop {
-        let result = compositor.listen(&mut |event| {
-            let _ = app.emit("lumna://compositor", event);
-        });
-        if let Err(err) = result {
-            eprintln!("lumna-shell: eventos do compositor: {err}");
+    std::thread::spawn(move || {
+        let mut wait = Duration::from_millis(500);
+        loop {
+            let mut connected = false;
+            let result = compositor.listen(&mut |event| {
+                connected = true;
+                let _ = app.emit("lumna://compositor", event);
+            });
+            if connected {
+                wait = Duration::from_millis(500);
+            }
+            if let Err(err) = result {
+                eprintln!("lumna-shell: eventos do compositor: {err} (nova tentativa em {wait:?})");
+            }
+            std::thread::sleep(wait);
+            wait = (wait * 2).min(Duration::from_secs(30));
         }
-        std::thread::sleep(Duration::from_secs(1));
     });
 }
 
