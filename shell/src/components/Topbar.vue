@@ -11,9 +11,11 @@ import {
   status,
   toggleLauncher,
   toggleMute,
+  toggleWifi,
   type Mode,
   type ModesSnapshot,
   type Status,
+  type WifiState,
 } from "../system";
 import Icon from "./Icon.vue";
 
@@ -54,7 +56,13 @@ const time = computed(() =>
 );
 
 const networkIcon = computed(() => ({ wifi: "wifi", ethernet: "ethernet", none: "offline" })[sys.value?.network ?? "none"]);
-const networkLabel = computed(() => ({ wifi: "Wi-Fi conectado", ethernet: "Cabo conectado", none: "Sem rede" })[sys.value?.network ?? "none"]);
+const wifi = ref<WifiState | null>(null);
+const networkLabel = computed(() => {
+  const net = sys.value?.network ?? "none";
+  if (net === "ethernet") return "Cabo conectado";
+  if (net === "wifi") return wifi.value?.connected ? `Wi-Fi: ${wifi.value.connected}` : "Wi-Fi conectado";
+  return "Sem rede · clique para escolher o Wi-Fi";
+});
 
 async function refresh() {
   const [ws, mons] = await Promise.all([workspaces(), monitors()]);
@@ -79,6 +87,7 @@ onMounted(async () => {
     }),
   );
   stops.push(await on<ModesSnapshot>("lumna://modes", applyModes));
+  stops.push(await on<WifiState>("lumna://wifi", (w) => (wifi.value = w)));
   sys.value = await status();
   await refresh().catch(() => {});
   monitor.value = await monitorName().catch(() => null);
@@ -128,7 +137,7 @@ onUnmounted(() => {
 
     <div class="right">
       <div v-if="sys" class="status">
-        <span class="item" :title="networkLabel"><Icon :name="networkIcon" /></span>
+        <button class="item" :title="networkLabel" @click="toggleWifi()"><Icon :name="networkIcon" /></button>
         <button
           v-if="sys.volume !== null"
           class="item"

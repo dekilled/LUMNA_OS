@@ -79,8 +79,21 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + F` | Tela cheia |
 | `Super + Shift + E` | Sair da sessão |
 
-Na topbar: clique no cristal abre o launcher, clique no volume silencia e a roda do mouse ajusta.
+Na topbar: clique no cristal abre o launcher, no ícone de rede abre o menu do Wi-Fi, clique no
+volume silencia e a roda do mouse ajusta.
 Os avisos dos apps (`notify-send`, Firefox...) aparecem no canto superior direito.
+
+## Wi-Fi
+
+Clique no ícone de rede da topbar. O menu lista as redes por perto (a mais forte primeiro), conecta
+nas abertas e nas já salvas com um clique e pede a senha nas novas. Na rede conectada ficam
+"Desconectar" e "Esquecer rede"; o botão no topo liga e desliga o Wi-Fi.
+
+![Menu do Wi-Fi](docs/wifi-menu.png)
+
+Por baixo é o **iwd**, o mesmo do pendrive do Arch: as senhas ficam salvas por ele em
+`/var/lib/iwd`. Redes com usuário e senha (empresa, faculdade) ainda não entram pelo menu; no
+terminal, `iwctl` resolve.
 
 ## Modos e telas
 

@@ -9,6 +9,7 @@ mod pad;
 mod remote;
 mod status;
 mod vdf;
+mod wifi;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -97,6 +98,19 @@ const SWITCHER: LayerSpec = LayerSpec {
     keyboard: KeyboardMode::None,
     exclusive: Exclusive::Ignore,
     size: (600, 220),
+    visible: false,
+};
+
+/// Menu do Wi-Fi: a tela toda (abaixo da topbar) para fechar com um clique fora do painel.
+/// Recebe o teclado quando clicado, para digitar a senha.
+const WIFI: LayerSpec = LayerSpec {
+    namespace: "lumna-wifi",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::OnDemand,
+    exclusive: Exclusive::None,
+    size: (-1, -1),
     visible: false,
 };
 
@@ -257,6 +271,25 @@ pub fn launcher(app: &AppHandle, action: LauncherAction) -> Result<(), String> {
 #[tauri::command]
 fn toggle_launcher(app: AppHandle) -> Result<(), String> {
     launcher(&app, LauncherAction::Toggle)
+}
+
+/// Abre ou fecha o menu do Wi-Fi no monitor da topbar que foi clicada.
+#[tauri::command]
+fn toggle_wifi(app: AppHandle, window: WebviewWindow, positions: tauri::State<'_, MonitorPositions>) -> Result<(), String> {
+    let at = positions.0.lock().unwrap().get(window.label()).copied();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        if layer::is_visible("wifi") {
+            layer::set_visible("wifi", false);
+            return;
+        }
+        if let Some((x, y)) = at {
+            layer::move_to_monitor_at("wifi", x, y);
+        }
+        layer::set_visible("wifi", true);
+        let _ = handle.emit_to("wifi", "lumna://wifi-opened", ());
+    })
+    .map_err(|e| e.to_string())
 }
 
 // ---- jogos e controle ----
@@ -569,6 +602,13 @@ fn main() {
             remote_pairing,
             remote_stop_pairing,
             remote_forget,
+            toggle_wifi,
+            wifi::wifi_state,
+            wifi::wifi_scan,
+            wifi::wifi_connect,
+            wifi::wifi_disconnect,
+            wifi::wifi_forget,
+            wifi::wifi_power,
         ])
         .setup(move |app| {
             let display = gtk::gdk::Display::default().expect("sem display GTK");
@@ -583,6 +623,7 @@ fn main() {
             create_layer(app, "notifications", &primary, &NOTIFICATIONS)?;
             create_layer(app, "launcher", &primary, &LAUNCHER)?;
             create_layer(app, "switcher", &primary, &SWITCHER)?;
+            create_layer(app, "wifi", &primary, &WIFI)?;
 
             forward_events(app.handle().clone(), compositor.clone());
             status::watch(app.handle().clone());
@@ -590,6 +631,7 @@ fn main() {
             control::listen(app.handle().clone());
             pad::watch(app.handle().clone());
             remote::start(app.handle().clone());
+            wifi::watch(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

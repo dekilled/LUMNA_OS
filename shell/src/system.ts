@@ -34,6 +34,34 @@ export const toggleMute = () => invoke<void>("toggle_mute");
 export const changeVolume = (step: number) => invoke<void>("change_volume", { step });
 export const toggleLauncher = () => invoke<void>("toggle_launcher");
 
+export interface WifiNetwork {
+  path: string;
+  name: string;
+  security: "open" | "psk" | "8021x" | string;
+  /** 0 a 4 tracinhos. */
+  signal: number;
+  known: boolean;
+  connected: boolean;
+}
+
+export interface WifiState {
+  available: boolean;
+  powered: boolean;
+  scanning: boolean;
+  state: string;
+  connected: string | null;
+  networks: WifiNetwork[];
+}
+
+export const toggleWifi = () => invoke<void>("toggle_wifi");
+export const wifiState = () => invoke<WifiState>("wifi_state");
+export const wifiScan = () => invoke<void>("wifi_scan");
+export const wifiConnect = (path: string, passphrase?: string) =>
+  invoke<void>("wifi_connect", { path, passphrase: passphrase ?? null });
+export const wifiDisconnect = () => invoke<void>("wifi_disconnect");
+export const wifiForget = (path: string) => invoke<void>("wifi_forget", { path });
+export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
+
 /** Ajusta a camada desta janela ao tamanho do conteúdo. */
 export const layerResize = (width: number, height: number) =>
   invoke<void>("layer_resize", { width: Math.ceil(width), height: Math.ceil(height) });

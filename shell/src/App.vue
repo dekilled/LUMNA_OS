@@ -6,6 +6,7 @@ import ModeScreen from "./components/ModeScreen.vue";
 import Notifications from "./components/Notifications.vue";
 import Switcher from "./components/Switcher.vue";
 import Topbar from "./components/Topbar.vue";
+import WifiMenu from "./components/WifiMenu.vue";
 
 // Cada janela do shell carrega o mesmo app; o rótulo diz qual peça desenhar.
 const label = getCurrentWebviewWindow().label;
@@ -18,4 +19,5 @@ const label = getCurrentWebviewWindow().label;
   <Notifications v-else-if="label === 'notifications'" />
   <ModeScreen v-else-if="label.startsWith('mode-')" />
   <Switcher v-else-if="label === 'switcher'" />
+  <WifiMenu v-else-if="label === 'wifi'" />
 </template>

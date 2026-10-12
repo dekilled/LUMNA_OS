@@ -108,6 +108,15 @@ hl.layer_rule({
     ignore_alpha = 0.3,
 })
 
+-- Menu do Wi-Fi: a camada cobre a tela (clique fora fecha), mas só o painel é vidro.
+hl.layer_rule({
+    name = "lumna-wifi",
+    match = { namespace = "^lumna-wifi$" },
+    blur = true,
+    ignore_alpha = 0.3,
+    no_anim = true,
+})
+
 hl.layer_rule({
     name = "lumna-notifications-blur",
     match = { namespace = "^lumna-notifications$" },
