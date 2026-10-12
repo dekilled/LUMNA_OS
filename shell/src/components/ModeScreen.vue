@@ -23,37 +23,37 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 </script>
 
 <template>
-  <Transition name="mode" mode="out-in">
-    <main v-if="mode === 'gaming'" key="gaming" class="screen gaming">
-      <h1>Sua biblioteca</h1>
-      <nav class="chips">
-        <span class="chip active">Todos</span>
-        <span class="chip">Ação</span>
-        <span class="chip">Corrida</span>
-        <span class="chip">Aventura</span>
-        <span class="chip">RPG</span>
-        <span class="chip">Estratégia</span>
-      </nav>
-      <section class="empty">
-        <strong>Seus jogos aparecem aqui</strong>
-        <p>A biblioteca da Steam, do Heroic e do Lutris chega na Fase 3.</p>
-      </section>
-    </main>
+  <!-- Sem <Transition>: enquanto a camada está escondida o WebKit não desenha quadros, e uma
+       transição "out-in" ficaria parada no meio, mostrando o modo anterior. A entrada é uma
+       animação CSS, que começa quando a camada aparece. -->
+  <main v-if="mode === 'gaming'" key="gaming" class="screen gaming">
+    <h1>Sua biblioteca</h1>
+    <nav class="chips">
+      <span class="chip active">Todos</span>
+      <span class="chip">Ação</span>
+      <span class="chip">Corrida</span>
+      <span class="chip">Aventura</span>
+      <span class="chip">RPG</span>
+      <span class="chip">Estratégia</span>
+    </nav>
+    <section class="empty">
+      <strong>Seus jogos aparecem aqui</strong>
+      <p>A biblioteca da Steam, do Heroic e do Lutris chega na Fase 3.</p>
+    </section>
+  </main>
 
-    <main v-else-if="mode === 'media'" key="media" class="screen media">
-      <h1>Início</h1>
-      <section class="empty">
-        <strong>Streaming e seus vídeos aparecem aqui</strong>
-        <p>Netflix, YouTube, Prime Video, Disney+ e os vídeos locais chegam na Fase 4.</p>
-      </section>
-    </main>
-
-    <div v-else key="desktop" />
-  </Transition>
+  <main v-else-if="mode === 'media'" key="media" class="screen media">
+    <h1>Início</h1>
+    <section class="empty">
+      <strong>Streaming e seus vídeos aparecem aqui</strong>
+      <p>Netflix, YouTube, Prime Video, Disney+ e os vídeos locais chegam na Fase 4.</p>
+    </section>
+  </main>
 </template>
 
 <style scoped>
 .screen {
+  animation: enter 320ms cubic-bezier(0.22, 1, 0.36, 1);
   position: fixed;
   inset: 0;
   padding: 48px 64px;
@@ -115,15 +115,10 @@ h1 {
   margin: 0;
 }
 
-.mode-enter-active,
-.mode-leave-active {
-  transition: opacity 260ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.mode-enter-from {
-  opacity: 0;
-  transform: scale(1.02);
-}
-.mode-leave-to {
-  opacity: 0;
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
 }
 </style>
