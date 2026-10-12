@@ -71,7 +71,7 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + Tab` | Próximo modo: Desktop → Gaming → Mídia (`Super + Shift + Tab` volta) |
 | `Super + Espaço` | Launcher de apps (busca sem acento; setas e Enter; Esc fecha) |
 | `Super + Enter` | Terminal |
-| `Super + E` | Arquivos (Thunar) |
+| `Super + E` | Arquivos |
 | `Super + B` | Firefox |
 | `Super + I` | Configurações |
 | `Super + L` | Loja |
@@ -114,6 +114,38 @@ terminal, `iwctl` resolve.
 Por baixo: iwd (Wi-Fi), BlueZ (Bluetooth), PipeWire (som), CUPS + Avahi (impressoras).
 
 ![Configurações](docs/configuracoes.png)
+
+## Arquivos
+
+O explorador de arquivos do LUMNA (`Super + E`, o primeiro ícone do dock, ou qualquer programa que
+peça para abrir uma pasta).
+
+- **Lugares** (Início, Documentos, Downloads, Imagens, Músicas, Vídeos, Computador), **Discos**
+  (pendrives e outras partições: um clique monta, o botão ao lado ejeta) e a **Lixeira**.
+- Grade com miniaturas de fotos e vídeos, ou lista com colunas que ordenam; painel de detalhes
+  (tamanho, inclusive de pastas, data, permissões, local).
+- Menu próprio no botão direito: abrir, abrir em nova janela, copiar, recortar, colar, renomear,
+  copiar caminho, mover para a lixeira, nova pasta, abrir terminal aqui, mostrar ocultos.
+- A lixeira é a mesma dos outros programas (padrão freedesktop): restaura para o lugar de origem
+  ou apaga de vez.
+- A área de transferência vale entre janelas do Arquivos: copie numa, cole na outra.
+
+| Atalho | Ação |
+|---|---|
+| Enter / clique duplo | Abrir |
+| `Backspace`, `Alt + ←` / `Alt + →` | Voltar / avançar |
+| `Alt + ↑` | Pasta acima |
+| `Ctrl + C` / `X` / `V` | Copiar / recortar / colar |
+| `F2` | Renomear |
+| `Delete` | Mover para a lixeira |
+| `Ctrl + Shift + N` | Nova pasta |
+| `Ctrl + L` | Digitar o caminho |
+| `Ctrl + F` | Filtrar a pasta |
+| `Ctrl + H` | Mostrar ou esconder ocultos |
+| `Ctrl + N` | Nova janela |
+| Digitar letras | Pula para o arquivo com esse nome |
+
+![Arquivos](docs/arquivos.png)
 
 ## Loja
 

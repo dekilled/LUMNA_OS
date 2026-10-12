@@ -158,7 +158,7 @@ local mod = "SUPER"
 
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mod .. " + Space", hl.dsp.exec_cmd("lumna-ctl launcher toggle"))
-hl.bind(mod .. " + E", hl.dsp.exec_cmd("thunar"))
+hl.bind(mod .. " + E", hl.dsp.exec_cmd("lumna-ctl files"))
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("firefox"))
 hl.bind(mod .. " + I", hl.dsp.exec_cmd("lumna-ctl settings"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("lumna-ctl store"))

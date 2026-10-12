@@ -212,6 +212,82 @@ export const storeSetMultilib = (on: boolean) => invoke<void>("store_set_multili
 export const storeSetFlathub = (on: boolean) => invoke<void>("store_set_flathub", { on });
 export const storeSetAur = (on: boolean) => invoke<void>("store_set_aur", { on });
 
+// ---- Arquivos ----
+
+export type FileKind =
+  | "folder" | "image" | "video" | "audio" | "document" | "sheet" | "slides" | "pdf"
+  | "archive" | "code" | "text" | "app" | "disk" | "file";
+export interface FileEntry {
+  name: string;
+  path: string;
+  dir: boolean;
+  link: boolean;
+  size: number;
+  modified: number;
+  kind: FileKind;
+  hidden: boolean;
+}
+export interface Listing {
+  path: string;
+  parent: string | null;
+  writable: boolean;
+  entries: FileEntry[];
+}
+export interface Place {
+  name: string;
+  path: string;
+  icon: string;
+}
+export interface Drive {
+  device: string;
+  label: string;
+  size: number;
+  mountpoint: string | null;
+  removable: boolean;
+  fstype: string;
+}
+export interface Places {
+  home: string;
+  places: Place[];
+  trash: number;
+  drives: Drive[];
+}
+export interface TrashItem {
+  id: string;
+  name: string;
+  original: string;
+  deleted: string;
+  dir: boolean;
+  kind: FileKind;
+}
+export interface FileInfo {
+  path: string;
+  size: number;
+  items: number;
+  modified: number;
+  accessed: number;
+  mode: string;
+  owner: string;
+}
+export const filesWindow = (path?: string) => invoke<void>("files_window", { path: path ?? null });
+export const filesList = (path: string, hidden: boolean) => invoke<Listing>("files_list", { path, hidden });
+export const filesStamp = (path: string) => invoke<number>("files_stamp", { path });
+export const filesPlaces = () => invoke<Places>("files_places");
+export const filesOpen = (path: string) => invoke<void>("files_open", { path });
+export const filesTerminal = (path: string) => invoke<void>("files_terminal", { path });
+export const filesMkdir = (parent: string, name: string) => invoke<string>("files_mkdir", { parent, name });
+export const filesRename = (path: string, name: string) => invoke<string>("files_rename", { path, name });
+export const filesTrash = (paths: string[]) => invoke<void>("files_trash", { paths });
+export const filesPaste = (sources: string[], dest: string, cut: boolean) => invoke<string[]>("files_paste", { sources, dest, cut });
+export const filesTrashList = () => invoke<TrashItem[]>("files_trash_list");
+export const filesTrashRestore = (ids: string[]) => invoke<void>("files_trash_restore", { ids });
+export const filesTrashDelete = (ids: string[] | null) => invoke<void>("files_trash_delete", { ids });
+export const filesMount = (device: string) => invoke<string>("files_mount", { device });
+export const filesUnmount = (device: string) => invoke<void>("files_unmount", { device });
+export const filesInfo = (path: string) => invoke<FileInfo>("files_info", { path });
+export const filesThumb = (path: string) => invoke<string | null>("files_thumb", { path });
+export { convertFileSrc };
+
 /** Ajusta a camada desta janela ao tamanho do conteúdo. */
 export const layerResize = (width: number, height: number) =>
   invoke<void>("layer_resize", { width: Math.ceil(width), height: Math.ceil(height) });

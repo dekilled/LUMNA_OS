@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Arquivos
+Comment=Suas pastas, pendrives e a lixeira
+Exec=lumna-ctl files %U
+Icon=/usr/share/lumna/icons/files.svg
+Categories=System;FileManager;
+MimeType=inode/directory;
+Keywords=arquivos;pastas;explorador;files;folder;pendrive;lixeira;

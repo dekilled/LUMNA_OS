@@ -9,6 +9,11 @@ use crate::modes::{Layout, Mode, Target};
 use crate::LauncherAction;
 
 fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
+    // O caminho do Explorador pode ter espaços: vale o resto da linha.
+    if command == "files" || command.starts_with("files ") {
+        let path = command["files".len()..].trim();
+        return crate::open_files(app, (!path.is_empty()).then(|| path.to_string()));
+    }
     match command.split_whitespace().collect::<Vec<_>>().as_slice() {
         ["launcher", "toggle"] => crate::launcher(app, LauncherAction::Toggle),
         ["launcher", "open"] => crate::launcher(app, LauncherAction::Open),

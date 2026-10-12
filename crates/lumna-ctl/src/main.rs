@@ -18,7 +18,8 @@ comandos:
   settings [rede|bluetooth|som|impressoras|sistema]
                                      abre as Configurações (na página pedida)
   store [descobrir|instalados|atualizacoes|fontes]
-                                     abre a Loja (na aba pedida)";
+                                     abre a Loja (na aba pedida)
+  files [CAMINHO]                    abre o Explorador de arquivos (numa pasta)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();

@@ -2,6 +2,7 @@ mod apps;
 mod audio;
 mod bluetooth;
 mod control;
+mod files;
 mod games;
 mod layer;
 mod media;
@@ -388,6 +389,32 @@ async fn store_open(app: AppHandle, tab: Option<String>) -> Result<(), String> {
     open_store(&app, tab)
 }
 
+/// Abre uma janela do Explorador (cada chamada é uma janela nova, como num desktop comum).
+pub fn open_files(app: &AppHandle, path: Option<String>) -> Result<(), String> {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+    let label = format!("files-{}", NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    let path = path.map(|p| files::percent_decode(p.trim().trim_start_matches("file://"))).unwrap_or_default();
+    // O caminho vai no fragmento da URL, codificado (pode ter espaço, acento, #).
+    let fragment: String = path
+        .bytes()
+        .map(|b| if b.is_ascii_alphanumeric() || b"/-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .collect();
+    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html#{fragment}").into()))
+        .title("Arquivos")
+        .inner_size(1100.0, 700.0)
+        .min_inner_size(640.0, 420.0)
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn files_window(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    open_files(&app, path)
+}
+
 // ---- jogos e controle ----
 
 /// Relê a biblioteca (jogos instalados ou removidos aparecem sem reiniciar o shell).
@@ -701,6 +728,23 @@ fn main() {
             toggle_wifi,
             settings_open,
             store_open,
+            files_window,
+            files::files_list,
+            files::files_stamp,
+            files::files_places,
+            files::files_open,
+            files::files_terminal,
+            files::files_mkdir,
+            files::files_rename,
+            files::files_trash,
+            files::files_paste,
+            files::files_trash_list,
+            files::files_trash_restore,
+            files::files_trash_delete,
+            files::files_mount,
+            files::files_unmount,
+            files::files_info,
+            files::files_thumb,
             polkit::auth_respond,
             store::store_search,
             store::store_installed,

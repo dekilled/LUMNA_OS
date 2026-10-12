@@ -9,13 +9,15 @@ license=(GPL-3.0-or-later)
 depends=(
   lumna-shell hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
   swaybg foot pipewire pipewire-pulse wireplumber polkit
-  firefox thunar mousepad gvfs
+  firefox mousepad gvfs
   mpv mpv-mpris ffmpeg playerctl wtype
   noto-fonts noto-fonts-emoji inter-font
   # Configurações: Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware
   iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
   # Loja: Flatpak, AUR (git + base-devel para compilar) e checkupdates (pacman-contrib)
   flatpak git base-devel pacman-contrib curl
+  # Arquivos: lixeira e abrir com o programa padrão (gio), discos e pendrives (udisks)
+  glib2 udisks2 xdg-utils
 )
 
 _root="$(realpath "$startdir/../..")"
@@ -30,6 +32,9 @@ package() {
   install -Dm644 icons/settings.svg "$pkgdir/usr/share/lumna/icons/settings.svg"
   install -Dm644 lumna-store.desktop "$pkgdir/usr/share/applications/lumna-store.desktop"
   install -Dm644 icons/store.svg "$pkgdir/usr/share/lumna/icons/store.svg"
+  install -Dm644 lumna-files.desktop "$pkgdir/usr/share/applications/lumna-files.desktop"
+  install -Dm644 icons/files.svg "$pkgdir/usr/share/lumna/icons/files.svg"
+  install -Dm644 mimeapps.list "$pkgdir/usr/share/applications/mimeapps.list"
   install -Dm755 lumna-pkg "$pkgdir/usr/lib/lumna/lumna-pkg"
   install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
 }

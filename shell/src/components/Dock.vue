@@ -5,7 +5,7 @@ import { apps, fitLayerTo, launchApp, toggleLauncher, type App } from "../system
 import Icon from "./Icon.vue";
 
 // Apps fixos do dock, pelo id do `.desktop`. Os que não estiverem instalados não aparecem.
-const PINNED = ["thunar", "firefox", "org.xfce.mousepad", "foot"];
+const PINNED = ["lumna-files", "firefox", "org.xfce.mousepad", "foot"];
 
 const installed = ref<App[]>([]);
 const open = ref<Window[]>([]);

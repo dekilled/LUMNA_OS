@@ -50,7 +50,7 @@ Para não ficar preso ao Hyprland, o lado Rust conversa com o compositor por uma
 | Gerenciamento de janelas fluido | **Alta** | Vem do compositor (animações e blur do Hyprland) |
 | Troca de modo com `Super + Tab` | **Alta** | Atalho no compositor chama `lumna-ctl mode next`; o shell troca workspaces e interface |
 | Multi-monitor (um modo por tela / estender) | **Alta** | Workspaces presos a monitores via IPC; o shell abre uma topbar por monitor |
-| Modo Desktop | **Alta** | Apps comuns. Gerenciador de arquivos e notas da imagem: usar apps prontos (Nautilus/Thunar) no começo |
+| Modo Desktop | **Alta** | Apps comuns. Gerenciador de arquivos próprio (o "Arquivos" do LUMNA); para notas, apps prontos no começo |
 | Modo Gaming | **Alta** como launcher | Lê a biblioteca da Steam (`appmanifest_*.acf`), Heroic e Lutris; capas pela Steam ou SteamGridDB; abre com `steam://rungameid/<id>` |
 | Modo Mídia, vídeos locais e YouTube | **Alta** | mpv/Jellyfin para locais; YouTube funciona sem DRM |
 | Modo Mídia, Netflix, Prime, Disney+ | **Média, com limites** | Ver seção 3 |
