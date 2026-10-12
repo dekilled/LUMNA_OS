@@ -160,6 +160,58 @@ export interface SystemInfo {
 }
 export const systemInfo = () => invoke<SystemInfo>("system_info");
 
+// ---- senha de administrador (polkit) ----
+
+export interface AuthRequest {
+  cookie: string;
+  message: string;
+  action: string;
+  user: string;
+  error: string | null;
+}
+export const authRespond = (cookie: string, password: string | null) => invoke<void>("auth_respond", { cookie, password });
+
+// ---- Loja ----
+
+export type StoreSource = "arch" | "flathub" | "aur";
+export type StoreTab = "descobrir" | "instalados" | "atualizacoes" | "fontes";
+export interface StorePackage {
+  source: StoreSource;
+  name: string;
+  title: string;
+  summary: string;
+  version: string;
+  repo: string;
+  installed: boolean;
+  icon: string | null;
+  essential: boolean;
+}
+export interface StoreUpdate {
+  source: StoreSource;
+  name: string;
+  from: string;
+  to: string;
+}
+export interface StoreSources {
+  multilib: boolean;
+  flatpak: boolean;
+  flathub: boolean;
+  aur: boolean;
+  aur_tools: boolean;
+}
+export const storeOpen = (tab?: StoreTab) => invoke<void>("store_open", { tab: tab ?? null });
+export const storeSearch = (query: string) => invoke<StorePackage[]>("store_search", { query });
+export const storeInstalled = () => invoke<StorePackage[]>("store_installed");
+export const storeUpdates = () => invoke<StoreUpdate[]>("store_updates");
+export const storeSources = () => invoke<StoreSources>("store_sources");
+export const storeInstall = (p: Pick<StorePackage, "source" | "name" | "repo">) =>
+  invoke<void>("store_install", { source: p.source, name: p.name, repo: p.repo });
+export const storeRemove = (p: Pick<StorePackage, "source" | "name">) => invoke<void>("store_remove", { source: p.source, name: p.name });
+export const storeUpgrade = (source: StoreSource) => invoke<void>("store_upgrade", { source });
+export const storeSetMultilib = (on: boolean) => invoke<void>("store_set_multilib", { on });
+export const storeSetFlathub = (on: boolean) => invoke<void>("store_set_flathub", { on });
+export const storeSetAur = (on: boolean) => invoke<void>("store_set_aur", { on });
+
 /** Ajusta a camada desta janela ao tamanho do conteúdo. */
 export const layerResize = (width: number, height: number) =>
   invoke<void>("layer_resize", { width: Math.ceil(width), height: Math.ceil(height) });

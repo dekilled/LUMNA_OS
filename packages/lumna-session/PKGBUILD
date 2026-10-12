@@ -14,6 +14,8 @@ depends=(
   noto-fonts noto-fonts-emoji inter-font
   # Configurações: Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware
   iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
+  # Loja: Flatpak, AUR (git + base-devel para compilar) e checkupdates (pacman-contrib)
+  flatpak git base-devel pacman-contrib curl
 )
 
 _root="$(realpath "$startdir/../..")"
@@ -26,4 +28,8 @@ package() {
   install -Dm644 lumna.desktop "$pkgdir/usr/share/wayland-sessions/lumna.desktop"
   install -Dm644 lumna-settings.desktop "$pkgdir/usr/share/applications/lumna-settings.desktop"
   install -Dm644 icons/settings.svg "$pkgdir/usr/share/lumna/icons/settings.svg"
+  install -Dm644 lumna-store.desktop "$pkgdir/usr/share/applications/lumna-store.desktop"
+  install -Dm644 icons/store.svg "$pkgdir/usr/share/lumna/icons/store.svg"
+  install -Dm755 lumna-pkg "$pkgdir/usr/lib/lumna/lumna-pkg"
+  install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
 }

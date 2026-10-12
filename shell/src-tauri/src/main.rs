@@ -9,9 +9,11 @@ mod modes;
 mod network;
 mod notifications;
 mod pad;
+mod polkit;
 mod printers;
 mod remote;
 mod status;
+mod store;
 mod system_info;
 mod vdf;
 mod wifi;
@@ -115,6 +117,18 @@ const WIFI: LayerSpec = LayerSpec {
     margins: &[],
     keyboard: KeyboardMode::OnDemand,
     exclusive: Exclusive::None,
+    size: (-1, -1),
+    visible: false,
+};
+
+/// Pedido de senha de administrador (polkit): cobre a tela e prende o teclado até responder.
+const AUTH: LayerSpec = LayerSpec {
+    namespace: "lumna-auth",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
     size: (-1, -1),
     visible: false,
 };
@@ -324,6 +338,54 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
 #[tauri::command]
 async fn settings_open(app: AppHandle, page: Option<String>) -> Result<(), String> {
     open_settings(&app, page)
+}
+
+/// Mostra (com o pedido) ou esconde a tela de senha, no monitor em foco.
+pub fn auth_layer(app: &AppHandle, request: Option<polkit::Request>) {
+    let focused = app.state::<SharedCompositor>().monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused));
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || match request {
+        Some(request) => {
+            if !layer::is_visible("auth") {
+                if let Some(monitor) = &focused {
+                    layer::move_to_monitor_at("auth", monitor.x, monitor.y);
+                }
+                layer::set_visible("auth", true);
+            }
+            let _ = handle.emit_to("auth", "lumna://auth-request", request);
+        }
+        None => {
+            layer::set_visible("auth", false);
+            let _ = handle.emit_to("auth", "lumna://auth-done", ());
+        }
+    });
+}
+
+/// Abre a Loja (janela comum), na aba pedida.
+pub fn open_store(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("store") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(tab) = tab {
+            let _ = window.emit_to("store", "lumna://store-tab", tab);
+        }
+        return Ok(());
+    }
+    let url = format!("index.html#{}", tab.unwrap_or_default());
+    WebviewWindowBuilder::new(app, "store", WebviewUrl::App(url.into()))
+        .title("Loja")
+        .inner_size(1100.0, 720.0)
+        .min_inner_size(800.0, 540.0)
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn store_open(app: AppHandle, tab: Option<String>) -> Result<(), String> {
+    open_store(&app, tab)
 }
 
 // ---- jogos e controle ----
@@ -638,6 +700,18 @@ fn main() {
             remote_forget,
             toggle_wifi,
             settings_open,
+            store_open,
+            polkit::auth_respond,
+            store::store_search,
+            store::store_installed,
+            store::store_updates,
+            store::store_sources,
+            store::store_install,
+            store::store_remove,
+            store::store_upgrade,
+            store::store_set_multilib,
+            store::store_set_flathub,
+            store::store_set_aur,
             network::network_interfaces,
             bluetooth::bluetooth_state,
             bluetooth::bluetooth_power,
@@ -679,6 +753,7 @@ fn main() {
             create_layer(app, "launcher", &primary, &LAUNCHER)?;
             create_layer(app, "switcher", &primary, &SWITCHER)?;
             create_layer(app, "wifi", &primary, &WIFI)?;
+            create_layer(app, "auth", &primary, &AUTH)?;
 
             forward_events(app.handle().clone(), compositor.clone());
             status::watch(app.handle().clone());
@@ -688,6 +763,7 @@ fn main() {
             remote::start(app.handle().clone());
             wifi::watch(app.handle().clone());
             bluetooth::watch(app.handle().clone());
+            polkit::start(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

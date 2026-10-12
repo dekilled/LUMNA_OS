@@ -74,6 +74,7 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + E` | Arquivos (Thunar) |
 | `Super + B` | Firefox |
 | `Super + I` | Configurações |
+| `Super + L` | Loja |
 | `Super + Q` | Fechar janela |
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
@@ -113,6 +114,34 @@ terminal, `iwctl` resolve.
 Por baixo: iwd (Wi-Fi), BlueZ (Bluetooth), PipeWire (som), CUPS + Avahi (impressoras).
 
 ![Configurações](docs/configuracoes.png)
+
+## Loja
+
+`Super + L` ou o app "Loja" no launcher. Programas de três fontes, numa busca só:
+
+| Fonte | O que é | Senha |
+|---|---|---|
+| **Arch** | Repositórios oficiais (`pacman`): o sistema e os programas mais testados | Sim (uma vez a cada alguns minutos) |
+| **Flathub** | Apps isolados (`flatpak --user`): Spotify, Discord, OBS... | Não: instalam só para você |
+| **AUR** | Pacotes da comunidade, compilados aqui com o `makepkg` | Sim, na hora de instalar |
+
+- **Descobrir**: uma seleção para jogar, música e vídeo, trabalho e navegadores, já na fonte que
+  funciona melhor no LUMNA (ex.: Steam do Arch, Spotify do Flathub, VS Code do AUR).
+- **Instalados**: tudo o que você instalou, por fonte. Peças essenciais (kernel, pacman, LUMNA)
+  não podem ser removidas pela Loja.
+- **Atualizações**: o que tem de novo em cada fonte (`checkupdates`, sem mexer no sistema) e um
+  botão para atualizar cada uma.
+- **Fontes**: liga o multilib (32 bits, para a Steam e o Wine), o Flathub e o AUR.
+
+![Loja](docs/loja.png)
+
+Quando algo precisa de administrador, quem pede a senha é o próprio LUMNA: o shell é o agente do
+polkit, e qualquer programa que use o polkit (a Loja, o `pkexec`, o Flatpak) mostra esta tela:
+
+![Senha de administrador](docs/senha.png)
+
+No live, a senha é `lumna`. As operações de pacote rodam pelo `/usr/lib/lumna/lumna-pkg`
+(política `os.lumna.pkg`).
 
 ## Modos e telas
 

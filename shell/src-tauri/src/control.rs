@@ -26,6 +26,8 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
             crate::pad_action(app, action);
             Ok(())
         }
+        ["store"] => crate::open_store(app, None),
+        ["store", tab] => crate::open_store(app, Some(tab.to_string())),
         ["settings"] => crate::open_settings(app, None),
         ["settings", page] => crate::open_settings(app, Some(page.to_string())),
         _ => Err(format!("comando desconhecido: {command:?}")),

@@ -117,6 +117,14 @@ hl.layer_rule({
     no_anim = true,
 })
 
+-- Senha de administrador: véu escuro com blur na tela toda, como o launcher.
+hl.layer_rule({
+    name = "lumna-auth",
+    match = { namespace = "^lumna-auth$" },
+    blur = true,
+    no_anim = true,
+})
+
 hl.layer_rule({
     name = "lumna-notifications-blur",
     match = { namespace = "^lumna-notifications$" },
@@ -153,6 +161,7 @@ hl.bind(mod .. " + Space", hl.dsp.exec_cmd("lumna-ctl launcher toggle"))
 hl.bind(mod .. " + E", hl.dsp.exec_cmd("thunar"))
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("firefox"))
 hl.bind(mod .. " + I", hl.dsp.exec_cmd("lumna-ctl settings"))
+hl.bind(mod .. " + L", hl.dsp.exec_cmd("lumna-ctl store"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))

@@ -16,7 +16,9 @@ comandos:
   pad up|down|left|right|accept|back|menu|guide
                                      simula o controle (testes e controle remoto)
   settings [rede|bluetooth|som|impressoras|sistema]
-                                     abre as Configurações (na página pedida)";
+                                     abre as Configurações (na página pedida)
+  store [descobrir|instalados|atualizacoes|fontes]
+                                     abre a Loja (na aba pedida)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();

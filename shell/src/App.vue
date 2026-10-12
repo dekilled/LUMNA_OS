@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import AuthDialog from "./components/AuthDialog.vue";
 import Dock from "./components/Dock.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
 import Notifications from "./components/Notifications.vue";
 import SettingsApp from "./components/settings/SettingsApp.vue";
+import StoreApp from "./components/store/StoreApp.vue";
 import Switcher from "./components/Switcher.vue";
 import Topbar from "./components/Topbar.vue";
 import WifiMenu from "./components/WifiMenu.vue";
@@ -22,4 +24,6 @@ const label = getCurrentWebviewWindow().label;
   <Switcher v-else-if="label === 'switcher'" />
   <WifiMenu v-else-if="label === 'wifi'" />
   <SettingsApp v-else-if="label === 'settings'" />
+  <StoreApp v-else-if="label === 'store'" />
+  <AuthDialog v-else-if="label === 'auth'" />
 </template>
