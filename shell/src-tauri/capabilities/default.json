@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissões das janelas do shell",
-  "windows": ["topbar-*", "dock", "launcher", "notifications"],
+  "windows": ["topbar-*", "mode-*", "dock", "launcher", "notifications", "switcher"],
   "permissions": ["core:default"]
 }

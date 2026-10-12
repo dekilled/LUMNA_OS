@@ -1,7 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { focusWorkspace, monitors, onCompositorEvent, workspaces, type Workspace } from "../compositor";
-import { changeVolume, on, status, toggleLauncher, toggleMute, type Status } from "../system";
+import {
+  changeVolume,
+  MODE_LABEL,
+  modes,
+  monitorName,
+  on,
+  showSwitcher,
+  status,
+  toggleLauncher,
+  toggleMute,
+  type Mode,
+  type ModesSnapshot,
+  type Status,
+} from "../system";
 import Icon from "./Icon.vue";
 
 // Sempre mostra os workspaces 1 a 5, como no Desktop do mockup; outros aparecem quando existem.
@@ -11,9 +24,19 @@ const list = ref<Workspace[]>([]);
 const active = ref(1);
 const now = ref(new Date());
 const sys = ref<Status | null>(null);
+const monitor = ref<string | null>(null);
+const mode = ref<Mode>("desktop");
+
+const MODE_ICON: Record<Mode, string> = { desktop: "desktop", gaming: "gamepad", media: "play" };
+
+function applyModes(snapshot: ModesSnapshot) {
+  if (monitor.value) mode.value = snapshot.modes[monitor.value] ?? "desktop";
+}
 
 const shown = computed(() => {
-  const ids = new Set([...FIXED, ...list.value.filter((w) => w.id > 0).map((w) => w.id)]);
+  // Só os workspaces numerados; os com nome são dos modos Gaming e Mídia.
+  const numbered = list.value.filter((w) => /^\d+$/.test(w.name)).map((w) => w.id);
+  const ids = new Set([...FIXED, ...numbered]);
   return [...ids].sort((a, b) => a - b).map((id) => ({
     id,
     busy: (list.value.find((w) => w.id === id)?.windows ?? 0) > 0,
@@ -55,8 +78,11 @@ onMounted(async () => {
       else if (event.kind === "workspaces_changed" || event.kind === "monitors_changed") refresh().catch(() => {});
     }),
   );
+  stops.push(await on<ModesSnapshot>("lumna://modes", applyModes));
   sys.value = await status();
   await refresh().catch(() => {});
+  monitor.value = await monitorName().catch(() => null);
+  applyModes(await modes());
 });
 
 onUnmounted(() => {
@@ -81,10 +107,15 @@ onUnmounted(() => {
         </svg>
         <span>LUMNA</span>
       </button>
-      <span class="mode">Desktop</span>
+      <button class="mode" title="Alternar modo (Super + Tab)" @click="showSwitcher()">
+        <Icon :name="MODE_ICON[mode]" :size="14" />
+        {{ MODE_LABEL[mode] }}
+      </button>
     </div>
 
-    <nav class="workspaces">
+    <!-- Fora do Desktop os workspaces numerados não valem; o centro fica livre. -->
+    <span v-if="mode !== 'desktop'" />
+    <nav v-else class="workspaces">
       <button
         v-for="w in shown"
         :key="w.id"
@@ -170,8 +201,20 @@ button {
 }
 
 .mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
   color: var(--lumna-muted);
+  transition: background-color 160ms ease, color 160ms ease;
 }
+.mode:hover {
+  background: rgba(167, 139, 250, 0.14);
+  color: var(--lumna-text);
+}
+
 
 .workspaces {
   display: flex;

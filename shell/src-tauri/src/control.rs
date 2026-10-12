@@ -5,6 +5,7 @@ use std::os::unix::net::UnixListener;
 
 use tauri::AppHandle;
 
+use crate::modes::{Layout, Mode, Target};
 use crate::LauncherAction;
 
 fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
@@ -12,6 +13,14 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         ["launcher", "toggle"] => crate::launcher(app, LauncherAction::Toggle),
         ["launcher", "open"] => crate::launcher(app, LauncherAction::Open),
         ["launcher", "close"] => crate::launcher(app, LauncherAction::Close),
+        ["mode", "next"] => crate::switch_mode(app, Target::Next),
+        ["mode", "prev"] => crate::switch_mode(app, Target::Prev),
+        ["mode", "layout", "per-screen"] => crate::set_layout(app, Layout::PerScreen),
+        ["mode", "layout", "extend"] => crate::set_layout(app, Layout::Extend),
+        ["mode", name] => {
+            let mode = Mode::parse(name).ok_or_else(|| format!("modo desconhecido: {name}"))?;
+            crate::switch_mode(app, Target::Set(mode))
+        }
         _ => Err(format!("comando desconhecido: {command:?}")),
     }
 }

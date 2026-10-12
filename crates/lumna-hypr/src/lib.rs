@@ -61,12 +61,16 @@ fn text(v: &Value, key: &str) -> String {
     v.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
 }
 
-/// Monta `hl.dsp.exec_cmd(...)` com o comando numa string longa do Lua, que não interpreta escapes.
-fn lua_exec(command: &str) -> Result<String> {
-    if command.contains("]==]") || command.contains('\n') {
-        return Err(format!("comando não pode ser passado ao Hyprland: {command:?}"));
+/// Texto como string longa do Lua (`[==[...]==]`), que não interpreta escapes.
+fn lua_string(text: &str) -> Result<String> {
+    if text.contains("]==]") || text.contains('\n') {
+        return Err(format!("texto não pode ser passado ao Hyprland: {text:?}"));
     }
-    Ok(format!("hl.dsp.exec_cmd([==[{command}]==])"))
+    Ok(format!("[==[{text}]==]"))
+}
+
+fn lua_exec(command: &str) -> Result<String> {
+    Ok(format!("hl.dsp.exec_cmd({})", lua_string(command)?))
 }
 
 /// Converte uma linha do socket de eventos. Devolve vazio para eventos que o shell ignora.
@@ -132,6 +136,7 @@ impl Compositor for Hyprland {
                 name: text(m, "name"),
                 focused: m.get("focused").and_then(Value::as_bool).unwrap_or(false),
                 active_workspace: m.get("activeWorkspace").map(|w| int(w, "id")).unwrap_or_default(),
+                active_workspace_name: m.get("activeWorkspace").map(|w| text(w, "name")).unwrap_or_default(),
                 x: int(m, "x") as i32,
                 y: int(m, "y") as i32,
             })
@@ -152,6 +157,16 @@ impl Compositor for Hyprland {
                 workspace: c.get("workspace").map(|w| int(w, "id")).unwrap_or_default(),
             })
             .collect())
+    }
+
+    fn focus_named_workspace(&self, name: &str) -> Result<()> {
+        let selector = lua_string(&format!("name:{name}"))?;
+        self.dispatch(&format!("hl.dsp.focus({{ workspace = {selector} }})"), &format!("workspace name:{name}"))
+    }
+
+    fn focus_monitor(&self, name: &str) -> Result<()> {
+        let selector = lua_string(name)?;
+        self.dispatch(&format!("hl.dsp.focus({{ monitor = {selector} }})"), &format!("focusmonitor {name}"))
     }
 
     fn exec(&self, command: &str) -> Result<()> {

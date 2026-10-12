@@ -71,6 +71,10 @@ impl Server {
             timeout,
             urgent,
         };
+        // Gaming e Mídia ficam em "não perturbe": só avisos urgentes aparecem.
+        if !urgent && crate::do_not_disturb(&self.app) {
+            return id;
+        }
         let _ = self.app.emit("lumna://notification", notification);
         crate::show_notifications(&self.app);
         id

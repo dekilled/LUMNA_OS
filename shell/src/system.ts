@@ -55,3 +55,22 @@ export function fitLayerTo(element: HTMLElement): () => void {
   observer.observe(element);
   return () => observer.disconnect();
 }
+
+export type Mode = "desktop" | "gaming" | "media";
+export type Layout = "per-screen" | "extend";
+
+export interface ModesSnapshot {
+  /** Modo de cada monitor, pelo nome do monitor no compositor. */
+  modes: Record<string, Mode>;
+  layout: Layout;
+  focused: string | null;
+}
+
+export const MODE_LABEL: Record<Mode, string> = { desktop: "Desktop", gaming: "Gaming", media: "Mídia" };
+
+export const modes = () => invoke<ModesSnapshot>("modes");
+export const switchTo = (mode: Mode) => invoke<void>("switch_to", { mode });
+export const changeLayout = (layout: Layout) => invoke<void>("change_layout", { layout });
+export const showSwitcher = () => invoke<void>("show_switcher");
+/** Monitor (nome no compositor) desta janela; `null` se ainda não deu para saber. */
+export const monitorName = () => invoke<string | null>("monitor_name");

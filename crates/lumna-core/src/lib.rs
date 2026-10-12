@@ -20,6 +20,7 @@ pub struct Monitor {
     pub name: String,
     pub focused: bool,
     pub active_workspace: i64,
+    pub active_workspace_name: String,
     /// Posição no layout (coordenadas lógicas), usada para achar o mesmo monitor no GTK.
     pub x: i32,
     pub y: i32,
@@ -62,6 +63,9 @@ pub trait Compositor: Send + Sync {
     fn monitors(&self) -> Result<Vec<Monitor>>;
     fn windows(&self) -> Result<Vec<Window>>;
     fn focus_workspace(&self, id: i64) -> Result<()>;
+    /// Vai para um workspace com nome (ex.: `gaming-DP-1`), criando-o no monitor em foco.
+    fn focus_named_workspace(&self, name: &str) -> Result<()>;
+    fn focus_monitor(&self, name: &str) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.

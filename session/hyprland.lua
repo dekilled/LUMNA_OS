@@ -102,6 +102,13 @@ hl.layer_rule({
 })
 
 hl.layer_rule({
+    name = "lumna-switcher-blur",
+    match = { namespace = "^lumna-switcher$" },
+    blur = true,
+    ignore_alpha = 0.3,
+})
+
+hl.layer_rule({
     name = "lumna-notifications-blur",
     match = { namespace = "^lumna-notifications$" },
     blur = true,
@@ -140,7 +147,9 @@ hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + SHIFT + E", hl.dsp.exit())
--- SUPER + Tab fica reservado para a troca de modo (Fase 2).
+-- Modos: Desktop → Gaming → Mídia (ver docs/VIABILIDADE.md, seção 4).
+hl.bind(mod .. " + Tab", hl.dsp.exec_cmd("lumna-ctl mode next"))
+hl.bind(mod .. " + SHIFT + Tab", hl.dsp.exec_cmd("lumna-ctl mode prev"))
 
 for i = 1, 9 do
     hl.bind(mod .. " + " .. i, hl.dsp.focus({ workspace = i }))
