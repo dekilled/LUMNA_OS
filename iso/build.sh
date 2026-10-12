@@ -40,6 +40,10 @@ cp -r /usr/share/archiso/configs/releng "$profile"
 cp -a "$SRC/iso/overlay/airootfs/." "$profile/airootfs/"
 # O greetd assume o tty1 no lugar do login automático do root.
 rm -rf "$profile/airootfs/etc/systemd/system/getty@tty1.service.d"
+# O releng espera o relógio sincronizar pela internet antes de seguir o boot (por causa do
+# chaveiro do pacman). Sem rede, ou com NTP bloqueado, o boot fica parado minutos nisso.
+# O LUMNA não espera: o relógio acerta sozinho quando a rede aparecer (o timesyncd segue ativo).
+rm -f "$profile/airootfs/etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service"
 grep -v '^#' "$SRC/iso/packages.x86_64" | sed '/^$/d' >> "$profile/packages.x86_64"
 # Sem NVIDIA: troca o metapacote linux-firmware pelos firmwares separados, menos o da NVIDIA.
 sed -i '/^linux-firmware$/d' "$profile/packages.x86_64"
