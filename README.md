@@ -61,6 +61,9 @@ A VM usa virtio-gpu com OpenGL (virgl). VirtualBox e VMware costumam ir mal com 
 Grave o ISO com Ventoy, balenaEtcher ou `dd`, desligue o **Secure Boot** e dê boot pelo pendrive.
 Ele roda direto do pendrive (modo live) e não mexe no disco.
 
+No live, o usuário é `lumna` com senha `lumna` (a sessão entra sozinha; a senha só serve se ela
+cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e Enter.
+
 ## Atalhos
 
 | Atalho | Ação |
