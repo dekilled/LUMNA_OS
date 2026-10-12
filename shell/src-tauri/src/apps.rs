@@ -54,6 +54,21 @@ impl App {
     }
 }
 
+/// Utilitários que vêm junto com outros pacotes e só poluem o launcher.
+const HIDDEN: &[&str] = &[
+    "avahi-discover",
+    "bssh",
+    "bvnc",
+    "qv4l2",
+    "qvidcap",
+    "footclient",
+    "foot-server",
+    "xfce4-about",
+    "thunar-settings",
+    "thunar-bulk-rename",
+    "lstopo",
+];
+
 fn data_dirs() -> Vec<PathBuf> {
     let home = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
@@ -128,7 +143,8 @@ pub fn list() -> Vec<App> {
                 continue;
             }
             let Some(fields) = parse(&path) else { continue };
-            let hidden = ["NoDisplay", "Hidden"].iter().any(|k| fields.get(*k).is_some_and(|v| v == "true"));
+            let hidden = HIDDEN.contains(&id.as_str())
+                || ["NoDisplay", "Hidden"].iter().any(|k| fields.get(*k).is_some_and(|v| v == "true"));
             let is_app = fields.get("Type").is_some_and(|t| t == "Application");
             let Some(exec) = fields.get("Exec").cloned() else { continue };
             if hidden || !is_app {

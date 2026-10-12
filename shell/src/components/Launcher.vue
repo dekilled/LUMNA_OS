@@ -34,9 +34,9 @@ async function opened() {
   query.value = "";
   selected.value = 0;
   visible.value = true;
-  all.value = await apps();
   await nextTick();
   input.value?.focus();
+  all.value = await apps();
 }
 
 function close() {
@@ -51,6 +51,14 @@ function launch(app: App | undefined) {
 }
 
 function onKey(event: KeyboardEvent) {
+  if (!visible.value) return;
+  // Uma tecla que chega antes do foco no campo de busca não se perde: vai para a busca.
+  if (document.activeElement !== input.value && event.key.length === 1 && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    query.value += event.key;
+    input.value?.focus();
+    return;
+  }
   const count = results.value.length;
   const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: COLUMNS, ArrowUp: -COLUMNS };
   if (event.key === "Escape") close();
@@ -64,6 +72,8 @@ function onKey(event: KeyboardEvent) {
 const stops: (() => void)[] = [];
 
 onMounted(async () => {
+  window.addEventListener("keydown", onKey);
+  stops.push(() => window.removeEventListener("keydown", onKey));
   stops.push(await on("lumna://launcher-opened", opened));
   stops.push(await on("lumna://launcher-closed", () => (visible.value = false)));
 });
@@ -72,7 +82,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 </script>
 
 <template>
-  <div class="backdrop" :class="{ visible }" @click.self="close" @keydown="onKey">
+  <div class="backdrop" :class="{ visible }" @click.self="close">
     <section class="panel">
       <label class="search">
         <Icon name="search" :size="18" />
@@ -114,7 +124,9 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 
 .panel {
   width: min(760px, 90vw);
-  max-height: 72vh;
+  /* Altura fixa: o painel não pula enquanto a busca filtra. */
+  height: min(560px, 72vh);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -156,7 +168,8 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: max-content;
   gap: 6px;
   overflow-y: auto;
 }
