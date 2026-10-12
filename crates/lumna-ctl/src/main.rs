@@ -12,7 +12,9 @@ comandos:
   launcher close
   mode next | prev                   troca de modo (Super + Tab)
   mode desktop | gaming | media      vai direto para um modo
-  mode layout per-screen | extend    um modo por tela, ou o mesmo modo em todas";
+  mode layout per-screen | extend    um modo por tela, ou o mesmo modo em todas
+  pad up|down|left|right|accept|back|menu|guide
+                                     simula o controle (testes e controle remoto)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();

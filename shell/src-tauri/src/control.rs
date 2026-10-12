@@ -21,6 +21,11 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
             let mode = Mode::parse(name).ok_or_else(|| format!("modo desconhecido: {name}"))?;
             crate::switch_mode(app, Target::Set(mode))
         }
+        ["pad", name] => {
+            let action = crate::pad::Action::parse(name).ok_or_else(|| format!("ação desconhecida: {name}"))?;
+            crate::pad_action(app, action);
+            Ok(())
+        }
         _ => Err(format!("comando desconhecido: {command:?}")),
     }
 }

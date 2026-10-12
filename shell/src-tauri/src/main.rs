@@ -1,9 +1,12 @@
 mod apps;
 mod control;
+mod games;
 mod layer;
 mod modes;
 mod notifications;
+mod pad;
 mod status;
+mod vdf;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -24,6 +27,9 @@ const TERMINAL: &str = "foot";
 
 #[derive(Default)]
 struct AppsCache(Mutex<Vec<apps::App>>);
+
+#[derive(Default)]
+struct GamesCache(Mutex<Vec<games::Game>>);
 
 /// Posição lógica (x, y) do monitor GTK de cada janela por monitor (`topbar-0`, `mode-0`...),
 /// para achar o mesmo monitor na lista do compositor.
@@ -69,7 +75,8 @@ const MODE_SCREEN: LayerSpec = LayerSpec {
     layer: Layer::Bottom,
     anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
     margins: &[],
-    keyboard: KeyboardMode::None,
+    // Recebe o teclado quando clicada (setas e Enter navegam como o controle).
+    keyboard: KeyboardMode::OnDemand,
     exclusive: Exclusive::None,
     size: (-1, -1),
     visible: false,
@@ -246,6 +253,58 @@ fn toggle_launcher(app: AppHandle) -> Result<(), String> {
     launcher(&app, LauncherAction::Toggle)
 }
 
+// ---- jogos e controle ----
+
+/// Relê a biblioteca (jogos instalados ou removidos aparecem sem reiniciar o shell).
+#[tauri::command]
+fn games(app: AppHandle, cache: tauri::State<'_, GamesCache>) -> Vec<games::Game> {
+    // As capas ficam fora da pasta do app: o webview só pode lê-las por estas pastas liberadas.
+    let scope = app.asset_protocol_scope();
+    for root in games::art_roots() {
+        let _ = scope.allow_directory(&root, true);
+    }
+    let list = games::list();
+    *cache.0.lock().unwrap() = list.clone();
+    list
+}
+
+#[tauri::command]
+fn launch_game(
+    cache: tauri::State<'_, GamesCache>,
+    compositor: tauri::State<'_, SharedCompositor>,
+    id: String,
+) -> Result<(), String> {
+    let command = {
+        let cache = cache.0.lock().unwrap();
+        cache.iter().find(|g| g.id == id).map(|g| g.launch.clone()).ok_or_else(|| format!("jogo {id} não encontrado"))?
+    };
+    compositor.exec(&command)
+}
+
+#[derive(Clone, serde::Serialize)]
+struct PadEvent {
+    action: pad::Action,
+    /// Monitor em foco: só a tela dele reage.
+    monitor: Option<String>,
+}
+
+/// Uma ação do controle (ou do `lumna-ctl pad`). Com um app ou jogo em foco, o controle é dele:
+/// só o botão central (troca de modo) continua com o LUMNA.
+pub fn pad_action(app: &AppHandle, action: pad::Action) {
+    let compositor = app.state::<SharedCompositor>();
+    if action == pad::Action::Guide {
+        if let Err(err) = switch_mode(app, Target::Next) {
+            eprintln!("lumna-shell: troca de modo pelo controle: {err}");
+        }
+        return;
+    }
+    if matches!(compositor.active_window(), Ok(Some(_))) {
+        return;
+    }
+    let monitor = compositor.monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused)).map(|m| m.name);
+    let _ = app.emit("lumna://pad", PadEvent { action, monitor });
+}
+
 // ---- modos ----
 
 /// Nome do monitor (no compositor) onde está a janela que chamou.
@@ -397,6 +456,7 @@ fn main() {
     tauri::Builder::default()
         .manage(compositor.clone())
         .manage(AppsCache::default())
+        .manage(GamesCache::default())
         .manage(status::StatusState::default())
         .manage(Modes::load())
         .manage(MonitorPositions::default())
@@ -420,6 +480,8 @@ fn main() {
             switch_to,
             change_layout,
             show_switcher,
+            games,
+            launch_game,
         ])
         .setup(move |app| {
             let display = gtk::gdk::Display::default().expect("sem display GTK");
@@ -439,6 +501,7 @@ fn main() {
             status::watch(app.handle().clone());
             notifications::start(app.handle().clone());
             control::listen(app.handle().clone());
+            pad::watch(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

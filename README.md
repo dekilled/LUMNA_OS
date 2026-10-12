@@ -7,13 +7,15 @@ O shell é feito em **Tauri + Vue** e roda sobre o **Hyprland**, com base no **A
 Suporta só GPUs **AMD e Intel**.
 
 - Por que é assim: [docs/VIABILIDADE.md](docs/VIABILIDADE.md)
-- Onde estamos: **Fase 2**. O ISO dá boot direto no LUMNA, com topbar, dock, launcher, avisos e a troca entre os modos Desktop, Gaming e Mídia.
+- Onde estamos: **Fase 3**. O ISO dá boot direto no LUMNA, com topbar, dock, launcher, avisos, troca entre os modos Desktop, Gaming e Mídia, e a biblioteca de jogos com controle.
 
 ![LUMNA OS: topbar, dock e um aviso da Emma](docs/fase1-desktop.png)
 
 ![Launcher de apps](docs/fase1-launcher.png)
 
 ![Alternar modo (Super + Tab)](docs/fase2-switcher.png)
+
+![Biblioteca de jogos (modo Gaming)](docs/fase3-biblioteca.png)
 
 ## Estrutura
 
@@ -84,6 +86,24 @@ No seletor "Alternar modo" (clique no nome do modo na topbar ou `Super + Tab`):
 
 Em Gaming e Mídia o dock some e os avisos ficam em "não perturbe" (só os urgentes aparecem).
 Pelo terminal: `lumna-ctl mode gaming`, `lumna-ctl mode layout extend`.
+
+## Biblioteca de jogos
+
+O modo Gaming mostra os jogos instalados da **Steam**, do **Heroic** (Epic, GOG, Amazon) e do
+**Lutris**, com as capas que essas lojas já guardam no disco. Os jogados por último vêm primeiro.
+
+| Controle | Teclado | Ação |
+|---|---|---|
+| Direcional / analógico | Setas | Escolher jogo; para baixo vai aos filtros |
+| A (Cruz) | Enter | Jogar / aplicar filtro |
+| B (Bola) | Esc | Voltar dos filtros |
+| Botão central (Guide/PS/Xbox) | `Super + Tab` | Trocar de modo |
+
+Com um jogo ou app em foco, o controle é dele: só o botão central continua com o LUMNA.
+Para o teclado, clique na tela do modo. Sem controle à mão: `lumna-ctl pad right`, `lumna-ctl pad accept`.
+
+A Steam ainda não vem no pendrive (o ISO passaria do limite de 2 GB das Releases do GitHub). No
+sistema live: habilite o `[multilib]` em `/etc/pacman.conf` e `sudo pacman -Syu steam`.
 
 ## Problemas
 

@@ -169,6 +169,20 @@ impl Compositor for Hyprland {
         self.dispatch(&format!("hl.dsp.focus({{ monitor = {selector} }})"), &format!("focusmonitor {name}"))
     }
 
+    fn active_window(&self) -> Result<Option<Window>> {
+        let w = self.request_json("activewindow")?;
+        let address = text(&w, "address");
+        if address.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(Window {
+            address,
+            class: text(&w, "class"),
+            title: text(&w, "title"),
+            workspace: w.get("workspace").map(|ws| int(ws, "id")).unwrap_or_default(),
+        }))
+    }
+
     fn exec(&self, command: &str) -> Result<()> {
         self.dispatch(&lua_exec(command)?, &format!("exec {command}"))
     }

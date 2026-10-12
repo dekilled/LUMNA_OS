@@ -62,6 +62,8 @@ pub trait Compositor: Send + Sync {
     fn workspaces(&self) -> Result<Vec<Workspace>>;
     fn monitors(&self) -> Result<Vec<Monitor>>;
     fn windows(&self) -> Result<Vec<Window>>;
+    /// Janela com o foco do teclado, se houver.
+    fn active_window(&self) -> Result<Option<Window>>;
     fn focus_workspace(&self, id: i64) -> Result<()>;
     /// Vai para um workspace com nome (ex.: `gaming-DP-1`), criando-o no monitor em foco.
     fn focus_named_workspace(&self, name: &str) -> Result<()>;

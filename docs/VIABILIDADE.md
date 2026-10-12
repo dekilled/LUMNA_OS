@@ -179,6 +179,19 @@ LUMNA_OS/
 └── docs/
 ```
 
+### 4.1 Controle pelo celular (modo Mídia)
+
+O celular vira controle remoto da TV: setas, OK, voltar, volume, play/pause e um teclado para
+buscas. Ele manda as **mesmas ações** que o controle de videogame (`up`, `down`, `accept`,
+`back`...), então qualquer tela navegável pelo controle também funciona pelo celular.
+
+- **No PC:** o `lumna-shell` abre um servidor WebSocket só na rede local. Para parear, a tela de
+  Mídia mostra um QR code com um código de uso único.
+- **No celular:** app nativo em Kotlin, o mesmo jeito de fazer do app LUMNA que já existe. Pode
+  ser uma tela "Controle" dentro dele ou um app separado.
+- **Segurança:** sem pareamento nada é aceito; o código troca a cada pareamento e dá para revogar
+  um celular pela tela de Mídia.
+
 ---
 
 ## 5. Plano por fases
@@ -189,11 +202,12 @@ LUMNA_OS/
 | **0.5 ISO mínimo** | Perfil archiso que dá boot na VM (UEFI) direto no Hyprland com a topbar do spike | Desde o começo, tudo é testado pelo mesmo caminho do pendrive |
 | 1. Desktop MVP | Sessão LUMNA no login, topbar (relógio, bateria, volume, rede), dock, launcher, notificações | Dá para usar no dia a dia |
 | 2. Troca de modo | `lumna-ctl`, `Super + Tab`, seletor visual "Alternar modo" | Trocar entre os 3 modos sem perder janelas |
-| 3. Gaming | Biblioteca Steam/Heroic/Lutris, capas, filtros por gênero, controle, ajustes de desempenho | Abrir um jogo da Steam pelo controle |
-| 4. Mídia | Cards de streaming (navegador em modo app), vídeos locais com mpv/Jellyfin, "continuar assistindo" local | Netflix abre em tela cheia; vídeo local retoma de onde parou |
+| 3. Gaming | Biblioteca Steam/Heroic/Lutris com capas, filtros por loja e recentes, navegação por controle (gilrs) e teclado | Abrir um jogo da Steam pelo controle |
+| 4. Mídia | Cards de streaming (navegador em modo app), vídeos locais com mpv/Jellyfin, "continuar assistindo" local e **controle pelo celular** (seção 4.1) | Netflix abre em tela cheia; vídeo local retoma de onde parou; navegar pelo celular |
 | 5. Multi-monitor | "Um modo por tela" e "Estender modo", tela de configuração "Telas" | 3 monitores com 3 modos diferentes |
 | 6. Emma | Painel lateral, voz, ligação com o backend LUMNA | "O que vamos fazer hoje?" funcionando |
-| 7. Distro completa | Calamares com tema LUMNA, formatação (Btrfs, LUKS, dual boot), Mesa (AMD/Intel), repo próprio, snapshots (seção 6) | Pendrive → formatar → instalar → primeiro boot no LUMNA, no PC real |
+| 7. Visual | Wallpaper próprio por modo, videopaper (mpvpaper), animações e efeitos mais modernos em todas as telas | Cada modo com cara própria, sem perder fluidez |
+| 8. Distro completa | Calamares com tema LUMNA, formatação (Btrfs, LUKS, dual boot), Mesa (AMD/Intel), repo próprio, snapshots (seção 6) | Pendrive → formatar → instalar → primeiro boot no LUMNA, no PC real |
 
 ---
 

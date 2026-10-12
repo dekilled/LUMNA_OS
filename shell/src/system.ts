@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export interface App {
@@ -74,3 +74,40 @@ export const changeLayout = (layout: Layout) => invoke<void>("change_layout", { 
 export const showSwitcher = () => invoke<void>("show_switcher");
 /** Monitor (nome no compositor) desta janela; `null` se ainda não deu para saber. */
 export const monitorName = () => invoke<string | null>("monitor_name");
+
+export interface Game {
+  id: string;
+  source: "steam" | "epic" | "gog" | "amazon" | "lutris";
+  title: string;
+  /** Caminho local ou URL. */
+  cover: string | null;
+  hero: string | null;
+  last_played: number;
+}
+
+export type PadAction = "up" | "down" | "left" | "right" | "accept" | "back" | "menu";
+
+export const games = () => invoke<Game[]>("games");
+export const launchGame = (id: string) => invoke<void>("launch_game", { id });
+
+/** Imagem de um jogo pronta para o `<img>`: arquivo local pelo protocolo `asset`, ou a URL. */
+export const artUrl = (path: string | null) => (!path ? null : path.startsWith("/") ? convertFileSrc(path) : path);
+
+/** Ações do controle (e do teclado, nas telas que repassam) que valem para este monitor. */
+export const onPad = (monitor: () => string | null, handler: (action: PadAction) => void) =>
+  on<{ action: PadAction; monitor: string | null }>("lumna://pad", (e) => {
+    if (!e.monitor || e.monitor === monitor()) handler(e.action);
+  });
+
+/** Setas, Enter e Esc viram as mesmas ações do controle. */
+export function keyToPad(event: KeyboardEvent): PadAction | null {
+  const map: Record<string, PadAction> = {
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    Enter: "accept",
+    Escape: "back",
+  };
+  return map[event.key] ?? null;
+}
