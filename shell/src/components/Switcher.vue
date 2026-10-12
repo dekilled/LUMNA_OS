@@ -21,9 +21,9 @@ const VISIBLE_MS = 1600;
 
 const snapshot = ref<ModesSnapshot | null>(null);
 const shown = ref(false);
-const hovering = ref(false);
 const root = ref<HTMLElement>();
 let timer: number | undefined;
+let lastTouch = 0;
 
 const current = computed<Mode>(() => {
   const s = snapshot.value;
@@ -33,23 +33,36 @@ const current = computed<Mode>(() => {
 });
 const index = computed(() => ORDER.indexOf(current.value));
 
-function scheduleHide() {
+/**
+ * Some VISIBLE_MS depois da última troca ou de o mouse mexer em cima dele.
+ *
+ * Não dá para confiar em mouseenter/mouseleave: o seletor aparece no meio da tela, muitas vezes
+ * debaixo de um mouse parado, e some sem o WebKit ver o mouse sair. Por isso conta só o movimento.
+ */
+function touch() {
+  lastTouch = Date.now();
   window.clearTimeout(timer);
-  timer = window.setTimeout(() => {
-    if (hovering.value) return scheduleHide();
-    shown.value = false;
-    // Espera a animação de saída antes de esconder a camada.
-    window.setTimeout(() => !shown.value && layerHide(), 200);
-  }, VISIBLE_MS);
+  timer = window.setTimeout(hide, VISIBLE_MS);
+}
+
+function hide() {
+  const left = lastTouch + VISIBLE_MS - Date.now();
+  if (left > 0) {
+    timer = window.setTimeout(hide, left);
+    return;
+  }
+  shown.value = false;
+  // Espera a animação de saída antes de esconder a camada.
+  window.setTimeout(() => !shown.value && layerHide(), 200);
 }
 
 function pick(mode: Mode) {
-  scheduleHide();
+  touch();
   if (mode !== current.value) switchTo(mode);
 }
 
 function pickLayout(layout: Layout) {
-  scheduleHide();
+  touch();
   if (layout !== snapshot.value?.layout) changeLayout(layout);
 }
 
@@ -61,7 +74,7 @@ onMounted(async () => {
   stops.push(
     await on("lumna://switcher-shown", () => {
       shown.value = true;
-      scheduleHide();
+      touch();
     }),
   );
   if (root.value) stops.push(fitLayerTo(root.value));
@@ -74,7 +87,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="root" class="frame" @mouseenter="hovering = true" @mouseleave="hovering = false">
+  <div ref="root" class="frame" @pointermove="shown && touch()">
     <section class="switcher" :class="{ shown }">
       <div class="pill" :style="{ '--index': index }">
         <span class="slider" />

@@ -87,14 +87,15 @@ const MODE_SCREEN: LayerSpec = LayerSpec {
     visible: false,
 };
 
-/// "Alternar modo": aparece no centro da tela a cada troca.
+/// "Alternar modo": aparece no centro da tela a cada troca. Ignora o espaço da topbar e do dock,
+/// senão o centro muda de lugar entre os modos (o dock só existe no Desktop).
 const SWITCHER: LayerSpec = LayerSpec {
     namespace: "lumna-switcher",
     layer: Layer::Overlay,
     anchors: &[],
     margins: &[],
     keyboard: KeyboardMode::None,
-    exclusive: Exclusive::None,
+    exclusive: Exclusive::Ignore,
     size: (600, 220),
     visible: false,
 };
