@@ -191,6 +191,10 @@ impl Compositor for Hyprland {
         self.dispatch(&lua_exec(command)?, &format!("exec {command}"))
     }
 
+    fn exit(&self) -> Result<()> {
+        self.dispatch("hl.dsp.exit()", "exit")
+    }
+
     fn focus_workspace(&self, id: i64) -> Result<()> {
         self.dispatch(&format!("hl.dsp.focus({{ workspace = {id} }})"), &format!("workspace {id}"))
     }

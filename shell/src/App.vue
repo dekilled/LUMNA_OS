@@ -3,6 +3,8 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import AuthDialog from "./components/AuthDialog.vue";
 import Dock from "./components/Dock.vue";
 import FilesApp from "./components/files/FilesApp.vue";
+import GreeterApp from "./components/GreeterApp.vue";
+import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
 import Notifications from "./components/Notifications.vue";
@@ -28,4 +30,6 @@ const label = getCurrentWebviewWindow().label;
   <StoreApp v-else-if="label === 'store'" />
   <AuthDialog v-else-if="label === 'auth'" />
   <FilesApp v-else-if="label.startsWith('files-')" />
+  <InstallerApp v-else-if="label === 'installer'" />
+  <GreeterApp v-else-if="label === 'greeter'" />
 </template>

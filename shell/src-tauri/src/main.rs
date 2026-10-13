@@ -4,6 +4,8 @@ mod bluetooth;
 mod control;
 mod files;
 mod games;
+mod greeter;
+mod installer;
 mod layer;
 mod media;
 mod modes;
@@ -132,6 +134,18 @@ const AUTH: LayerSpec = LayerSpec {
     exclusive: Exclusive::Ignore,
     size: (-1, -1),
     visible: false,
+};
+
+/// Tela de login (`lumna-shell --greeter`): a tela toda, com o teclado.
+const GREETER: LayerSpec = LayerSpec {
+    namespace: "lumna-greeter",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: true,
 };
 
 const NOTIFICATIONS: LayerSpec = LayerSpec {
@@ -415,6 +429,29 @@ async fn files_window(app: AppHandle, path: Option<String>) -> Result<(), String
     open_files(&app, path)
 }
 
+/// Abre o "Instalar LUMNA OS" (só existe no pendrive).
+pub fn open_installer(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("installer") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, "installer", WebviewUrl::App("index.html".into()))
+        .title("Instalar LUMNA OS")
+        .inner_size(980.0, 660.0)
+        .min_inner_size(820.0, 600.0)
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn installer_open(app: AppHandle) -> Result<(), String> {
+    open_installer(&app)
+}
+
 // ---- jogos e controle ----
 
 /// Relê a biblioteca (jogos instalados ou removidos aparecem sem reiniciar o shell).
@@ -679,6 +716,7 @@ fn create_layer(app: &tauri::App, label: &str, monitor: &gtk::gdk::Monitor, spec
 }
 
 fn main() {
+    let greeter_mode = std::env::args().any(|a| a == "--greeter");
     let compositor: SharedCompositor = match Hyprland::from_env() {
         Ok(hyprland) => Arc::new(hyprland),
         Err(err) => {
@@ -729,6 +767,15 @@ fn main() {
             settings_open,
             store_open,
             files_window,
+            installer_open,
+            installer::installer_disks,
+            installer::installer_timezones,
+            installer::installer_run,
+            installer::installer_reboot,
+            greeter::greeter_users,
+            greeter::greeter_sessions,
+            greeter::greeter_login,
+            greeter::greeter_power,
             files::files_list,
             files::files_stamp,
             files::files_places,
@@ -786,6 +833,11 @@ fn main() {
         .setup(move |app| {
             let display = gtk::gdk::Display::default().expect("sem display GTK");
             let primary = display.monitor(0).expect("nenhum monitor");
+            // Tela de login: só ela, sem topbar, dock nem serviços da sessão.
+            if greeter_mode {
+                create_layer(app, "greeter", &primary, &GREETER)?;
+                return Ok(());
+            }
             for index in 0..display.n_monitors() {
                 if let Some(monitor) = display.monitor(index) {
                     create_layer(app, &format!("topbar-{index}"), &monitor, &TOPBAR)?;

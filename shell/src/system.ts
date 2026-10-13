@@ -288,6 +288,43 @@ export const filesInfo = (path: string) => invoke<FileInfo>("files_info", { path
 export const filesThumb = (path: string) => invoke<string | null>("files_thumb", { path });
 export { convertFileSrc };
 
+// ---- Instalador e tela de login ----
+
+export interface Disk {
+  path: string;
+  model: string;
+  size: number;
+  transport: string;
+  contents: string;
+}
+export interface InstallPlan {
+  disk: string;
+  user: string;
+  name: string;
+  hostname: string;
+  timezone: string;
+  keyboard: string;
+  locale: string;
+}
+export const installerDisks = () => invoke<Disk[]>("installer_disks");
+export const installerTimezones = () => invoke<string[]>("installer_timezones");
+export const installerRun = (plan: InstallPlan, password: string) => invoke<void>("installer_run", { plan, password });
+export const installerReboot = () => invoke<void>("installer_reboot");
+
+export interface GreeterUser {
+  username: string;
+  name: string;
+}
+export interface GreeterSession {
+  id: string;
+  name: string;
+}
+export const greeterUsers = () => invoke<GreeterUser[]>("greeter_users");
+export const greeterSessions = () => invoke<GreeterSession[]>("greeter_sessions");
+export const greeterLogin = (username: string, password: string, session: string | null) =>
+  invoke<void>("greeter_login", { username, password, session });
+export const greeterPower = (action: "poweroff" | "reboot" | "suspend") => invoke<void>("greeter_power", { action });
+
 /** Ajusta a camada desta janela ao tamanho do conteúdo. */
 export const layerResize = (width: number, height: number) =>
   invoke<void>("layer_resize", { width: Math.ceil(width), height: Math.ceil(height) });

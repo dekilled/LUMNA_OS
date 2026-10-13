@@ -66,6 +66,11 @@ const paths: Record<string, string> = {
   restore: "M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5",
   computer: "M3 4h18v12H3zM8 20h8M12 16v4",
   window: "M4 5h16v14H4zM4 9h16",
+  power: "M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0",
+  moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
+  accessibility: "M12 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM5 8l7 1.5L19 8M12 9.5V14l-3 7M12 14l3 7",
+  "chevron-down": "M6 9l6 6 6-6",
   music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
 };
 </script>

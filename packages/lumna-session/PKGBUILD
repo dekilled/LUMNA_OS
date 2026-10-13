@@ -16,6 +16,8 @@ depends=(
   iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
   # Loja: Flatpak, AUR (git + base-devel para compilar) e checkupdates (pacman-contrib)
   flatpak git base-devel pacman-contrib curl
+  # Instalador: particionar, Btrfs, copiar o sistema, boot
+  gptfdisk btrfs-progs dosfstools rsync arch-install-scripts
   # Arquivos: lixeira e abrir com o programa padrão (gio), discos e pendrives (udisks)
   glib2 udisks2 xdg-utils
 )
@@ -25,6 +27,12 @@ _root="$(realpath "$startdir/../..")"
 package() {
   cd "$_root/session"
   install -Dm755 lumna-session "$pkgdir/usr/bin/lumna-session"
+  install -Dm755 lumna-greeter "$pkgdir/usr/bin/lumna-greeter"
+  install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
+  install -Dm644 greeter.lua "$pkgdir/usr/share/lumna/greeter.lua"
+  install -Dm755 lumna-install "$pkgdir/usr/lib/lumna/lumna-install"
+  install -Dm644 os.lumna.install.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.install.policy"
+  install -Dm644 icons/installer.svg "$pkgdir/usr/share/lumna/icons/installer.svg"
   install -Dm644 hyprland.lua "$pkgdir/usr/share/lumna/hyprland.lua"
   install -Dm644 wallpaper.png "$pkgdir/usr/share/lumna/wallpaper.png"
   install -Dm644 lumna.desktop "$pkgdir/usr/share/wayland-sessions/lumna.desktop"

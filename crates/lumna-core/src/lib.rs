@@ -72,6 +72,8 @@ pub trait Compositor: Send + Sync {
     fn close_active_window(&self) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
+    /// Encerra o compositor (a tela de login sai assim para o greetd abrir a sessão).
+    fn exit(&self) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.
     fn listen(&self, on_event: &mut dyn FnMut(CompositorEvent)) -> Result<()>;
 }

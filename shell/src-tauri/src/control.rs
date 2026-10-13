@@ -31,6 +31,7 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
             crate::pad_action(app, action);
             Ok(())
         }
+        ["installer"] => crate::open_installer(app),
         ["store"] => crate::open_store(app, None),
         ["store", tab] => crate::open_store(app, Some(tab.to_string())),
         ["settings"] => crate::open_settings(app, None),

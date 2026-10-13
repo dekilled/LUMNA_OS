@@ -1,4 +1,6 @@
 :root {
+  /* Campos nativos (select, barra de rolagem) no tema escuro. */
+  color-scheme: dark;
   --lumna-violet: #8b5cf6;
   --lumna-violet-soft: #a78bfa;
   --lumna-glass: rgba(14, 10, 28, 0.55);

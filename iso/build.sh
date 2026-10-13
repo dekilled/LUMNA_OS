@@ -19,6 +19,11 @@ tree="$WORK/src"
 mkdir -p "$tree"
 tar -C "$SRC" --exclude=./target --exclude=./out --exclude=./work --exclude=node_modules --exclude=./shell/dist -cf - . | tar -C "$tree" -xf -
 chown -R "$BUILDER:$BUILDER" "$WORK"
+# Versão dos pacotes pela data do build: cada ISO (e cada publicação do repositório [lumna])
+# tem uma versão maior que a anterior, e o pacman sabe que é atualização.
+LUMNA_VERSION="${LUMNA_VERSION:-0.1.0.$(date -u +%Y%m%d%H%M)}"
+sed -i "s/^pkgver=.*/pkgver=$LUMNA_VERSION/" "$tree"/packages/*/PKGBUILD
+echo "   versão $LUMNA_VERSION"
 build_pkg() {
   local name="$1"; shift
   (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST \
@@ -30,9 +35,11 @@ build_pkg lumna-session --nodeps
 repo-add "$OUT/repo/lumna.db.tar.gz" "$OUT"/repo/*.pkg.tar.zst
 
 # A configuração do Hyprland é validada pelo próprio Hyprland (já instalado pelo makepkg).
-sudo -u "$BUILDER" bash -c 'export XDG_RUNTIME_DIR=$(mktemp -d); Hyprland --verify-config --config "$1"' _ "$tree/session/hyprland.lua" \
-  | tee "$WORK/verify-config.log"
-grep -qx "config ok" "$WORK/verify-config.log"
+for config in hyprland.lua greeter.lua; do
+  sudo -u "$BUILDER" bash -c 'export XDG_RUNTIME_DIR=$(mktemp -d); Hyprland --verify-config --config "$1"' _ "$tree/session/$config" \
+    | tee "$WORK/verify-config.log"
+  grep -qx "config ok" "$WORK/verify-config.log"
+done
 
 echo ">> 2/3 perfil"
 profile="$WORK/profile"
@@ -61,6 +68,16 @@ sed -i \
   -e 's|^iso_application=.*|iso_application="LUMNA OS Live"|' \
   "$profile/profiledef.sh"
 sed -i 's|^)$|  ["/etc/sudoers.d"]="0:0:750"\n  ["/etc/sudoers.d/lumna-live"]="0:0:440"\n)|' "$profile/profiledef.sh"
+# O que é só do live (login automático, senha fixa, serviços do pendrive do Arch): o instalador
+# apaga isso do sistema copiado para o disco.
+live_files="$profile/airootfs/usr/share/lumna/live-files"
+mkdir -p "$(dirname "$live_files")"
+{
+  (cd "$SRC/iso/overlay/airootfs" && find . \( -type f -o -type l \) -path '*live*' | sed 's|^\./||')
+  (cd "$SRC/iso/overlay/airootfs" && find usr/share/applications -name 'lumna-installer.desktop' 2>/dev/null)
+  echo etc/motd
+  grep -v "^#" "$SRC/iso/releng-live-files"
+} | sort -u > "$live_files"
 sed -i -e 's/Arch Linux install medium/LUMNA OS/g' -e 's/Arch Linux/LUMNA OS/g' \
   "$profile"/efiboot/loader/entries/*.conf "$profile"/syslinux/*.cfg "$profile"/grub/*.cfg
 

@@ -26,6 +26,17 @@ end)
 ---- VISUAL ----
 -----------------
 
+-- Teclado escolhido na instalação: /etc/lumna/keyboard tem "layout variante" ("br abnt2",
+-- "us", "us intl"). Sem o arquivo (live), ABNT2.
+local kb_layout, kb_variant = "br", "abnt2"
+pcall(function()
+    local file = io.open("/etc/lumna/keyboard", "r")
+    if not file then return end
+    local layout, variant = (file:read("l") or ""):match("^(%S+)%s*(%S*)")
+    file:close()
+    if layout then kb_layout, kb_variant = layout, variant end
+end)
+
 hl.config({
     general = {
         gaps_in = 6,
@@ -56,8 +67,8 @@ hl.config({
     },
 
     input = {
-        kb_layout = "br",
-        kb_variant = "abnt2",
+        kb_layout = kb_layout,
+        kb_variant = kb_variant,
         follow_mouse = 1,
         touchpad = { natural_scroll = true },
     },

@@ -1,0 +1,7 @@
+// Só no pendrive: a conta do live (grupo wheel) instala programas e o próprio LUMNA sem
+// pedir senha. O instalador apaga este arquivo do sistema instalado.
+polkit.addRule(function (action, subject) {
+    if ((action.id == "os.lumna.install" || action.id == "os.lumna.pkg") && subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});

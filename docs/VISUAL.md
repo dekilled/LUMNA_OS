@@ -10,7 +10,7 @@ do shell e diz o que é só estilo e o que pede código novo por baixo.
 | ![Bluetooth](visual/09-bluetooth.jpg) | ![Calendário](visual/10-calendario.jpg) |
 | ![Painel de controle](visual/04-painel-de-controle.jpg) | ![Rede](visual/05-rede.jpg) |
 | ![Loja](visual/02-loja.jpg) | ![Arquivos](visual/03-arquivos.jpg) |
-| ![Celular Connect](visual/07-celular-connect.jpg) | |
+| ![Celular Connect](visual/07-celular-connect.jpg) | ![Login](visual/12-login.jpg) |
 
 ## 1. A linguagem
 
@@ -71,6 +71,7 @@ no shell).
 | **Rede** | Rede | só leitura | Ethernet expansível com **IP manual/DHCP, DNS, proxy**, Wi-Fi, **VPN**, Adicionar conexão, Aplicar | escrever arquivos do systemd-networkd (via `lumna-pkg`-like helper + polkit), proxy do sistema, VPN (WireGuard primeiro) |
 | **Loja** | Loja | abas + busca + prateleiras | abas Descobrir/Instalados/Atualizações + busca à direita, **chips de categoria**, "Essenciais para começar" em cartões com descrição | categorias por fonte (AppStream do Flathub, grupos do pacman) |
 | **Arquivos** | Arquivos | barra lateral + grade/lista | **abas** Meu espaço/Projetos/Downloads/Favoritos/Dispositivos, seções Pastas (cartões com nº de itens) e Arquivos (tabela), painel com prévia, **Abrir**, Copiar, **Mover para…**, Renomear, Excluir | **Favoritos** (lista salva), contagem de itens por pasta, **Mover para…** (seletor de pasta), dimensões da imagem, tipos mais específicos ("Arquivo Vue", "Imagem PNG") |
+| **Tela de login** | Login | tela própria (greetd) já no layout do mockup | falta só o wallpaper novo por trás | sessão escolhida, "Trocar usuário" e acessibilidade já existem |
 | **Celular Connect** | Celular Connect | app só de controle remoto | aparelho com bateria; enviar/receber arquivos; área de transferência sincronizada; encontrar celular; notificações do celular no PC | protocolo novo no app Android e no `remote.rs` (arquivos por HTTP na rede local, clipboard, notificações via `NotificationListenerService`, toque) |
 
 ## 3. Ordem sugerida
