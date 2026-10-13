@@ -1,5 +1,6 @@
 mod actions;
 mod apps;
+mod automation;
 mod audio;
 mod bluetooth;
 mod control;
@@ -685,6 +686,7 @@ fn apply_modes(app: &AppHandle, focused: Option<String>, show_switcher: bool) ->
     let dock_visible = mode_at("dock") == Mode::Desktop;
     let switcher_at = focused.and_then(|name| monitors.iter().find(|m| m.name == name).map(|m| (m.x, m.y)));
 
+    automation::modes_changed(app, &snapshot.modes);
     let _ = app.emit("lumna://modes", snapshot);
     let handle = app.clone();
     app.run_on_main_thread(move || {
@@ -731,6 +733,7 @@ fn forward_events(app: AppHandle, compositor: SharedCompositor) {
                 if matches!(event, CompositorEvent::WorkspaceFocused { .. } | CompositorEvent::MonitorFocused { .. }) {
                     follow_workspaces(&app);
                 }
+                automation::compositor_event(&app, &event);
                 let _ = app.emit("lumna://compositor", event);
             });
             if connected {
@@ -777,6 +780,7 @@ fn main() {
         .manage(Modes::load())
         .manage(MonitorPositions::default())
         .manage(emma::Emma::default())
+        .manage(automation::Runner::default())
         .invoke_handler(tauri::generate_handler![
             workspaces,
             monitors,
@@ -884,6 +888,11 @@ fn main() {
             emma::emma_history,
             emma::emma_permissions,
             emma::emma_set_permission,
+            emma::emma_providers,
+            emma::emma_set_provider,
+            automation::automation_overview,
+            automation::automation_set_enabled,
+            automation::automation_run_macro,
         ])
         .setup(move |app| {
             let display = gtk::gdk::Display::default().expect("sem display GTK");
@@ -916,6 +925,7 @@ fn main() {
             wifi::watch(app.handle().clone());
             bluetooth::watch(app.handle().clone());
             polkit::start(app.handle().clone());
+            automation::start(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

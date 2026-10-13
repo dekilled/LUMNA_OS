@@ -1,0 +1,14 @@
+[Unit]
+Description=Emma, a assistente do LUMNA OS
+Documentation=https://github.com/dekilled/LUMNA_OS/blob/main/docs/EMMA.md
+After=network-online.target
+
+[Service]
+ExecStart=/usr/lib/lumna/lumna-emma
+Restart=on-failure
+RestartSec=5
+# Só escuta em 127.0.0.1 e entra com token; nunca vira administrador.
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

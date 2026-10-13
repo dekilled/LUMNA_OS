@@ -26,6 +26,7 @@ crates/lumna-core     tipos e o contrato Compositor (não sabe qual compositor �
 crates/lumna-hypr     Compositor implementado para o Hyprland (IPC por socket)
 crates/lumna-ctl      comando que os atalhos usam para falar com o shell
 shell/                lumna-shell: app Tauri (src-tauri/) + interface Vue (src/)
+                      (inclui as ações e a automação da Emma: actions.rs, automation.rs, emma.rs)
 session/              config do Hyprland em Lua, script da sessão, entrada do login, wallpaper
 packages/             PKGBUILDs dos pacotes lumna-*
 iso/                  perfil do ISO (releng do archiso + overlay do LUMNA) e ambiente de build
@@ -42,6 +43,8 @@ Em qualquer Linux com Docker:
 ```
 
 Compila os pacotes `lumna-*`, valida a config do Hyprland e gera `out/lumna-os-AAAA.MM.DD-x86_64.iso`.
+Com `EMMA_SRC=../NewHarnessV2 ./scripts/build-iso.sh` o ISO já leva o backend da Emma (no GitHub
+Actions, pelo segredo `EMMA_REPO_TOKEN`, um token com leitura do NewHarnessV2).
 O GitHub Actions faz o mesmo a cada push na `main`, e publica o ISO na Release quando sai uma tag `v*`.
 
 ## Testar na VM
@@ -75,6 +78,7 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + B` | Firefox |
 | `Super + I` | Configurações |
 | `Super + L` | Loja |
+| `Super + A` | Emma (painel da assistente) |
 | `Super + Q` | Fechar janela |
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
@@ -84,6 +88,33 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 Na topbar: clique no cristal abre o launcher, no ícone de rede abre o menu do Wi-Fi, clique no
 volume silencia e a roda do mouse ajusta.
 Os avisos dos apps (`notify-send`, Firefox...) aparecem no canto superior direito.
+
+## Emma
+
+A assistente do LUMNA. `Super + A` (ou o botão violeta do dock) abre o painel: peça em português
+e ela faz no computador, como *"abre o Spotify"*, *"modo filme"*, *"volume 30"*, *"acha o PDF do
+contrato"*, *"fecha o Steam"* ou *"instala o OBS"*.
+
+- **O cérebro** é o backend da Emma (projeto NewHarnessV2), que roda no próprio PC como serviço do
+  usuário (pacote `lumna-emma`, `systemctl --user status lumna-emma`). Na primeira vez o painel
+  pede o provedor de IA (Ollama Cloud, OpenAI, Gemini, Claude ou um endpoint local, como o Ollama).
+- **As mãos** são as ações do LUMNA: abrir qualquer programa instalado (pelo nome aproximado,
+  inclusive Flatpak e AUR), janelas, modos, som, mídia, jogos, arquivos, Wi-Fi, Loja, serviços do
+  usuário. Lista completa: `lumna-ctl actions`; roda uma na mão:
+  `lumna-ctl action apps.open '{"name":"firefox"}'`.
+- **Permissões**: no ⚙ do painel, cada ação faz sozinha, pergunta antes ou fica desligada.
+  Desligar, instalar e rodar comandos sempre perguntam (e instalar ainda pede a senha).
+- **Macros e automações** (⚡ no painel): macro é uma sequência de ações com nome
+  (`~/.config/lumna/macros/`); automação roda uma macro sozinha num horário, ao entrar, ao trocar
+  de modo, quando um app abre ou fecha, ou quando o Wi-Fi ou um aparelho Bluetooth conecta
+  (`~/.config/lumna/automations.json`). Peça à Emma: *"cria uma macro hora do filme: modo mídia,
+  volume 40 e abre a Netflix"* e *"roda ela quando eu entrar no modo mídia"*.
+
+![Painel da Emma: abrir programa e confirmação antes de desligar](docs/emma-painel.png)
+
+![Macros e automações](docs/emma-automacoes.png)
+
+Como tudo se liga: [docs/EMMA.md](docs/EMMA.md).
 
 ## Wi-Fi
 

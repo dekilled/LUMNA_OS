@@ -26,12 +26,21 @@ sed -i "s/^pkgver=.*/pkgver=$LUMNA_VERSION/" "$tree"/packages/*/PKGBUILD
 echo "   versão $LUMNA_VERSION"
 build_pkg() {
   local name="$1"; shift
-  (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST \
+  (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST,EMMA_SRC \
      env PKGDEST="$OUT/repo" makepkg --noconfirm --cleanbuild "$@")
 }
 chown "$BUILDER:$BUILDER" "$OUT/repo"
 build_pkg lumna-shell --syncdeps
 build_pkg lumna-session --nodeps
+# A Emma vem de outro repositório (NewHarnessV2, privado): só entra quando o código foi passado.
+if [ -n "${EMMA_SRC:-}" ] && [ -f "$EMMA_SRC/backend/server.py" ]; then
+  pacman -S --needed --noconfirm python python-pip >/dev/null
+  EMMA_SRC="$EMMA_SRC" build_pkg lumna-emma --nodeps
+  with_emma=1
+else
+  echo "   sem EMMA_SRC: o ISO sai sem o backend da Emma (o painel pede um servidor)"
+  with_emma=0
+fi
 repo-add "$OUT/repo/lumna.db.tar.gz" "$OUT"/repo/*.pkg.tar.zst
 
 # A configuração do Hyprland é validada pelo próprio Hyprland (já instalado pelo makepkg).
@@ -52,6 +61,7 @@ rm -rf "$profile/airootfs/etc/systemd/system/getty@tty1.service.d"
 # O LUMNA não espera: o relógio acerta sozinho quando a rede aparecer (o timesyncd segue ativo).
 rm -f "$profile/airootfs/etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service"
 grep -v '^#' "$SRC/iso/packages.x86_64" | sed '/^$/d' >> "$profile/packages.x86_64"
+[ "$with_emma" = 1 ] && echo lumna-emma >> "$profile/packages.x86_64"
 # Sem NVIDIA: troca o metapacote linux-firmware pelos firmwares separados, menos o da NVIDIA.
 sed -i '/^linux-firmware$/d' "$profile/packages.x86_64"
 printf '%s\n' linux-firmware-{amd,amdgpu,radeon,intel,atheros,broadcom,cirrus,mediatek,realtek,ti,other} >> "$profile/packages.x86_64"

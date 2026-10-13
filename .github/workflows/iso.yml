@@ -17,6 +17,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A Emma (backend) mora no NewHarnessV2, que é privado: com o segredo EMMA_REPO_TOKEN
+      # (token com leitura daquele repositório) o ISO já vem com ela; sem ele, sai sem.
+      - name: Baixa a Emma
+        env:
+          EMMA_REPO_TOKEN: ${{ secrets.EMMA_REPO_TOKEN }}
+          EMMA_REF: ${{ vars.EMMA_REF || 'main' }}
+        run: |
+          if [ -n "$EMMA_REPO_TOKEN" ]; then
+            git clone --depth 1 --branch "$EMMA_REF" \
+              "https://x-access-token:${EMMA_REPO_TOKEN}@github.com/dekilled/NewHarnessV2.git" "$RUNNER_TEMP/emma"
+            echo "EMMA_SRC=$RUNNER_TEMP/emma" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Sem EMMA_REPO_TOKEN: o ISO sai sem o backend da Emma."
+          fi
+
       - name: Monta o ISO (pacotes, validação da config, mkarchiso)
         run: ./scripts/build-iso.sh
 

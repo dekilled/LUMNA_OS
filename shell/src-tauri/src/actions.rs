@@ -358,6 +358,70 @@ pub const CATALOG: &[Def] = &[
         risk: Risk::Danger,
         default: "off",
     },
+    // ---- macros e automações (automation.rs) ----
+    Def {
+        name: "macro.list",
+        label: "Listar macros",
+        description: "Lista as macros salvas (sequências de ações com um nome, como \"hora do filme\").",
+        params: NONE,
+        required: &[],
+        risk: Risk::Read,
+        default: "auto",
+    },
+    Def {
+        name: "macro.run",
+        label: "Rodar macro",
+        description: "Roda uma macro salva pelo nome. Passos \"emma\" voltam para você fazer em seguida.",
+        params: r#"{"name":{"type":"string"}}"#,
+        required: &["name"],
+        risk: Risk::Act,
+        default: "auto",
+    },
+    Def {
+        name: "macro.save",
+        label: "Salvar macro",
+        description: "Cria ou troca uma macro. steps é uma lista de passos: {\"action\": nome de uma ação lumna (com ponto, ex. \"audio.volume\"), \"args\": {...}}, {\"emma\": pedido em texto para você (luzes, lembretes)} ou {\"wait\": segundos}.",
+        params: r#"{"name":{"type":"string"},"description":{"type":"string"},"steps":{"type":"array","items":{"type":"object"}}}"#,
+        required: &["name", "steps"],
+        risk: Risk::Act,
+        default: "ask",
+    },
+    Def {
+        name: "macro.delete",
+        label: "Apagar macro",
+        description: "Apaga uma macro salva.",
+        params: r#"{"name":{"type":"string"}}"#,
+        required: &["name"],
+        risk: Risk::Act,
+        default: "ask",
+    },
+    Def {
+        name: "automation.list",
+        label: "Listar automações",
+        description: "Lista as automações (gatilho → macro), ligadas e desligadas.",
+        params: NONE,
+        required: &[],
+        risk: Risk::Read,
+        default: "auto",
+    },
+    Def {
+        name: "automation.save",
+        label: "Salvar automação",
+        description: "Cria ou troca uma automação que roda uma macro sozinha. when: {\"type\":\"time\",\"at\":\"08:00\",\"days\":[1..7, 1=segunda]}, {\"type\":\"login\"}, {\"type\":\"mode\",\"mode\":\"gaming\"}, {\"type\":\"app_opened\"|\"app_closed\",\"app\":\"steam\"}, {\"type\":\"wifi\",\"network\":\"Casa\"} ou {\"type\":\"bluetooth\",\"device\":\"Fone\"}. Crie a macro antes.",
+        params: r#"{"name":{"type":"string"},"when":{"type":"object"},"macro":{"type":"string"},"enabled":{"type":"boolean"}}"#,
+        required: &["name", "when", "macro"],
+        risk: Risk::Act,
+        default: "ask",
+    },
+    Def {
+        name: "automation.delete",
+        label: "Apagar automação",
+        description: "Apaga uma automação.",
+        params: r#"{"name":{"type":"string"}}"#,
+        required: &["name"],
+        risk: Risk::Act,
+        default: "ask",
+    },
 ];
 
 pub fn find(name: &str) -> Option<&'static Def> {
@@ -443,16 +507,16 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    fn done(summary: impl Into<String>) -> Outcome {
+    pub fn done(summary: impl Into<String>) -> Outcome {
         let summary = summary.into();
         Outcome { ok: true, content: summary.clone(), summary }
     }
 
-    fn data(summary: impl Into<String>, content: impl Into<String>) -> Outcome {
+    pub fn data(summary: impl Into<String>, content: impl Into<String>) -> Outcome {
         Outcome { ok: true, summary: summary.into(), content: content.into() }
     }
 
-    fn fail(message: impl Into<String>) -> Outcome {
+    pub fn fail(message: impl Into<String>) -> Outcome {
         let message = message.into();
         Outcome { ok: false, summary: message.clone(), content: format!("Erro: {message}") }
     }
@@ -463,7 +527,22 @@ fn arg<'a>(args: &'a Value, key: &str) -> &'a str {
 }
 
 /// Roda uma ação pelo nome (`apps.open`). Quem chama já decidiu a permissão.
+/// Quem pediu a ação: muda como as macros tratam os passos "emma".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// A pessoa (lumna-ctl, painel).
+    User,
+    /// A Emma, no meio de uma conversa.
+    Emma,
+    /// Um passo de macro ou um gatilho.
+    Automation,
+}
+
 pub async fn run(app: AppHandle, name: &str, args: Value) -> Outcome {
+    run_from(app, name, args, Origin::User).await
+}
+
+pub async fn run_from(app: AppHandle, name: &str, args: Value, origin: Origin) -> Outcome {
     let Some(def) = find(name) else { return Outcome::fail(format!("ação desconhecida: {name}")) };
     for key in def.required {
         if args.get(*key).is_none_or(|v| v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty())) {
@@ -474,6 +553,14 @@ pub async fn run(app: AppHandle, name: &str, args: Value) -> Outcome {
         "wifi.status" => wifi_status().await,
         "wifi.connect" => wifi_connect(arg(&args, "name")).await,
         "store.search" => store_search(arg(&args, "query")).await,
+        "macro.run" => {
+            let by = match origin {
+                Origin::Emma => "Emma",
+                Origin::User => "lumna-ctl",
+                Origin::Automation => "Automação",
+            };
+            Box::pin(crate::automation::run_macro(app, arg(&args, "name"), origin, by)).await
+        }
         "store.install" => {
             let (source, package, repo) = (arg(&args, "source").to_string(), arg(&args, "name").to_string(), arg(&args, "repo").to_string());
             match crate::store::store_install(app, source, package.clone(), repo).await {
@@ -563,6 +650,12 @@ fn run_blocking(app: &AppHandle, name: &str, args: &Value) -> Outcome {
         .map(|out| Outcome::data("Serviços rodando", services_text(&out))),
         "service.control" => service_control(arg(args, "name"), arg(args, "action")),
         "shell.run" => shell_run(arg(args, "command")),
+        "macro.list" => Ok(crate::automation::action_macro_list()),
+        "macro.save" => Ok(crate::automation::action_macro_save(args)),
+        "macro.delete" => Ok(crate::automation::action_macro_delete(args)),
+        "automation.list" => Ok(crate::automation::action_automation_list()),
+        "automation.save" => Ok(crate::automation::action_automation_save(args)),
+        "automation.delete" => Ok(crate::automation::action_automation_delete(args)),
         _ => Err(format!("ação desconhecida: {name}")),
     };
     result.unwrap_or_else(Outcome::fail)
@@ -1151,7 +1244,7 @@ pub async fn actions_run_tool(app: AppHandle, tool: String, args: Value) -> Outc
     if permission(def, &overrides()) == "off" {
         return Outcome::fail(format!("a ação \"{}\" está desligada no Painel → Emma", def.label));
     }
-    run(app, name, args).await
+    run_from(app, name, args, Origin::Emma).await
 }
 
 #[cfg(test)]

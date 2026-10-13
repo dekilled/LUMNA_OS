@@ -1,0 +1,30 @@
+#!/bin/bash
+# Sobe o backend da Emma para o usuário (serviço lumna-emma do systemd --user).
+# Na primeira vez cria a conta local em ~/.config/lumna/emma/backend.env (só o dono lê): o painel
+# da Emma no LUMNA entra sozinho com ela.
+set -euo pipefail
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/lumna/emma"
+data="${XDG_DATA_HOME:-$HOME/.local/share}/lumna-emma"
+env="$conf/backend.env"
+mkdir -p "$conf" "$data/workspace"
+chmod 700 "$conf"
+if [ ! -s "$env" ]; then
+  rand() { python -c "import secrets; print(secrets.token_$1)"; }
+  umask 077
+  cat > "$env" <<CONF
+# Gerado pelo LUMNA na primeira vez. A senha é só desta conta local da Emma.
+JWT_SECRET=$(rand 'hex(32)')
+SECRETS_KEY=$(rand 'hex(32)')
+ADMIN_EMAIL=$USER@lumna.local
+ADMIN_PASSWORD=$(rand 'urlsafe(18)')
+CONF
+fi
+set -a
+. "$env"
+set +a
+# O que não é segredo fica aqui, para mudar junto com o pacote.
+export WORKSPACE_ROOT="$data/workspace" SQLITE_PATH="$data/emma.db" CORS_ORIGINS="" \
+  ALLOW_PRIVATE_URLS="${ALLOW_PRIVATE_URLS:-true}" LUMNA_HARNESS_DIR=/usr/lib/lumna-emma \
+  PYTHONPATH=/usr/lib/lumna-emma/lib PYTHONDONTWRITEBYTECODE=1
+cd /usr/lib/lumna-emma/backend
+exec python -m uvicorn server:app --host 127.0.0.1 --port "${EMMA_PORT:-8001}" --no-access-log

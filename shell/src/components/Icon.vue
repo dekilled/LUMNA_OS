@@ -10,6 +10,7 @@ const paths: Record<string, string> = {
   mute: "M4 9v6h4l5 4V5L8 9zM17 9l5 6M22 9l-5 6",
   battery: "M3 7h16v10H3zM21 10v4",
   bolt: "M11 7l-3 5h4l-2 5",
+  zap: "M13 2L4 14h7l-1 8 9-12h-7z",
   search: "M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5",
   grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
   close: "M6 6l12 12M18 6L6 18",

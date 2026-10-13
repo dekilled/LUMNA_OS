@@ -91,6 +91,11 @@ por uma tela no Painel). Uma macro é uma lista de passos com ações do catálo
 - `wait` (segundos ou "até a janela X abrir") e `if` simples (modo atual, rede, aparelho
   conectado) ficam para a segunda versão.
 
+Feito em `shell/src-tauri/src/automation.rs`. Pedida pela própria Emma (`macro.run` numa conversa),
+os passos `emma` voltam para ela fazer em seguida; pedida por gatilho ou pelo painel, eles viram
+uma mensagem para a Emma. Uma macro não roda outra macro, e ações desligadas no painel param a
+macro com erro.
+
 ## 4. Gatilhos ("serviços" de automação)
 
 Um executor no shell (como o agendador das lâmpadas no backend, mas local) liga **gatilho →
@@ -107,8 +112,30 @@ macro**:
 | Ocioso | "20 min parado: bloquear" |
 | Voz | "Oi Emma, hora do filme" → `macro.hora-do-filme` |
 
-Arquivo `~/.config/lumna/automations.json`; tela no Painel → Emma → Automações (liga/desliga,
-última execução, histórico).
+Arquivo `~/.config/lumna/automations.json`, por exemplo:
+
+```json
+[{ "id": "cinema", "name": "Cinema", "enabled": true,
+   "when": { "type": "mode", "mode": "media" }, "macro": "hora-do-filme" },
+ { "id": "manha", "name": "Manhã", "enabled": true,
+   "when": { "type": "time", "at": "08:00", "days": [1, 2, 3, 4, 5] }, "macro": "trabalho" }]
+```
+
+`when.type`: `time`, `login`, `mode`, `app_opened`, `app_closed`, `wifi`, `bluetooth`. Tela no
+painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas execuções
+(`~/.local/state/lumna/automations.log`).
+
+## 4.1 O pacote `lumna-emma`
+
+- O backend (só os `.py` e as dependências do `requirements.txt`, sem venv) vai para
+  `/usr/lib/lumna-emma`; o serviço `lumna-emma.service` do systemd do usuário vem ligado.
+- Na primeira vez, `/usr/lib/lumna/lumna-emma` cria `~/.config/lumna/emma/backend.env` (modo 600)
+  com segredos aleatórios e uma conta local (`$USER@lumna.local` + senha aleatória). O painel lê
+  esse arquivo e entra sozinho; dados em `~/.local/share/lumna-emma`.
+- O backend escuta só em `127.0.0.1:8001`. Endpoints locais (Ollama no próprio PC) são liberados
+  (`ALLOW_PRIVATE_URLS=true`).
+- O código vem do NewHarnessV2 (privado): `EMMA_SRC` no build local, `EMMA_REPO_TOKEN` no CI. Sem
+  ele, o ISO sai sem o pacote e o painel pede o endereço de um servidor da Emma.
 
 ## 5. Segurança
 
@@ -121,11 +148,12 @@ Arquivo `~/.config/lumna/automations.json`; tela no Painel → Emma → Automaç
 
 ## 6. Fases
 
-1. ✅ **Ponte**: login no backend, painel da Emma (chat + voz) no shell, `where="lumna"` no backend,
+1. ✅ **Ponte**: login no backend, painel da Emma (conversa por texto; a voz é a fase 5) no shell, `where="lumna"` no backend,
    `tool_client` → executar → `/tool-result`, confirmações na tela do LUMNA.
 2. ✅ **Catálogo** com as ações da tabela (começando por apps, modos, mídia, som, janelas, arquivos).
-3. **Macros** (arquivo, `lumna-ctl macro run`, ferramenta `macro.*` para a Emma, tela simples).
-4. **Gatilhos** (horário, login, modo, aparelho, rede, app, ocioso) + histórico.
+3. ✅ **Macros** (arquivo, `lumna-ctl action macro.run`, ações `macro.*` para a Emma, tela ⚡ no painel).
+4. ✅ **Gatilhos** (horário, login, modo, Bluetooth, Wi-Fi, app aberto/fechado) + histórico.
+   Falta: ocioso (precisa do `ext-idle-notify` no shell).
 5. **"Oi Emma"** no LUMNA (long poll do `/wake/wait`) e voz no painel.
-6. **Backend da Emma no ISO** como serviço do usuário (`systemctl --user`), com o primeiro boot
+6. ✅ **Backend da Emma no ISO** como serviço do usuário (`systemctl --user`), com o primeiro boot
    ("conta da Emma", provedor de LLM).

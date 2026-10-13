@@ -246,7 +246,8 @@ fn emit(app: &AppHandle, event: &Value) {
 }
 
 /// Conversa uma mensagem inteira: manda, repassa os eventos ao painel e executa as ações.
-fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<(), String> {
+/// Devolve a resposta final da Emma.
+fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<String, String> {
     let emma = app.state::<Emma>();
     let token = emma.access_token()?;
     let sid = emma.session(&token)?;
@@ -261,10 +262,21 @@ fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<(), String> {
     let mut child = curl(&curl_config("POST", &url, Some(&token), Some(&body)), &["-N", "--fail-with-body"])?;
     let stdout = child.stdout.take().ok_or("curl sem saída")?;
     let mut got_any = false;
+    let mut answer = String::new();
+    // O que não é SSE (o corpo de um erro, com --fail-with-body).
+    let mut other = String::new();
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-        let Some(event) = parse_sse(&line) else { continue };
+        let Some(event) = parse_sse(&line) else {
+            if other.len() < 4000 {
+                other.push_str(&line);
+            }
+            continue;
+        };
         got_any = true;
         emit(app, &event);
+        if event["type"] == "done" {
+            answer = event["message"]["content"].as_str().unwrap_or_default().to_string();
+        }
         if event["type"] == "tool_client" {
             let tool = &event["tool"];
             let call_id = tool["id"].as_str().unwrap_or_default().to_string();
@@ -286,13 +298,36 @@ fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<(), String> {
         // 401: o token caiu (senha trocada, servidor reiniciado); a próxima tenta de novo do zero.
         emma.0.lock().unwrap().access = None;
         let err = String::from_utf8_lossy(&out.stderr);
+        let why = serde_json::from_str::<Value>(&other).map(|body| detail(&body)).unwrap_or_default();
         return Err(if err.contains("401") || err.contains("403") {
             "A Emma pediu login de novo (Painel → Emma).".into()
+        } else if !why.is_empty() {
+            why
         } else {
             format!("A Emma não respondeu em {}.", base_url())
         });
     }
-    Ok(())
+    Ok(answer)
+}
+
+/// Uma conversa por vez: marca a Emma como ocupada enquanto `f` roda.
+fn exclusive<T>(app: &AppHandle, f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    {
+        let emma = app.state::<Emma>();
+        let mut inner = emma.0.lock().unwrap();
+        if inner.busy {
+            return Err("A Emma ainda está respondendo.".into());
+        }
+        inner.busy = true;
+    }
+    let result = f();
+    app.state::<Emma>().0.lock().unwrap().busy = false;
+    result
+}
+
+/// Pede algo à Emma por fora do painel (passo "emma" de uma macro). Bloqueia até ela responder.
+pub fn ask(app: &AppHandle, text: &str) -> Result<String, String> {
+    exclusive(app, || converse(app, text, false))
 }
 
 // ---- comandos do painel ----
@@ -340,18 +375,11 @@ pub async fn emma_send(app: AppHandle, text: String, voice: bool) -> Result<(), 
     if text.is_empty() {
         return Ok(());
     }
-    {
-        let emma = app.state::<Emma>();
-        let mut inner = emma.0.lock().unwrap();
-        if inner.busy {
-            return Err("A Emma ainda está respondendo.".into());
-        }
-        inner.busy = true;
-    }
     let worker = app.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || converse(&worker, &text, voice)).await.map_err(|e| e.to_string());
-    app.state::<Emma>().0.lock().unwrap().busy = false;
-    let result = result.and_then(|r| r);
+    let result = tauri::async_runtime::spawn_blocking(move || exclusive(&worker, || converse(&worker, &text, voice).map(|_| ())))
+        .await
+        .map_err(|e| e.to_string())
+        .and_then(|r| r);
     if let Err(err) = &result {
         emit(&app, &json!({ "type": "error", "message": err }));
     }
@@ -403,6 +431,53 @@ pub async fn emma_history(app: AppHandle) -> Vec<Value> {
     .ok()
     .flatten()
     .unwrap_or_default()
+}
+
+/// Provedores de IA: os modelos prontos do backend e o que está em uso para conversar.
+#[tauri::command]
+pub async fn emma_providers(app: AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = app.state::<Emma>().access_token()?;
+        let (_, presets) = request("GET", "/api/providers/presets", Some(&token), None)?;
+        let (_, settings) = request("GET", "/api/settings", Some(&token), None)?;
+        let (_, providers) = request("GET", "/api/providers", Some(&token), None)?;
+        let chat = &settings["routing"]["chat"];
+        let current = providers
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|p| p["id"] == chat["provider_id"])
+            .map(|p| json!({ "name": p["name"], "model": chat["model"], "base_url": p["base_url"] }));
+        Ok(json!({ "presets": presets, "current": current }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Cadastra o provedor (com a chave) e passa a conversar por ele.
+#[tauri::command]
+pub async fn emma_set_provider(app: AppHandle, name: String, base_url: String, api_key: String, model: String) -> Result<(), String> {
+    if model.trim().is_empty() {
+        return Err("Escolha o modelo.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = app.state::<Emma>().access_token()?;
+        let body = json!({ "name": name.trim(), "base_url": base_url.trim(), "api_key": api_key.trim(), "models": [model.trim()] });
+        let (code, provider) = request("POST", "/api/providers", Some(&token), Some(&body))?;
+        let id = provider["id"].as_str().filter(|_| code == 200).ok_or_else(|| {
+            let why = detail(&provider);
+            if why.is_empty() { format!("O servidor recusou o provedor ({code}).") } else { why }
+        })?;
+        let routing = json!({ "routing": { "chat": { "provider_id": id, "model": model.trim() } } });
+        let (code, body) = request("PUT", "/api/settings", Some(&token), Some(&routing))?;
+        if code == 200 {
+            Ok(())
+        } else {
+            Err(detail(&body))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Permissões das ações, para o Painel → Emma.

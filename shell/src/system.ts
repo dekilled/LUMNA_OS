@@ -489,6 +489,59 @@ export const emmaSend = (text: string, voice = false) => invoke<void>("emma_send
 export const emmaDecide = (callId: string, allow: boolean) => invoke<void>("emma_decide", { callId, allow });
 export const emmaNewConversation = () => invoke<void>("emma_new_conversation");
 export const emmaHistory = () => invoke<EmmaMessage[]>("emma_history");
+export interface ProviderPreset {
+  preset: string;
+  name: string;
+  base_url: string;
+  models: string[];
+}
+
+export const emmaProviders = () =>
+  invoke<{ presets: ProviderPreset[]; current: { name: string; model: string; base_url: string } | null }>(
+    "emma_providers",
+  );
+export const emmaSetProvider = (name: string, baseUrl: string, apiKey: string, model: string) =>
+  invoke<void>("emma_set_provider", { name, baseUrl, apiKey, model });
 export const emmaPermissions = () => invoke<ActionInfo[]>("emma_permissions");
 export const emmaSetPermission = (name: string, permission: ActionPermission) =>
   invoke<void>("emma_set_permission", { name, permission });
+
+// ---- Automação (macros e gatilhos) ----
+
+export type MacroStep = { action: string; args?: Record<string, unknown> } | { emma: string } | { wait: number };
+
+export interface Macro {
+  name: string;
+  description: string;
+  steps: MacroStep[];
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  enabled: boolean;
+  when: { type: string; [key: string]: unknown };
+  macro: string;
+  /** "Dias úteis às 08:00". */
+  description: string;
+}
+
+export interface AutomationRun {
+  at: string;
+  by: string;
+  macro: string;
+  ok: boolean;
+  summary: string;
+}
+
+export interface ActionOutcome {
+  ok: boolean;
+  summary: string;
+  content: string;
+}
+
+export const automationOverview = () =>
+  invoke<{ macros: Macro[]; automations: Automation[]; history: AutomationRun[] }>("automation_overview");
+export const automationSetEnabled = (id: string, enabled: boolean) =>
+  invoke<void>("automation_set_enabled", { id, enabled });
+export const automationRunMacro = (name: string) => invoke<ActionOutcome>("automation_run_macro", { name });

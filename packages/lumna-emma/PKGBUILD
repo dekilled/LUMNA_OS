@@ -1,0 +1,42 @@
+# Emma no LUMNA: o backend da Emma (projeto NewHarnessV2) como serviço do usuário.
+# O código vem de fora deste repositório: EMMA_SRC aponta para a cópia do NewHarnessV2
+# (o iso/build.sh passa; sem ela, o ISO sai sem este pacote e o painel pede um servidor).
+pkgname=lumna-emma
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="Emma, a assistente do LUMNA OS (backend local, serviço do usuário)"
+arch=(x86_64)
+url="https://github.com/dekilled/LUMNA_OS"
+license=(GPL-3.0-or-later)
+depends=(python curl lumna-shell)
+makedepends=(python-pip)
+options=(!strip !debug)
+
+_root="$(realpath "$startdir/../..")"
+_emma="${EMMA_SRC:-$_root/../NewHarnessV2}"
+
+build() {
+  [ -f "$_emma/backend/server.py" ] || { echo "EMMA_SRC sem backend/server.py: $_emma" >&2; return 1; }
+  rm -rf "$srcdir/lib"
+  # As dependências ficam numa pasta própria (não num venv, que guarda caminhos do build).
+  python -m pip install --no-cache-dir --disable-pip-version-check --no-compile \
+    --target "$srcdir/lib" -r "$_emma/backend/requirements.txt"
+}
+
+package() {
+  local py; py="$(python -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')"
+  # Módulos nativos (cryptography, pydantic-core...) valem só para esta versão do Python.
+  depends+=("python>=$py" "python<${py%.*}.$(( ${py#*.} + 1 ))")
+  local dest="$pkgdir/usr/lib/lumna-emma"
+  install -d "$dest/backend"
+  (cd "$_emma/backend" && find . -maxdepth 1 -name '*.py' -exec install -Dm644 {} "$dest/backend/{}" \;)
+  install -Dm644 "$_emma/backend/requirements.txt" "$dest/backend/requirements.txt"
+  [ -f "$_emma/BUILD" ] && install -Dm644 "$_emma/BUILD" "$dest/BUILD"
+  cp -a "$srcdir/lib" "$dest/lib"
+  cd "$_root/packages/lumna-emma"
+  install -Dm755 lumna-emma "$pkgdir/usr/lib/lumna/lumna-emma"
+  install -Dm644 lumna-emma.service "$pkgdir/usr/lib/systemd/user/lumna-emma.service"
+  # Liga para todo usuário (como `systemctl --global enable`).
+  install -d "$pkgdir/usr/lib/systemd/user/default.target.wants"
+  ln -s ../lumna-emma.service "$pkgdir/usr/lib/systemd/user/default.target.wants/lumna-emma.service"
+}

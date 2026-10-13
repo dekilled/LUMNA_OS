@@ -8,12 +8,22 @@ import {
   emmaLogout,
   emmaNewConversation,
   emmaPermissions,
+  emmaProviders,
+  emmaSetProvider,
   emmaSend,
   emmaSetPermission,
   emmaStatus,
+  automationOverview,
+  automationRunMacro,
+  automationSetEnabled,
   layerHide,
   on,
   type ActionInfo,
+  type Automation,
+  type AutomationRun,
+  type Macro,
+  type MacroStep,
+  type ProviderPreset,
   type ActionPermission,
   type EmmaEvent,
   type EmmaStatus,
@@ -28,6 +38,8 @@ interface ToolView {
   state: "running" | "confirm" | "ok" | "error" | "denied";
   summary: string;
   reason?: string;
+  /** Os argumentos, mostrados na confirmação ("o que exatamente vai rodar"). */
+  args?: Record<string, unknown>;
 }
 
 interface Bubble {
@@ -37,7 +49,7 @@ interface Bubble {
 }
 
 const visible = ref(false);
-const view = ref<"chat" | "login" | "permissions">("chat");
+const view = ref<"chat" | "login" | "permissions" | "automations" | "provider">("chat");
 const status = ref<EmmaStatus | null>(null);
 const bubbles = ref<Bubble[]>([]);
 const draft = ref("");
@@ -68,10 +80,105 @@ const MOVES_ON = new Set([
   "lumna_mode_switch",
 ]);
 
+const presets = ref<ProviderPreset[]>([]);
+const provider = ref({ current: "", preset: "ollama", baseUrl: "", apiKey: "", model: "", busy: false, error: "" });
+const preset = computed(() => presets.value.find((p) => p.preset === provider.value.preset));
+
+function pickPreset(id: string) {
+  provider.value.preset = id;
+  const p = presets.value.find((x) => x.preset === id);
+  provider.value.baseUrl = p?.base_url ?? "";
+  provider.value.model = p?.models[0] ?? "";
+}
+
+async function openProvider() {
+  view.value = "provider";
+  provider.value.error = "";
+  try {
+    const info = await emmaProviders();
+    presets.value = info.presets;
+    provider.value.current = info.current ? `${info.current.name} · ${info.current.model}` : "";
+    pickPreset(provider.value.preset);
+  } catch (e) {
+    provider.value.error = String(e);
+  }
+}
+
+async function saveProvider() {
+  const p = provider.value;
+  p.busy = true;
+  p.error = "";
+  try {
+    await emmaSetProvider(preset.value?.name ?? "Provedor", p.baseUrl, p.apiKey, p.model);
+    p.apiKey = "";
+    error.value = "";
+    view.value = "chat";
+  } catch (e) {
+    p.error = String(e);
+  } finally {
+    p.busy = false;
+  }
+}
+
+const macros = ref<Macro[]>([]);
+const automations = ref<Automation[]>([]);
+const runs = ref<AutomationRun[]>([]);
+const running = ref("");
+
+async function refreshAutomations() {
+  const overview = await automationOverview();
+  macros.value = overview.macros;
+  automations.value = overview.automations;
+  runs.value = overview.history;
+}
+
+async function openAutomations() {
+  view.value = view.value === "automations" ? "chat" : "automations";
+  if (view.value === "automations") await refreshAutomations();
+}
+
+async function runMacro(macro: Macro) {
+  running.value = macro.name;
+  try {
+    const outcome = await automationRunMacro(macro.name);
+    if (!outcome.ok) error.value = outcome.summary;
+  } finally {
+    running.value = "";
+    await refreshAutomations();
+  }
+}
+
+async function toggleAutomation(automation: Automation) {
+  await automationSetEnabled(automation.id, !automation.enabled);
+  await refreshAutomations();
+}
+
+/** "Volume", "Pedir à Emma: luzes em 20%", "Esperar 2 s". */
+function stepText(step: MacroStep): string {
+  if ("emma" in step) return `Pedir à Emma: ${step.emma}`;
+  if ("wait" in step) return `Esperar ${step.wait} s`;
+  const label = actions.value.find((a) => a.name === step.action)?.label ?? step.action;
+  const args = Object.values(step.args ?? {}).join(", ");
+  return args ? `${label}: ${args}` : label;
+}
+
+/** Argumentos legíveis para a confirmação. */
+function argsText(args?: Record<string, unknown>): string {
+  if (!args || Object.keys(args).length === 0) return "";
+  return JSON.stringify(args, null, 1).slice(0, 600);
+}
+
 const PERMISSION_LABEL: Record<ActionPermission, string> = { auto: "Sozinha", ask: "Pergunta", off: "Desligada" };
 
 function toolView(tool: EmmaTool): ToolView {
-  return { id: tool.id, name: tool.name, label: labels.value.get(tool.name) ?? tool.name, state: "running", summary: "" };
+  return {
+    id: tool.id,
+    name: tool.name,
+    label: labels.value.get(tool.name) ?? tool.name,
+    state: "running",
+    summary: "",
+    args: tool.args,
+  };
 }
 
 const last = () => bubbles.value[bubbles.value.length - 1];
@@ -158,6 +265,8 @@ async function send() {
     error.value = String(e);
     if (String(e).includes("login")) view.value = "login";
   } finally {
+    // Sem provedor de IA ainda (primeiro uso): a tela de escolher aparece sozinha.
+    if (error.value.includes("Nenhum provider")) await openProvider();
     busy.value = false;
     input.value?.focus();
   }
@@ -276,6 +385,14 @@ onUnmounted(() => stops.forEach((stop) => stop()));
         </button>
         <button
           class="icon"
+          :class="{ active: view === 'automations' }"
+          title="Macros e automações"
+          @click="openAutomations()"
+        >
+          <Icon name="zap" :size="18" />
+        </button>
+        <button
+          class="icon"
           :class="{ active: view === 'permissions' }"
           title="O que a Emma pode fazer"
           @click="view = view === 'permissions' ? 'chat' : 'permissions'"
@@ -302,6 +419,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
                 </div>
                 <div v-if="tool.state === 'confirm'" class="confirm">
                   <p>{{ tool.reason }}</p>
+                  <pre v-if="argsText(tool.args)">{{ argsText(tool.args) }}</pre>
                   <div class="confirm-actions">
                     <button class="deny" @click="decide(tool, false)">Não</button>
                     <button class="allow" @click="decide(tool, true)">Permitir</button>
@@ -342,6 +460,83 @@ onUnmounted(() => stops.forEach((stop) => stop()));
         </button>
       </form>
 
+      <!-- Provedor de IA (primeiro uso) -->
+      <form v-else-if="view === 'provider'" class="login" @submit.prevent="saveProvider()">
+        <h2>Cérebro da Emma</h2>
+        <p v-if="provider.current">Em uso: <strong>{{ provider.current }}</strong>. Trocar:</p>
+        <p v-else>Escolha o serviço de IA que a Emma usa para pensar. A chave fica guardada só neste computador.</p>
+        <div class="chips">
+          <button
+            v-for="p in presets"
+            :key="p.preset"
+            type="button"
+            :class="{ on: provider.preset === p.preset }"
+            @click="pickPreset(p.preset)"
+          >
+            {{ p.name }}
+          </button>
+        </div>
+        <label v-if="provider.preset === 'custom'">Endereço<input v-model="provider.baseUrl" spellcheck="false" /></label>
+        <label>
+          Modelo
+          <input v-model="provider.model" list="emma-models" spellcheck="false" />
+          <datalist id="emma-models"><option v-for="m in preset?.models ?? []" :key="m" :value="m" /></datalist>
+        </label>
+        <label>Chave da API<input v-model="provider.apiKey" type="password" autocomplete="off" /></label>
+        <p v-if="provider.error" class="error">{{ provider.error }}</p>
+        <button class="primary" :disabled="provider.busy || !provider.model">
+          {{ provider.busy ? "Salvando…" : "Usar este" }}
+        </button>
+      </form>
+
+      <!-- Macros e automações -->
+      <div v-else-if="view === 'automations'" class="automations">
+        <p class="hint">
+          Peça à Emma: <em>“cria uma macro hora do filme: modo mídia, volume 40 e abre a Netflix”</em> ou
+          <em>“todo dia útil às 8h roda a macro trabalho”</em>.
+        </p>
+        <h3>Macros</h3>
+        <p v-if="macros.length === 0" class="none">Nenhuma macro ainda.</p>
+        <ul>
+          <li v-for="macro in macros" :key="macro.name" class="macro">
+            <div class="info">
+              <span class="label">{{ macro.name }}</span>
+              <span class="desc">{{ macro.steps.map(stepText).join(" → ") }}</span>
+            </div>
+            <button class="run" :disabled="!!running" :title="`Rodar ${macro.name}`" @click="runMacro(macro)">
+              <Icon :name="running === macro.name ? 'refresh' : 'play'" :size="18" />
+            </button>
+          </li>
+        </ul>
+        <h3>Automações</h3>
+        <p v-if="automations.length === 0" class="none">Nenhuma automação ainda.</p>
+        <ul>
+          <li v-for="automation in automations" :key="automation.id">
+            <div class="info">
+              <span class="label">{{ automation.name }}</span>
+              <span class="desc">{{ automation.description }} → {{ automation.macro }}</span>
+            </div>
+            <button
+              class="toggle"
+              :class="{ on: automation.enabled }"
+              role="switch"
+              :aria-checked="automation.enabled"
+              @click="toggleAutomation(automation)"
+            >
+              <span />
+            </button>
+          </li>
+        </ul>
+        <h3 v-if="runs.length">Últimas execuções</h3>
+        <ul class="runs">
+          <li v-for="(run, i) in runs" :key="i" :class="{ failed: !run.ok }">
+            <span class="when">{{ run.at.slice(5, 16) }}</span>
+            <span class="what">{{ run.summary }}</span>
+            <span class="by">{{ run.by }}</span>
+          </li>
+        </ul>
+      </div>
+
       <!-- O que a Emma pode fazer -->
       <div v-else class="permissions">
         <p class="hint">
@@ -367,6 +562,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
             </div>
           </li>
         </ul>
+        <button v-if="status?.configured" class="link" @click="openProvider()">Provedor de IA…</button>
         <button v-if="status?.configured" class="logout" @click="logout()">Sair da conta da Emma</button>
       </div>
     </section>
@@ -773,6 +969,158 @@ textarea:focus,
 .segmented button:disabled {
   opacity: 0.35;
 }
+.confirm pre {
+  margin: 0 0 8px;
+  max-height: 140px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--input);
+  color: #ececf1;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.automations {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+.automations .hint em {
+  color: #a78bfa;
+  font-style: normal;
+}
+.automations h3 {
+  margin: 18px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.automations ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.automations li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.automations .desc {
+  white-space: normal;
+}
+.none {
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.run {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--input);
+  color: #a78bfa;
+}
+.run:hover:not(:disabled) {
+  background: #7d46d7;
+  color: white;
+}
+.run:disabled {
+  opacity: 0.5;
+}
+.toggle {
+  flex: none;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border: 0;
+  border-radius: 11px;
+  background: #3a3b40;
+  padding: 0;
+}
+.toggle span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: white;
+  transition: transform 160ms ease;
+}
+.toggle.on {
+  background: #7d46d7;
+}
+.toggle.on span {
+  transform: translateX(18px);
+}
+.runs li {
+  gap: 8px;
+  font-size: 12px;
+}
+.runs .when {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.runs .what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runs .by {
+  flex: none;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.runs .failed .what {
+  color: #fca5a5;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--input);
+  color: #ececf1;
+  font: inherit;
+  font-size: 13px;
+}
+.chips button.on {
+  border-color: #8b5cf6;
+  background: #332f3d;
+}
+.link {
+  display: block;
+  margin-top: 16px;
+  border: 0;
+  background: transparent;
+  color: #a78bfa;
+  font: inherit;
+  font-size: 13px;
+}
+
 .logout {
   margin-top: 16px;
   border: 0;
