@@ -11,6 +11,7 @@ license=(GPL-3.0-or-later)
 depends=(python curl lumna-shell)
 makedepends=(python-pip)
 options=(!strip !debug)
+install=lumna-emma.install
 
 _root="$(realpath "$startdir/../..")"
 _emma="${EMMA_SRC:-$_root/../NewHarnessV2}"
@@ -36,7 +37,4 @@ package() {
   cd "$_root/packages/lumna-emma"
   install -Dm755 lumna-emma "$pkgdir/usr/lib/lumna/lumna-emma"
   install -Dm644 lumna-emma.service "$pkgdir/usr/lib/systemd/user/lumna-emma.service"
-  # Liga para todo usuário (como `systemctl --global enable`).
-  install -d "$pkgdir/usr/lib/systemd/user/default.target.wants"
-  ln -s ../lumna-emma.service "$pkgdir/usr/lib/systemd/user/default.target.wants/lumna-emma.service"
 }

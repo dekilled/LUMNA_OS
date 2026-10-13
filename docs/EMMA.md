@@ -128,7 +128,7 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 ## 4.1 O pacote `lumna-emma`
 
 - O backend (só os `.py` e as dependências do `requirements.txt`, sem venv) vai para
-  `/usr/lib/lumna-emma`; o serviço `lumna-emma.service` do systemd do usuário vem ligado.
+  `/usr/lib/lumna-emma`; o serviço `lumna-emma.service` do systemd do usuário vem ligado para todos (`systemctl --global enable` na instalação do pacote).
 - Na primeira vez, `/usr/lib/lumna/lumna-emma` cria `~/.config/lumna/emma/backend.env` (modo 600)
   com segredos aleatórios e uma conta local (`$USER@lumna.local` + senha aleatória). O painel lê
   esse arquivo e entra sozinho; dados em `~/.local/share/lumna-emma`.
