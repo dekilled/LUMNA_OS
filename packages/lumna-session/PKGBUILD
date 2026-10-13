@@ -20,6 +20,8 @@ depends=(
   gptfdisk btrfs-progs dosfstools rsync arch-install-scripts
   # Arquivos: lixeira e abrir com o programa padrão (gio), discos e pendrives (udisks)
   glib2 udisks2 xdg-utils
+  # Ações da Emma: copiar/colar, captura de tela e avisos pelo terminal
+  wl-clipboard grim libnotify
 )
 
 _root="$(realpath "$startdir/../..")"

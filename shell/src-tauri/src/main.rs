@@ -1,7 +1,9 @@
+mod actions;
 mod apps;
 mod audio;
 mod bluetooth;
 mod control;
+mod emma;
 mod files;
 mod games;
 mod greeter;
@@ -108,6 +110,18 @@ const SWITCHER: LayerSpec = LayerSpec {
     keyboard: KeyboardMode::None,
     exclusive: Exclusive::Ignore,
     size: (600, 220),
+    visible: false,
+};
+
+/// Painel da Emma: a tela toda (para fechar com um clique fora), com o teclado enquanto aberto.
+const EMMA: LayerSpec = LayerSpec {
+    namespace: "lumna-emma",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
     visible: false,
 };
 
@@ -300,6 +314,34 @@ pub fn launcher(app: &AppHandle, action: LauncherAction) -> Result<(), String> {
         }
     })
     .map_err(|e| e.to_string())
+}
+
+/// Abre ou fecha o painel da Emma no monitor em foco (`Super + A`, botão do dock).
+pub fn emma_panel(app: &AppHandle, action: LauncherAction) -> Result<(), String> {
+    let focused = app.state::<SharedCompositor>().monitors()?.into_iter().find(|m| m.focused);
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let open = match action {
+            LauncherAction::Toggle => !layer::is_visible("emma"),
+            LauncherAction::Open => true,
+            LauncherAction::Close => false,
+        };
+        if open {
+            if let Some(monitor) = &focused {
+                layer::move_to_monitor_at("emma", monitor.x, monitor.y);
+            }
+            layer::set_visible("emma", true);
+            let _ = handle.emit_to("emma", "lumna://emma-opened", ());
+        } else {
+            layer::set_visible("emma", false);
+        }
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn toggle_emma(app: AppHandle) -> Result<(), String> {
+    emma_panel(&app, LauncherAction::Toggle)
 }
 
 #[tauri::command]
@@ -734,6 +776,7 @@ fn main() {
         .manage(status::StatusState::default())
         .manage(Modes::load())
         .manage(MonitorPositions::default())
+        .manage(emma::Emma::default())
         .invoke_handler(tauri::generate_handler![
             workspaces,
             monitors,
@@ -749,6 +792,7 @@ fn main() {
             notification_closed,
             notification_action,
             toggle_launcher,
+            toggle_emma,
             monitor_name,
             modes,
             switch_to,
@@ -829,6 +873,17 @@ fn main() {
             wifi::wifi_disconnect,
             wifi::wifi_forget,
             wifi::wifi_power,
+            actions::actions_tool_defs,
+            actions::actions_run_tool,
+            emma::emma_status,
+            emma::emma_login,
+            emma::emma_logout,
+            emma::emma_send,
+            emma::emma_decide,
+            emma::emma_new_conversation,
+            emma::emma_history,
+            emma::emma_permissions,
+            emma::emma_set_permission,
         ])
         .setup(move |app| {
             let display = gtk::gdk::Display::default().expect("sem display GTK");
@@ -850,6 +905,7 @@ fn main() {
             create_layer(app, "switcher", &primary, &SWITCHER)?;
             create_layer(app, "wifi", &primary, &WIFI)?;
             create_layer(app, "auth", &primary, &AUTH)?;
+            create_layer(app, "emma", &primary, &EMMA)?;
 
             forward_events(app.handle().clone(), compositor.clone());
             status::watch(app.handle().clone());

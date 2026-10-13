@@ -431,3 +431,64 @@ export const openService = (id: string) => invoke<void>("open_service", { id });
 export const remotePairing = () => invoke<Pairing>("remote_pairing");
 export const remoteStopPairing = () => invoke<void>("remote_stop_pairing");
 export const remoteForget = () => invoke<void>("remote_forget");
+
+// ---- Emma ----
+
+export interface EmmaStatus {
+  url: string;
+  email: string;
+  /** Já tem como entrar (token salvo ou conta local do pacote lumna-emma). */
+  configured: boolean;
+  online: boolean;
+}
+
+export interface EmmaTool {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  status: string;
+  summary: string;
+}
+
+/** Eventos da conversa (`lumna://emma`): os do SSE do backend e `tool_ran` (a ação rodou aqui). */
+export type EmmaEvent =
+  | { type: "meta" }
+  | { type: "delta"; content: string }
+  | { type: "rewrite"; content: string }
+  | { type: "tool_start"; tool: EmmaTool }
+  | { type: "tool_confirm"; tool: EmmaTool; label: string; reason: string }
+  | { type: "tool_client"; tool: EmmaTool }
+  | { type: "tool_ran"; id: string; ok: boolean; summary: string }
+  | { type: "tool_end"; tool: EmmaTool }
+  | { type: "done"; message: { content: string } }
+  | { type: "error"; message: string };
+
+export interface EmmaMessage {
+  role: "user" | "assistant";
+  content: string;
+  tools?: EmmaTool[] | null;
+}
+
+export type ActionRisk = "read" | "act" | "danger";
+export type ActionPermission = "auto" | "ask" | "off";
+
+export interface ActionInfo {
+  name: string;
+  label: string;
+  description: string;
+  risk: ActionRisk;
+  permission: ActionPermission;
+}
+
+export const toggleEmma = () => invoke<void>("toggle_emma");
+export const emmaStatus = () => invoke<EmmaStatus>("emma_status");
+export const emmaLogin = (url: string, email: string, password: string) =>
+  invoke<void>("emma_login", { url, email, password });
+export const emmaLogout = () => invoke<void>("emma_logout");
+export const emmaSend = (text: string, voice = false) => invoke<void>("emma_send", { text, voice });
+export const emmaDecide = (callId: string, allow: boolean) => invoke<void>("emma_decide", { callId, allow });
+export const emmaNewConversation = () => invoke<void>("emma_new_conversation");
+export const emmaHistory = () => invoke<EmmaMessage[]>("emma_history");
+export const emmaPermissions = () => invoke<ActionInfo[]>("emma_permissions");
+export const emmaSetPermission = (name: string, permission: ActionPermission) =>
+  invoke<void>("emma_set_permission", { name, permission });

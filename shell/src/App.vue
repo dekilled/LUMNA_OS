@@ -2,6 +2,7 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import AuthDialog from "./components/AuthDialog.vue";
 import Dock from "./components/Dock.vue";
+import EmmaPanel from "./components/EmmaPanel.vue";
 import FilesApp from "./components/files/FilesApp.vue";
 import GreeterApp from "./components/GreeterApp.vue";
 import InstallerApp from "./components/InstallerApp.vue";
@@ -26,6 +27,7 @@ const label = getCurrentWebviewWindow().label;
   <ModeScreen v-else-if="label.startsWith('mode-')" />
   <Switcher v-else-if="label === 'switcher'" />
   <WifiMenu v-else-if="label === 'wifi'" />
+  <EmmaPanel v-else-if="label === 'emma'" />
   <SettingsApp v-else-if="label === 'settings'" />
   <StoreApp v-else-if="label === 'store'" />
   <AuthDialog v-else-if="label === 'auth'" />

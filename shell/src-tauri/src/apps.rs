@@ -19,6 +19,9 @@ pub struct App {
     pub wm_class: Option<String>,
     #[serde(skip)]
     pub exec: String,
+    /// Nome genérico e palavras-chave ("Navegador", "web;internet"), para achar o app por descrição.
+    #[serde(skip)]
+    pub keywords: String,
     #[serde(skip)]
     pub terminal: bool,
 }
@@ -128,6 +131,15 @@ fn icon_data_url(icon: &str) -> Option<String> {
 
 /// Todos os apps visíveis, em ordem alfabética. Só na thread principal (resolve ícones pelo GTK).
 pub fn list() -> Vec<App> {
+    scan(true)
+}
+
+/// Os mesmos apps, sem ícones: roda em qualquer thread (ações da Emma, `lumna-ctl action`).
+pub fn list_plain() -> Vec<App> {
+    scan(false)
+}
+
+fn scan(icons: bool) -> Vec<App> {
     // `None` marca um app escondido: um arquivo escondido do usuário também esconde o do sistema.
     let mut apps: HashMap<String, Option<App>> = HashMap::new();
     for dir in data_dirs() {
@@ -157,9 +169,10 @@ pub fn list() -> Vec<App> {
                     id,
                     name: localized(&fields, "Name"),
                     comment: localized(&fields, "Comment"),
-                    icon: fields.get("Icon").and_then(|i| icon_data_url(i)),
+                    icon: if icons { fields.get("Icon").and_then(|i| icon_data_url(i)) } else { None },
                     wm_class: fields.get("StartupWMClass").cloned(),
                     exec,
+                    keywords: format!("{} {}", localized(&fields, "GenericName"), localized(&fields, "Keywords").replace(';', " ")),
                     terminal: fields.get("Terminal").is_some_and(|t| t == "true"),
                 }),
             );
@@ -175,7 +188,16 @@ mod tests {
     use super::*;
 
     fn app(exec: &str, terminal: bool) -> App {
-        App { id: "x".into(), name: "X".into(), comment: String::new(), icon: None, wm_class: None, exec: exec.into(), terminal }
+        App {
+            id: "x".into(),
+            name: "X".into(),
+            comment: String::new(),
+            icon: None,
+            wm_class: None,
+            exec: exec.into(),
+            keywords: String::new(),
+            terminal,
+        }
     }
 
     #[test]

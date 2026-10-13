@@ -69,6 +69,15 @@ fn lua_string(text: &str) -> Result<String> {
     Ok(format!("[==[{text}]==]"))
 }
 
+/// `0x55d3a0` (ou `55d3a0`, como vem nos eventos) → `address:0x55d3a0`.
+fn window_selector(address: &str) -> Result<String> {
+    let hex = address.trim().trim_start_matches("0x");
+    if hex.is_empty() || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!("endereço de janela inválido: {address:?}"));
+    }
+    Ok(format!("address:0x{hex}"))
+}
+
 fn lua_exec(command: &str) -> Result<String> {
     Ok(format!("hl.dsp.exec_cmd({})", lua_string(command)?))
 }
@@ -187,6 +196,33 @@ impl Compositor for Hyprland {
         self.dispatch("hl.dsp.window.close()", "killactive")
     }
 
+    fn focus_window(&self, address: &str) -> Result<()> {
+        let window = window_selector(address)?;
+        self.dispatch(&format!("hl.dsp.focus({{ window = {} }})", lua_string(&window)?), &format!("focuswindow {window}"))
+    }
+
+    fn close_window(&self, address: &str) -> Result<()> {
+        let window = window_selector(address)?;
+        self.dispatch(&format!("hl.dsp.window.close({{ window = {} }})", lua_string(&window)?), &format!("closewindow {window}"))
+    }
+
+    fn move_window(&self, address: &str, workspace: &str) -> Result<()> {
+        let window = window_selector(address)?;
+        let target = match workspace.parse::<i64>() {
+            Ok(id) => id.to_string(),
+            Err(_) => lua_string(workspace)?,
+        };
+        self.dispatch(
+            &format!("hl.dsp.window.move({{ workspace = {target}, window = {} }})", lua_string(&window)?),
+            &format!("movetoworkspacesilent {workspace},{window}"),
+        )
+    }
+
+    fn fullscreen_window(&self, address: &str) -> Result<()> {
+        self.focus_window(address)?;
+        self.dispatch("hl.dsp.window.fullscreen()", "fullscreen 0")
+    }
+
     fn exec(&self, command: &str) -> Result<()> {
         self.dispatch(&lua_exec(command)?, &format!("exec {command}"))
     }
@@ -238,6 +274,13 @@ mod tests {
     fn exec_is_a_lua_long_string() {
         assert_eq!(lua_exec("foot -e 'a \"b\"'").unwrap(), "hl.dsp.exec_cmd([==[foot -e 'a \"b\"']==])");
         assert!(lua_exec("x ]==] y").is_err());
+    }
+
+    #[test]
+    fn window_addresses() {
+        assert_eq!(window_selector("55d3a0").unwrap(), "address:0x55d3a0");
+        assert_eq!(window_selector("0x55d3a0").unwrap(), "address:0x55d3a0");
+        assert!(window_selector("x; exit").is_err());
     }
 
     #[test]

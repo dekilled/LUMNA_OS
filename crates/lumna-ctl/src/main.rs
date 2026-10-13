@@ -20,7 +20,10 @@ comandos:
   store [descobrir|instalados|atualizacoes|fontes]
                                      abre a Loja (na aba pedida)
   files [CAMINHO]                    abre o Explorador de arquivos (numa pasta)
-  installer                          abre o instalador do LUMNA OS (só no pendrive)";
+  installer                          abre o instalador do LUMNA OS (só no pendrive)
+  emma [open|close]                  abre ou fecha o painel da Emma (Super + A)
+  actions                            lista as ações (o que a Emma e as macros podem fazer)
+  action NOME [JSON]                 roda uma ação, ex.: action apps.open {\"name\":\"firefox\"}";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -41,6 +44,10 @@ fn main() -> ExitCode {
     });
     match reply {
         Ok(reply) if reply.trim() == "ok" => ExitCode::SUCCESS,
+        Ok(reply) if reply.starts_with("ok\n") => {
+            println!("{}", reply["ok\n".len()..].trim_end());
+            ExitCode::SUCCESS
+        }
         Ok(reply) => {
             eprintln!("lumna-ctl: {}", reply.trim());
             ExitCode::FAILURE

@@ -70,6 +70,14 @@ pub trait Compositor: Send + Sync {
     fn focus_monitor(&self, name: &str) -> Result<()>;
     /// Fecha a janela em foco (pede para o app fechar, como `Super + Q`).
     fn close_active_window(&self) -> Result<()>;
+    /// Traz a janela para a frente (vai para o workspace dela).
+    fn focus_window(&self, address: &str) -> Result<()>;
+    /// Pede para a janela fechar.
+    fn close_window(&self, address: &str) -> Result<()>;
+    /// Leva a janela para um workspace (`3`, `name:gaming-DP-1`...).
+    fn move_window(&self, address: &str, workspace: &str) -> Result<()>;
+    /// Liga ou desliga a tela cheia da janela.
+    fn fullscreen_window(&self, address: &str) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
     /// Encerra o compositor (a tela de login sai assim para o greetd abrir a sessão).

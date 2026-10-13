@@ -8,6 +8,23 @@ use tauri::AppHandle;
 use crate::modes::{Layout, Mode, Target};
 use crate::LauncherAction;
 
+/// Resposta com texto: `ok` na primeira linha e o resto para o `lumna-ctl` mostrar.
+fn handle_with_output(app: &AppHandle, command: &str) -> Option<Result<String, String>> {
+    if command == "actions" {
+        let lines: Vec<String> = crate::actions::CATALOG.iter().map(|d| format!("{:<20} {}", d.name, d.label)).collect();
+        return Some(Ok(lines.join("\n")));
+    }
+    // `action apps.open {"name":"firefox"}`: o JSON é opcional e vale o resto da linha.
+    let rest = command.strip_prefix("action ")?;
+    let (name, json) = rest.trim().split_once(' ').unwrap_or((rest.trim(), "{}"));
+    let args: serde_json::Value = match serde_json::from_str(json) {
+        Ok(v) => v,
+        Err(e) => return Some(Err(format!("argumentos não são JSON: {e}"))),
+    };
+    let outcome = tauri::async_runtime::block_on(crate::actions::run(app.clone(), name, args));
+    Some(if outcome.ok { Ok(outcome.content) } else { Err(outcome.summary) })
+}
+
 fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
     // O caminho do Explorador pode ter espaços: vale o resto da linha.
     if command == "files" || command.starts_with("files ") {
@@ -32,6 +49,9 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
             Ok(())
         }
         ["installer"] => crate::open_installer(app),
+        ["emma"] | ["emma", "toggle"] => crate::emma_panel(app, LauncherAction::Toggle),
+        ["emma", "open"] => crate::emma_panel(app, LauncherAction::Open),
+        ["emma", "close"] => crate::emma_panel(app, LauncherAction::Close),
         ["store"] => crate::open_store(app, None),
         ["store", tab] => crate::open_store(app, Some(tab.to_string())),
         ["settings"] => crate::open_settings(app, None),
@@ -64,9 +84,14 @@ pub fn listen(app: AppHandle) {
             if stream.read_to_string(&mut command).is_err() {
                 continue;
             }
-            let reply = match handle(&app, command.trim()) {
-                Ok(()) => "ok".to_string(),
-                Err(err) => err,
+            let command = command.trim();
+            let reply = match handle_with_output(&app, command) {
+                Some(Ok(text)) => format!("ok\n{text}"),
+                Some(Err(err)) => err,
+                None => match handle(&app, command) {
+                    Ok(()) => "ok".to_string(),
+                    Err(err) => err,
+                },
             };
             let _ = stream.write_all(reply.as_bytes());
         }

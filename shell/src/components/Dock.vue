@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { onCompositorEvent, windows, type Window } from "../compositor";
-import { apps, fitLayerTo, launchApp, toggleLauncher, type App } from "../system";
+import { apps, fitLayerTo, launchApp, toggleEmma, toggleLauncher, type App } from "../system";
 import Icon from "./Icon.vue";
 
 // Apps fixos do dock, pelo id do `.desktop`. Os que não estiverem instalados não aparecem.
@@ -54,6 +54,10 @@ onUnmounted(() => stops.forEach((stop) => stop()));
       <span class="divider" />
       <button class="app" title="Todos os apps" @click="toggleLauncher()">
         <span class="all"><Icon name="grid" :size="22" /></span>
+        <span class="dot" />
+      </button>
+      <button class="app" title="Emma (Super + A)" @click="toggleEmma()">
+        <span class="all emma"><Icon name="sparkle" :size="22" /></span>
         <span class="dot" />
       </button>
     </nav>
@@ -110,6 +114,10 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   color: var(--lumna-text);
   font-weight: 700;
   font-size: 18px;
+}
+
+.emma {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
 }
 
 .dot {
