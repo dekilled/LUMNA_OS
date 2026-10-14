@@ -479,9 +479,20 @@ onUnmounted(() => stops.forEach((stop) => stop()));
         <label v-if="provider.preset === 'custom'">Endereço<input v-model="provider.baseUrl" spellcheck="false" /></label>
         <label>
           Modelo
-          <input v-model="provider.model" list="emma-models" spellcheck="false" />
-          <datalist id="emma-models"><option v-for="m in preset?.models ?? []" :key="m" :value="m" /></datalist>
+          <input v-model="provider.model" spellcheck="false" />
         </label>
+        <!-- Sugestões em chips: um <datalist> abriria um popup nativo, que derruba as camadas do layer-shell. -->
+        <div v-if="preset?.models.length" class="chips small">
+          <button
+            v-for="m in preset.models"
+            :key="m"
+            type="button"
+            :class="{ on: provider.model === m }"
+            @click="provider.model = m"
+          >
+            {{ m }}
+          </button>
+        </div>
         <label>Chave da API<input v-model="provider.apiKey" type="password" autocomplete="off" /></label>
         <p v-if="provider.error" class="error">{{ provider.error }}</p>
         <button class="primary" :disabled="provider.busy || !provider.model">
@@ -1106,6 +1117,14 @@ textarea:focus,
   color: #ececf1;
   font: inherit;
   font-size: 13px;
+}
+.chips.small {
+  margin-top: -4px;
+}
+.chips.small button {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 .chips button.on {
   border-color: #8b5cf6;

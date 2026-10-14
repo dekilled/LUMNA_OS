@@ -31,6 +31,7 @@ package() {
   install -Dm755 lumna-session "$pkgdir/usr/bin/lumna-session"
   install -Dm755 lumna-greeter "$pkgdir/usr/bin/lumna-greeter"
   install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
+  install -Dm755 lumna-shell-run "$pkgdir/usr/lib/lumna/lumna-shell-run"
   install -Dm644 greeter.lua "$pkgdir/usr/share/lumna/greeter.lua"
   install -Dm755 lumna-install "$pkgdir/usr/lib/lumna/lumna-install"
   install -Dm644 os.lumna.install.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.install.policy"

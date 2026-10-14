@@ -18,8 +18,8 @@ local terminal = "foot"
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("swaybg -m fill -i /usr/share/lumna/wallpaper.png")
-    -- A saída do shell vai para o journal: journalctl -t lumna-shell
-    hl.exec_cmd("systemd-cat -t lumna-shell lumna-shell")
+    -- A saída do shell vai para o journal: journalctl -t lumna-shell. Se ele cair, volta sozinho.
+    hl.exec_cmd("systemd-cat -t lumna-shell /usr/lib/lumna/lumna-shell-run")
 end)
 
 -----------------
