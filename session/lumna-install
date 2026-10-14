@@ -148,6 +148,11 @@ rm -f "$TARGET/etc/machine-id"
 printf 'uninitialized\n' > "$TARGET/etc/machine-id"
 
 step 80 "Criando sua conta"
+# A conta "lumna" é só do pendrive: sai do sistema instalado (e a sua fica com o UID 1000).
+if [ "$USERNAME" != lumna ] && arch-chroot "$TARGET" id lumna >/dev/null 2>&1; then
+  arch-chroot "$TARGET" userdel -r lumna >/dev/null 2>&1 || arch-chroot "$TARGET" userdel lumna
+  rm -rf "$TARGET/home/lumna"
+fi
 arch-chroot "$TARGET" systemd-sysusers >/dev/null 2>&1 || true
 arch-chroot "$TARGET" useradd -m -G wheel,video,audio,input -s /bin/bash -c "$FULLNAME" "$USERNAME"
 printf '%s:%s\n' "$USERNAME" "$PASSWORD" | arch-chroot "$TARGET" chpasswd
