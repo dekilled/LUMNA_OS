@@ -33,6 +33,19 @@ pub struct Window {
     pub class: String,
     pub title: String,
     pub workspace: i64,
+    /// Nome do workspace (`special:minimized` = minimizada pelo LUMNA).
+    pub workspace_name: String,
+    /// Id do monitor onde a janela está.
+    pub monitor: i64,
+}
+
+/// Workspace escondido onde ficam as janelas minimizadas (o Hyprland não tem "minimizar").
+pub const MINIMIZED: &str = "special:minimized";
+
+impl Window {
+    pub fn minimized(&self) -> bool {
+        self.workspace_name == MINIMIZED
+    }
 }
 
 /// Eventos que o shell precisa acompanhar. Chegam em tempo real pelo compositor.
@@ -49,6 +62,8 @@ pub enum CompositorEvent {
     MonitorsChanged,
     WindowOpened { address: String, class: String, title: String },
     WindowClosed { address: String },
+    /// A janela em foco mudou (ou o título dela).
+    ActiveWindowChanged,
 }
 
 pub type Result<T> = std::result::Result<T, String>;
@@ -78,6 +93,8 @@ pub trait Compositor: Send + Sync {
     fn move_window(&self, address: &str, workspace: &str) -> Result<()>;
     /// Liga ou desliga a tela cheia da janela.
     fn fullscreen_window(&self, address: &str) -> Result<()>;
+    /// Liga ou desliga o "maximizado" (ocupa a área toda, sem cobrir a topbar).
+    fn maximize_window(&self, address: &str) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
     /// Encerra o compositor (a tela de login sai assim para o greetd abrir a sessão).

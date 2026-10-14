@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { focusWorkspace, monitors, onCompositorEvent, workspaces, type Workspace } from "../compositor";
+import {
+  activeWindow,
+  focusWorkspace,
+  monitors,
+  onCompositorEvent,
+  windowControl,
+  workspaces,
+  type Window,
+  type Workspace,
+} from "../compositor";
 import {
   changeVolume,
   MODE_LABEL,
@@ -28,6 +37,21 @@ const now = ref(new Date());
 const sys = ref<Status | null>(null);
 const monitor = ref<string | null>(null);
 const mode = ref<Mode>("desktop");
+
+// Barra da janela em foco (vale para qualquer app, até os que não desenham a própria barra, como o
+// Firefox): título + minimizar, maximizar e fechar. Só na topbar do monitor onde a janela está.
+const focused = ref<Window | null>(null);
+const monitorId = ref<number | null>(null);
+const showWindow = computed(() => focused.value && monitorId.value !== null && focused.value.monitor === monitorId.value);
+
+async function refreshWindow() {
+  focused.value = await activeWindow().catch(() => null);
+}
+
+function control(action: "minimize" | "maximize" | "close") {
+  const address = focused.value?.address;
+  if (address) windowControl(action, address).catch((e) => console.error(e));
+}
 
 const MODE_ICON: Record<Mode, string> = { desktop: "desktop", gaming: "gamepad", media: "play" };
 
@@ -68,6 +92,7 @@ async function refresh() {
   const [ws, mons] = await Promise.all([workspaces(), monitors()]);
   list.value = ws;
   active.value = mons.find((m) => m.focused)?.active_workspace ?? active.value;
+  if (monitor.value) monitorId.value = mons.find((m) => m.name === monitor.value)?.id ?? null;
 }
 
 function onVolumeWheel(event: WheelEvent) {
@@ -84,6 +109,7 @@ onMounted(async () => {
     await onCompositorEvent((event) => {
       if (event.kind === "workspace_focused") active.value = event.id;
       else if (event.kind === "workspaces_changed" || event.kind === "monitors_changed") refresh().catch(() => {});
+      if (event.kind !== "monitor_focused") refreshWindow();
     }),
   );
   stops.push(await on<ModesSnapshot>("lumna://modes", applyModes));
@@ -91,6 +117,8 @@ onMounted(async () => {
   sys.value = await status();
   await refresh().catch(() => {});
   monitor.value = await monitorName().catch(() => null);
+  await refresh().catch(() => {});
+  await refreshWindow();
   applyModes(await modes());
 });
 
@@ -136,6 +164,12 @@ onUnmounted(() => {
     </nav>
 
     <div class="right">
+      <div v-if="showWindow && focused" class="window" :title="focused.title">
+        <span class="window-title">{{ focused.title || focused.class }}</span>
+        <button title="Minimizar" @click="control('minimize')"><Icon name="minimize" :size="14" /></button>
+        <button title="Maximizar" @click="control('maximize')"><Icon name="maximize" :size="12" /></button>
+        <button class="close" title="Fechar (Super + Q)" @click="control('close')"><Icon name="close" :size="14" /></button>
+      </div>
       <div v-if="sys" class="status">
         <button class="item" :title="networkLabel" @click="toggleWifi()"><Icon :name="networkIcon" /></button>
         <button
@@ -280,5 +314,43 @@ button.item:hover {
 }
 .date {
   color: var(--lumna-muted);
+}
+
+.window {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 10px;
+  padding: 0 4px 0 10px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.window-title {
+  max-width: 280px;
+  margin-right: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--lumna-muted);
+}
+.window button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lumna-muted);
+}
+.window button:hover {
+  background: rgba(167, 139, 250, 0.18);
+  color: var(--lumna-text);
+}
+.window .close:hover {
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
 }
 </style>

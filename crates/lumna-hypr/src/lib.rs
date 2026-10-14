@@ -111,6 +111,7 @@ pub fn parse_event(line: &str) -> Vec<CompositorEvent> {
             CompositorEvent::WindowClosed { address: data.to_string() },
             CompositorEvent::WorkspacesChanged,
         ],
+        "activewindowv2" | "windowtitlev2" => vec![CompositorEvent::ActiveWindowChanged],
         "monitoradded" | "monitorremoved" => vec![CompositorEvent::MonitorsChanged, CompositorEvent::WorkspacesChanged],
         _ => Vec::new(),
     }
@@ -164,6 +165,8 @@ impl Compositor for Hyprland {
                 class: text(c, "class"),
                 title: text(c, "title"),
                 workspace: c.get("workspace").map(|w| int(w, "id")).unwrap_or_default(),
+                workspace_name: c.get("workspace").map(|w| text(w, "name")).unwrap_or_default(),
+                monitor: int(c, "monitor"),
             })
             .collect())
     }
@@ -189,6 +192,8 @@ impl Compositor for Hyprland {
             class: text(&w, "class"),
             title: text(&w, "title"),
             workspace: w.get("workspace").map(|ws| int(ws, "id")).unwrap_or_default(),
+            workspace_name: w.get("workspace").map(|ws| text(ws, "name")).unwrap_or_default(),
+            monitor: int(&w, "monitor"),
         }))
     }
 
@@ -221,6 +226,11 @@ impl Compositor for Hyprland {
     fn fullscreen_window(&self, address: &str) -> Result<()> {
         self.focus_window(address)?;
         self.dispatch("hl.dsp.window.fullscreen()", "fullscreen 0")
+    }
+
+    fn maximize_window(&self, address: &str) -> Result<()> {
+        self.focus_window(address)?;
+        self.dispatch("hl.dsp.window.fullscreen({ mode = \"maximized\" })", "fullscreen 1")
     }
 
     fn exec(&self, command: &str) -> Result<()> {

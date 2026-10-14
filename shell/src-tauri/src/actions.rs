@@ -612,7 +612,9 @@ fn run_blocking(app: &AppHandle, name: &str, args: &Value) -> Outcome {
         "media.open_service" => media::service_command(arg(args, "id")).and_then(|command| {
             // Um serviço por vez, como na tela do modo Mídia.
             let _ = Command::new("pkill").args(["-f", "lumna/firefox-tv"]).status();
-            compositor.exec(&command).map(|()| Outcome::done(format!("{} aberto", arg(args, "id"))))
+            compositor.exec(&command)?;
+            crate::media_hint();
+            Ok(Outcome::done(format!("{} aberto", arg(args, "id"))))
         }),
         "media.play_video" => {
             let videos = media::videos();

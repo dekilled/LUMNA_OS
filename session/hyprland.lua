@@ -176,6 +176,8 @@ hl.bind(mod .. " + B", hl.dsp.exec_cmd("firefox"))
 hl.bind(mod .. " + I", hl.dsp.exec_cmd("lumna-ctl settings"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("lumna-ctl store"))
 hl.bind(mod .. " + A", hl.dsp.exec_cmd("lumna-ctl emma"))
+-- Na Mídia: fecha o serviço/vídeo em tela cheia e volta para a tela da Mídia.
+hl.bind(mod .. " + Escape", hl.dsp.exec_cmd("lumna-ctl media home"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))

@@ -49,6 +49,7 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
             Ok(())
         }
         ["installer"] => crate::open_installer(app),
+        ["media", "home"] => crate::media_home(app).map(|_| ()),
         ["emma"] | ["emma", "toggle"] => crate::emma_panel(app, LauncherAction::Toggle),
         ["emma", "open"] => crate::emma_panel(app, LauncherAction::Open),
         ["emma", "close"] => crate::emma_panel(app, LauncherAction::Close),

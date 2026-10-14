@@ -218,6 +218,38 @@ fn windows(compositor: tauri::State<'_, SharedCompositor>) -> Result<Vec<Window>
     compositor.windows()
 }
 
+/// Janela em foco (para a barra da janela na topbar).
+#[tauri::command]
+fn active_window(compositor: tauri::State<'_, SharedCompositor>) -> Result<Option<Window>, String> {
+    compositor.active_window()
+}
+
+/// Minimizar, maximizar, fechar ou trazer para a frente uma janela (a em foco, se não disser qual).
+/// O Hyprland não tem "minimizar": a janela vai para um workspace escondido e volta pelo dock.
+#[tauri::command]
+fn window_control(compositor: tauri::State<'_, SharedCompositor>, address: Option<String>, action: String) -> Result<(), String> {
+    let address = match address {
+        Some(address) => address,
+        None => compositor.active_window()?.map(|w| w.address).ok_or("nenhuma janela em foco")?,
+    };
+    match action.as_str() {
+        "close" => compositor.close_window(&address),
+        "minimize" => compositor.move_window(&address, lumna_core::MINIMIZED),
+        "maximize" => compositor.maximize_window(&address),
+        "fullscreen" => compositor.fullscreen_window(&address),
+        "focus" => {
+            // Minimizada: volta para a área de trabalho em uso no monitor em foco.
+            let minimized = compositor.windows()?.iter().any(|w| w.address == address && w.minimized());
+            if minimized {
+                let target = compositor.monitors()?.into_iter().find(|m| m.focused).map(|m| m.active_workspace).unwrap_or(1);
+                compositor.move_window(&address, &target.to_string())?;
+            }
+            compositor.focus_window(&address)
+        }
+        _ => Err(format!("ação de janela desconhecida: {action}")),
+    }
+}
+
 #[tauri::command]
 fn focus_workspace(compositor: tauri::State<'_, SharedCompositor>, id: i64) -> Result<(), String> {
     compositor.focus_workspace(id)
@@ -426,11 +458,21 @@ async fn settings_open(app: AppHandle, page: Option<String>) -> Result<(), Strin
 }
 
 /// Mostra (com o pedido) ou esconde a tela de senha, no monitor em foco.
+/// O painel da Emma estava aberto quando a tela de senha apareceu (volta quando ela fecha).
+static EMMA_BEHIND_AUTH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub fn auth_layer(app: &AppHandle, request: Option<polkit::Request>) {
+    use std::sync::atomic::Ordering;
     let focused = app.state::<SharedCompositor>().monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused));
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || match request {
         Some(request) => {
+            // O painel da Emma cobre a tela e prende o teclado: sai da frente enquanto a senha está
+            // aberta (a Emma pediu a instalação e fica esperando).
+            if layer::is_visible("emma") {
+                layer::set_visible("emma", false);
+                EMMA_BEHIND_AUTH.store(true, Ordering::SeqCst);
+            }
             if !layer::is_visible("auth") {
                 if let Some(monitor) = &focused {
                     layer::move_to_monitor_at("auth", monitor.x, monitor.y);
@@ -442,6 +484,10 @@ pub fn auth_layer(app: &AppHandle, request: Option<polkit::Request>) {
         None => {
             layer::set_visible("auth", false);
             let _ = handle.emit_to("auth", "lumna://auth-done", ());
+            if EMMA_BEHIND_AUTH.swap(false, Ordering::SeqCst) {
+                layer::set_visible("emma", true);
+                let _ = handle.emit_to("emma", "lumna://emma-returned", ());
+            }
         }
     });
 }
@@ -562,6 +608,10 @@ struct PadEvent {
 pub fn pad_action(app: &AppHandle, action: pad::Action) {
     let compositor = app.state::<SharedCompositor>();
     if action == pad::Action::Guide {
+        // Na Mídia, com um serviço ou vídeo aberto, o botão central volta para a tela da Mídia.
+        if media_home(app).unwrap_or(false) {
+            return;
+        }
         if let Err(err) = switch_mode(app, Target::Next) {
             eprintln!("lumna-shell: troca de modo pelo controle: {err}");
         }
@@ -609,7 +659,9 @@ fn play_video(
         let cache = cache.0.lock().unwrap();
         cache.iter().find(|v| v.id == id).map(media::video_command).ok_or_else(|| format!("vídeo {id} não encontrado"))?
     };
-    compositor.exec(&command)
+    compositor.exec(&command)?;
+    media_hint();
+    Ok(())
 }
 
 #[tauri::command]
@@ -617,7 +669,9 @@ fn open_service(compositor: tauri::State<'_, SharedCompositor>, id: String) -> R
     let command = media::service_command(&id)?;
     // Um serviço por vez: o Firefox da TV anterior fecha antes de abrir o próximo.
     let _ = std::process::Command::new("pkill").args(["-f", "lumna/firefox-tv"]).status();
-    compositor.exec(&command)
+    compositor.exec(&command)?;
+    media_hint();
+    Ok(())
 }
 
 #[tauri::command]
@@ -637,6 +691,28 @@ fn remote_forget(remote: tauri::State<'_, remote::Remote>) -> Result<(), String>
 
 /// Botão "início" do celular: fecha o que estiver na frente (streaming, vídeo) ou, se não houver
 /// nada, vai para a tela de Mídia.
+/// Na Mídia: fecha o serviço ou vídeo em foco e volta para a tela da Mídia (`Super + Esc`, botão
+/// central do controle). Fora da Mídia não faz nada (devolve `false`).
+pub fn media_home(app: &AppHandle) -> Result<bool, String> {
+    let compositor = app.state::<SharedCompositor>();
+    let Some(monitor) = compositor.monitors()?.into_iter().find(|m| m.focused) else { return Ok(false) };
+    if app.state::<Modes>().mode_of(&monitor.name) != Mode::Media {
+        return Ok(false);
+    }
+    if compositor.active_window()?.is_some() {
+        compositor.close_active_window()?;
+    }
+    switch_mode(app, Target::Set(Mode::Media))?;
+    Ok(true)
+}
+
+/// Aviso de como voltar, ao abrir algo em tela cheia na Mídia.
+pub fn media_hint() {
+    let _ = std::process::Command::new("notify-send")
+        .args(["-a", "LUMNA", "-t", "6000", "Para voltar à Mídia", "Super + Esc, ou o botão central do controle"])
+        .spawn();
+}
+
 pub fn remote_home(app: &AppHandle) -> Result<(), String> {
     let compositor = app.state::<SharedCompositor>();
     if compositor.active_window()?.is_some() {
@@ -812,6 +888,8 @@ fn main() {
             workspaces,
             monitors,
             windows,
+            active_window,
+            window_control,
             focus_workspace,
             apps,
             launch_app,

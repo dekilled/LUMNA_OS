@@ -21,6 +21,7 @@ comandos:
                                      abre a Loja (na aba pedida)
   files [CAMINHO]                    abre o Explorador de arquivos (numa pasta)
   installer                          abre o instalador do LUMNA OS (só no pendrive)
+  media home                         na Mídia, fecha o que está em tela cheia (Super + Esc)
   emma [open|close]                  abre ou fecha o painel da Emma (Super + A)
   actions                            lista as ações (o que a Emma e as macros podem fazer)
   action NOME [JSON]                 roda uma ação, ex.: action apps.open {\"name\":\"firefox\"}";

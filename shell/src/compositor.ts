@@ -22,7 +22,13 @@ export interface Window {
   class: string;
   title: string;
   workspace: number;
+  /** "special:minimized" = minimizada pelo LUMNA. */
+  workspace_name: string;
+  /** Id do monitor. */
+  monitor: number;
 }
+
+export type WindowAction = "close" | "minimize" | "maximize" | "fullscreen" | "focus";
 
 export type CompositorEvent =
   | { kind: "workspace_focused"; id: number }
@@ -30,11 +36,17 @@ export type CompositorEvent =
   | { kind: "monitor_focused"; name: string }
   | { kind: "monitors_changed" }
   | { kind: "window_opened"; address: string; class: string; title: string }
-  | { kind: "window_closed"; address: string };
+  | { kind: "window_closed"; address: string }
+  | { kind: "active_window_changed" };
 
 export const workspaces = () => invoke<Workspace[]>("workspaces");
 export const monitors = () => invoke<Monitor[]>("monitors");
 export const windows = () => invoke<Window[]>("windows");
+export const activeWindow = () => invoke<Window | null>("active_window");
+/** Sem `address`, vale para a janela em foco. */
+export const windowControl = (action: WindowAction, address?: string) =>
+  invoke<void>("window_control", { action, address: address ?? null });
+export const isMinimized = (w: Window) => w.workspace_name === "special:minimized";
 export const focusWorkspace = (id: number) => invoke<void>("focus_workspace", { id });
 
 export const onCompositorEvent = (handler: (event: CompositorEvent) => void) =>
