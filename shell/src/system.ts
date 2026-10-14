@@ -545,3 +545,8 @@ export const automationOverview = () =>
 export const automationSetEnabled = (id: string, enabled: boolean) =>
   invoke<void>("automation_set_enabled", { id, enabled });
 export const automationRunMacro = (name: string) => invoke<ActionOutcome>("automation_run_macro", { name });
+
+// ---- Área de transferência (menu de texto do LUMNA) ----
+
+export const clipboardRead = () => invoke<string>("clipboard_read");
+export const clipboardWrite = (text: string) => invoke<void>("clipboard_write", { text });

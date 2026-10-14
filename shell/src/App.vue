@@ -12,6 +12,7 @@ import Notifications from "./components/Notifications.vue";
 import SettingsApp from "./components/settings/SettingsApp.vue";
 import StoreApp from "./components/store/StoreApp.vue";
 import Switcher from "./components/Switcher.vue";
+import TextMenu from "./components/TextMenu.vue";
 import Topbar from "./components/Topbar.vue";
 import WifiMenu from "./components/WifiMenu.vue";
 
@@ -34,4 +35,5 @@ const label = getCurrentWebviewWindow().label;
   <FilesApp v-else-if="label.startsWith('files-')" />
   <InstallerApp v-else-if="label === 'installer'" />
   <GreeterApp v-else-if="label === 'greeter'" />
+  <TextMenu />
 </template>

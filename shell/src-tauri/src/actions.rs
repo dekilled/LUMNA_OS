@@ -1228,6 +1228,26 @@ fn run_cmd(command: &mut Command) -> Result<String, String> {
     }
 }
 
+// ---- área de transferência (menu de texto do LUMNA) ----
+
+/// Texto copiado agora (vazio se não houver). O menu "Colar" do LUMNA lê por aqui: o menu nativo
+/// do WebKit abre um popup do GTK, que derruba as camadas do layer-shell.
+#[tauri::command]
+pub async fn clipboard_read() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let out = Command::new("wl-paste").args(["-n", "-t", "text"]).stdin(Stdio::null()).output().map_err(|e| format!("wl-paste: {e}"))?;
+        // Sem nada copiado o wl-paste sai com erro: para quem cola, é só vazio.
+        Ok(if out.status.success() { String::from_utf8_lossy(&out.stdout).to_string() } else { String::new() })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn clipboard_write(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || clipboard_set(&text).map(|_| ())).await.map_err(|e| e.to_string())?
+}
+
 // ---- comandos do Tauri (painel da Emma) ----
 
 #[tauri::command]

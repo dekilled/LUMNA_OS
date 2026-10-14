@@ -879,6 +879,8 @@ fn main() {
             wifi::wifi_power,
             actions::actions_tool_defs,
             actions::actions_run_tool,
+            actions::clipboard_read,
+            actions::clipboard_write,
             emma::emma_status,
             emma::emma_login,
             emma::emma_logout,
