@@ -1,9 +1,12 @@
 # Ambiente comum da sessão e da tela de login (lido com "." pelos dois scripts).
 
 # No boot a sessão pode chegar antes do driver da GPU (amdgpu, i915) terminar de carregar;
-# o Hyprland então não acha placa de vídeo e cai. Espera a GPU por até 15 s.
+# o Hyprland então não acha placa de vídeo e cai. Espera o udev terminar de preparar os
+# aparelhos e a GPU mostrar uma tela ligada (o nó de render aparece antes da parte de vídeo
+# estar pronta), por até 20 s.
+udevadm settle --timeout=10 2>/dev/null || true
 i=0
-while [ ! -e /dev/dri/renderD128 ] && [ "$i" -lt 30 ]; do
+until [ -e /dev/dri/renderD128 ] && grep -qsx connected /sys/class/drm/card*-*/status || [ "$i" -ge 40 ]; do
   sleep 0.5
   i=$((i + 1))
 done
@@ -15,3 +18,22 @@ case "$driver" in
   amdgpu | radeon | i915 | xe) ;;
   *) export WEBKIT_SKIA_ENABLE_CPU_RENDERING=1 ;;
 esac
+
+# Sobe o Hyprland com a config pedida. Se ele cair logo na partida (GPU ainda acordando), tenta de
+# novo, até 3 vezes. Não usa o start-hyprland: depois de uma queda ele volta em "modo de
+# segurança", que ignora a config, e o LUMNA não aparece.
+run_hyprland() {
+  tries=0
+  while :; do
+    started=$(date +%s)
+    Hyprland --config "$1"
+    status=$?
+    [ "$status" -eq 0 ] && return 0
+    if [ $(($(date +%s) - started)) -ge 20 ] || [ "$tries" -ge 3 ]; then
+      return "$status"
+    fi
+    tries=$((tries + 1))
+    echo "lumna: o Hyprland caiu na partida ($status), tentando de novo ($tries/3)" >&2
+    sleep 2
+  done
+}

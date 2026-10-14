@@ -88,6 +88,11 @@ mkdir -p "$(dirname "$live_files")"
   echo etc/motd
   grep -v "^#" "$SRC/iso/releng-live-files"
 } | sort -u > "$live_files"
+# Sem as entradas "with speech" (leitor de tela do Arch): elas sobem o espeakup, que disputa o som
+# e o console com a sessão, e o LUMNA não abre.
+rm -f "$profile"/efiboot/loader/entries/*speech*.conf
+sed -i '/^menuentry .*speech/,/^}/d' "$profile"/grub/*.cfg
+sed -i '/^LABEL .*speech/,/^$/d' "$profile"/syslinux/*.cfg
 sed -i -e 's/Arch Linux install medium/LUMNA OS/g' -e 's/Arch Linux/LUMNA OS/g' \
   "$profile"/efiboot/loader/entries/*.conf "$profile"/syslinux/*.cfg "$profile"/grub/*.cfg
 

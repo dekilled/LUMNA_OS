@@ -61,6 +61,8 @@ hl.config({
     animations = { enabled = true },
 
     misc = {
+        -- Sem o start-hyprland de propósito (ver run_hyprland em gpu-env): sem o aviso dele.
+        disable_watchdog_warning = true,
         force_default_wallpaper = 0,
         disable_hyprland_logo = true,
         disable_splash_rendering = true,

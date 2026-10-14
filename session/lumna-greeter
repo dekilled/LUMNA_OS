@@ -11,4 +11,4 @@ mkdir -p "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
 
 . /usr/lib/lumna/gpu-env
 
-exec start-hyprland -- --config /usr/share/lumna/greeter.lua
+run_hyprland /usr/share/lumna/greeter.lua
