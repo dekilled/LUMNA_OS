@@ -114,6 +114,33 @@ const SWITCHER: LayerSpec = LayerSpec {
     visible: false,
 };
 
+/// Fundo do Desktop (um por monitor): o papel de parede e o menu do botão direito na área vazia.
+/// Fica na camada de fundo, embaixo das janelas; o swaybg continua por baixo como reserva.
+const DESKTOP: LayerSpec = LayerSpec {
+    namespace: "lumna-desktop",
+    layer: Layer::Background,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: true,
+};
+
+/// Papel de parede do sistema (por enquanto um só; a troca vem depois, pelo menu do Desktop).
+const WALLPAPER: &str = "/usr/share/lumna/wallpaper.png";
+
+/// Caminho do papel de parede, liberado para o `<img>` da camada de fundo.
+#[tauri::command]
+fn desktop_wallpaper(app: AppHandle) -> Option<String> {
+    let path = std::path::Path::new(WALLPAPER);
+    if !path.exists() {
+        return None;
+    }
+    let _ = app.asset_protocol_scope().allow_file(path);
+    Some(WALLPAPER.to_string())
+}
+
 /// Painel da Emma: a tela toda (para fechar com um clique fora), com o teclado enquanto aberto.
 const EMMA: LayerSpec = LayerSpec {
     namespace: "lumna-emma",
@@ -797,6 +824,7 @@ fn main() {
             notification_action,
             toggle_launcher,
             toggle_emma,
+            desktop_wallpaper,
             monitor_name,
             modes,
             switch_to,
@@ -906,6 +934,7 @@ fn main() {
             }
             for index in 0..display.n_monitors() {
                 if let Some(monitor) = display.monitor(index) {
+                    create_layer(app, &format!("desktop-{index}"), &monitor, &DESKTOP)?;
                     create_layer(app, &format!("topbar-{index}"), &monitor, &TOPBAR)?;
                     create_layer(app, &format!("mode-{index}"), &monitor, &MODE_SCREEN)?;
                 }

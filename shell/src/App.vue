@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import AuthDialog from "./components/AuthDialog.vue";
+import Desktop from "./components/Desktop.vue";
 import Dock from "./components/Dock.vue";
 import EmmaPanel from "./components/EmmaPanel.vue";
 import FilesApp from "./components/files/FilesApp.vue";
@@ -21,7 +22,8 @@ const label = getCurrentWebviewWindow().label;
 </script>
 
 <template>
-  <Topbar v-if="label.startsWith('topbar-')" />
+  <Desktop v-if="label.startsWith('desktop-')" />
+  <Topbar v-else-if="label.startsWith('topbar-')" />
   <Dock v-else-if="label === 'dock'" />
   <Launcher v-else-if="label === 'launcher'" />
   <Notifications v-else-if="label === 'notifications'" />

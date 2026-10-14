@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// Menu do botão direito do LUMNA, em todas as janelas. O menu nativo do WebKit é um popup do GTK,
-// e popup nativo pendurado numa camada do layer-shell derruba o shell; aqui ele nunca abre.
-// Nos campos de texto aparece este: Recortar, Copiar, Colar e Selecionar tudo.
+// Copiar e colar do LUMNA, em todas as janelas. O WebKit lê e escreve a área de transferência por
+// dentro do GTK, e isso derruba o shell nas camadas do layer-shell (o menu nativo, o Ctrl+V e o
+// colar do botão do meio). Aqui nada disso chega ao WebKit: o menu do botão direito é este
+// (Recortar, Copiar, Colar, Selecionar tudo) e os atalhos passam pelo wl-copy/wl-paste.
 import { onMounted, onUnmounted, ref } from "vue";
 import { clipboardRead, clipboardWrite } from "../system";
 
@@ -58,32 +59,79 @@ async function run(action: "cut" | "copy" | "paste" | "all") {
     await clipboardWrite(selection(field)).catch(() => {});
     replaceSelection(field, "");
   }
-  if (action === "paste") {
-    const text = await clipboardRead().catch(() => "");
-    // Campo de uma linha: a quebra de linha que veio junto (comum ao copiar uma chave) sai.
-    replaceSelection(field, field instanceof HTMLInputElement ? text.replace(/[\r\n]+/g, "").trim() : text);
-  }
+  // Campo de uma linha: a quebra de linha que veio junto (comum ao copiar uma chave) sai.
+  if (action === "paste") await pasteInto(field);
 }
 
 function close() {
   menu.value = null;
 }
 
+/** Texto selecionado fora de campos (numa mensagem da Emma, por exemplo). */
+function pageSelection(): string {
+  return window.getSelection()?.toString() ?? "";
+}
+
+async function pasteInto(field: Field) {
+  const text = await clipboardRead().catch(() => "");
+  replaceSelection(field, field instanceof HTMLInputElement ? text.replace(/[\r\n]+/g, "").trim() : text);
+}
+
 function onKey(event: KeyboardEvent) {
   if (event.key === "Escape") close();
+  const key = event.key.toLowerCase();
+  const ctrl = event.ctrlKey && !event.altKey && !event.metaKey;
+  const paste = (ctrl && key === "v") || (event.shiftKey && key === "insert");
+  const copy = ctrl && (key === "c" || key === "insert");
+  const cut = ctrl && key === "x";
+  if (!paste && !copy && !cut) return;
+  const field = textField(document.activeElement);
+  const secret = field instanceof HTMLInputElement && field.type === "password";
+  if (paste) {
+    if (!field || field.readOnly || field.disabled) return;
+    event.preventDefault();
+    pasteInto(field);
+    return;
+  }
+  // Copiar/recortar: se não há nada selecionado, deixa o atalho seguir (Ctrl+C num terminal etc.).
+  const text = field ? selection(field) : pageSelection();
+  if (!text) return;
+  event.preventDefault();
+  if (secret) return;
+  clipboardWrite(text).catch(() => {});
+  if (cut && field && !field.readOnly) replaceSelection(field, "");
+}
+
+/** O botão do meio cola a seleção primária pelo mesmo caminho do WebKit: nos campos, não. */
+function onMiddle(event: MouseEvent) {
+  if (event.button === 1 && textField(event.target)) event.preventDefault();
+}
+
+/** Qualquer colar que ainda chegue ao WebKit (menu de edição, arrastar) é barrado. */
+function onPaste(event: ClipboardEvent) {
+  event.preventDefault();
+  const field = textField(event.target);
+  if (field && !field.readOnly && !field.disabled) pasteInto(field);
 }
 
 onMounted(() => {
   window.addEventListener("contextmenu", onContextMenu);
   window.addEventListener("pointerdown", close);
-  window.addEventListener("keydown", onKey);
+  // Na captura: antes de qualquer tela e antes do WebKit tratar o atalho.
+  window.addEventListener("keydown", onKey, true);
+  window.addEventListener("mousedown", onMiddle, true);
+  window.addEventListener("auxclick", onMiddle, true);
+  window.addEventListener("paste", onPaste, true);
   window.addEventListener("blur", close);
 });
 
 onUnmounted(() => {
   window.removeEventListener("contextmenu", onContextMenu);
   window.removeEventListener("pointerdown", close);
-  window.removeEventListener("keydown", onKey);
+  window.removeEventListener("keydown", onKey, true);
+  window.removeEventListener("mousedown", onMiddle, true);
+  window.removeEventListener("auxclick", onMiddle, true);
+  window.removeEventListener("paste", onPaste, true);
   window.removeEventListener("blur", close);
 });
 </script>

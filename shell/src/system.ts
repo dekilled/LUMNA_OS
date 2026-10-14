@@ -550,3 +550,7 @@ export const automationRunMacro = (name: string) => invoke<ActionOutcome>("autom
 
 export const clipboardRead = () => invoke<string>("clipboard_read");
 export const clipboardWrite = (text: string) => invoke<void>("clipboard_write", { text });
+
+// ---- Desktop (fundo) ----
+
+export const desktopWallpaper = () => invoke<string | null>("desktop_wallpaper");
