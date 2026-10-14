@@ -57,6 +57,24 @@ jobs:
             [ -e "$asset" ] || gh release delete-asset repo "$asset" -y
           done
 
+      # ISO de teste numa release fixa ("teste"): download direto do .iso, pelo CDN do GitHub e com
+      # retomada (o artefato do Actions vem num zip, sem retomar e às vezes muito lento).
+      - name: Publica o ISO de teste
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd out
+          gh release view teste >/dev/null 2>&1 || gh release create teste --prerelease \
+            --title "LUMNA OS (teste)" \
+            --notes "O ISO do último build de teste, trocado a cada build. Para instalar de verdade, prefira as versões v*."
+          iso=$(ls lumna-os-*.iso)
+          # Nome fixo (o link não muda entre builds), fora de out/ para não entrar no artefato.
+          test="$RUNNER_TEMP/lumna-os-teste.iso"
+          ln -f "$iso" "$test" 2>/dev/null || cp "$iso" "$test"
+          (cd "$RUNNER_TEMP" && sha256sum lumna-os-teste.iso > lumna-os-teste.iso.sha256)
+          gh release upload teste --clobber "$test" "$test.sha256"
+
       - uses: actions/upload-artifact@v4
         with:
           name: lumna-os-iso
