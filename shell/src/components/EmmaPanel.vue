@@ -177,7 +177,7 @@ function sourceNote(tool: { name: string; args?: Record<string, unknown> }): { t
     case "arch":
       return { text: "Repositório do Arch: revisado pela equipe do Arch e instalado no sistema.", level: "system" };
     case "aur":
-      return { text: "AUR: código da comunidade, sem revisão. A Emma não instala daqui.", level: "risk" };
+      return { text: "AUR: código da comunidade, sem revisão. Só instale se confiar no pacote.", level: "risk" };
     default:
       return null;
   }
