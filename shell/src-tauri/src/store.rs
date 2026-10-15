@@ -272,8 +272,11 @@ fn multilib_enabled() -> bool {
     std::fs::read_to_string("/etc/pacman.conf").is_ok_and(|c| c.lines().any(|l| l.trim() == "[multilib]"))
 }
 
+/// O Flathub da instalação da pessoa (`--user`), que é onde a Loja instala. O flatpak do Arch já vem
+/// com um Flathub de sistema: ele aparece em `flatpak remotes`, mas não serve para `install --user`
+/// ("No remote refs found for 'flathub'").
 fn flathub_enabled() -> bool {
-    output("flatpak", &["remotes", "--columns=name"]).is_some_and(|o| o.lines().any(|l| l.trim() == "flathub"))
+    output("flatpak", &["remotes", "--user", "--columns=name"]).is_some_and(|o| o.lines().any(|l| l.trim() == "flathub"))
 }
 
 fn foreign() -> HashSet<String> {
