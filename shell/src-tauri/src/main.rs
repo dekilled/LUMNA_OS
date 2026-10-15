@@ -27,6 +27,7 @@ mod rest;
 mod status;
 mod store;
 mod system_info;
+mod tray;
 mod vdf;
 mod wallpaper;
 mod wifi;
@@ -185,6 +186,19 @@ const WIFI: LayerSpec = LayerSpec {
 };
 
 /// Pedido de senha de administrador (polkit): cobre a tela e prende o teclado até responder.
+/// Menu de um ícone da bandeja: camada transparente na tela toda (clique fora fecha), o menu embaixo
+/// do ícone.
+const TRAY_MENU: LayerSpec = LayerSpec {
+    namespace: "lumna-traymenu",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::OnDemand,
+    exclusive: Exclusive::None,
+    size: (-1, -1),
+    visible: false,
+};
+
 /// Menu de energia: véu na tela toda com os botões no centro (Esc ou clique fora fecha).
 const POWER: LayerSpec = LayerSpec {
     namespace: "lumna-power",
@@ -947,7 +961,7 @@ fn relayout_monitors(app: &AppHandle) {
     }
     // As camadas únicas voltam ao principal (as que abrem no monitor em foco se movem sozinhas ao abrir).
     if let Some(primary) = display.monitor(0) {
-        for label in ["notifications", "launcher", "switcher", "wifi", "power", "auth", "emma"] {
+        for label in ["notifications", "launcher", "switcher", "wifi", "power", "traymenu", "auth", "emma"] {
             layer::set_monitor(label, &primary);
         }
     }
@@ -1048,6 +1062,11 @@ fn main() {
             keyboard::keyboard_current,
             keyboard::keyboard_next,
             power::power_state,
+            tray::tray_items,
+            tray::tray_activate,
+            tray::tray_menu,
+            tray::tray_menu_click,
+            tray::tray_menu_open,
             rest::rest_off,
             wallpaper::wallpaper_motion_set,
             lock::idle_config,
@@ -1190,6 +1209,7 @@ fn main() {
             create_layer(app.handle(), "switcher", &primary, &SWITCHER)?;
             create_layer(app.handle(), "wifi", &primary, &WIFI)?;
             create_layer(app.handle(), "power", &primary, &POWER)?;
+            create_layer(app.handle(), "traymenu", &primary, &TRAY_MENU)?;
             create_layer(app.handle(), "auth", &primary, &AUTH)?;
             create_layer(app.handle(), "emma", &primary, &EMMA)?;
 
@@ -1203,6 +1223,7 @@ fn main() {
             bluetooth::watch(app.handle().clone());
             polkit::start(app.handle().clone());
             lock::start(app.handle().clone());
+            tray::start(app.handle().clone());
             automation::start(app.handle().clone());
             let handle = app.handle().clone();
             std::thread::spawn(move || dock::update(&handle, true));

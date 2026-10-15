@@ -43,12 +43,39 @@ const position = computed(() => config.value?.position ?? "bottom");
 const vertical = computed(() => position.value !== "bottom");
 const showDock = computed(() => look.value !== "hidden" || revealed.value);
 
-/** Classe de janela de cada app: a declarada no `.desktop` ou o próprio id. */
-const classOf = (app: App) => (app.wm_class ?? app.id).toLowerCase();
+/**
+ * Uma janela é deste app? Pela classe declarada no `.desktop`, pelo id (`org.gnome.Calculator`), pela
+ * última parte dele (`org.mozilla.firefox` → `firefox`) ou pelo nome (o Spotify do Flathub abre com a
+ * classe `Spotify`).
+ */
+const GENERIC = new Set(["client", "app", "desktop", "browser", "editor", "player"]);
+function keysOf(app: App) {
+  const last = app.id.split(".").pop() ?? "";
+  return [app.wm_class, app.id, last.length > 3 && !GENERIC.has(last.toLowerCase()) ? last : null, app.name]
+    .filter((k): k is string => !!k)
+    .map((k) => k.toLowerCase());
+}
+const belongs = (app: App, cls: string) => keysOf(app).includes(cls.toLowerCase());
+
+/** Prefixo dos "apps" montados só a partir de uma janela que não bate com nenhum atalho. */
+const LOOSE = "window:";
+const isLoose = (app: App) => app.id.startsWith(LOOSE);
+
+/** Janelas sem app conhecido: viram um item do dock (senão, minimizadas, não teriam como voltar). */
+const loose = computed<App[]>(() => {
+  const seen = new Map<string, App>();
+  for (const w of open.value) {
+    const cls = w.class.toLowerCase();
+    if (!cls || seen.has(cls) || installed.value.some((a) => belongs(a, cls))) continue;
+    seen.set(cls, { id: `${LOOSE}${cls}`, name: w.class, comment: "", icon: null, wm_class: w.class } as App);
+  }
+  return [...seen.values()];
+});
 
 const entries = computed<Entry[]>(() => {
   const pinnedIds = config.value?.pinned ?? [];
-  const running = new Set(open.value.map((w) => w.class.toLowerCase()));
+  const classes = open.value.map((w) => w.class);
+  const running = { has: (app: App) => classes.some((c) => belongs(app, c)) };
   const list: Entry[] = [];
   for (const [i, id] of pinnedIds.entries()) {
     const key = `${i}:${id}`;
@@ -58,13 +85,13 @@ const entries = computed<Entry[]>(() => {
     else {
       // Apps fixos que não estão instalados (ex.: o instalador, fora do pendrive) não aparecem.
       const app = installed.value.find((a) => a.id === id);
-      if (app) list.push({ kind: "app", key, app, running: running.has(classOf(app)), pinned: true });
+      if (app) list.push({ kind: "app", key, app, running: running.has(app), pinned: true });
     }
   }
   // Apps abertos que não estão fixos entram depois do último app fixo.
-  const extra: Entry[] = installed.value
-    .filter((a) => !pinnedIds.includes(a.id) && running.has(classOf(a)))
-    .map((app) => ({ kind: "app", key: `open:${app.id}`, app, running: true, pinned: false }));
+  const extra: Entry[] = [...installed.value.filter((a) => !pinnedIds.includes(a.id) && running.has(a)), ...loose.value].map(
+    (app) => ({ kind: "app", key: `open:${app.id}`, app, running: true, pinned: false }),
+  );
   const lastApp = list.map((e) => e.kind).lastIndexOf("app");
   list.splice(lastApp + 1, 0, ...extra);
   // Sem separadores sobrando nas pontas ou em dobro (quando um app fixo não está instalado).
@@ -80,7 +107,7 @@ const entries = computed<Entry[]>(() => {
  */
 const windowsOf = (app: App) =>
   open.value
-    .filter((w) => w.class.toLowerCase() === classOf(app))
+    .filter((w) => belongs(app, w.class))
     .sort((a, b) => parseInt(a.address, 16) - parseInt(b.address, 16));
 
 /** Clique no app: sem janela abre; com janelas, passa para a próxima (e traz de volta a minimizada). */
@@ -88,7 +115,7 @@ async function activate(app: App) {
   closeMenu();
   const list = windowsOf(app);
   if (list.length === 0) {
-    launchApp(app.id);
+    if (!isLoose(app)) launchApp(app.id);
     return;
   }
   const current = await activeWindow().catch(() => null);
@@ -259,8 +286,8 @@ onUnmounted(() => {
             <small v-if="isMinimized(w)">minimizada</small>
           </button>
           <span v-if="windowsOf(appMenu.app).length" class="line" />
-          <button @click="newWindow"><Icon name="plus" :size="14" /><span class="label">Nova janela</span></button>
-          <button @click="togglePin">
+          <button v-if="!isLoose(appMenu.app)" @click="newWindow"><Icon name="plus" :size="14" /><span class="label">Nova janela</span></button>
+          <button v-if="!isLoose(appMenu.app)" @click="togglePin">
             <Icon name="pin" :size="14" />
             <span class="label">{{ appMenu.pinned ? "Desafixar do dock" : "Fixar no dock" }}</span>
           </button>

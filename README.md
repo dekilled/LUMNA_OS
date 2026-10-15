@@ -87,7 +87,8 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + Shift + E` | Menu de energia: bloquear, sair, suspender, hibernar, reiniciar, desligar |
 | `Alt + Shift` | Troca de teclado (com mais de um em Configurações → Teclado e idioma) |
 
-Na topbar: clique no cristal abre o launcher, no ícone de rede abre o menu do Wi-Fi, clique no
+Na topbar: os ícones da bandeja (Spotify, Discord, Steam...: clique abre o app, botão direito o menu
+dele), clique no cristal abre o launcher, no ícone de rede abre o menu do Wi-Fi, clique no
 volume silencia e a roda do mouse ajusta.
 Os avisos dos apps (`notify-send`, Firefox...) aparecem no canto superior direito. O botão no canto
 direito abre o menu de energia.

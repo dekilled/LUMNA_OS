@@ -1,0 +1,5 @@
+#!/bin/sh
+# Confirmação com a senha de administrador, sem fazer nada além disso. Roda pelo pkexec (política
+# os.lumna.confirm, que pede a senha toda vez): a Emma chama antes de instalar um programa.
+#   lumna-confirm install "Spotify (Flathub)"
+exit 0

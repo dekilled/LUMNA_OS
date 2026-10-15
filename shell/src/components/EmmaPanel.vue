@@ -168,6 +168,21 @@ function argsText(args?: Record<string, unknown>): string {
   return JSON.stringify(args, null, 1).slice(0, 600);
 }
 
+/** Para instalar: de onde vem o programa e o que isso quer dizer. */
+function sourceNote(tool: { name: string; args?: Record<string, unknown> }): { text: string; level: string } | null {
+  if (tool.name !== "store.install") return null;
+  switch (tool.args?.source) {
+    case "flathub":
+      return { text: "Flathub: roda isolado do sistema. Alguns apps pedem acesso às suas pastas.", level: "safe" };
+    case "arch":
+      return { text: "Repositório do Arch: revisado pela equipe do Arch e instalado no sistema.", level: "system" };
+    case "aur":
+      return { text: "AUR: código da comunidade, sem revisão. A Emma não instala daqui.", level: "risk" };
+    default:
+      return null;
+  }
+}
+
 const PERMISSION_LABEL: Record<ActionPermission, string> = { auto: "Sozinha", ask: "Pergunta", off: "Desligada" };
 
 function toolView(tool: EmmaTool): ToolView {
@@ -420,6 +435,8 @@ onUnmounted(() => stops.forEach((stop) => stop()));
                 <div v-if="tool.state === 'confirm'" class="confirm">
                   <p>{{ tool.reason }}</p>
                   <pre v-if="argsText(tool.args)">{{ argsText(tool.args) }}</pre>
+                  <p v-if="sourceNote(tool)" class="source" :class="sourceNote(tool)!.level">{{ sourceNote(tool)!.text }}</p>
+                  <p v-if="tool.name === 'store.install'" class="source">Depois de permitir, a senha de administrador é pedida.</p>
                   <div class="confirm-actions">
                     <button class="deny" @click="decide(tool, false)">Não</button>
                     <button class="allow" @click="decide(tool, true)">Permitir</button>
@@ -774,6 +791,20 @@ li.confirm .state {
 .confirm p {
   margin: 6px 0 8px;
   color: var(--muted);
+}
+.confirm .source {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #9a9aa5;
+}
+.confirm .source.safe {
+  color: #86efac;
+}
+.confirm .source.system {
+  color: #c4b5fd;
+}
+.confirm .source.risk {
+  color: #fca5a5;
 }
 .confirm-actions {
   display: flex;

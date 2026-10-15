@@ -25,6 +25,10 @@ import {
   toggleMute,
   toggleWifi,
   powerMenu,
+  trayActivate,
+  trayItems,
+  trayMenuOpen,
+  type TrayItem,
   type Mode,
   type ModesSnapshot,
   type Status,
@@ -46,6 +50,26 @@ const mode = ref<Mode>("desktop");
 // Firefox): título + minimizar, maximizar e fechar. Só na topbar do monitor onde a janela está.
 const focused = ref<Window | null>(null);
 const monitorId = ref<number | null>(null);
+// Bandeja: os ícones dos apps em segundo plano (Spotify, Discord, Steam...). Clique ativa o app; botão
+// direito abre o menu dele. Os "passivos" (o app pediu para ficar escondido) não aparecem.
+const tray = ref<TrayItem[]>([]);
+const trayShown = computed(() => tray.value.filter((i) => i.status !== "Passive"));
+
+function trayClick(event: MouseEvent, item: TrayItem) {
+  const x = Math.round(event.clientX);
+  if (item.item_is_menu && item.menu) trayMenuOpen(item.key, x).catch((e) => console.error(e));
+  else trayActivate(item.key, x, 36).catch((e) => console.error(e));
+}
+
+function trayContext(event: MouseEvent, item: TrayItem) {
+  event.preventDefault();
+  trayMenuOpen(item.key, Math.round(event.clientX)).catch((e) => console.error(e));
+}
+
+function trayMiddle(event: MouseEvent, item: TrayItem) {
+  if (event.button === 1) trayActivate(item.key, Math.round(event.clientX), 36, true).catch((e) => console.error(e));
+}
+
 // Indicador do teclado: só com dois ou mais; clique passa para o próximo (como Alt + Shift).
 const keyboard = ref<{ layouts: string[]; active: number } | null>(null);
 const keyboardLabel = computed(() => keyboard.value?.layouts[keyboard.value.active]?.toUpperCase() ?? "");
@@ -141,6 +165,8 @@ onMounted(async () => {
   );
   stops.push(await on<ModesSnapshot>("lumna://modes", applyModes));
   stops.push(await on("lumna://keyboard", refreshKeyboard));
+  stops.push(await on<TrayItem[]>("lumna://tray", (items) => (tray.value = items)));
+  tray.value = await trayItems().catch(() => []);
   // Monitores religados (acordou da suspensão, plugou ou tirou um): esta topbar pode estar noutro.
   stops.push(
     await on("lumna://monitors-relayout", async () => {
@@ -208,6 +234,19 @@ onUnmounted(() => {
         <button class="close" title="Fechar (Super + Q)" @click="control('close')"><Icon name="close" :size="14" /></button>
       </div>
       <div v-if="sys" class="status">
+        <button
+          v-for="item in trayShown"
+          :key="item.key"
+          class="item tray"
+          :class="{ attention: item.status === 'NeedsAttention' }"
+          :title="item.title"
+          @click="trayClick($event, item)"
+          @contextmenu="trayContext($event, item)"
+          @auxclick="trayMiddle($event, item)"
+        >
+          <img v-if="item.icon" :src="item.icon" alt="" />
+          <span v-else class="tray-letter">{{ item.title.charAt(0) || "•" }}</span>
+        </button>
         <button
           v-if="keyboard && keyboard.layouts.length > 1"
           class="item keyboard"
@@ -348,6 +387,18 @@ button {
 }
 button.item:hover {
   background: rgba(167, 139, 250, 0.14);
+}
+.tray img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+.tray-letter {
+  font-size: 11px;
+  font-weight: 700;
+}
+.tray.attention {
+  background: rgba(167, 139, 250, 0.22);
 }
 .keyboard {
   font-size: 11px;
