@@ -2,7 +2,17 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
-import { on, wallpaperAdd, wallpaperList, wallpaperRemove, wallpaperSet, wallpaperSetLock, type Wallpaper } from "../../system";
+import {
+  on,
+  wallpaperAdd,
+  wallpaperList,
+  wallpaperMotionSet,
+  wallpaperRemove,
+  wallpaperSet,
+  wallpaperSetLock,
+  type Wallpaper,
+  type WallpaperMotion,
+} from "../../system";
 
 // Um papel de parede para todos os desktops. A grade junta os do LUMNA e os que a pessoa adicionou.
 const items = ref<Wallpaper[]>([]);
@@ -11,6 +21,25 @@ const current = ref("");
 const lock = ref<string | null>(null);
 /** Para onde vai a escolha: os desktops ou a tela de bloqueio. */
 const target = ref<"desktop" | "lock">("desktop");
+// Animação do fundo: o desktop tem parado, zoom lento e troca de imagens; a tela de bloqueio, parado
+// e troca de imagens.
+const motions = ref<{ desktop: WallpaperMotion; lock: WallpaperMotion }>({ desktop: "none", lock: "none" });
+const MOTIONS: { id: WallpaperMotion; label: string; sub: string; lock: boolean }[] = [
+  { id: "none", label: "Parado", sub: "A imagem escolhida, sem movimento", lock: true },
+  { id: "zoom", label: "Zoom lento", sub: "A imagem escolhida, aproximando devagar", lock: false },
+  { id: "slideshow", label: "Trocar imagens", sub: "Passa pelas imagens da grade com fade", lock: true },
+];
+
+async function setMotion(motion: WallpaperMotion) {
+  error.value = "";
+  try {
+    await wallpaperMotionSet(target.value, motion);
+    motions.value = { ...motions.value, [target.value]: motion };
+  } catch (e) {
+    error.value = String(e);
+  }
+}
+
 const isChosen = (path: string) => (target.value === "desktop" ? path === current.value : path === lock.value);
 const adding = ref(false);
 const error = ref("");
@@ -20,6 +49,7 @@ async function load() {
   items.value = data.items;
   current.value = data.current;
   lock.value = data.lock;
+  motions.value = { desktop: data.desktop_motion, lock: data.lock_motion };
 }
 
 async function useForLock(path: string | null) {
@@ -96,6 +126,19 @@ onUnmounted(() => stops.forEach((stop) => stop()));
       <button :class="{ chosen: target === 'lock' }" @click="target = 'lock'"><Icon name="lock" :size="15" /> Tela de bloqueio</button>
     </div>
 
+    <div class="motions">
+      <button
+        v-for="m in MOTIONS.filter((m) => target === 'desktop' || m.lock)"
+        :key="m.id"
+        :class="{ chosen: motions[target] === m.id }"
+        :title="m.sub"
+        @click="setMotion(m.id)"
+      >
+        <span class="title">{{ m.label }}</span>
+        <span class="sub">{{ m.sub }}</span>
+      </button>
+    </div>
+
     <div class="grid">
       <div
         v-if="target === 'lock'"
@@ -156,6 +199,38 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 .segments button.chosen {
   border-color: #8b5cf6;
   background: rgba(139, 92, 246, 0.25);
+}
+.motions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.motions button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 190px;
+  padding: 10px 14px;
+  border: 1px solid var(--lumna-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.motions button.chosen {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.2);
+}
+.motions .title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.motions .sub {
+  font-size: 11px;
+  color: var(--lumna-muted);
 }
 .tile.same img {
   filter: blur(3px) brightness(0.7);

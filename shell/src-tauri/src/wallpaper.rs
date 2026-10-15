@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use futures_util::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 use zbus::zvariant::{OwnedValue, Value as ZValue};
@@ -78,6 +78,22 @@ pub fn current() -> String {
 /// A imagem escolhida só para a tela de bloqueio, se houver.
 pub fn lock_choice() -> Option<String> {
     valid("lock")
+}
+
+/// Animação do fundo: parado, zoom lento (sempre a mesma imagem) ou trocando entre as imagens da
+/// grade (com zoom lento). A tela de bloqueio (hyprlock) só sabe trocar imagens.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Motion {
+    #[default]
+    None,
+    Zoom,
+    Slideshow,
+}
+
+/// `desktop_motion` ou `lock_motion`.
+pub fn motion(key: &str) -> Motion {
+    serde_json::from_value(read_config()[key].clone()).unwrap_or_default()
 }
 
 /// O fundo da tela de bloqueio: a escolhida para ela ou o papel de parede do desktop.
@@ -222,7 +238,13 @@ async fn choose_images() -> Result<Vec<PathBuf>, String> {
 #[tauri::command]
 pub fn wallpaper_list(app: AppHandle) -> Value {
     allow_assets(&app);
-    json!({ "current": current(), "lock": lock_choice(), "items": list() })
+    json!({
+        "current": current(),
+        "lock": lock_choice(),
+        "desktop_motion": motion("desktop_motion"),
+        "lock_motion": motion("lock_motion"),
+        "items": list(),
+    })
 }
 
 #[tauri::command]
@@ -239,6 +261,26 @@ pub fn wallpaper_set(app: AppHandle, path: String) -> Result<(), String> {
     let _ = app.emit("lumna://wallpaper", &path);
     // A tela de bloqueio usa o mesmo, se não tiver um só dela.
     crate::lock::write_lock_config();
+    Ok(())
+}
+
+/// Animação do fundo do `desktop` ou da tela de bloqueio (`lock`, que não tem zoom).
+#[tauri::command]
+pub fn wallpaper_motion_set(app: AppHandle, target: String, motion: Motion) -> Result<(), String> {
+    let key = match (target.as_str(), motion) {
+        ("lock", Motion::Zoom) => return Err("A tela de bloqueio não tem zoom; só troca de imagens.".into()),
+        ("desktop", _) => "desktop_motion",
+        ("lock", _) => "lock_motion",
+        _ => return Err(format!("destino desconhecido: {target}")),
+    };
+    let mut config = read_config();
+    config[key] = serde_json::to_value(motion).map_err(|e| e.to_string())?;
+    write_config(&config)?;
+    if key == "lock_motion" {
+        crate::lock::write_lock_config();
+    } else {
+        let _ = app.emit("lumna://wallpaper", current());
+    }
     Ok(())
 }
 

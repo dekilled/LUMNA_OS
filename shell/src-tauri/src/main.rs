@@ -23,6 +23,7 @@ mod polkit;
 mod power;
 mod printers;
 mod remote;
+mod rest;
 mod status;
 mod store;
 mod system_info;
@@ -123,6 +124,19 @@ const SWITCHER: LayerSpec = LayerSpec {
 
 /// Fundo do Desktop (um por monitor): o papel de parede e o menu do botão direito na área vazia.
 /// Fica na camada de fundo, embaixo das janelas; o swaybg continua por baixo como reserva.
+/// Tela de descanso (uma por monitor): por cima de tudo, recebe o teclado para a primeira tecla só
+/// acordar (não ir parar no app).
+const REST: LayerSpec = LayerSpec {
+    namespace: "lumna-rest",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+
 const DESKTOP: LayerSpec = LayerSpec {
     namespace: "lumna-desktop",
     layer: Layer::Background,
@@ -948,6 +962,8 @@ fn main() {
             keyboard::keyboard_current,
             keyboard::keyboard_next,
             power::power_state,
+            rest::rest_off,
+            wallpaper::wallpaper_motion_set,
             lock::idle_config,
             lock::idle_config_set,
             lock::lock_screen,
@@ -1081,6 +1097,7 @@ fn main() {
                     create_layer(app, &format!("topbar-{index}"), &monitor, &TOPBAR)?;
                     create_layer(app, &format!("mode-{index}"), &monitor, &MODE_SCREEN)?;
                     create_layer(app, &format!("dock-{index}"), &monitor, &DOCK)?;
+                    create_layer(app, &format!("rest-{index}"), &monitor, &REST)?;
                 }
             }
             create_layer(app, "notifications", &primary, &NOTIFICATIONS)?;

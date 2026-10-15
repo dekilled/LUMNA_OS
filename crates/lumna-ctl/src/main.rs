@@ -22,6 +22,7 @@ comandos:
   files [CAMINHO]                    abre o Explorador de arquivos (numa pasta)
   window minimize|maximize|close     age na janela em foco (botões da barra de título)
   lock                               bloqueia a tela
+  rest on|off                        mostra ou tira a tela de descanso
   power                              abre o menu de energia (sair, suspender, reiniciar, desligar)
   installer                          abre o instalador do LUMNA OS (só no pendrive)
   media home                         na Mídia, fecha o que está em tela cheia (Super + Esc)

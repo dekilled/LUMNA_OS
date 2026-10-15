@@ -1,10 +1,20 @@
 <script setup lang="ts">
 // Fundo do Desktop: o papel de parede (desenhado pelo LUMNA, por cima do swaybg de reserva) e o
 // menu do botão direito na área vazia. Novas funções do Desktop entram como itens deste menu.
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
-import { desktopWallpaper, filesTerminal, filesWindow, on, settingsOpen, toggleEmma, toggleLauncher } from "../system";
+import MotionBackground from "./MotionBackground.vue";
+import {
+  desktopWallpaper,
+  filesTerminal,
+  filesWindow,
+  on,
+  settingsOpen,
+  toggleEmma,
+  toggleLauncher,
+  wallpaperList,
+  type WallpaperMotion,
+} from "../system";
 
 interface Item {
   label: string;
@@ -25,6 +35,16 @@ const MENU: (Item | "line")[] = [
 ];
 
 const wallpaper = ref<string | null>(null);
+const motion = ref<WallpaperMotion>("none");
+const images = ref<string[]>([]);
+
+/** Papel de parede, a animação escolhida e as imagens da grade (para a troca). */
+async function loadWallpaper() {
+  wallpaper.value = await desktopWallpaper().catch(() => null);
+  const data = await wallpaperList().catch(() => null);
+  motion.value = data?.desktop_motion ?? "none";
+  images.value = data?.items.map((i) => i.path) ?? [];
+}
 let stopWallpaper: (() => void) | undefined;
 const menu = ref<{ x: number; y: number } | null>(null);
 
@@ -56,13 +76,9 @@ onMounted(async () => {
   // A camada de fundo não recebe o teclado nem cliques em cima das janelas: o mouse sair dela
   // (indo para uma janela) também fecha o menu.
   document.documentElement.addEventListener("pointerleave", close);
-  const path = await desktopWallpaper().catch(() => null);
-  wallpaper.value = path ? convertFileSrc(path) : null;
-  // Trocou nas Configurações: todos os desktops mudam juntos.
-  stopWallpaper = await on<string>("lumna://wallpaper", async () => {
-    const next = await desktopWallpaper().catch(() => null);
-    wallpaper.value = next ? convertFileSrc(next) : null;
-  });
+  await loadWallpaper();
+  // Trocou nas Configurações (imagem ou animação): todos os desktops mudam juntos.
+  stopWallpaper = await on<string>("lumna://wallpaper", loadWallpaper);
 });
 
 onUnmounted(() => {
@@ -75,7 +91,7 @@ onUnmounted(() => {
 
 <template>
   <div class="desktop" @contextmenu="open" @pointerdown.self="close">
-    <img v-if="wallpaper" class="wallpaper" :src="wallpaper" alt="" draggable="false" @pointerdown="close" />
+    <MotionBackground class="wallpaper" :current="wallpaper" :images="images" :mode="motion" :interval="300" @pointerdown="close" />
     <div v-if="menu" class="menu" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" @contextmenu.prevent>
       <template v-for="(item, i) in MENU" :key="i">
         <span v-if="item === 'line'" class="line" />
@@ -100,10 +116,6 @@ onUnmounted(() => {
 .wallpaper {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  user-select: none;
 }
 
 /* Mesmo visual do menu de texto e do painel da Emma (grafite, acento violeta). */

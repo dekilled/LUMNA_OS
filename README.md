@@ -154,12 +154,15 @@ terminal, `iwctl` resolve.
   nos próximos logins (`~/.config/lumna/monitors.lua`) e na tela de login.
 - **Teclado e idioma**: um ou mais teclados (qualquer layout e variante do sistema; Alt + Shift
   ou o indicador na topbar troca entre eles), aplicados na hora, e o idioma do sistema (vale no próximo login).
-- **Energia**: bloquear, desligar a tela e suspender depois de um tempo parado (e bloquear ao
+- **Energia**: tela de descanso (as imagens com movimento e um relógio grande; qualquer toque sai),
+  bloquear, desligar a tela e suspender depois de um tempo parado (e bloquear ao
   suspender), perfil de energia (economia, equilibrado, desempenho) e sair, suspender, hibernar,
   reiniciar e desligar. A tela de bloqueio é o hyprlock no visual do LUMNA (o papel de parede em uso
   com blur, relógio, data e a senha); o tempo parado é o hypridle. O menu rápido de energia abre com `Super + Shift + E` ou pelo botão no canto
   da topbar.
 - **Papel de parede**: um para todos os desktops; os do LUMNA e as imagens que você adicionar.
+  Animação: parado, zoom lento ou trocar imagens (com fade). A tela de bloqueio pode ter outra imagem
+  ou trocar entre as da grade.
 - **Dock**: o que fica nele (apps, separadores, "Todos os apps", Emma), tamanho dos ícones,
   espaçamento, opacidade do fundo, posição (embaixo, esquerda, direita), em quais monitores aparece
   e o que faz quando uma janela é maximizada: continua ali, se esconde na borda (volta passando o

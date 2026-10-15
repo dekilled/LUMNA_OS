@@ -10,6 +10,7 @@ import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
 import Notifications from "./components/Notifications.vue";
+import RestScreen from "./components/RestScreen.vue";
 import PowerMenu from "./components/PowerMenu.vue";
 import SettingsApp from "./components/settings/SettingsApp.vue";
 import StoreApp from "./components/store/StoreApp.vue";
@@ -25,6 +26,7 @@ const label = getCurrentWebviewWindow().label;
 <template>
   <Desktop v-if="label.startsWith('desktop-')" />
   <Topbar v-else-if="label.startsWith('topbar-')" />
+  <RestScreen v-else-if="label.startsWith('rest-')" />
   <Dock v-else-if="label.startsWith('dock-')" />
   <Launcher v-else-if="label === 'launcher'" />
   <Notifications v-else-if="label === 'notifications'" />

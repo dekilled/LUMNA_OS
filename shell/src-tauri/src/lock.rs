@@ -18,6 +18,8 @@ use crate::SharedCompositor;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct IdleConfig {
+    /// Minutos parado até a tela de descanso (0 = nunca).
+    pub rest_after: u32,
     /// Minutos parado até bloquear (0 = nunca).
     pub lock_after: u32,
     /// Minutos parado até desligar a tela (0 = nunca).
@@ -30,14 +32,14 @@ pub struct IdleConfig {
 
 impl Default for IdleConfig {
     fn default() -> Self {
-        IdleConfig { lock_after: 10, screen_off_after: 15, suspend_after: 0, lock_on_suspend: true }
+        IdleConfig { rest_after: 5, lock_after: 10, screen_off_after: 15, suspend_after: 0, lock_on_suspend: true }
     }
 }
 
 impl IdleConfig {
     fn clamped(mut self) -> Self {
         // Até 12 horas; mais que isso é "nunca" na prática.
-        for value in [&mut self.lock_after, &mut self.screen_off_after, &mut self.suspend_after] {
+        for value in [&mut self.rest_after, &mut self.lock_after, &mut self.screen_off_after, &mut self.suspend_after] {
             *value = (*value).min(720);
         }
         self
@@ -66,6 +68,9 @@ fn lock_command() -> String {
     format!("pidof hyprlock || hyprlock -c '{}'", lock_config_path().display())
 }
 
+/// Uma imagem qualquer das pastas de papel de parede (para a troca de imagens do hyprlock).
+const SLIDESHOW_CMD: &str = r#"find /usr/share/lumna/wallpaper.png /usr/share/lumna/wallpapers ~/.local/share/lumna/wallpapers -maxdepth 1 -type f -regex '.*\.\(png\|jpe?g\|webp\)' 2>/dev/null | shuf -n 1"#;
+
 const SCREEN_ON: &str = r#"hyprctl dispatch 'hl.dsp.dpms({ action = "on" })'"#;
 const SCREEN_OFF: &str = r#"hyprctl dispatch 'hl.dsp.dpms({ action = "off" })'"#;
 
@@ -79,6 +84,12 @@ pub fn idle_conf(config: &IdleConfig) -> String {
     }
     text += &format!("    after_sleep_cmd = {SCREEN_ON}\n");
     text += "}\n";
+    if config.rest_after > 0 {
+        text += &format!(
+            "\nlistener {{\n    timeout = {}\n    on-timeout = lumna-ctl rest on\n    on-resume = lumna-ctl rest off\n}}\n",
+            config.rest_after * 60
+        );
+    }
     if config.lock_after > 0 {
         text += &format!("\nlistener {{\n    timeout = {}\n    on-timeout = loginctl lock-session\n}}\n", config.lock_after * 60);
     }
@@ -96,7 +107,7 @@ pub fn idle_conf(config: &IdleConfig) -> String {
 
 /// O `hyprlock.conf` no visual do LUMNA, com o papel de parede em uso. `layouts`: siglas dos
 /// teclados (`br`, `us`); com dois ou mais, aparece qual está em uso embaixo da senha.
-pub fn lock_conf(wallpaper: &str, layouts: &[String]) -> String {
+pub fn lock_conf(wallpaper: &str, layouts: &[String], slideshow: bool) -> String {
     // O caminho vem das pastas de papel de parede; sem quebra de linha nem `#`, que o hyprlang lê como
     // comentário.
     let wallpaper = if wallpaper.contains(['\n', '#']) { crate::wallpaper::DEFAULT } else { wallpaper };
@@ -109,6 +120,8 @@ pub fn lock_conf(wallpaper: &str, layouts: &[String]) -> String {
     } else {
         String::new()
     };
+    // Trocando imagens: a cada 30 s outra imagem da grade, com fade.
+    let slideshow = if slideshow { format!("    reload_time = 30\n    reload_cmd = {SLIDESHOW_CMD}\n    crossfade_time = 2\n") } else { String::new() };
     let body = format!(
         r###"# Gerado pelo LUMNA: tela de bloqueio. Refeita quando o papel de parede muda.
 
@@ -133,7 +146,7 @@ background {{
     blur_size = 8
     brightness = 0.55
     vibrancy = 0.2
-}}
+{slideshow}}}
 
 # Relógio
 label {{
@@ -201,7 +214,7 @@ pub fn write_lock_config() {
     let dir = config_dir();
     let _ = std::fs::create_dir_all(&dir);
     let layouts: Vec<String> = crate::keyboard::current_layouts().into_iter().map(|l| l.layout).collect();
-    if let Err(err) = std::fs::write(lock_config_path(), lock_conf(&crate::wallpaper::current_lock(), &layouts)) {
+    if let Err(err) = std::fs::write(lock_config_path(), lock_conf(&crate::wallpaper::current_lock(), &layouts, crate::wallpaper::motion("lock_motion") == crate::wallpaper::Motion::Slideshow)) {
         eprintln!("lumna-shell: hyprlock.conf: {err}");
     }
 }
@@ -260,26 +273,29 @@ mod tests {
 
     #[test]
     fn idle_conf_only_has_the_chosen_timers() {
-        let text = idle_conf(&IdleConfig { lock_after: 10, screen_off_after: 0, suspend_after: 30, lock_on_suspend: true });
+        let text = idle_conf(&IdleConfig { rest_after: 5, lock_after: 10, screen_off_after: 0, suspend_after: 30, lock_on_suspend: true });
+        assert!(text.contains("timeout = 300\n    on-timeout = lumna-ctl rest on\n    on-resume = lumna-ctl rest off"));
         assert!(text.contains("before_sleep_cmd = loginctl lock-session"));
         assert!(text.contains("timeout = 600\n    on-timeout = loginctl lock-session"));
         assert!(text.contains("timeout = 1800\n    on-timeout = systemctl suspend"));
         assert!(!text.contains("dpms({ action = \"off\" })"));
-        let never = idle_conf(&IdleConfig { lock_after: 0, screen_off_after: 0, suspend_after: 0, lock_on_suspend: false });
+        let never = idle_conf(&IdleConfig { rest_after: 0, lock_after: 0, screen_off_after: 0, suspend_after: 0, lock_on_suspend: false });
         assert!(!never.contains("listener"));
         assert!(!never.contains("before_sleep_cmd"));
     }
 
     #[test]
     fn lock_conf_uses_the_wallpaper() {
-        let text = lock_conf("/home/eric/.local/share/lumna/wallpapers/praia.jpg", &["br".into()]);
+        let text = lock_conf("/home/eric/.local/share/lumna/wallpapers/praia.jpg", &["br".into()], false);
+        assert!(!text.contains("reload_cmd"));
+        assert!(lock_conf("/x.png", &[], true).contains("    reload_time = 30\n    reload_cmd = find "));
         assert!(text.contains("path = /home/eric/.local/share/lumna/wallpapers/praia.jpg\n"));
         assert!(text.contains("input-field {"));
         assert!(!text.contains("$LAYOUT"));
-        let two = lock_conf("/x.png", &["br".into(), "us".into()]);
+        let two = lock_conf("/x.png", &["br".into(), "us".into()], false);
         assert!(two.contains("text = $LAYOUT[BR,US]"));
         // Caminho estranho: volta para o padrão.
-        assert!(lock_conf("/tmp/a#b.png", &[]).contains(&format!("path = {}\n", crate::wallpaper::DEFAULT)));
+        assert!(lock_conf("/tmp/a#b.png", &[], false).contains(&format!("path = {}\n", crate::wallpaper::DEFAULT)));
     }
 
     #[test]

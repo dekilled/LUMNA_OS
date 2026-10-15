@@ -564,7 +564,19 @@ export interface Wallpaper {
   user: boolean;
 }
 
-export const wallpaperList = () => invoke<{ current: string; lock: string | null; items: Wallpaper[] }>("wallpaper_list");
+/** Parado, zoom lento ou trocando entre as imagens da grade. */
+export type WallpaperMotion = "none" | "zoom" | "slideshow";
+export const wallpaperList = () =>
+  invoke<{
+    current: string;
+    lock: string | null;
+    desktop_motion: WallpaperMotion;
+    lock_motion: WallpaperMotion;
+    items: Wallpaper[];
+  }>("wallpaper_list");
+export const wallpaperMotionSet = (target: "desktop" | "lock", motion: WallpaperMotion) =>
+  invoke<void>("wallpaper_motion_set", { target, motion });
+export const restOff = () => invoke<void>("rest_off");
 /** Fundo só da tela de bloqueio; `null` = o mesmo do desktop. */
 export const wallpaperSetLock = (path: string | null) => invoke<void>("wallpaper_set_lock", { path });
 export const wallpaperSet = (path: string) => invoke<void>("wallpaper_set", { path });
@@ -656,6 +668,7 @@ export const powerSetProfile = (profile: string) => invoke<void>("power_set_prof
 export const powerAction = (action: PowerAction) => invoke<void>("power_action", { action });
 export interface IdleConfig {
   /** Minutos parado (0 = nunca). */
+  rest_after: number;
   lock_after: number;
   screen_off_after: number;
   suspend_after: number;

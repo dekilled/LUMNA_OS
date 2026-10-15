@@ -23,7 +23,8 @@ const confirm = ref<PowerAction | null>(null);
 const idle = ref<IdleConfig | null>(null);
 const MINUTES = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 120];
 const minutesLabel = (m: number) => (m === 0 ? "Nunca" : m < 60 ? `${m} min` : `${m / 60} h`);
-const TIMERS: { key: "lock_after" | "screen_off_after" | "suspend_after"; label: string; sub: string; icon: string }[] = [
+const TIMERS: { key: "rest_after" | "lock_after" | "screen_off_after" | "suspend_after"; label: string; sub: string; icon: string }[] = [
+  { key: "rest_after", label: "Tela de descanso", sub: "Imagens com movimento e um relógio grande", icon: "image" },
   { key: "lock_after", label: "Bloquear a tela", sub: "Depois de quanto tempo parado", icon: "lock" },
   { key: "screen_off_after", label: "Desligar a tela", sub: "Economiza energia; mexer o mouse liga de novo", icon: "screens" },
   { key: "suspend_after", label: "Suspender", sub: "O computador dorme e acorda em segundos", icon: "moon" },
