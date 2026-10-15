@@ -64,7 +64,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "papel-de-parede" | "dock" | "sistema";
+export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "telas" | "papel-de-parede" | "dock" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -599,3 +599,16 @@ export const dockConfigSet = (config: DockConfig) => invoke<DockConfig>("dock_co
 export const dockConfigReset = () => invoke<DockConfig>("dock_config_reset");
 export const dockPin = (id: string, pinned: boolean) => invoke<DockConfig>("dock_pin", { id, pinned });
 export const dockMonitors = () => invoke<string[]>("dock_monitors");
+
+// ---- Telas ----
+
+export type DisplayAlign = "top" | "center" | "bottom";
+export interface Displays {
+  /** Da esquerda para a direita. */
+  monitors: import("./compositor").Monitor[];
+  align: DisplayAlign;
+}
+
+export const displays = () => invoke<Displays>("displays");
+export const displaysArrange = (order: string[], align: DisplayAlign) =>
+  invoke<Displays>("displays_arrange", { order, align });

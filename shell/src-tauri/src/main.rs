@@ -4,6 +4,7 @@ mod automation;
 mod audio;
 mod bluetooth;
 mod control;
+mod displays;
 mod dock;
 mod emma;
 mod files;
@@ -921,6 +922,8 @@ fn main() {
             toggle_launcher,
             toggle_emma,
             desktop_wallpaper,
+            displays::displays,
+            displays::displays_arrange,
             dock::dock_state,
             dock::dock_config,
             dock::dock_config_set,

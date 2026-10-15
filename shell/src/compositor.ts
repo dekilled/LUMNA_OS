@@ -15,6 +15,12 @@ export interface Monitor {
   active_workspace: number;
   x: number;
   y: number;
+  /** Tamanho no layout (já com a escala). */
+  width: number;
+  height: number;
+  scale: number;
+  /** Fabricante e modelo. */
+  label: string;
 }
 
 export interface Window {

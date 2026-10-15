@@ -14,7 +14,7 @@ pub struct Workspace {
     pub windows: u32,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Monitor {
     pub id: i64,
     pub name: String,
@@ -24,6 +24,13 @@ pub struct Monitor {
     /// Posição no layout (coordenadas lógicas), usada para achar o mesmo monitor no GTK.
     pub x: i32,
     pub y: i32,
+    /// Tamanho no layout (já dividido pela escala e girado), que é o que conta para encostar uma
+    /// tela na outra.
+    pub width: i32,
+    pub height: i32,
+    pub scale: f64,
+    /// Fabricante e modelo, para mostrar à pessoa (ex.: "Samsung Odyssey G5").
+    pub label: String,
 }
 
 /// Janela de um app, como o compositor a enxerga.
@@ -101,6 +108,8 @@ pub trait Compositor: Send + Sync {
     fn maximize_window(&self, address: &str) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
+    /// Põe o monitor na posição (x, y) do layout, mantendo a resolução preferida e a escala.
+    fn place_monitor(&self, name: &str, x: i32, y: i32, scale: f64) -> Result<()>;
     /// Encerra o compositor (a tela de login sai assim para o greetd abrir a sessão).
     fn exit(&self) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.

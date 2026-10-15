@@ -8,6 +8,16 @@
 
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
 
+-- Ordem e alinhamento das telas escolhidos em Configurações → Telas (gerado pelo LUMNA).
+do
+    local home = os.getenv("HOME")
+    local arranged = home and io.open(home .. "/.config/lumna/monitors.lua", "r")
+    if arranged then
+        arranged:close()
+        pcall(dofile, home .. "/.config/lumna/monitors.lua")
+    end
+end
+
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
 -- Apps GTK e Qt no Wayland, sem cair no XWayland à toa.

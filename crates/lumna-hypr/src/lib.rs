@@ -66,6 +66,37 @@ fn fullscreen(v: &Value) -> i64 {
     }
 }
 
+fn scale(m: &Value) -> f64 {
+    m.get("scale").and_then(Value::as_f64).filter(|s| *s > 0.0).unwrap_or(1.0)
+}
+
+/// Largura e altura no layout: pixels do modo ÷ escala, trocadas se a tela estiver em pé.
+fn logical_size(m: &Value) -> (i32, i32) {
+    let s = scale(m);
+    let (w, h) = ((int(m, "width") as f64 / s).round() as i32, (int(m, "height") as f64 / s).round() as i32);
+    if int(m, "transform") % 2 == 1 { (h, w) } else { (w, h) }
+}
+
+fn monitor_label(m: &Value) -> String {
+    let label = format!("{} {}", text(m, "make"), text(m, "model")).trim().to_string();
+    if label.is_empty() { text(m, "name") } else { label }
+}
+
+/// `1.0` → "1", `1.25` → "1.25".
+fn scale_text(scale: f64) -> String {
+    let text = format!("{scale:.3}");
+    text.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+/// A regra em Lua que põe um monitor no lugar (a mesma do `hyprland.lua`, com posição fixa).
+pub fn monitor_rule(name: &str, x: i32, y: i32, scale: f64) -> Result<String> {
+    Ok(format!(
+        "hl.monitor({{ output = {}, mode = \"preferred\", position = \"{x}x{y}\", scale = \"{}\" }})",
+        lua_string(name)?,
+        scale_text(scale)
+    ))
+}
+
 fn text(v: &Value, key: &str) -> String {
     v.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
 }
@@ -159,8 +190,28 @@ impl Compositor for Hyprland {
                 active_workspace_name: m.get("activeWorkspace").map(|w| text(w, "name")).unwrap_or_default(),
                 x: int(m, "x") as i32,
                 y: int(m, "y") as i32,
+                width: logical_size(m).0,
+                height: logical_size(m).1,
+                scale: scale(m),
+                label: monitor_label(m),
             })
             .collect())
+    }
+
+    fn place_monitor(&self, name: &str, x: i32, y: i32, scale: f64) -> Result<()> {
+        let rule = monitor_rule(name, x, y, scale)?;
+        let reply = self.request(&format!("eval {rule}"))?;
+        // Confere no próprio compositor: a resposta do `eval` não diz muito.
+        let placed = |me: &Self| me.monitors().is_ok_and(|list| list.iter().any(|m| m.name == name && (m.x, m.y) == (x, y)));
+        if placed(self) {
+            return Ok(());
+        }
+        // Config antiga (sem Lua): a palavra-chave clássica.
+        let legacy = self.request(&format!("keyword monitor {name},preferred,{x}x{y},{}", scale_text(scale)))?;
+        if placed(self) {
+            return Ok(());
+        }
+        Err(format!("o Hyprland não moveu {name}: {} / {}", reply.trim(), legacy.trim()))
     }
 
     fn windows(&self) -> Result<Vec<Window>> {
@@ -272,6 +323,22 @@ impl Compositor for Hyprland {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn monitor_rule_and_logical_size() {
+        assert_eq!(
+            monitor_rule("HDMI-A-1", 2560, 180, 1.0).unwrap(),
+            r#"hl.monitor({ output = [==[HDMI-A-1]==], mode = "preferred", position = "2560x180", scale = "1" })"#
+        );
+        assert!(monitor_rule("DP-1]==]", 0, 0, 1.0).is_err());
+        assert_eq!(scale_text(1.25), "1.25");
+        let m = serde_json::json!({ "width": 2560, "height": 1440, "scale": 1.25, "transform": 0 });
+        assert_eq!(logical_size(&m), (2048, 1152));
+        let rotated = serde_json::json!({ "width": 1920, "height": 1080, "scale": 1.0, "transform": 1 });
+        assert_eq!(logical_size(&rotated), (1080, 1920));
+        assert_eq!(monitor_label(&serde_json::json!({ "name": "DP-1", "make": "Samsung", "model": "Odyssey G5" })), "Samsung Odyssey G5");
+        assert_eq!(monitor_label(&serde_json::json!({ "name": "DP-1", "make": "", "model": "" })), "DP-1");
+    }
+
     use super::*;
 
     #[test]

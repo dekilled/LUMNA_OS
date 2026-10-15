@@ -141,6 +141,9 @@ terminal, `iwctl` resolve.
 - **Impressoras**: procura impressoras na rede e no USB, adiciona sem driver (AirPrint / IPP
   Everywhere), página de teste, impressora padrão e remover.
 - **Sistema**: processador, placa de vídeo, memória, disco e versão.
+- **Telas**: a ordem dos monitores lado a lado (arraste como estão na sua mesa) e o alinhamento
+  na altura — é o que decide por qual borda o mouse passa de uma tela para a outra. Vale na hora e
+  nos próximos logins (`~/.config/lumna/monitors.lua`).
 - **Papel de parede**: um para todos os desktops; os do LUMNA e as imagens que você adicionar.
 - **Dock**: o que fica nele (apps, separadores, "Todos os apps", Emma), tamanho dos ícones,
   espaçamento, opacidade do fundo, posição (embaixo, esquerda, direita), em quais monitores aparece

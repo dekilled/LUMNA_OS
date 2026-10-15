@@ -76,6 +76,7 @@ const paths: Record<string, string> = {
   accessibility: "M12 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM5 8l7 1.5L19 8M12 9.5V14l-3 7M12 14l3 7",
   "chevron-down": "M6 9l6 6 6-6",
   "chevron-up": "M6 15l6-6 6 6",
+  dock: "M3 4h18v16H3zM7 16h10",
   pin: "M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v6",
   music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
 };
