@@ -1,6 +1,20 @@
 -- LUMNA OS: Hyprland da tela de login (só o lumna-shell --greeter em tela cheia, sem atalhos).
 
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+
+-- Ordem das telas escolhida em Configurações → Telas (a última pessoa que arrumou). O arquivo é só
+-- dados, "NOME X Y ESCALA" por linha, e cada campo é conferido antes de virar regra.
+pcall(function()
+    local file = io.open("/var/lib/lumna/monitors", "r")
+    if not file then return end
+    for line in file:lines() do
+        local name, x, y, scale = line:match("^([%w%-_]+) (%-?%d+) (%-?%d+) (%d+%.?%d*)$")
+        if name and #name <= 32 and tonumber(scale) and tonumber(scale) > 0 and tonumber(scale) <= 4 then
+            hl.monitor({ output = name, mode = "preferred", position = x .. "x" .. y, scale = scale })
+        end
+    end
+    file:close()
+end)
 hl.env("XCURSOR_SIZE", "24")
 
 local kb_layout, kb_variant = "br", "abnt2"

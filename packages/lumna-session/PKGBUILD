@@ -24,6 +24,8 @@ depends=(
   wl-clipboard grim libnotify
   # Energia: perfil de energia (economia, equilibrado, desempenho)
   power-profiles-daemon
+  # Tela de bloqueio e tempo parado (bloquear, desligar a tela, suspender)
+  hyprlock hypridle
 )
 
 _root="$(realpath "$startdir/../..")"
@@ -35,6 +37,7 @@ package() {
   install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
   install -Dm755 lumna-shell-run "$pkgdir/usr/lib/lumna/lumna-shell-run"
   install -Dm644 greeter.lua "$pkgdir/usr/share/lumna/greeter.lua"
+  install -Dm644 lumna-tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/lumna.conf"
   install -Dm755 lumna-install "$pkgdir/usr/lib/lumna/lumna-install"
   install -Dm644 os.lumna.install.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.install.policy"
   install -Dm644 icons/installer.svg "$pkgdir/usr/share/lumna/icons/installer.svg"

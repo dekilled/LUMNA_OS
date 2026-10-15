@@ -1,11 +1,43 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import Icon from "../Icon.vue";
-import { powerAction, powerMenu, powerSetProfile, powerState, type PowerAction, type PowerState } from "../../system";
+import {
+  idleConfig,
+  idleConfigSet,
+  lockScreen,
+  powerAction,
+  powerMenu,
+  powerSetProfile,
+  powerState,
+  type IdleConfig,
+  type PowerAction,
+  type PowerState,
+} from "../../system";
 
 const state = ref<PowerState | null>(null);
 const error = ref("");
 const confirm = ref<PowerAction | null>(null);
+
+// ---- tela e bloqueio ----
+
+const idle = ref<IdleConfig | null>(null);
+const MINUTES = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 120];
+const minutesLabel = (m: number) => (m === 0 ? "Nunca" : m < 60 ? `${m} min` : `${m / 60} h`);
+const TIMERS: { key: "lock_after" | "screen_off_after" | "suspend_after"; label: string; sub: string; icon: string }[] = [
+  { key: "lock_after", label: "Bloquear a tela", sub: "Depois de quanto tempo parado", icon: "lock" },
+  { key: "screen_off_after", label: "Desligar a tela", sub: "Economiza energia; mexer o mouse liga de novo", icon: "screens" },
+  { key: "suspend_after", label: "Suspender", sub: "O computador dorme e acorda em segundos", icon: "moon" },
+];
+
+async function saveIdle(patch: Partial<IdleConfig>) {
+  if (!idle.value) return;
+  error.value = "";
+  try {
+    idle.value = await idleConfigSet({ ...idle.value, ...patch });
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 
 const PROFILES: Record<string, { label: string; sub: string; icon: string }> = {
   "power-saver": { label: "Economia", sub: "Menos consumo e calor, bateria dura mais.", icon: "battery" },
@@ -53,6 +85,7 @@ async function run(action: PowerAction) {
 }
 
 onMounted(async () => {
+  idle.value = await idleConfig().catch(() => null);
   try {
     state.value = await powerState();
   } catch (e) {
@@ -66,6 +99,38 @@ onMounted(async () => {
     <h1>Energia</h1>
     <p class="lead">Perfil de energia e as ações de desligar. O menu rápido abre com <b>Super + Shift + E</b> ou pelo botão no canto da topbar.</p>
     <p v-if="error" class="error">{{ error }}</p>
+
+    <h2>Tela e bloqueio</h2>
+    <div v-if="idle" class="card">
+      <div v-for="t in TIMERS" :key="t.key" class="row">
+        <span class="badge"><Icon :name="t.icon" :size="18" /></span>
+        <div class="grow">
+          <div class="title">{{ t.label }}</div>
+          <div class="sub">{{ t.sub }}</div>
+        </div>
+        <select class="minutes" :value="idle[t.key]" @change="saveIdle({ [t.key]: +($event.target as HTMLSelectElement).value })">
+          <option v-for="m in MINUTES" :key="m" :value="m">{{ minutesLabel(m) }}</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="badge"><Icon name="lock" :size="18" /></span>
+        <div class="grow">
+          <div class="title">Bloquear ao suspender</div>
+          <div class="sub">Ao acordar, a tela pede a senha</div>
+        </div>
+        <button
+          class="switch"
+          :class="{ on: idle.lock_on_suspend }"
+          role="switch"
+          :aria-checked="idle.lock_on_suspend"
+          @click="saveIdle({ lock_on_suspend: !idle.lock_on_suspend })"
+        />
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn" @click="lockScreen()"><Icon name="lock" :size="15" /> Bloquear agora</button>
+      <span class="hint">Atalho: Super + Shift + L</span>
+    </div>
 
     <h2>Perfil de energia</h2>
     <div v-if="state?.profile" class="profiles">
@@ -137,11 +202,31 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--lumna-muted);
 }
+.minutes {
+  height: 34px;
+  min-width: 110px;
+  padding: 0 10px;
+  border: 1px solid var(--lumna-line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.minutes option {
+  background: #1e1f23;
+}
+.hint {
+  font-size: 12px;
+  color: var(--lumna-muted);
+}
 .btn.danger {
   background: rgba(239, 68, 68, 0.9);
 }
 .toolbar {
   display: flex;
+  align-items: center;
+  gap: 12px;
   margin-top: 12px;
 }
 </style>

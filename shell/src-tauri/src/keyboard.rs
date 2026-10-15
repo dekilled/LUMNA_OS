@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::SharedCompositor;
 
@@ -84,7 +84,7 @@ fn from_install(text: &str) -> Option<Layout> {
     Some(Layout { layout, variant: parts.next().unwrap_or_default().to_string() })
 }
 
-fn current_layouts() -> Vec<Layout> {
+pub fn current_layouts() -> Vec<Layout> {
     let saved = std::fs::read_to_string(config_dir().join("keyboard.json"))
         .ok()
         .and_then(|t| serde_json::from_str::<Vec<Layout>>(&t).ok())
@@ -172,6 +172,17 @@ pub async fn keyboard_state() -> KeyboardState {
     .unwrap_or_else(|_| KeyboardState { layouts: current_layouts(), catalog: Vec::new(), locale: system_locale(), locales: Vec::new() })
 }
 
+/// Layouts do teclado principal e o que está em uso (indicador da topbar).
+#[tauri::command]
+pub fn keyboard_current(app: AppHandle) -> Result<lumna_core::KeyboardInfo, String> {
+    app.state::<SharedCompositor>().keyboard()
+}
+
+#[tauri::command]
+pub fn keyboard_next(app: AppHandle) -> Result<(), String> {
+    app.state::<SharedCompositor>().next_keyboard_layout()
+}
+
 #[tauri::command]
 pub fn keyboard_set(app: AppHandle, layouts: Vec<Layout>) -> Result<(), String> {
     if layouts.is_empty() {
@@ -198,7 +209,12 @@ pub fn keyboard_set(app: AppHandle, layouts: Vec<Layout>) -> Result<(), String> 
     let json = serde_json::to_string_pretty(&layouts).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("keyboard.json"), json + "\n").map_err(|e| e.to_string())?;
 
-    app.state::<SharedCompositor>().set_keyboard(&layout, &variant, &options)
+    app.state::<SharedCompositor>().set_keyboard(&layout, &variant, &options)?;
+    // A tela de bloqueio mostra o teclado em uso quando há mais de um.
+    crate::lock::write_lock_config();
+    // A topbar refaz o indicador (aparece com dois ou mais teclados).
+    let _ = app.emit("lumna://keyboard", ());
+    Ok(())
 }
 
 /// Troca o idioma do sistema. O `localectl` pede a senha pelo polkit (a janela de senha do LUMNA),

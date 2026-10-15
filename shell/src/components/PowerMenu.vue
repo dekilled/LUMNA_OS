@@ -14,6 +14,7 @@ const buttons = ref<HTMLButtonElement[]>([]);
 const ACTIONS = computed(() => {
   const s = state.value;
   const all: { id: PowerAction; label: string; icon: string; show: boolean }[] = [
+    { id: "lock", label: "Bloquear", icon: "lock", show: true },
     { id: "logout", label: "Sair", icon: "back", show: true },
     { id: "suspend", label: "Suspender", icon: "moon", show: s?.can_suspend ?? true },
     { id: "hibernate", label: "Hibernar", icon: "download", show: s?.can_hibernate ?? false },

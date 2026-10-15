@@ -50,6 +50,7 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         }
         ["installer"] => crate::open_installer(app),
         ["power"] => crate::power::toggle_menu(app, None),
+        ["lock"] => crate::lock::lock_now(app),
         // Botões da barra de título (hyprbars): valem para a janela em foco.
         ["window", action @ ("minimize" | "maximize" | "close" | "fullscreen")] => {
             crate::window_control(app.state::<crate::SharedCompositor>(), None, action.to_string())

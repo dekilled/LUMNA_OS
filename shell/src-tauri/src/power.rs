@@ -98,10 +98,14 @@ pub async fn power_set_profile(profile: String) -> Result<(), String> {
     props.set(iface, "ActiveProfile", Value::from(profile)).await.map_err(|e| e.to_string())
 }
 
-/// `logout`, `suspend`, `hibernate`, `reboot` ou `poweroff`.
+/// `lock`, `logout`, `suspend`, `hibernate`, `reboot` ou `poweroff`.
 #[tauri::command]
 pub async fn power_action(app: AppHandle, action: String) -> Result<(), String> {
     let method = match action.as_str() {
+        "lock" => {
+            hide_menu(&app);
+            return crate::lock::lock_now(&app);
+        }
         "logout" => {
             hide_menu(&app);
             return app.state::<SharedCompositor>().exit();

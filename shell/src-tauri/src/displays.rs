@@ -30,6 +30,9 @@ pub struct Arrangement {
     pub align: Align,
 }
 
+/// Cópia da ordem para a tela de login (criado pelo tmpfiles do lumna-session, gravável por todos).
+const LOGIN_SCREEN_FILE: &str = "/var/lib/lumna/monitors";
+
 fn config_dir() -> PathBuf {
     let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
     std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".config")).join("lumna")
@@ -112,6 +115,18 @@ pub fn displays_arrange(app: AppHandle, order: Vec<String>, align: Align) -> Res
     std::fs::write(dir.join("monitors.lua"), lua_file(&before, &placements)?).map_err(|e| e.to_string())?;
     let json = serde_json::to_string_pretty(&arrangement).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("monitors.json"), json + "\n").map_err(|e| e.to_string())?;
+
+    // A tela de login (outro usuário, sem acesso à pasta da pessoa) lê a mesma ordem daqui.
+    let shared: String = placements
+        .iter()
+        .map(|(name, x, y)| {
+            let scale = before.iter().find(|m| &m.name == name).map_or(1.0, |m| m.scale);
+            format!("{name} {x} {y} {}\n", lumna_hypr::scale_text(scale))
+        })
+        .collect();
+    if let Err(err) = std::fs::write(LOGIN_SCREEN_FILE, shared) {
+        eprintln!("lumna-shell: {LOGIN_SCREEN_FILE}: {err} (a tela de login fica com a ordem automática)");
+    }
 
     let mut errors = Vec::new();
     for (name, x, y) in &placements {

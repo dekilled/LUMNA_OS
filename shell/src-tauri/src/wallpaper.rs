@@ -213,6 +213,8 @@ pub fn wallpaper_set(app: AppHandle, path: String) -> Result<(), String> {
     allow_assets(&app);
     // Todos os desktops (e quem mais mostrar o papel de parede) trocam juntos.
     let _ = app.emit("lumna://wallpaper", &path);
+    // A tela de bloqueio usa o mesmo papel de parede.
+    crate::lock::write_lock_config();
     Ok(())
 }
 

@@ -35,6 +35,13 @@ pub struct Monitor {
     pub label: String,
 }
 
+/// Teclado principal: os layouts configurados (`br`, `us`...) e qual está em uso.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct KeyboardInfo {
+    pub layouts: Vec<String>,
+    pub active: usize,
+}
+
 /// Janela de um app, como o compositor a enxerga.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Window {
@@ -77,6 +84,8 @@ pub enum CompositorEvent {
     ActiveWindowChanged,
     /// Uma janela entrou ou saiu de maximizada / tela cheia.
     FullscreenChanged,
+    /// O layout do teclado em uso mudou (nome longo do xkb, ex.: "English (US)").
+    KeyboardLayout { name: String },
 }
 
 pub type Result<T> = std::result::Result<T, String>;
@@ -112,6 +121,14 @@ pub trait Compositor: Send + Sync {
     fn exec(&self, command: &str) -> Result<()>;
     /// Põe o monitor na posição (x, y) do layout, mantendo a resolução preferida e a escala.
     fn place_monitor(&self, name: &str, x: i32, y: i32, scale: f64) -> Result<()>;
+    /// Layouts do teclado principal e o que está em uso.
+    fn keyboard(&self) -> Result<KeyboardInfo> {
+        Err("não suportado".into())
+    }
+    /// Passa para o próximo layout do teclado.
+    fn next_keyboard_layout(&self) -> Result<()> {
+        Err("não suportado".into())
+    }
     /// Troca o teclado na hora (nomes do xkb, separados por vírgula quando há mais de um).
     fn set_keyboard(&self, layout: &str, variant: &str, options: &str) -> Result<()>;
     /// As janelas têm barra de título desenhada pelo compositor (no Hyprland, o plugin hyprbars)?

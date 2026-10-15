@@ -83,7 +83,8 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
 | `Super + F` | Tela cheia |
-| `Super + Shift + E` | Menu de energia: sair, suspender, hibernar, reiniciar, desligar |
+| `Super + Shift + L` | Bloquear a tela |
+| `Super + Shift + E` | Menu de energia: bloquear, sair, suspender, hibernar, reiniciar, desligar |
 | `Alt + Shift` | Troca de teclado (com mais de um em Configurações → Teclado e idioma) |
 
 Na topbar: clique no cristal abre o launcher, no ícone de rede abre o menu do Wi-Fi, clique no
@@ -149,12 +150,14 @@ terminal, `iwctl` resolve.
   Everywhere), página de teste, impressora padrão e remover.
 - **Sistema**: processador, placa de vídeo, memória, disco e versão.
 - **Telas**: a ordem dos monitores lado a lado (arraste como estão na sua mesa) e o alinhamento
-  na altura — é o que decide por qual borda o mouse passa de uma tela para a outra. Vale na hora e
-  nos próximos logins (`~/.config/lumna/monitors.lua`).
+  na altura — é o que decide por qual borda o mouse passa de uma tela para a outra. Vale na hora,
+  nos próximos logins (`~/.config/lumna/monitors.lua`) e na tela de login.
 - **Teclado e idioma**: um ou mais teclados (qualquer layout e variante do sistema; Alt + Shift
-  troca entre eles), aplicados na hora, e o idioma do sistema (vale no próximo login).
-- **Energia**: perfil de energia (economia, equilibrado, desempenho) e sair, suspender, hibernar,
-  reiniciar e desligar. O menu rápido de energia abre com `Super + Shift + E` ou pelo botão no canto
+  ou o indicador na topbar troca entre eles), aplicados na hora, e o idioma do sistema (vale no próximo login).
+- **Energia**: bloquear, desligar a tela e suspender depois de um tempo parado (e bloquear ao
+  suspender), perfil de energia (economia, equilibrado, desempenho) e sair, suspender, hibernar,
+  reiniciar e desligar. A tela de bloqueio é o hyprlock no visual do LUMNA (o papel de parede em uso
+  com blur, relógio, data e a senha); o tempo parado é o hypridle. O menu rápido de energia abre com `Super + Shift + E` ou pelo botão no canto
   da topbar.
 - **Papel de parede**: um para todos os desktops; os do LUMNA e as imagens que você adicionar.
 - **Dock**: o que fica nele (apps, separadores, "Todos os apps", Emma), tamanho dos ícones,

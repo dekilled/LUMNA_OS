@@ -13,6 +13,7 @@ mod greeter;
 mod installer;
 mod keyboard;
 mod layer;
+mod lock;
 mod media;
 mod modes;
 mod network;
@@ -944,7 +945,12 @@ fn main() {
             displays::displays,
             window_bars,
             keyboard::keyboard_state,
+            keyboard::keyboard_current,
+            keyboard::keyboard_next,
             power::power_state,
+            lock::idle_config,
+            lock::idle_config_set,
+            lock::lock_screen,
             power::power_set_profile,
             power::power_action,
             power::power_menu,
@@ -1093,6 +1099,7 @@ fn main() {
             wifi::watch(app.handle().clone());
             bluetooth::watch(app.handle().clone());
             polkit::start(app.handle().clone());
+            lock::start(app.handle().clone());
             automation::start(app.handle().clone());
             let handle = app.handle().clone();
             std::thread::spawn(move || dock::update(&handle, true));

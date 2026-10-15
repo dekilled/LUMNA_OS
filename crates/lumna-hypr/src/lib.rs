@@ -7,7 +7,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 
-use lumna_core::{Compositor, CompositorEvent, Monitor, Result, Window, Workspace};
+use lumna_core::{Compositor, CompositorEvent, KeyboardInfo, Monitor, Result, Window, Workspace};
 use serde_json::Value;
 
 pub struct Hyprland {
@@ -83,9 +83,16 @@ fn monitor_label(m: &Value) -> String {
 }
 
 /// `1.0` → "1", `1.25` → "1.25".
-fn scale_text(scale: f64) -> String {
+pub fn scale_text(scale: f64) -> String {
     let text = format!("{scale:.3}");
     text.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+/// Layouts (`"br,us"` → `["br", "us"]`) e o índice do que está em uso.
+fn keyboard_info(k: &Value) -> KeyboardInfo {
+    let layouts: Vec<String> = text(k, "layout").split(',').map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+    let active = k.get("active_layout_index").and_then(Value::as_u64).unwrap_or(0) as usize;
+    KeyboardInfo { active: active.min(layouts.len().saturating_sub(1)), layouts }
 }
 
 /// O teclado em Lua (`hl.config` com `kb_layout`, `kb_variant` e `kb_options`). Os nomes do xkb só
@@ -166,6 +173,10 @@ pub fn parse_event(line: &str) -> Vec<CompositorEvent> {
         ],
         "activewindowv2" | "windowtitlev2" => vec![CompositorEvent::ActiveWindowChanged],
         "fullscreen" => vec![CompositorEvent::FullscreenChanged],
+        "activelayout" => {
+            let name = data.split_once(',').map_or(data, |(_, layout)| layout).to_string();
+            vec![CompositorEvent::KeyboardLayout { name }]
+        }
         "monitoradded" | "monitorremoved" => vec![CompositorEvent::MonitorsChanged, CompositorEvent::WorkspacesChanged],
         _ => Vec::new(),
     }
@@ -214,6 +225,26 @@ impl Compositor for Hyprland {
 
     fn window_bars(&self) -> bool {
         self.request("plugin list").is_ok_and(|list| list.contains("hyprbars"))
+    }
+
+    fn keyboard(&self) -> Result<KeyboardInfo> {
+        let devices = self.request_json("devices")?;
+        let keyboards = devices.get("keyboards").and_then(Value::as_array).cloned().unwrap_or_default();
+        let main = keyboards
+            .iter()
+            .find(|k| k.get("main").and_then(Value::as_bool).unwrap_or(false))
+            .or_else(|| keyboards.first())
+            .ok_or("nenhum teclado")?;
+        Ok(keyboard_info(main))
+    }
+
+    fn next_keyboard_layout(&self) -> Result<()> {
+        let reply = self.request("switchxkblayout all next")?;
+        if reply.trim() == "ok" {
+            Ok(())
+        } else {
+            Err(format!("não deu para trocar o teclado: {}", reply.trim()))
+        }
     }
 
     fn set_keyboard(&self, layout: &str, variant: &str, options: &str) -> Result<()> {
@@ -352,6 +383,18 @@ impl Compositor for Hyprland {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn keyboard_layouts_and_event() {
+        let k = serde_json::json!({ "layout": "br,us", "active_layout_index": 1, "main": true });
+        assert_eq!(keyboard_info(&k), KeyboardInfo { layouts: vec!["br".into(), "us".into()], active: 1 });
+        let single = serde_json::json!({ "layout": "br", "active_layout_index": "none" });
+        assert_eq!(keyboard_info(&single).active, 0);
+        assert_eq!(
+            parse_event("activelayout>>at-translated-set-2-keyboard,English (US)"),
+            vec![CompositorEvent::KeyboardLayout { name: "English (US)".into() }]
+        );
+    }
+
     #[test]
     fn keyboard_rule_quotes_only_xkb_names() {
         assert_eq!(

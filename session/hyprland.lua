@@ -277,7 +277,9 @@ hl.bind(mod .. " + Escape", hl.dsp.exec_cmd("lumna-ctl media home"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))
--- Menu de energia (sair, suspender, hibernar, reiniciar, desligar).
+-- Bloquear a tela.
+hl.bind(mod .. " + SHIFT + L", hl.dsp.exec_cmd("lumna-ctl lock"))
+-- Menu de energia (bloquear, sair, suspender, hibernar, reiniciar, desligar).
 hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd("lumna-ctl power"))
 -- Modos: Desktop → Gaming → Mídia (ver docs/VIABILIDADE.md, seção 4).
 hl.bind(mod .. " + Tab", hl.dsp.exec_cmd("lumna-ctl mode next"))

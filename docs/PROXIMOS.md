@@ -15,18 +15,15 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
   que já marcam apps, serviços e o modo inicial.
 - **Instalação automática**: um arquivo de respostas (disco, usuário, idioma, teclado, perfil) que
   instala sempre do mesmo jeito, sem perguntas — para repetir a instalação em vários computadores.
+- **GRUB com a cara do LUMNA**: tema próprio no lugar do menu simples (fundo, fonte e cores do
+  LUMNA, no estilo da Emma).
 - **Entrar no GRUB que já existe**: detectar outros sistemas (os-prober) e aparecer no menu de boot
   deles, sem precisar escolher pela BIOS.
 
 ## Sistema
 
 - **Animação de boot** (Plymouth) no lugar das mensagens do kernel.
-- **Bloquear a tela** e **tela e suspensão depois de um tempo parado** (desligar a tela após N
-  minutos, suspender após N minutos), nas Configurações → Energia.
-- **Tela de login com a ordem das telas** escolhida em Configurações → Telas (hoje ela usa a ordem
-  automática, porque roda com outro usuário).
 - **Tela de login sem erros no journal** ao entrar (coredumps do Hyprland/shell da tela de login).
-- **Indicador do teclado em uso** na topbar quando há mais de um.
 
 ## Emma
 

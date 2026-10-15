@@ -638,7 +638,7 @@ export const localeSet = (code: string) => invoke<void>("locale_set", { code });
 
 // ---- Energia ----
 
-export type PowerAction = "logout" | "suspend" | "hibernate" | "reboot" | "poweroff";
+export type PowerAction = "lock" | "logout" | "suspend" | "hibernate" | "reboot" | "poweroff";
 export interface PowerState {
   can_suspend: boolean;
   can_hibernate: boolean;
@@ -652,5 +652,16 @@ export interface PowerState {
 export const powerState = () => invoke<PowerState>("power_state");
 export const powerSetProfile = (profile: string) => invoke<void>("power_set_profile", { profile });
 export const powerAction = (action: PowerAction) => invoke<void>("power_action", { action });
+export interface IdleConfig {
+  /** Minutos parado (0 = nunca). */
+  lock_after: number;
+  screen_off_after: number;
+  suspend_after: number;
+  lock_on_suspend: boolean;
+}
+export const idleConfig = () => invoke<IdleConfig>("idle_config");
+export const idleConfigSet = (config: IdleConfig) => invoke<IdleConfig>("idle_config_set", { config });
+export const lockScreen = () => invoke<void>("lock_screen");
+
 /** Abre ou fecha o menu de energia (no monitor desta janela). */
 export const powerMenu = () => invoke<void>("power_menu");

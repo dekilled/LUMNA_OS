@@ -5,6 +5,8 @@ import {
   focusWorkspace,
   monitors,
   onCompositorEvent,
+  keyboardCurrent,
+  keyboardNext,
   windowBars,
   windowControl,
   workspaces,
@@ -44,6 +46,20 @@ const mode = ref<Mode>("desktop");
 // Firefox): título + minimizar, maximizar e fechar. Só na topbar do monitor onde a janela está.
 const focused = ref<Window | null>(null);
 const monitorId = ref<number | null>(null);
+// Indicador do teclado: só com dois ou mais; clique passa para o próximo (como Alt + Shift).
+const keyboard = ref<{ layouts: string[]; active: number } | null>(null);
+const keyboardLabel = computed(() => keyboard.value?.layouts[keyboard.value.active]?.toUpperCase() ?? "");
+
+async function refreshKeyboard() {
+  keyboard.value = await keyboardCurrent().catch(() => null);
+}
+
+function nextKeyboard() {
+  keyboardNext()
+    .then(refreshKeyboard)
+    .catch((e) => console.error(e));
+}
+
 // Com a barra de título nas janelas (plugin hyprbars), isso fica só na janela.
 const bars = ref(false);
 const showWindow = computed(
@@ -119,10 +135,13 @@ onMounted(async () => {
     await onCompositorEvent((event) => {
       if (event.kind === "workspace_focused") active.value = event.id;
       else if (event.kind === "workspaces_changed" || event.kind === "monitors_changed") refresh().catch(() => {});
-      if (event.kind !== "monitor_focused") refreshWindow();
+      if (event.kind === "keyboard_layout") refreshKeyboard();
+      else if (event.kind !== "monitor_focused") refreshWindow();
     }),
   );
   stops.push(await on<ModesSnapshot>("lumna://modes", applyModes));
+  stops.push(await on("lumna://keyboard", refreshKeyboard));
+  refreshKeyboard();
   stops.push(await on<WifiState>("lumna://wifi", (w) => (wifi.value = w)));
   sys.value = await status();
   await refresh().catch(() => {});
@@ -181,6 +200,14 @@ onUnmounted(() => {
         <button class="close" title="Fechar (Super + Q)" @click="control('close')"><Icon name="close" :size="14" /></button>
       </div>
       <div v-if="sys" class="status">
+        <button
+          v-if="keyboard && keyboard.layouts.length > 1"
+          class="item keyboard"
+          title="Teclado em uso · clique (ou Alt + Shift) para trocar"
+          @click="nextKeyboard()"
+        >
+          {{ keyboardLabel }}
+        </button>
         <button class="item" :title="networkLabel" @click="toggleWifi()"><Icon :name="networkIcon" /></button>
         <button
           v-if="sys.volume !== null"
@@ -313,6 +340,13 @@ button {
 }
 button.item:hover {
   background: rgba(167, 139, 250, 0.14);
+}
+.keyboard {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--lumna-muted);
+  border: 1px solid var(--lumna-line);
 }
 .battery {
   font-size: 12px;
