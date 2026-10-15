@@ -153,6 +153,7 @@ mod tests {
             focused: false,
             active_workspace: 1,
             active_workspace_name: "1".into(),
+            special_workspace: 0,
             x,
             y: 0,
             width,

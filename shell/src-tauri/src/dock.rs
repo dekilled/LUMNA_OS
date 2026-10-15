@@ -17,6 +17,9 @@ use crate::layer::{self, Exclusive};
 use crate::modes::{Mode, Modes};
 use crate::{MonitorPositions, SharedCompositor};
 
+/// Espessura da faixa na borda enquanto o dock está escondido (a mesma do CSS do Dock.vue).
+const HIDDEN_STRIP: i32 = 3;
+
 /// Separador entre grupos de ícones.
 pub const SEPARATOR: &str = "|";
 pub const LAUNCHER: &str = "lumna:launcher";
@@ -198,9 +201,9 @@ pub fn update(app: &AppHandle, force: bool) {
             let Some(monitor) = monitors.iter().find(|m| (m.x, m.y) == *pos) else { continue };
             let desktop = modes.get(&monitor.name).copied().unwrap_or_default() == Mode::Desktop;
             let visible = desktop && shows_on(&config.monitors, index, &monitor.name, &names);
-            let maximized = windows
-                .iter()
-                .any(|w| w.fullscreen > 0 && !w.minimized() && w.workspace == monitor.active_workspace);
+            // No workspace do monitor ou num especial aberto por cima dele (menos o das minimizadas).
+            let shown = |ws: i64| ws == monitor.active_workspace || (ws != 0 && ws == monitor.special_workspace);
+            let maximized = windows.iter().any(|w| w.fullscreen > 0 && !w.minimized() && shown(w.workspace));
             let state = (visible, look_for(config.behavior, maximized));
             if force || applied.get(label) != Some(&state) {
                 applied.insert(label.clone(), state);
@@ -215,6 +218,12 @@ pub fn update(app: &AppHandle, force: bool) {
     let _ = app.run_on_main_thread(move || {
         for (label, (visible, look)) in changes {
             let (anchors, margin, exclusive) = placement(config.position, look);
+            if look == Look::Hidden {
+                // Encolhe para a faixa antes de esticar na borda: senão a camada aparece por um
+                // instante na largura toda, com a altura do dock (o "vulto" do blur).
+                let strip = if config.position == Position::Bottom { (1, HIDDEN_STRIP) } else { (HIDDEN_STRIP, 1) };
+                layer::resize(&label, strip.0, strip.1);
+            }
             layer::place(&label, &anchors, margin, exclusive);
             layer::set_visible(&label, visible);
             let _ = handle.emit_to(label.as_str(), "lumna://dock", DockState { look, config: config.clone() });

@@ -21,6 +21,8 @@ pub struct Monitor {
     pub focused: bool,
     pub active_workspace: i64,
     pub active_workspace_name: String,
+    /// Workspace especial aberto por cima (0 = nenhum).
+    pub special_workspace: i64,
     /// Posição no layout (coordenadas lógicas), usada para achar o mesmo monitor no GTK.
     pub x: i32,
     pub y: i32,

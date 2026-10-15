@@ -188,6 +188,7 @@ impl Compositor for Hyprland {
                 focused: m.get("focused").and_then(Value::as_bool).unwrap_or(false),
                 active_workspace: m.get("activeWorkspace").map(|w| int(w, "id")).unwrap_or_default(),
                 active_workspace_name: m.get("activeWorkspace").map(|w| text(w, "name")).unwrap_or_default(),
+                special_workspace: m.get("specialWorkspace").map(|w| int(w, "id")).unwrap_or_default(),
                 x: int(m, "x") as i32,
                 y: int(m, "y") as i32,
                 width: logical_size(m).0,

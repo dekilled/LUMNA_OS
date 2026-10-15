@@ -4,7 +4,7 @@
 // - normal: flutuando na borda;
 // - hidden: uma janela está maximizada — só uma faixa fina na borda, que traz o dock com o mouse;
 // - expanded: uma janela está maximizada — barra de largura inteira, ícones no centro (estilo Windows).
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { activeWindow, isMinimized, onCompositorEvent, windowControl, windows, type Window } from "../compositor";
 import {
   apps,
@@ -74,7 +74,14 @@ const entries = computed<Entry[]>(() => {
   );
 });
 
-const windowsOf = (app: App) => open.value.filter((w) => w.class.toLowerCase() === classOf(app));
+/**
+ * Janelas do app numa ordem fixa (a de criação, pelo endereço): a lista do Hyprland muda de ordem
+ * a cada foco, e o clique no dock ficava indo e voltando entre as mesmas duas.
+ */
+const windowsOf = (app: App) =>
+  open.value
+    .filter((w) => w.class.toLowerCase() === classOf(app))
+    .sort((a, b) => parseInt(a.address, 16) - parseInt(b.address, 16));
 
 /** Clique no app: sem janela abre; com janelas, passa para a próxima (e traz de volta a minimizada). */
 async function activate(app: App) {
@@ -193,6 +200,10 @@ const stops: (() => void)[] = [];
 function applyState(state: { look: DockLook; config: DockConfig }) {
   look.value = state.look;
   config.value = state.config;
+  // A camada acabou de mudar de forma: pede o tamanho do conteúdo de novo mesmo que ele não tenha
+  // mudado (o ResizeObserver não avisa), e outra vez depois que o compositor responder.
+  nextTick(() => requestAnimationFrame(fit));
+  window.setTimeout(fit, 250);
 }
 
 onMounted(async () => {
@@ -312,6 +323,14 @@ onUnmounted(() => {
   box-sizing: border-box;
   width: max-content;
   height: max-content;
+  /*
+   * Preso na borda da tela: enquanto a camada ainda não cresceu (o menu abrindo) ou não encolheu
+   * (saindo do esticado), o dock fica no lugar em vez de pular para fora ou grudar num canto.
+   */
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -321,12 +340,21 @@ onUnmounted(() => {
 .dock-frame.at-left {
   --lift-x: 3px;
   --lift-y: 0px;
+  left: 0;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
   flex-direction: row-reverse;
   padding: 10px 8px 10px 0;
 }
 .dock-frame.at-right {
   --lift-x: -3px;
   --lift-y: 0px;
+  left: auto;
+  right: 0;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
   flex-direction: row;
   padding: 10px 0 10px 8px;
 }
