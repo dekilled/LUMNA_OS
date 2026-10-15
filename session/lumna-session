@@ -3,6 +3,9 @@
 export XDG_CURRENT_DESKTOP=Hyprland:LUMNA
 export XDG_SESSION_DESKTOP=lumna
 export XDG_SESSION_TYPE=wayland
+# Apps do Flatpak (Flathub): os atalhos e ícones deles moram nestas pastas. Sem elas, nem o launcher
+# nem o dock os enxergam (o /etc/profile.d/flatpak.sh só vale para shells de login).
+export XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
 . /usr/lib/lumna/gpu-env
 

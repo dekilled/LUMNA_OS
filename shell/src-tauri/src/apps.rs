@@ -77,7 +77,18 @@ fn data_dirs() -> Vec<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")));
     let system = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
-    home.into_iter().chain(system.split(':').filter(|d| !d.is_empty()).map(PathBuf::from)).collect()
+    let mut dirs: Vec<PathBuf> = home.into_iter().chain(system.split(':').filter(|d| !d.is_empty()).map(PathBuf::from)).collect();
+    // Apps do Flatpak, mesmo numa sessão aberta antes do XDG_DATA_DIRS certo (o da pessoa primeiro).
+    let flatpak = [
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share/flatpak/exports/share")),
+        Some(PathBuf::from("/var/lib/flatpak/exports/share")),
+    ];
+    for dir in flatpak.into_iter().flatten() {
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+    dirs
 }
 
 /// Lê a seção `[Desktop Entry]`, preferindo os textos em português.
@@ -116,6 +127,13 @@ fn icon_data_url(icon: &str) -> Option<String> {
         PathBuf::from(icon)
     } else {
         let theme = gtk::IconTheme::default()?;
+        // Ícones dos apps do Flatpak (sessões abertas antes do XDG_DATA_DIRS com as pastas dele).
+        static FLATPAK_ICONS: std::sync::Once = std::sync::Once::new();
+        FLATPAK_ICONS.call_once(|| {
+            for dir in data_dirs().iter().filter(|d| d.to_string_lossy().contains("flatpak")) {
+                theme.append_search_path(dir.join("icons"));
+            }
+        });
         let info = theme.lookup_icon(icon, 64, gtk::IconLookupFlags::FORCE_SIZE)?;
         info.filename()?
     };

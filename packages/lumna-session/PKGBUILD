@@ -54,4 +54,6 @@ package() {
   install -Dm644 mimeapps.list "$pkgdir/usr/share/applications/mimeapps.list"
   install -Dm755 lumna-pkg "$pkgdir/usr/lib/lumna/lumna-pkg"
   install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
+  install -Dm755 lumna-confirm "$pkgdir/usr/lib/lumna/lumna-confirm"
+  install -Dm644 os.lumna.confirm.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.confirm.policy"
 }

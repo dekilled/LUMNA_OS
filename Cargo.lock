@@ -2219,6 +2219,7 @@ dependencies = [
  "lumna-hypr",
  "md5",
  "mdns-sd",
+ "png 0.17.16",
  "rusqlite",
  "serde",
  "serde_json",

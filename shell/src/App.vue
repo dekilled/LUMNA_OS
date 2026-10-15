@@ -16,6 +16,7 @@ import SettingsApp from "./components/settings/SettingsApp.vue";
 import StoreApp from "./components/store/StoreApp.vue";
 import Switcher from "./components/Switcher.vue";
 import TextMenu from "./components/TextMenu.vue";
+import TrayMenu from "./components/TrayMenu.vue";
 import Topbar from "./components/Topbar.vue";
 import WifiMenu from "./components/WifiMenu.vue";
 
@@ -34,6 +35,7 @@ const label = getCurrentWebviewWindow().label;
   <Switcher v-else-if="label === 'switcher'" />
   <WifiMenu v-else-if="label === 'wifi'" />
   <PowerMenu v-else-if="label === 'power'" />
+  <TrayMenu v-else-if="label === 'traymenu'" />
   <EmmaPanel v-else-if="label === 'emma'" />
   <SettingsApp v-else-if="label === 'settings'" />
   <StoreApp v-else-if="label === 'store'" />

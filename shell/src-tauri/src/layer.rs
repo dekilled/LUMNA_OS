@@ -72,6 +72,12 @@ pub fn make_layer(window: &WebviewWindow, monitor: &gtk::gdk::Monitor, spec: &La
 
     layer.add(&content);
     content.show_all();
+    // Monitor desligado (ou suspenso e acordado): o compositor fecha a camada e o gtk-layer-shell pede
+    // para fechar a janela. A janela (e a página) ficam; só escondem, até voltarem a um monitor.
+    layer.connect_delete_event(|window, _| {
+        window.hide();
+        gtk::glib::Propagation::Stop
+    });
     if spec.visible {
         show(&layer);
     }
@@ -128,6 +134,27 @@ pub fn resize(label: &str, width: i32, height: i32) {
     with_layer(label, |layer| {
         layer.set_size_request(width, height);
         layer.resize(width.max(1), height.max(1));
+    });
+}
+
+pub fn exists(label: &str) -> bool {
+    let mut found = false;
+    with_layer(label, |_| found = true);
+    found
+}
+
+/// Põe a camada noutro monitor (o mesmo de antes, se ele voltou como um monitor GTK novo).
+pub fn set_monitor(label: &str, monitor: &gtk::gdk::Monitor) {
+    with_layer(label, |layer| {
+        // O layer-shell só troca de monitor com a superfície desmapeada.
+        let was_visible = layer.is_visible();
+        if was_visible {
+            layer.hide();
+        }
+        layer.set_monitor(monitor);
+        if was_visible {
+            show(layer);
+        }
     });
 }
 

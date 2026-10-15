@@ -323,7 +323,7 @@ pub const CATALOG: &[Def] = &[
     Def {
         name: "store.install",
         label: "Instalar programa",
-        description: "Instala um programa achado no store.search (source e name exatamente como vieram). Pede a senha.",
+        description: "Instala um programa achado no store.search (source e name exatamente como vieram). Pede a senha de administrador antes. Prefira arch ou flathub; o AUR é código da comunidade, sem revisão.",
         params: r#"{"source":{"type":"string","enum":["arch","flathub","aur"]},"name":{"type":"string"},"repo":{"type":"string"}}"#,
         required: &["source", "name"],
         risk: Risk::Danger,
@@ -538,6 +538,27 @@ pub enum Origin {
     Automation,
 }
 
+/// Pede a senha de administrador (política os.lumna.confirm, toda vez) antes de a Emma instalar.
+async fn confirm_install(package: &str, source: &str) -> Result<(), String> {
+    let from = match source {
+        "flathub" => "Flathub",
+        "aur" => "AUR",
+        _ => "Arch",
+    };
+    let what = format!("{package} ({from})");
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        Command::new("pkexec").arg("/usr/lib/lumna/lumna-confirm").arg("install").arg(what).status()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("pkexec: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Instalação cancelada: a senha não foi confirmada.".into())
+    }
+}
+
 pub async fn run(app: AppHandle, name: &str, args: Value) -> Outcome {
     run_from(app, name, args, Origin::User).await
 }
@@ -563,6 +584,13 @@ pub async fn run_from(app: AppHandle, name: &str, args: Value, origin: Origin) -
         }
         "store.install" => {
             let (source, package, repo) = (arg(&args, "source").to_string(), arg(&args, "name").to_string(), arg(&args, "repo").to_string());
+            // Pela Emma (ou por uma macro), a senha vem antes de tudo, de qualquer fonte (no AUR, antes
+            // até de baixar e montar o pacote).
+            if origin != Origin::User {
+                if let Err(err) = confirm_install(&package, &source).await {
+                    return Outcome::fail(err);
+                }
+            }
             match crate::store::store_install(app, source, package.clone(), repo).await {
                 Ok(()) => Outcome::done(format!("{package} instalado")),
                 Err(err) => Outcome::fail(err),

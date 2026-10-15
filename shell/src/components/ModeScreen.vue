@@ -17,6 +17,13 @@ const stops: (() => void)[] = [];
 
 onMounted(async () => {
   stops.push(await on<ModesSnapshot>("lumna://modes", apply));
+  // Monitores religados (acordou da suspensão, plugou ou tirou um): esta tela pode estar noutro.
+  stops.push(
+    await on("lumna://monitors-relayout", async () => {
+      monitor.value = await monitorName().catch(() => null);
+      apply(await modes());
+    }),
+  );
   monitor.value = await monitorName().catch(() => null);
   apply(await modes());
 });

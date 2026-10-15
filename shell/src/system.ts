@@ -680,3 +680,31 @@ export const lockScreen = () => invoke<void>("lock_screen");
 
 /** Abre ou fecha o menu de energia (no monitor desta janela). */
 export const powerMenu = () => invoke<void>("power_menu");
+
+// ---- Bandeja do sistema ----
+
+export interface TrayItem {
+  key: string;
+  title: string;
+  /** Data URL. */
+  icon: string | null;
+  /** `Active`, `Passive` (escondido) ou `NeedsAttention`. */
+  status: string;
+  menu: boolean;
+  item_is_menu: boolean;
+}
+export interface TrayMenuNode {
+  id: number;
+  label: string;
+  enabled: boolean;
+  separator: boolean;
+  toggle: string | null;
+  checked: boolean;
+  children: TrayMenuNode[];
+}
+
+export const trayItems = () => invoke<TrayItem[]>("tray_items");
+export const trayActivate = (key: string, x: number, y: number, secondary = false) =>
+  invoke<void>("tray_activate", { key, x, y, secondary });
+export const trayMenuOpen = (key: string, x: number) => invoke<void>("tray_menu_open", { key, x });
+export const trayMenuClick = (key: string, id: number) => invoke<void>("tray_menu_click", { key, id });

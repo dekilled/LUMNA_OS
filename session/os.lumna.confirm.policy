@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>LUMNA OS</vendor>
+  <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
+  <action id="os.lumna.confirm">
+    <description>Allow Emma to install software</description>
+    <description xml:lang="pt_BR">Permitir que a Emma instale programas</description>
+    <message>Emma wants to install a program. Type your password to allow it.</message>
+    <message xml:lang="pt_BR">A Emma quer instalar um programa. Digite sua senha para permitir.</message>
+    <defaults>
+      <!-- Toda vez: sem guardar a senha por alguns minutos. -->
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/lumna/lumna-confirm</annotate>
+  </action>
+</policyconfig>
