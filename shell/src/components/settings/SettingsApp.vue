@@ -8,6 +8,8 @@ import AudioPage from "./AudioPage.vue";
 import BluetoothPage from "./BluetoothPage.vue";
 import DisplaysPage from "./DisplaysPage.vue";
 import DockPage from "./DockPage.vue";
+import EnergyPage from "./EnergyPage.vue";
+import KeyboardPage from "./KeyboardPage.vue";
 import NetworkPage from "./NetworkPage.vue";
 import PrintersPage from "./PrintersPage.vue";
 import SystemPage from "./SystemPage.vue";
@@ -20,6 +22,8 @@ const PAGES: { id: SettingsPage; label: string; icon: string; component: Compone
   { id: "som", label: "Som", icon: "volume", component: AudioPage },
   { id: "impressoras", label: "Impressoras", icon: "printer", component: PrintersPage },
   { id: "telas", label: "Telas", icon: "screens", component: DisplaysPage },
+  { id: "teclado", label: "Teclado e idioma", icon: "keyboard", component: KeyboardPage },
+  { id: "energia", label: "Energia", icon: "power", component: EnergyPage },
   { id: "papel-de-parede", label: "Papel de parede", icon: "image", component: WallpaperPage },
   { id: "dock", label: "Dock", icon: "dock", component: DockPage },
   { id: "sistema", label: "Sistema", icon: "info", component: SystemPage },

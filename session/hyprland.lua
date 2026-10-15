@@ -86,6 +86,17 @@ hl.config({
     },
 })
 
+-- Teclado escolhido em Configurações → Teclado e idioma (gerado pelo LUMNA): vale por cima do da
+-- instalação.
+do
+    local home = os.getenv("HOME")
+    local chosen = home and io.open(home .. "/.config/lumna/keyboard.lua", "r")
+    if chosen then
+        chosen:close()
+        pcall(dofile, home .. "/.config/lumna/keyboard.lua")
+    end
+end
+
 -- Curva única do LUMNA: tudo no sistema acelera e freia do mesmo jeito.
 hl.curve("lumna", { type = "bezier", points = { { 0.22, 1 }, { 0.36, 1 } } })
 hl.curve("lumnaSpring", { type = "spring", mass = 1, stiffness = 220, dampening = 24 })
@@ -148,6 +159,14 @@ hl.layer_rule({
     no_anim = true,
 })
 
+-- Menu de energia: o mesmo véu com blur.
+hl.layer_rule({
+    name = "lumna-power",
+    match = { namespace = "^lumna-power$" },
+    blur = true,
+    no_anim = true,
+})
+
 hl.layer_rule({
     name = "lumna-notifications-blur",
     match = { namespace = "^lumna-notifications$" },
@@ -191,7 +210,8 @@ hl.bind(mod .. " + Escape", hl.dsp.exec_cmd("lumna-ctl media home"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))
-hl.bind(mod .. " + SHIFT + E", hl.dsp.exit())
+-- Menu de energia (sair, suspender, hibernar, reiniciar, desligar).
+hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd("lumna-ctl power"))
 -- Modos: Desktop → Gaming → Mídia (ver docs/VIABILIDADE.md, seção 4).
 hl.bind(mod .. " + Tab", hl.dsp.exec_cmd("lumna-ctl mode next"))
 hl.bind(mod .. " + SHIFT + Tab", hl.dsp.exec_cmd("lumna-ctl mode prev"))

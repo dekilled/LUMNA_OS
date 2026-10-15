@@ -213,7 +213,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
         </div>
         <p v-if="!config.pinned.length" class="empty">O dock está vazio: só os apps abertos aparecem nele.</p>
       </div>
-      <div class="actions">
+      <div class="toolbar">
         <button class="btn" @click="append(DOCK_SEPARATOR)"><Icon name="plus" :size="15" /> Separador</button>
         <button v-for="id in missing" :key="id" class="btn" @click="append(id)">
           <Icon name="plus" :size="15" /> {{ describe(id).name }}
@@ -380,13 +380,13 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   opacity: 0.3;
   cursor: default;
 }
-.actions {
+.toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
 }
-.actions .spacer {
+.toolbar .spacer {
   flex: 1;
 }
 </style>

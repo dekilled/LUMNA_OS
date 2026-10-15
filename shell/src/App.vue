@@ -10,6 +10,7 @@ import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
 import Notifications from "./components/Notifications.vue";
+import PowerMenu from "./components/PowerMenu.vue";
 import SettingsApp from "./components/settings/SettingsApp.vue";
 import StoreApp from "./components/store/StoreApp.vue";
 import Switcher from "./components/Switcher.vue";
@@ -30,6 +31,7 @@ const label = getCurrentWebviewWindow().label;
   <ModeScreen v-else-if="label.startsWith('mode-')" />
   <Switcher v-else-if="label === 'switcher'" />
   <WifiMenu v-else-if="label === 'wifi'" />
+  <PowerMenu v-else-if="label === 'power'" />
   <EmmaPanel v-else-if="label === 'emma'" />
   <SettingsApp v-else-if="label === 'settings'" />
   <StoreApp v-else-if="label === 'store'" />

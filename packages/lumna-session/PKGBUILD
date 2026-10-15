@@ -22,6 +22,8 @@ depends=(
   glib2 udisks2 xdg-utils
   # Ações da Emma: copiar/colar, captura de tela e avisos pelo terminal
   wl-clipboard grim libnotify
+  # Energia: perfil de energia (economia, equilibrado, desempenho)
+  power-profiles-daemon
 )
 
 _root="$(realpath "$startdir/../..")"

@@ -112,6 +112,8 @@ pub trait Compositor: Send + Sync {
     fn exec(&self, command: &str) -> Result<()>;
     /// Põe o monitor na posição (x, y) do layout, mantendo a resolução preferida e a escala.
     fn place_monitor(&self, name: &str, x: i32, y: i32, scale: f64) -> Result<()>;
+    /// Troca o teclado na hora (nomes do xkb, separados por vírgula quando há mais de um).
+    fn set_keyboard(&self, layout: &str, variant: &str, options: &str) -> Result<()>;
     /// Encerra o compositor (a tela de login sai assim para o greetd abrir a sessão).
     fn exit(&self) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.

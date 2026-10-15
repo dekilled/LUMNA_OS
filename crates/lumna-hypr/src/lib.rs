@@ -88,6 +88,19 @@ fn scale_text(scale: f64) -> String {
     text.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
+/// O teclado em Lua (`hl.config` com `kb_layout`, `kb_variant` e `kb_options`). Os nomes do xkb só
+/// têm letras, números e `_-(),:`.
+pub fn keyboard_rule(layout: &str, variant: &str, options: &str) -> Result<String> {
+    for value in [layout, variant, options] {
+        if !value.chars().all(|c| c.is_ascii_alphanumeric() || "_-(),:".contains(c)) {
+            return Err(format!("nome de teclado inválido: {value:?}"));
+        }
+    }
+    Ok(format!(
+        "hl.config({{ input = {{ kb_layout = \"{layout}\", kb_variant = \"{variant}\", kb_options = \"{options}\" }} }})"
+    ))
+}
+
 /// A regra em Lua que põe um monitor no lugar (a mesma do `hyprland.lua`, com posição fixa).
 pub fn monitor_rule(name: &str, x: i32, y: i32, scale: f64) -> Result<String> {
     Ok(format!(
@@ -197,6 +210,15 @@ impl Compositor for Hyprland {
                 label: monitor_label(m),
             })
             .collect())
+    }
+
+    fn set_keyboard(&self, layout: &str, variant: &str, options: &str) -> Result<()> {
+        let reply = self.request(&format!("eval {}", keyboard_rule(layout, variant, options)?))?;
+        if reply.trim() == "ok" {
+            Ok(())
+        } else {
+            Err(format!("o Hyprland recusou o teclado: {}", reply.trim()))
+        }
     }
 
     fn place_monitor(&self, name: &str, x: i32, y: i32, scale: f64) -> Result<()> {
@@ -326,6 +348,15 @@ impl Compositor for Hyprland {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn keyboard_rule_quotes_only_xkb_names() {
+        assert_eq!(
+            keyboard_rule("br,us", "abnt2,intl", "grp:alt_shift_toggle").unwrap(),
+            r#"hl.config({ input = { kb_layout = "br,us", kb_variant = "abnt2,intl", kb_options = "grp:alt_shift_toggle" } })"#
+        );
+        assert!(keyboard_rule("br\"})os.exit()--", "", "").is_err());
+    }
+
     #[test]
     fn monitor_rule_and_logical_size() {
         assert_eq!(

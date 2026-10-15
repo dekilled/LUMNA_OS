@@ -64,7 +64,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "telas" | "papel-de-parede" | "dock" | "sistema";
+export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -612,3 +612,45 @@ export interface Displays {
 export const displays = () => invoke<Displays>("displays");
 export const displaysArrange = (order: string[], align: DisplayAlign) =>
   invoke<Displays>("displays_arrange", { order, align });
+
+// ---- Teclado e idioma ----
+
+export interface KeyboardLayout {
+  layout: string;
+  /** Vazio = a variante padrão. */
+  variant: string;
+}
+export interface XkbLayout {
+  id: string;
+  name: string;
+  variants: { id: string; name: string }[];
+}
+export interface KeyboardState {
+  layouts: KeyboardLayout[];
+  catalog: XkbLayout[];
+  locale: string;
+  locales: { code: string; name: string }[];
+}
+
+export const keyboardState = () => invoke<KeyboardState>("keyboard_state");
+export const keyboardSet = (layouts: KeyboardLayout[]) => invoke<void>("keyboard_set", { layouts });
+export const localeSet = (code: string) => invoke<void>("locale_set", { code });
+
+// ---- Energia ----
+
+export type PowerAction = "logout" | "suspend" | "hibernate" | "reboot" | "poweroff";
+export interface PowerState {
+  can_suspend: boolean;
+  can_hibernate: boolean;
+  can_reboot: boolean;
+  can_power_off: boolean;
+  /** `power-saver`, `balanced` ou `performance`; `null` sem o power-profiles-daemon. */
+  profile: string | null;
+  profiles: string[];
+}
+
+export const powerState = () => invoke<PowerState>("power_state");
+export const powerSetProfile = (profile: string) => invoke<void>("power_set_profile", { profile });
+export const powerAction = (action: PowerAction) => invoke<void>("power_action", { action });
+/** Abre ou fecha o menu de energia (no monitor desta janela). */
+export const powerMenu = () => invoke<void>("power_menu");

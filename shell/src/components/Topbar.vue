@@ -21,6 +21,7 @@ import {
   toggleLauncher,
   toggleMute,
   toggleWifi,
+  powerMenu,
   type Mode,
   type ModesSnapshot,
   type Status,
@@ -188,6 +189,7 @@ onUnmounted(() => {
       </div>
       <span class="date">{{ date }}</span>
       <span class="time">{{ time }}</span>
+      <button class="item power" title="Energia (Super + Shift + E)" @click="powerMenu()"><Icon name="power" :size="15" /></button>
     </div>
   </header>
 </template>

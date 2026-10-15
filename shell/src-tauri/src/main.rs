@@ -11,6 +11,7 @@ mod files;
 mod games;
 mod greeter;
 mod installer;
+mod keyboard;
 mod layer;
 mod media;
 mod modes;
@@ -18,6 +19,7 @@ mod network;
 mod notifications;
 mod pad;
 mod polkit;
+mod power;
 mod printers;
 mod remote;
 mod status;
@@ -168,6 +170,18 @@ const WIFI: LayerSpec = LayerSpec {
 };
 
 /// Pedido de senha de administrador (polkit): cobre a tela e prende o teclado até responder.
+/// Menu de energia: véu na tela toda com os botões no centro (Esc ou clique fora fecha).
+const POWER: LayerSpec = LayerSpec {
+    namespace: "lumna-power",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+
 const AUTH: LayerSpec = LayerSpec {
     namespace: "lumna-auth",
     layer: Layer::Overlay,
@@ -923,6 +937,13 @@ fn main() {
             toggle_emma,
             desktop_wallpaper,
             displays::displays,
+            keyboard::keyboard_state,
+            power::power_state,
+            power::power_set_profile,
+            power::power_action,
+            power::power_menu,
+            keyboard::keyboard_set,
+            keyboard::locale_set,
             displays::displays_arrange,
             dock::dock_state,
             dock::dock_config,
@@ -1053,6 +1074,7 @@ fn main() {
             create_layer(app, "launcher", &primary, &LAUNCHER)?;
             create_layer(app, "switcher", &primary, &SWITCHER)?;
             create_layer(app, "wifi", &primary, &WIFI)?;
+            create_layer(app, "power", &primary, &POWER)?;
             create_layer(app, "auth", &primary, &AUTH)?;
             create_layer(app, "emma", &primary, &EMMA)?;
 

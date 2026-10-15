@@ -193,7 +193,7 @@ onUnmounted(() => observer?.disconnect());
       </button>
     </div>
 
-    <div class="actions">
+    <div class="toolbar">
       <button class="btn primary" :disabled="!changed || busy" @click="apply">
         <Icon :name="busy ? 'refresh' : 'check'" :size="15" /> {{ busy ? "Aplicando…" : "Aplicar" }}
       </button>
@@ -300,7 +300,7 @@ onUnmounted(() => observer?.disconnect());
   background: rgba(139, 92, 246, 0.25);
 }
 
-.actions {
+.toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
