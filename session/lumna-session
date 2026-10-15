@@ -1,0 +1,9 @@
+#!/bin/sh
+# Inicia a sessão LUMNA: Hyprland com a configuração do LUMNA (ver run_hyprland no gpu-env).
+export XDG_CURRENT_DESKTOP=Hyprland:LUMNA
+export XDG_SESSION_DESKTOP=lumna
+export XDG_SESSION_TYPE=wayland
+
+. /usr/lib/lumna/gpu-env
+
+run_hyprland /usr/share/lumna/hyprland.lua

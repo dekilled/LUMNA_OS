@@ -1,0 +1,9 @@
+[package]
+name = "lumna-ctl"
+description = "Controle do shell do LUMNA OS pela linha de comando (usado pelos atalhos)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lumna-core.workspace = true

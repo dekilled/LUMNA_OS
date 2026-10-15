@@ -1,0 +1,9 @@
+[package]
+name = "lumna-core"
+description = "Tipos e contratos do LUMNA OS que não dependem do compositor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true

@@ -1,0 +1,11 @@
+[package]
+name = "lumna-hypr"
+description = "Adaptador do LUMNA OS para o Hyprland (IPC por socket)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lumna-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true

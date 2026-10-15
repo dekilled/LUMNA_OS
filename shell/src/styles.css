@@ -1,0 +1,23 @@
+:root {
+  /* Campos nativos (select, barra de rolagem) no tema escuro. */
+  color-scheme: dark;
+  --lumna-violet: #8b5cf6;
+  --lumna-violet-soft: #a78bfa;
+  --lumna-glass: rgba(14, 10, 28, 0.55);
+  --lumna-line: rgba(167, 139, 250, 0.18);
+  --lumna-text: #ece8ff;
+  --lumna-muted: #a59cc9;
+  font-family: "Inter", "Noto Sans", sans-serif;
+  color: var(--lumna-text);
+}
+
+/* A janela é transparente: o vidro fosco é o blur do Hyprland atrás desta cor. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}

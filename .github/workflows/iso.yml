@@ -1,0 +1,93 @@
+name: ISO
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # A Emma (backend) mora no NewHarnessV2, que é privado: com o segredo EMMA_REPO_TOKEN
+      # (token com leitura daquele repositório) o ISO já vem com ela; sem ele, sai sem.
+      - name: Baixa a Emma
+        env:
+          EMMA_REPO_TOKEN: ${{ secrets.EMMA_REPO_TOKEN }}
+          EMMA_REF: ${{ vars.EMMA_REF || 'main' }}
+        run: |
+          if [ -n "$EMMA_REPO_TOKEN" ]; then
+            git clone --depth 1 --branch "$EMMA_REF" \
+              "https://x-access-token:${EMMA_REPO_TOKEN}@github.com/dekilled/NewHarnessV2.git" "$RUNNER_TEMP/emma"
+            echo "EMMA_SRC=$RUNNER_TEMP/emma" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Sem EMMA_REPO_TOKEN: o ISO sai sem o backend da Emma."
+          fi
+
+      - name: Monta o ISO (pacotes, validação da config, mkarchiso)
+        run: ./scripts/build-iso.sh
+
+      - name: Checksum
+        run: cd out && sha256sum lumna-os-*.iso > SHA256SUMS && cat SHA256SUMS
+
+      # Repositório [lumna]: os pacotes deste build ficam na release "repo", que o pacman do
+      # LUMNA instalado usa (Server = .../releases/download/repo). Só a main publica.
+      - name: Publica o repositório [lumna]
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd out/repo
+          # Release não guarda symlink: o banco vai com o nome que o pacman procura.
+          for db in lumna.db lumna.files; do rm -f "$db"; cp "$db.tar.gz" "$db"; done
+          gh release view repo >/dev/null 2>&1 || gh release create repo --prerelease \
+            --title "Repositório [lumna]" \
+            --notes "Pacotes do LUMNA para o pacman. Não baixe à mão: o sistema usa isto sozinho."
+          gh release upload repo --clobber lumna.db lumna.db.tar.gz lumna.files lumna.files.tar.gz ./*.pkg.tar.zst
+          # Depois de subir os novos, tira os pacotes velhos (o banco já não aponta para eles).
+          gh release view repo --json assets -q '.assets[].name' | while read -r asset; do
+            [ -e "$asset" ] || gh release delete-asset repo "$asset" -y
+          done
+
+      # ISO de teste numa release fixa ("teste"): download direto do .iso, pelo CDN do GitHub e com
+      # retomada (o artefato do Actions vem num zip, sem retomar e às vezes muito lento).
+      - name: Publica o ISO de teste
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd out
+          gh release view teste >/dev/null 2>&1 || gh release create teste --prerelease \
+            --title "LUMNA OS (teste)" \
+            --notes "O ISO do último build de teste, trocado a cada build. Para instalar de verdade, prefira as versões v*."
+          iso=$(ls lumna-os-*.iso)
+          # Nome fixo (o link não muda entre builds), fora de out/ para não entrar no artefato.
+          test="$RUNNER_TEMP/lumna-os-teste.iso"
+          ln -f "$iso" "$test" 2>/dev/null || cp "$iso" "$test"
+          (cd "$RUNNER_TEMP" && sha256sum lumna-os-teste.iso > lumna-os-teste.iso.sha256)
+          gh release upload teste --clobber "$test" "$test.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumna-os-iso
+          path: |
+            out/lumna-os-*.iso
+            out/SHA256SUMS
+          retention-days: 7
+          compression-level: 0
+
+      - name: Publica na Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/lumna-os-*.iso
+            out/SHA256SUMS

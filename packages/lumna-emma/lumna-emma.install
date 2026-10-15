@@ -1,0 +1,8 @@
+# Liga a Emma para todo usuário (cada um pode desligar com `systemctl --user disable lumna-emma`).
+post_install() {
+  systemctl --global enable lumna-emma.service >/dev/null 2>&1 || true
+}
+
+pre_remove() {
+  systemctl --global disable lumna-emma.service >/dev/null 2>&1 || true
+}

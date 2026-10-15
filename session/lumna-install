@@ -1,0 +1,241 @@
+#!/bin/bash
+# Instala o LUMNA OS num disco, a partir do pendrive (sem internet: copia o próprio sistema live).
+# Roda como root pelo pkexec (política os.lumna.install), chamado pelo app "Instalar LUMNA OS".
+#
+#   lumna-install --disk /dev/nvme0n1 --user luan --name "Luan" --hostname lumna \
+#                 --timezone America/Sao_Paulo --keyboard "br abnt2" --locale pt_BR.UTF-8
+#   (a senha chega pela entrada padrão, numa linha: nunca na linha de comando)
+#
+# O disco é APAGADO INTEIRO: GPT, partição EFI de 1 GiB (FAT32, montada em /boot) e o resto em
+# Btrfs com subvolumes @, @home, @log, @cache e @snapshots (compressão zstd). Boot por
+# systemd-boot (só UEFI). A tela de login é a do LUMNA (greetd + lumna-greeter).
+#
+# Andamento para a tela: linhas "@@ PORCENTAGEM texto".
+set -euo pipefail
+export LC_ALL=C
+
+DISK="" USERNAME="" FULLNAME="" HOSTNAME_="lumna" TIMEZONE="America/Sao_Paulo"
+KEYBOARD="br abnt2" LOCALE="pt_BR.UTF-8" DRY=0
+SOURCE="${LUMNA_INSTALL_SOURCE:-/run/archiso/airootfs}"
+TARGET="/mnt/lumna-install"
+REPO_URL="https://github.com/dekilled/LUMNA_OS/releases/download/repo"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --disk) DISK="$2"; shift 2 ;;
+    --user) USERNAME="$2"; shift 2 ;;
+    --name) FULLNAME="$2"; shift 2 ;;
+    --hostname) HOSTNAME_="$2"; shift 2 ;;
+    --timezone) TIMEZONE="$2"; shift 2 ;;
+    --keyboard) KEYBOARD="$2"; shift 2 ;;
+    --locale) LOCALE="$2"; shift 2 ;;
+    --dry-run) DRY=1; shift ;;
+    *) echo "opção desconhecida: $1" >&2; exit 2 ;;
+  esac
+done
+
+step() { echo "@@ $1 $2"; }
+fail() { echo "ERRO: $*" >&2; exit 1; }
+
+# ---- conferências (antes de tocar em qualquer coisa) ----
+
+[ "$(id -u)" -eq 0 ] || fail "precisa rodar como administrador"
+[ -b "$DISK" ] || fail "disco inválido: $DISK"
+[ "$(lsblk -dno TYPE "$DISK")" = disk ] || fail "$DISK não é um disco inteiro"
+[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail "nome de usuário inválido (letras minúsculas, números, - e _)"
+[[ "$HOSTNAME_" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,62}$ ]] || fail "nome do computador inválido"
+[ -e "/usr/share/zoneinfo/$TIMEZONE" ] || fail "fuso horário desconhecido: $TIMEZONE"
+[[ "$KEYBOARD" =~ ^[a-z]+( [a-z0-9_]+)?$ ]] || fail "teclado inválido: $KEYBOARD"
+[[ "$LOCALE" =~ ^[a-zA-Z_]+\.UTF-8$ ]] || fail "idioma inválido: $LOCALE"
+[ -d /sys/firmware/efi ] || fail "este computador não iniciou em modo UEFI (o LUMNA ainda não instala no modo BIOS antigo)"
+[ -d "$SOURCE/usr" ] || fail "não achei o sistema do pendrive em $SOURCE"
+# O pendrive em que o próprio live está não pode ser o destino.
+if lsblk -nro MOUNTPOINTS "$DISK" | grep -q '^/run/archiso'; then
+  fail "esse é o pendrive do LUMNA; escolha outro disco"
+fi
+IFS= read -r PASSWORD || true
+[ -n "$PASSWORD" ] || fail "a senha não chegou"
+[ -n "$FULLNAME" ] || FULLNAME="$USERNAME"
+
+if [ "$DRY" = 1 ]; then
+  echo "tudo certo para instalar em $DISK (teste: nada foi feito)"
+  exit 0
+fi
+
+cleanup() {
+  umount -R "$TARGET" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# ---- 1. disco ----
+
+step 3 "Preparando o disco"
+# Desmonta o que estiver montado dele (um pendrive aberto no Arquivos, por exemplo).
+lsblk -nrpo NAME "$DISK" | tail -n +2 | while read -r part; do umount -q "$part" 2>/dev/null || true; done
+swapoff -a 2>/dev/null || true
+wipefs -af "$DISK" >/dev/null
+sgdisk --zap-all "$DISK" >/dev/null
+sgdisk -n 1:0:+1G -t 1:ef00 -c 1:LUMNA_EFI -n 2:0:0 -t 2:8304 -c 2:LUMNA "$DISK" >/dev/null
+partprobe "$DISK" 2>/dev/null || true
+udevadm settle
+# nvme0n1 → nvme0n1p1; sda → sda1
+case "$DISK" in *[0-9]) P="${DISK}p" ;; *) P="$DISK" ;; esac
+ESP="${P}1" ROOT="${P}2"
+for i in $(seq 1 20); do [ -b "$ROOT" ] && break; sleep 0.5; done
+[ -b "$ROOT" ] || fail "as partições novas não apareceram"
+
+step 6 "Formatando"
+mkfs.fat -F 32 -n LUMNA_EFI "$ESP" >/dev/null
+mkfs.btrfs -f -L LUMNA "$ROOT" >/dev/null
+
+mkdir -p "$TARGET"
+mount "$ROOT" "$TARGET"
+for sub in @ @home @log @cache @snapshots; do btrfs subvolume create "$TARGET/$sub" >/dev/null; done
+umount "$TARGET"
+OPTS="noatime,compress=zstd:1"
+mount -o "$OPTS,subvol=@" "$ROOT" "$TARGET"
+mkdir -p "$TARGET"/{boot,home,var/log,var/cache,.snapshots}
+mount -o "$OPTS,subvol=@home" "$ROOT" "$TARGET/home"
+mount -o "$OPTS,subvol=@log" "$ROOT" "$TARGET/var/log"
+mount -o "$OPTS,subvol=@cache" "$ROOT" "$TARGET/var/cache"
+mount -o "$OPTS,subvol=@snapshots" "$ROOT" "$TARGET/.snapshots"
+mount -o umask=0077 "$ESP" "$TARGET/boot"
+
+# ---- 2. sistema ----
+
+step 10 "Copiando o sistema (a parte mais demorada)"
+# O rsync mostra quanto já copiou; a porcentagem da tela vai de 10 a 70.
+rsync -aAXH --numeric-ids --info=progress2 --no-inc-recursive \
+  --exclude=/dev/ --exclude=/proc/ --exclude=/sys/ --exclude=/run/ --exclude=/tmp/ \
+  --exclude=/boot/ --exclude=/home/ --exclude=/var/log/ --exclude=/var/cache/ \
+  "$SOURCE/" "$TARGET/" | tr '\r' '\n' | while read -r line; do
+    pct=$(echo "$line" | grep -o '[0-9]\+%' | head -1 | tr -d % || true)
+    [ -n "$pct" ] && echo "@@ $((10 + pct * 60 / 100)) Copiando o sistema ($pct%)"
+  done
+mkdir -p "$TARGET"/{dev,proc,sys,run,tmp,var/cache/pacman/pkg}
+chmod 1777 "$TARGET/tmp"
+
+step 72 "Tirando o que é só do pendrive"
+while read -r path; do
+  [ -n "$path" ] && rm -rf -- "${TARGET:?}/$path"
+done < "$TARGET/usr/share/lumna/live-files"
+rm -f "$TARGET/usr/share/lumna/live-files"
+# Pacotes que só servem no pendrive (máquinas virtuais na nuvem, sons do live).
+for pkg in cloud-init livecd-sounds; do
+  arch-chroot "$TARGET" pacman -Rns --noconfirm "$pkg" >/dev/null 2>&1 || true
+done
+
+# ---- 3. configuração ----
+
+step 76 "Idioma, teclado e fuso"
+sed -i -e "s/^#\(${LOCALE//./\\.}\)/\1/" -e 's/^#\(en_US\.UTF-8\)/\1/' "$TARGET/etc/locale.gen"
+arch-chroot "$TARGET" locale-gen >/dev/null
+echo "LANG=$LOCALE" > "$TARGET/etc/locale.conf"
+ln -sf "/usr/share/zoneinfo/$TIMEZONE" "$TARGET/etc/localtime"
+read -r kb_layout kb_variant <<< "$KEYBOARD"
+console="$kb_layout${kb_variant:+-$kb_variant}"
+[ "$console" = "us-intl" ] && console="us-acentos"
+echo "KEYMAP=$console" > "$TARGET/etc/vconsole.conf"
+mkdir -p "$TARGET/etc/lumna"
+echo "$KEYBOARD" > "$TARGET/etc/lumna/keyboard"
+echo "$HOSTNAME_" > "$TARGET/etc/hostname"
+cat > "$TARGET/etc/hosts" <<HOSTS
+127.0.0.1 localhost
+::1       localhost
+127.0.1.1 $HOSTNAME_.localdomain $HOSTNAME_
+HOSTS
+rm -f "$TARGET/etc/machine-id"
+printf 'uninitialized\n' > "$TARGET/etc/machine-id"
+
+step 80 "Criando sua conta"
+# A conta "lumna" é só do pendrive: sai do sistema instalado (e a sua fica com o UID 1000).
+if [ "$USERNAME" != lumna ] && arch-chroot "$TARGET" id lumna >/dev/null 2>&1; then
+  arch-chroot "$TARGET" userdel -r lumna >/dev/null 2>&1 || arch-chroot "$TARGET" userdel lumna
+  rm -rf "$TARGET/home/lumna"
+fi
+arch-chroot "$TARGET" systemd-sysusers >/dev/null 2>&1 || true
+arch-chroot "$TARGET" useradd -m -G wheel,video,audio,input -s /bin/bash -c "$FULLNAME" "$USERNAME"
+printf '%s:%s\n' "$USERNAME" "$PASSWORD" | arch-chroot "$TARGET" chpasswd
+# O root fica sem login direto: administrar é pela sua conta (sudo / tela de senha do LUMNA).
+arch-chroot "$TARGET" passwd -l root >/dev/null
+install -m 0440 /dev/stdin "$TARGET/etc/sudoers.d/10-wheel" <<< "%wheel ALL=(ALL:ALL) ALL"
+# Pastas do usuário em português.
+for dir in Documentos Downloads Imagens Músicas Vídeos; do
+  arch-chroot "$TARGET" runuser -u "$USERNAME" -- mkdir -p "/home/$USERNAME/$dir"
+done
+arch-chroot "$TARGET" runuser -u "$USERNAME" -- mkdir -p "/home/$USERNAME/.config"
+cat > "$TARGET/home/$USERNAME/.config/user-dirs.dirs" <<DIRS
+XDG_DESKTOP_DIR="\$HOME"
+XDG_DOCUMENTS_DIR="\$HOME/Documentos"
+XDG_DOWNLOAD_DIR="\$HOME/Downloads"
+XDG_PICTURES_DIR="\$HOME/Imagens"
+XDG_MUSIC_DIR="\$HOME/Músicas"
+XDG_VIDEOS_DIR="\$HOME/Vídeos"
+DIRS
+arch-chroot "$TARGET" chown "$USERNAME:" "/home/$USERNAME/.config/user-dirs.dirs"
+
+step 83 "Tela de login e serviços"
+mkdir -p "$TARGET/etc/greetd"
+cat > "$TARGET/etc/greetd/config.toml" <<GREETD
+# Tela de login do LUMNA (greetd + lumna-greeter).
+[terminal]
+vt = 1
+
+[default_session]
+command = "lumna-greeter"
+user = "greeter"
+GREETD
+ln -sf /usr/lib/systemd/system/greetd.service "$TARGET/etc/systemd/system/display-manager.service"
+
+# Repositório [lumna]: as atualizações do LUMNA chegam junto com as do Arch.
+if ! grep -q '^\[lumna\]' "$TARGET/etc/pacman.conf"; then
+  cat >> "$TARGET/etc/pacman.conf" <<PACMAN
+
+# Pacotes do LUMNA OS (shell, sessão), publicados pelo GitHub Actions.
+[lumna]
+SigLevel = Optional TrustAll
+Server = $REPO_URL
+PACMAN
+fi
+
+# ---- 4. boot ----
+
+step 86 "Kernel e inicialização"
+genfstab -U "$TARGET" | grep -v '^#' | sed '/^$/d' > "$TARGET/etc/fstab"
+kernel=$(ls -d "$TARGET"/usr/lib/modules/*/ | head -1)
+install -m 0644 "$kernel/vmlinuz" "$TARGET/boot/vmlinuz-linux"
+# Initramfs normal (o do pendrive tinha os ganchos do archiso).
+cat > "$TARGET/etc/mkinitcpio.d/linux.preset" <<'PRESET'
+ALL_kver="/boot/vmlinuz-linux"
+PRESETS=('default' 'fallback')
+default_image="/boot/initramfs-linux.img"
+fallback_image="/boot/initramfs-linux-fallback.img"
+fallback_options="-S autodetect"
+PRESET
+arch-chroot "$TARGET" mkinitcpio -P >/dev/null 2>&1 || arch-chroot "$TARGET" mkinitcpio -P
+
+step 94 "Instalando o carregador de boot"
+arch-chroot "$TARGET" bootctl --esp-path=/boot install >/dev/null 2>&1 || arch-chroot "$TARGET" bootctl --esp-path=/boot --no-variables install
+root_uuid=$(blkid -s UUID -o value "$ROOT")
+mkdir -p "$TARGET/boot/loader/entries"
+cat > "$TARGET/boot/loader/loader.conf" <<LOADER
+default lumna.conf
+timeout 2
+editor no
+LOADER
+cat > "$TARGET/boot/loader/entries/lumna.conf" <<ENTRY
+title   LUMNA OS
+linux   /vmlinuz-linux
+initrd  /initramfs-linux.img
+options root=UUID=$root_uuid rootflags=subvol=@ rw quiet loglevel=3
+ENTRY
+cat > "$TARGET/boot/loader/entries/lumna-fallback.conf" <<ENTRY
+title   LUMNA OS (modo de segurança)
+linux   /vmlinuz-linux
+initrd  /initramfs-linux-fallback.img
+options root=UUID=$root_uuid rootflags=subvol=@ rw
+ENTRY
+
+step 98 "Terminando"
+sync
+step 100 "Pronto"

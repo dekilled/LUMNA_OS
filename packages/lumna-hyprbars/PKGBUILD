@@ -1,0 +1,47 @@
+# Barra de título das janelas no visual do LUMNA: o plugin hyprbars (hyprland-plugins, oficial do
+# Hyprland), compilado contra o Hyprland instalado na hora do build.
+#
+# Plugin e Hyprland precisam ser da mesma versão. O commit certo do plugin vem do hyprpm.toml do
+# próprio hyprland-plugins (a tabela "commit do Hyprland → commit do plugin"); o commit do Hyprland
+# vem do version.h instalado. Se o Hyprland do sistema mudar depois, ele só recusa o plugin (a
+# topbar volta a mostrar os botões da janela) até um lumna-hyprbars novo chegar pelo [lumna].
+pkgname=lumna-hyprbars
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="Barra de título das janelas do LUMNA OS (plugin hyprbars do Hyprland)"
+arch=(x86_64)
+url="https://github.com/hyprwm/hyprland-plugins"
+license=(BSD-3-Clause)
+depends=(hyprland pango cairo)
+makedepends=(git make gcc pkgconf libdrm pixman libinput)
+source=("hyprland-plugins::git+https://github.com/hyprwm/hyprland-plugins.git")
+sha256sums=(SKIP)
+options=(!debug)
+
+_plugin_commit() {
+  local hypr
+  hypr=$(sed -n 's/^#define GIT_COMMIT_HASH *"\([0-9a-f]*\)".*/\1/p' /usr/include/hyprland/src/version.h)
+  [ -n "$hypr" ] || { echo "sem o commit do Hyprland em version.h" >&2; return 1; }
+  grep -o "\[\"$hypr\", *\"[0-9a-f]*\"\]" "$srcdir/hyprland-plugins/hyprpm.toml" | sed 's/.*, *"\([0-9a-f]*\)"\]/\1/' | head -1
+}
+
+prepare() {
+  cd hyprland-plugins
+  local commit
+  commit=$(_plugin_commit)
+  if [ -n "$commit" ]; then
+    echo "hyprbars no commit $commit (Hyprland $(pacman -Q hyprland | cut -d' ' -f2))"
+    git checkout -q "$commit"
+  else
+    echo "Hyprland ainda sem commit no hyprpm.toml: usando o hyprland-plugins mais novo" >&2
+  fi
+}
+
+build() {
+  make -C hyprland-plugins/hyprbars all
+}
+
+package() {
+  install -Dm755 hyprland-plugins/hyprbars/hyprbars.so "$pkgdir/usr/lib/lumna/hyprbars.so"
+  install -Dm644 hyprland-plugins/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

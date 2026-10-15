@@ -1,0 +1,53 @@
+name: LUMNA Controle (APK)
+
+on:
+  push:
+    branches: [main]
+    paths: ["remote/android/**", ".github/workflows/remote.yml"]
+  pull_request:
+    paths: ["remote/android/**", ".github/workflows/remote.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Chave fixa (opcional): sem ela o APK sai com a chave de debug do runner e, para
+      # atualizar, é preciso desinstalar a versão anterior.
+      - name: Chave de assinatura
+        env:
+          KEYSTORE_B64: ${{ secrets.LUMNA_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LUMNA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LUMNA_KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/lumna.keystore"
+            { echo "LUMNA_KEYSTORE_FILE=$RUNNER_TEMP/lumna.keystore"
+              echo "LUMNA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "LUMNA_KEY_ALIAS=$KEY_ALIAS"; } >> "$GITHUB_ENV"
+          else
+            echo "::warning::Sem LUMNA_KEYSTORE_BASE64: APK assinado com a chave de debug do runner."
+          fi
+
+      - name: Testes e APK
+        working-directory: remote/android
+        env:
+          LUMNA_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew --no-daemon testDebugUnitTest assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumna-controle-apk
+          path: remote/android/app/build/outputs/apk/release/*.apk
+          retention-days: 14

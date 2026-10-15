@@ -1,0 +1,44 @@
+#!/bin/bash
+# Operações de pacotes da Loja do LUMNA. Roda como root pelo pkexec (política os.lumna.pkg):
+#   lumna-pkg install PACOTE...   instala dos repositórios (sincroniza antes, se nunca sincronizou)
+#   lumna-pkg remove PACOTE...    remove com as dependências que ficarem sobrando
+#   lumna-pkg upgrade             atualiza o sistema inteiro
+#   lumna-pkg multilib on|off     liga/desliga o repositório de 32 bits (Steam, Wine)
+#   lumna-pkg pacman ARGS...      o pacman puro, para o makepkg instalar pacotes do AUR
+set -euo pipefail
+export LC_ALL=C
+
+synced() { compgen -G "/var/lib/pacman/sync/*.db" >/dev/null; }
+
+case "${1:-}" in
+  install)
+    shift
+    synced || pacman -Sy --noconfirm --noprogressbar
+    exec pacman -S --needed --noconfirm --noprogressbar -- "$@"
+    ;;
+  remove)
+    shift
+    exec pacman -Rns --noconfirm --noprogressbar -- "$@"
+    ;;
+  upgrade)
+    exec pacman -Syu --noconfirm --noprogressbar
+    ;;
+  multilib)
+    case "${2:-}" in
+      on) sed -i '/^#\[multilib\]$/{s/^#//;n;s/^#//}' /etc/pacman.conf ;;
+      off) sed -i '/^\[multilib\]$/{s/^/#/;n;s/^/#/}' /etc/pacman.conf ;;
+      *) echo "uso: lumna-pkg multilib on|off" >&2; exit 2 ;;
+    esac
+    exec pacman -Sy --noconfirm --noprogressbar
+    ;;
+  pacman)
+    shift
+    # O makepkg chama "$PACMAN_AUTH pacman ARGS": o caminho do pacman vem junto.
+    if [ "${1:-}" = /usr/bin/pacman ] || [ "${1:-}" = pacman ]; then shift; fi
+    exec pacman "$@"
+    ;;
+  *)
+    echo "uso: lumna-pkg install|remove|upgrade|multilib on|off|pacman ..." >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>LUMNA OS</vendor>
+  <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
+  <action id="os.lumna.install">
+    <description>Install LUMNA OS on a disk</description>
+    <description xml:lang="pt_BR">Instalar o LUMNA OS num disco</description>
+    <message>Installing LUMNA OS erases the chosen disk.</message>
+    <message xml:lang="pt_BR">Instalar o LUMNA OS apaga o disco escolhido.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/lumna/lumna-install</annotate>
+  </action>
+</policyconfig>

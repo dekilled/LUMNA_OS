@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Loja
+Comment=Instale programas do Arch, do Flathub e do AUR
+Exec=lumna-ctl store
+Icon=/usr/share/lumna/icons/store.svg
+Categories=System;PackageManager;
+Keywords=loja;store;apps;programas;instalar;flatpak;flathub;aur;pacman;atualizar;

@@ -1,0 +1,14 @@
+/target/
+/out/
+/work/
+node_modules/
+shell/dist/
+shell/src-tauri/gen/
+iso/builder/ca/*
+!iso/builder/ca/.gitkeep
+*.qcow2
+.pnpm-store/
+remote/android/.gradle/
+remote/android/build/
+remote/android/app/build/
+remote/android/local.properties

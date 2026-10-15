@@ -1,0 +1,14 @@
+#!/bin/sh
+# Tela de login do LUMNA. O greetd roda isto como o usuário "greeter": um Hyprland mínimo com o
+# lumna-shell no modo --greeter, que conversa com o greetd e, quando a senha confere, fecha o
+# Hyprland para o greetd abrir a sessão (lumna-session).
+export XDG_CURRENT_DESKTOP=Hyprland:LUMNA
+export XDG_SESSION_TYPE=wayland
+# O usuário greeter não tem pasta pessoal gravável: o WebKit guarda o que precisa num canto só dele.
+export HOME="${XDG_RUNTIME_DIR:-/tmp}/lumna-greeter"
+export XDG_CACHE_HOME="$HOME/cache" XDG_DATA_HOME="$HOME/data" XDG_CONFIG_HOME="$HOME/config"
+mkdir -p "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+
+. /usr/lib/lumna/gpu-env
+
+run_hyprland /usr/share/lumna/greeter.lua

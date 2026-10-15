@@ -1,0 +1,211 @@
+/* Peças comuns das páginas de Configurações. */
+
+.settings h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+}
+.settings .lead {
+  margin: 0 0 22px;
+  color: var(--lumna-muted);
+  font-size: 13px;
+}
+.settings h2 {
+  margin: 26px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lumna-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings .card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--lumna-line);
+  border-radius: 16px;
+  padding: 6px;
+}
+.settings .card.padded {
+  padding: 16px 18px;
+}
+
+.settings .row {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 12px;
+  border-radius: 12px;
+}
+.settings .row + .row {
+  border-top: 1px solid rgba(167, 139, 250, 0.08);
+}
+.settings button.row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.settings button.row:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.1);
+}
+.settings .row .grow {
+  flex: 1;
+  min-width: 0;
+}
+.settings .row .title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings .row .sub {
+  font-size: 12px;
+  color: var(--lumna-muted);
+  margin-top: 2px;
+}
+.settings .row .badge {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.16);
+  color: var(--lumna-violet-soft);
+  flex: none;
+}
+
+.settings .btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lumna-text);
+  font: inherit;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.settings .btn:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.22);
+}
+.settings .btn.primary {
+  background: var(--lumna-violet);
+  color: #fff;
+}
+.settings .btn.primary:hover:not(:disabled) {
+  background: #9b72f8;
+}
+.settings .btn.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.75);
+}
+.settings .btn:disabled {
+  opacity: 0.55;
+}
+.settings .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 12px 12px 62px;
+}
+
+.settings .switch {
+  width: 42px;
+  height: 24px;
+  flex: none;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  position: relative;
+  transition: background-color 180ms ease;
+}
+.settings .switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.settings .switch.on {
+  background: var(--lumna-violet);
+}
+.settings .switch.on::after {
+  transform: translateX(18px);
+}
+
+.settings .chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
+  color: var(--lumna-violet-soft);
+  white-space: nowrap;
+}
+.settings .chip.off {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--lumna-muted);
+}
+
+.settings .empty {
+  padding: 18px 12px;
+  color: var(--lumna-muted);
+  font-size: 13px;
+}
+.settings .error {
+  color: #fca5a5;
+  font-size: 12px;
+  padding: 0 12px 10px 62px;
+}
+.settings .note {
+  font-size: 12px;
+  color: var(--lumna-muted);
+  line-height: 1.5;
+  margin: 10px 4px 0;
+}
+
+.settings .spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--lumna-violet-soft);
+  animation: settings-spin 800ms linear infinite;
+}
+@keyframes settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.settings input[type="range"] {
+  flex: 1;
+  accent-color: var(--lumna-violet);
+}
+
+.settings dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 22px;
+  margin: 0;
+  font-size: 13px;
+}
+.settings dt {
+  color: var(--lumna-muted);
+}
+.settings dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

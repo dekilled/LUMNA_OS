@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Lumna" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:colorAccent">@color/violet</item>
+        <item name="android:textColorPrimary">@color/text</item>
+    </style>
+    <color name="background">#0D0A1C</color>
+    <color name="surface">#1A1433</color>
+    <color name="violet">#8B5CF6</color>
+    <color name="violet_soft">#A78BFA</color>
+    <color name="text">#ECE8FF</color>
+    <color name="muted">#A59CC9</color>
+</resources>
