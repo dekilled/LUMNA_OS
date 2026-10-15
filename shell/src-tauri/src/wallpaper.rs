@@ -49,14 +49,40 @@ fn allowed(path: &Path) -> bool {
     real == Path::new(DEFAULT) || (is_image(&real) && (inside(Path::new(SYSTEM_DIR)) || inside(&user_dir())))
 }
 
-/// O papel de parede em uso (o padrão se a escolha sumiu).
-pub fn current() -> String {
+/// `{"path": desktop, "lock": tela de bloqueio}` (sem `lock` = o mesmo do desktop).
+fn read_config() -> Value {
     std::fs::read_to_string(config_path())
         .ok()
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-        .and_then(|v| v["path"].as_str().map(str::to_string))
-        .filter(|p| Path::new(p).exists() && allowed(Path::new(p)))
-        .unwrap_or_else(|| DEFAULT.to_string())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| json!({}))
+}
+
+fn write_config(config: &Value) -> Result<(), String> {
+    let path = config_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, config.to_string()).map_err(|e| e.to_string())
+}
+
+fn valid(key: &str) -> Option<String> {
+    read_config()[key].as_str().map(str::to_string).filter(|p| Path::new(p).exists() && allowed(Path::new(p)))
+}
+
+/// O papel de parede em uso (o padrão se a escolha sumiu).
+pub fn current() -> String {
+    valid("path").unwrap_or_else(|| DEFAULT.to_string())
+}
+
+/// A imagem escolhida só para a tela de bloqueio, se houver.
+pub fn lock_choice() -> Option<String> {
+    valid("lock")
+}
+
+/// O fundo da tela de bloqueio: a escolhida para ela ou o papel de parede do desktop.
+pub fn current_lock() -> String {
+    lock_choice().unwrap_or_else(current)
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -196,7 +222,7 @@ async fn choose_images() -> Result<Vec<PathBuf>, String> {
 #[tauri::command]
 pub fn wallpaper_list(app: AppHandle) -> Value {
     allow_assets(&app);
-    json!({ "current": current(), "items": list() })
+    json!({ "current": current(), "lock": lock_choice(), "items": list() })
 }
 
 #[tauri::command]
@@ -205,15 +231,35 @@ pub fn wallpaper_set(app: AppHandle, path: String) -> Result<(), String> {
     if !allowed(&chosen) {
         return Err("Essa imagem não está na lista de papéis de parede.".into());
     }
-    let config = config_path();
-    if let Some(dir) = config.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&config, json!({ "path": path }).to_string()).map_err(|e| e.to_string())?;
+    let mut config = read_config();
+    config["path"] = json!(path);
+    write_config(&config)?;
     allow_assets(&app);
     // Todos os desktops (e quem mais mostrar o papel de parede) trocam juntos.
     let _ = app.emit("lumna://wallpaper", &path);
-    // A tela de bloqueio usa o mesmo papel de parede.
+    // A tela de bloqueio usa o mesmo, se não tiver um só dela.
+    crate::lock::write_lock_config();
+    Ok(())
+}
+
+/// Fundo só da tela de bloqueio; `None` volta a usar o do desktop.
+#[tauri::command]
+pub fn wallpaper_set_lock(path: Option<String>) -> Result<(), String> {
+    let mut config = read_config();
+    match path {
+        Some(path) => {
+            if !allowed(Path::new(&path)) {
+                return Err("Essa imagem não está na lista de papéis de parede.".into());
+            }
+            config["lock"] = json!(path);
+        }
+        None => {
+            if let Some(map) = config.as_object_mut() {
+                map.remove("lock");
+            }
+        }
+    }
+    write_config(&config)?;
     crate::lock::write_lock_config();
     Ok(())
 }
@@ -243,10 +289,20 @@ pub fn wallpaper_remove(app: AppHandle, path: String) -> Result<(), String> {
         return Err("Só as imagens que você adicionou podem sair da lista.".into());
     }
     let was_current = current() == path;
+    let was_lock = lock_choice().as_deref() == Some(path.as_str());
     std::fs::remove_file(&target).map_err(|e| e.to_string())?;
+    if was_lock {
+        wallpaper_set_lock(None)?;
+    }
     if was_current {
-        let _ = std::fs::remove_file(config_path());
+        // Volta ao padrão no desktop (a escolha da tela de bloqueio fica).
+        let mut config = read_config();
+        if let Some(map) = config.as_object_mut() {
+            map.remove("path");
+        }
+        write_config(&config)?;
         let _ = app.emit("lumna://wallpaper", DEFAULT);
+        crate::lock::write_lock_config();
     }
     Ok(())
 }

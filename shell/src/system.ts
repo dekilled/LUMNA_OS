@@ -564,7 +564,9 @@ export interface Wallpaper {
   user: boolean;
 }
 
-export const wallpaperList = () => invoke<{ current: string; items: Wallpaper[] }>("wallpaper_list");
+export const wallpaperList = () => invoke<{ current: string; lock: string | null; items: Wallpaper[] }>("wallpaper_list");
+/** Fundo só da tela de bloqueio; `null` = o mesmo do desktop. */
+export const wallpaperSetLock = (path: string | null) => invoke<void>("wallpaper_set_lock", { path });
 export const wallpaperSet = (path: string) => invoke<void>("wallpaper_set", { path });
 export const wallpaperAdd = () => invoke<string[]>("wallpaper_add");
 export const wallpaperRemove = (path: string) => invoke<void>("wallpaper_remove", { path });

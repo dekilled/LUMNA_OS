@@ -201,7 +201,7 @@ pub fn write_lock_config() {
     let dir = config_dir();
     let _ = std::fs::create_dir_all(&dir);
     let layouts: Vec<String> = crate::keyboard::current_layouts().into_iter().map(|l| l.layout).collect();
-    if let Err(err) = std::fs::write(lock_config_path(), lock_conf(&crate::wallpaper::current(), &layouts)) {
+    if let Err(err) = std::fs::write(lock_config_path(), lock_conf(&crate::wallpaper::current_lock(), &layouts)) {
         eprintln!("lumna-shell: hyprlock.conf: {err}");
     }
 }

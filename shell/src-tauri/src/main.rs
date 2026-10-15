@@ -965,6 +965,7 @@ fn main() {
             dock::dock_monitors,
             wallpaper::wallpaper_list,
             wallpaper::wallpaper_set,
+            wallpaper::wallpaper_set_lock,
             wallpaper::wallpaper_add,
             wallpaper::wallpaper_remove,
             monitor_name,
