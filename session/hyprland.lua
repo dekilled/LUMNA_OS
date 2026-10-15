@@ -192,6 +192,73 @@ hl.window_rule({
     suppress_event = "maximize",
 })
 
+-------------------------------------
+---- BARRA DE TÍTULO DAS JANELAS ----
+-------------------------------------
+
+-- Plugin hyprbars (pacote lumna-hyprbars), no visual da barra das janelas do LUMNA. O Hyprland
+-- carrega o plugin depois de ler este arquivo e lê de novo: só nessa segunda leitura existe
+-- hl.plugin.hyprbars. Sem o plugin (ou de outra versão do Hyprland), a topbar mostra os botões.
+local hyprbars = "/usr/lib/lumna/hyprbars.so"
+local hyprbars_file = io.open(hyprbars, "r")
+if hyprbars_file then
+    hyprbars_file:close()
+    hl.plugin.load(hyprbars)
+end
+
+if hl.plugin and hl.plugin.hyprbars then
+    hl.config({
+        plugin = {
+            hyprbars = {
+                bar_height = 38,
+                bar_color = "rgba(100c1ef0)",
+                ["col.text"] = "rgb(a59cc9)",
+                bar_text_font = "Inter",
+                bar_text_size = 10,
+                bar_text_weight = "semibold",
+                bar_text_align = "left",
+                bar_padding = 14,
+                bar_button_padding = 8,
+                bar_part_of_window = true,
+                bar_precedence_over_border = true,
+                bar_blur = true,
+                inactive_button_color = "rgba(ffffff0d)",
+                on_double_click = "lumna-ctl window maximize",
+            },
+        },
+    })
+
+    -- Da direita para a esquerda: fechar, maximizar, minimizar.
+    hl.plugin.hyprbars.add_button({
+        bg_color = "rgba(ef4444cc)",
+        fg_color = "rgb(ffffff)",
+        size = 22,
+        icon = "✕",
+        action = "lumna-ctl window close",
+    })
+    hl.plugin.hyprbars.add_button({
+        bg_color = "rgba(a78bfa24)",
+        fg_color = "rgb(ece8ff)",
+        size = 22,
+        icon = "□",
+        action = "lumna-ctl window maximize",
+    })
+    hl.plugin.hyprbars.add_button({
+        bg_color = "rgba(a78bfa24)",
+        fg_color = "rgb(ece8ff)",
+        size = 22,
+        icon = "–",
+        action = "lumna-ctl window minimize",
+    })
+
+    -- As janelas do próprio LUMNA (Configurações, Loja, Arquivos) já têm a barra delas.
+    hl.window_rule({
+        name = "lumna-own-bar",
+        match = { class = "^(lumna-shell|os\\.lumna\\.shell)$" },
+        ["hyprbars:no_bar"] = true,
+    })
+end
+
 -----------------
 ---- ATALHOS ----
 -----------------

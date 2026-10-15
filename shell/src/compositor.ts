@@ -55,6 +55,9 @@ export const activeWindow = () => invoke<Window | null>("active_window");
 /** Sem `address`, vale para a janela em foco. */
 export const windowControl = (action: WindowAction, address?: string) =>
   invoke<void>("window_control", { action, address: address ?? null });
+/** As janelas têm barra de título própria (plugin hyprbars)? */
+export const windowBars = () => invoke<boolean>("window_bars");
+
 export const isMinimized = (w: Window) => w.workspace_name === "special:minimized";
 export const focusWorkspace = (id: number) => invoke<void>("focus_workspace", { id });
 

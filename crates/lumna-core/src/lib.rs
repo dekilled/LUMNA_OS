@@ -114,6 +114,11 @@ pub trait Compositor: Send + Sync {
     fn place_monitor(&self, name: &str, x: i32, y: i32, scale: f64) -> Result<()>;
     /// Troca o teclado na hora (nomes do xkb, separados por vírgula quando há mais de um).
     fn set_keyboard(&self, layout: &str, variant: &str, options: &str) -> Result<()>;
+    /// As janelas têm barra de título desenhada pelo compositor (no Hyprland, o plugin hyprbars)?
+    /// Sem ela, a topbar mostra o título e os botões da janela em foco.
+    fn window_bars(&self) -> bool {
+        false
+    }
     /// Encerra o compositor (a tela de login sai assim para o greetd abrir a sessão).
     fn exit(&self) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.

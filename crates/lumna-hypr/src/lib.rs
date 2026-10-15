@@ -212,6 +212,10 @@ impl Compositor for Hyprland {
             .collect())
     }
 
+    fn window_bars(&self) -> bool {
+        self.request("plugin list").is_ok_and(|list| list.contains("hyprbars"))
+    }
+
     fn set_keyboard(&self, layout: &str, variant: &str, options: &str) -> Result<()> {
         let reply = self.request(&format!("eval {}", keyboard_rule(layout, variant, options)?))?;
         if reply.trim() == "ok" {

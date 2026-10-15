@@ -83,11 +83,18 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
 | `Super + F` | Tela cheia |
-| `Super + Shift + E` | Sair da sessão |
+| `Super + Shift + E` | Menu de energia: sair, suspender, hibernar, reiniciar, desligar |
+| `Alt + Shift` | Troca de teclado (com mais de um em Configurações → Teclado e idioma) |
 
 Na topbar: clique no cristal abre o launcher, no ícone de rede abre o menu do Wi-Fi, clique no
 volume silencia e a roda do mouse ajusta.
-Os avisos dos apps (`notify-send`, Firefox...) aparecem no canto superior direito.
+Os avisos dos apps (`notify-send`, Firefox...) aparecem no canto superior direito. O botão no canto
+direito abre o menu de energia.
+
+As janelas têm barra de título no visual do LUMNA (título, minimizar, maximizar, fechar; clique duplo
+maximiza): é o plugin oficial hyprbars, empacotado como `lumna-hyprbars` e compilado no build do ISO
+contra o Hyprland do sistema. Se o Hyprland for atualizado antes de um `lumna-hyprbars` novo, ele só
+não carrega o plugin, e a topbar volta a mostrar o título e os botões da janela em foco.
 
 ## Emma
 

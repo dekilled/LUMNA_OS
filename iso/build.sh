@@ -32,6 +32,14 @@ build_pkg() {
 chown "$BUILDER:$BUILDER" "$OUT/repo"
 build_pkg lumna-shell --syncdeps
 build_pkg lumna-session --nodeps
+# Barra de título das janelas: plugin compilado contra o Hyprland do ISO. Se não compilar (Hyprland
+# novo demais para o plugin), o ISO sai sem ele e a topbar continua com os botões da janela.
+if build_pkg lumna-hyprbars --syncdeps; then
+  with_bars=1
+else
+  echo "   lumna-hyprbars não compilou: o ISO sai sem a barra de título nas janelas"
+  with_bars=0
+fi
 # A Emma vem de outro repositório (NewHarnessV2, privado): só entra quando o código foi passado.
 if [ -n "${EMMA_SRC:-}" ] && [ -f "$EMMA_SRC/backend/server.py" ]; then
   pacman -S --needed --noconfirm python python-pip >/dev/null
@@ -62,6 +70,7 @@ rm -rf "$profile/airootfs/etc/systemd/system/getty@tty1.service.d"
 rm -f "$profile/airootfs/etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service"
 grep -v '^#' "$SRC/iso/packages.x86_64" | sed '/^$/d' >> "$profile/packages.x86_64"
 [ "$with_emma" = 1 ] && echo lumna-emma >> "$profile/packages.x86_64"
+[ "$with_bars" = 1 ] && echo lumna-hyprbars >> "$profile/packages.x86_64"
 # Sem NVIDIA: troca o metapacote linux-firmware pelos firmwares separados, menos o da NVIDIA.
 sed -i '/^linux-firmware$/d' "$profile/packages.x86_64"
 printf '%s\n' linux-firmware-{amd,amdgpu,radeon,intel,atheros,broadcom,cirrus,mediatek,realtek,ti,other} >> "$profile/packages.x86_64"

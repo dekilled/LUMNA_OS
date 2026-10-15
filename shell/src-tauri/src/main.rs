@@ -266,6 +266,11 @@ fn window_control(compositor: tauri::State<'_, SharedCompositor>, address: Optio
 }
 
 #[tauri::command]
+fn window_bars(compositor: tauri::State<'_, SharedCompositor>) -> bool {
+    compositor.window_bars()
+}
+
+#[tauri::command]
 fn focus_workspace(compositor: tauri::State<'_, SharedCompositor>, id: i64) -> Result<(), String> {
     compositor.focus_workspace(id)
 }
@@ -937,6 +942,7 @@ fn main() {
             toggle_emma,
             desktop_wallpaper,
             displays::displays,
+            window_bars,
             keyboard::keyboard_state,
             power::power_state,
             power::power_set_profile,

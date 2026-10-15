@@ -5,6 +5,7 @@ import {
   focusWorkspace,
   monitors,
   onCompositorEvent,
+  windowBars,
   windowControl,
   workspaces,
   type Window,
@@ -43,7 +44,11 @@ const mode = ref<Mode>("desktop");
 // Firefox): título + minimizar, maximizar e fechar. Só na topbar do monitor onde a janela está.
 const focused = ref<Window | null>(null);
 const monitorId = ref<number | null>(null);
-const showWindow = computed(() => focused.value && monitorId.value !== null && focused.value.monitor === monitorId.value);
+// Com a barra de título nas janelas (plugin hyprbars), isso fica só na janela.
+const bars = ref(false);
+const showWindow = computed(
+  () => !bars.value && focused.value && monitorId.value !== null && focused.value.monitor === monitorId.value,
+);
 
 async function refreshWindow() {
   focused.value = await activeWindow().catch(() => null);
@@ -105,6 +110,10 @@ let clock: number | undefined;
 
 onMounted(async () => {
   clock = window.setInterval(() => (now.value = new Date()), 1000);
+  // O Hyprland carrega o plugin logo depois de abrir: confere de novo em seguida.
+  const checkBars = () => windowBars().then((b) => (bars.value = b)).catch(() => {});
+  checkBars();
+  window.setTimeout(checkBars, 4000);
   stops.push(await on<Status>("lumna://status", (s) => (sys.value = s)));
   stops.push(
     await onCompositorEvent((event) => {

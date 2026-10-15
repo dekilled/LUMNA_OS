@@ -3,7 +3,7 @@
 use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::modes::{Layout, Mode, Target};
 use crate::LauncherAction;
@@ -50,6 +50,10 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         }
         ["installer"] => crate::open_installer(app),
         ["power"] => crate::power::toggle_menu(app, None),
+        // Botões da barra de título (hyprbars): valem para a janela em foco.
+        ["window", action @ ("minimize" | "maximize" | "close" | "fullscreen")] => {
+            crate::window_control(app.state::<crate::SharedCompositor>(), None, action.to_string())
+        }
         ["media", "home"] => crate::media_home(app).map(|_| ()),
         ["emma"] | ["emma", "toggle"] => crate::emma_panel(app, LauncherAction::Toggle),
         ["emma", "open"] => crate::emma_panel(app, LauncherAction::Open),

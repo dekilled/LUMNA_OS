@@ -20,6 +20,7 @@ comandos:
   store [descobrir|instalados|atualizacoes|fontes]
                                      abre a Loja (na aba pedida)
   files [CAMINHO]                    abre o Explorador de arquivos (numa pasta)
+  window minimize|maximize|close     age na janela em foco (botões da barra de título)
   power                              abre o menu de energia (sair, suspender, reiniciar, desligar)
   installer                          abre o instalador do LUMNA OS (só no pendrive)
   media home                         na Mídia, fecha o que está em tela cheia (Super + Esc)
