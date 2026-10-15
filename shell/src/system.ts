@@ -64,7 +64,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "sistema";
+export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "papel-de-parede" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -554,3 +554,17 @@ export const clipboardWrite = (text: string) => invoke<void>("clipboard_write", 
 // ---- Desktop (fundo) ----
 
 export const desktopWallpaper = () => invoke<string | null>("desktop_wallpaper");
+
+// ---- Papel de parede ----
+
+export interface Wallpaper {
+  path: string;
+  name: string;
+  /** Adicionada pela pessoa (pode sair da lista). */
+  user: boolean;
+}
+
+export const wallpaperList = () => invoke<{ current: string; items: Wallpaper[] }>("wallpaper_list");
+export const wallpaperSet = (path: string) => invoke<void>("wallpaper_set", { path });
+export const wallpaperAdd = () => invoke<string[]>("wallpaper_add");
+export const wallpaperRemove = (path: string) => invoke<void>("wallpaper_remove", { path });

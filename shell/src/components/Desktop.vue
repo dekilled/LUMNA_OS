@@ -4,7 +4,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
-import { desktopWallpaper, filesTerminal, filesWindow, settingsOpen, toggleEmma, toggleLauncher } from "../system";
+import { desktopWallpaper, filesTerminal, filesWindow, on, settingsOpen, toggleEmma, toggleLauncher } from "../system";
 
 interface Item {
   label: string;
@@ -20,11 +20,12 @@ const MENU: (Item | "line")[] = [
   { label: "Todos os apps", icon: "grid", run: () => toggleLauncher() },
   { label: "Perguntar à Emma", icon: "sparkle", run: () => toggleEmma() },
   "line",
-  { label: "Papel de parede…", icon: "image", soon: true },
+  { label: "Papel de parede…", icon: "image", run: () => settingsOpen("papel-de-parede") },
   { label: "Configurações", icon: "settings", run: () => settingsOpen() },
 ];
 
 const wallpaper = ref<string | null>(null);
+let stopWallpaper: (() => void) | undefined;
 const menu = ref<{ x: number; y: number } | null>(null);
 
 function open(event: MouseEvent) {
@@ -57,12 +58,18 @@ onMounted(async () => {
   document.documentElement.addEventListener("pointerleave", close);
   const path = await desktopWallpaper().catch(() => null);
   wallpaper.value = path ? convertFileSrc(path) : null;
+  // Trocou nas Configurações: todos os desktops mudam juntos.
+  stopWallpaper = await on<string>("lumna://wallpaper", async () => {
+    const next = await desktopWallpaper().catch(() => null);
+    wallpaper.value = next ? convertFileSrc(next) : null;
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
   window.removeEventListener("blur", close);
   document.documentElement.removeEventListener("pointerleave", close);
+  stopWallpaper?.();
 });
 </script>
 

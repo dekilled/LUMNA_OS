@@ -22,6 +22,7 @@ mod status;
 mod store;
 mod system_info;
 mod vdf;
+mod wallpaper;
 mod wifi;
 
 use std::collections::HashMap;
@@ -127,18 +128,15 @@ const DESKTOP: LayerSpec = LayerSpec {
     visible: true,
 };
 
-/// Papel de parede do sistema (por enquanto um só; a troca vem depois, pelo menu do Desktop).
-const WALLPAPER: &str = "/usr/share/lumna/wallpaper.png";
-
-/// Caminho do papel de parede, liberado para o `<img>` da camada de fundo.
+/// Caminho do papel de parede em uso, liberado para o `<img>` da camada de fundo.
 #[tauri::command]
 fn desktop_wallpaper(app: AppHandle) -> Option<String> {
-    let path = std::path::Path::new(WALLPAPER);
-    if !path.exists() {
+    let path = wallpaper::current();
+    if !std::path::Path::new(&path).exists() {
         return None;
     }
-    let _ = app.asset_protocol_scope().allow_file(path);
-    Some(WALLPAPER.to_string())
+    let _ = app.asset_protocol_scope().allow_file(&path);
+    Some(path)
 }
 
 /// Painel da Emma: a tela toda (para fechar com um clique fora), com o teclado enquanto aberto.
@@ -903,6 +901,10 @@ fn main() {
             toggle_launcher,
             toggle_emma,
             desktop_wallpaper,
+            wallpaper::wallpaper_list,
+            wallpaper::wallpaper_set,
+            wallpaper::wallpaper_add,
+            wallpaper::wallpaper_remove,
             monitor_name,
             modes,
             switch_to,

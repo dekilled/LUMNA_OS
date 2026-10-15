@@ -9,6 +9,7 @@ import BluetoothPage from "./BluetoothPage.vue";
 import NetworkPage from "./NetworkPage.vue";
 import PrintersPage from "./PrintersPage.vue";
 import SystemPage from "./SystemPage.vue";
+import WallpaperPage from "./WallpaperPage.vue";
 import "./settings.css";
 
 const PAGES: { id: SettingsPage; label: string; icon: string; component: Component }[] = [
@@ -16,6 +17,7 @@ const PAGES: { id: SettingsPage; label: string; icon: string; component: Compone
   { id: "bluetooth", label: "Bluetooth", icon: "bluetooth", component: BluetoothPage },
   { id: "som", label: "Som", icon: "volume", component: AudioPage },
   { id: "impressoras", label: "Impressoras", icon: "printer", component: PrintersPage },
+  { id: "papel-de-parede", label: "Papel de parede", icon: "image", component: WallpaperPage },
   { id: "sistema", label: "Sistema", icon: "info", component: SystemPage },
 ];
 
