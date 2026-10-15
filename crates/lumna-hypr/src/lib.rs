@@ -280,8 +280,10 @@ impl Compositor for Hyprland {
             Ok(id) => id.to_string(),
             Err(_) => lua_string(workspace)?,
         };
+        // `follow = false`: a janela vai sozinha (sem isso o Hyprland abre o workspace de destino,
+        // e "minimizar" mostrava o workspace escondido por cima, com a janela ainda na tela).
         self.dispatch(
-            &format!("hl.dsp.window.move({{ workspace = {target}, window = {} }})", lua_string(&window)?),
+            &format!("hl.dsp.window.move({{ workspace = {target}, window = {}, follow = false }})", lua_string(&window)?),
             &format!("movetoworkspacesilent {workspace},{window}"),
         )
     }
