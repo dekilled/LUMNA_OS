@@ -141,10 +141,18 @@ terminal, `iwctl` resolve.
 - **Impressoras**: procura impressoras na rede e no USB, adiciona sem driver (AirPrint / IPP
   Everywhere), página de teste, impressora padrão e remover.
 - **Sistema**: processador, placa de vídeo, memória, disco e versão.
+- **Papel de parede**: um para todos os desktops; os do LUMNA e as imagens que você adicionar.
+- **Dock**: o que fica nele (apps, separadores, "Todos os apps", Emma), tamanho dos ícones,
+  espaçamento, opacidade do fundo, posição (embaixo, esquerda, direita), em quais monitores aparece
+  e o que faz quando uma janela é maximizada: continua ali, se esconde na borda (volta passando o
+  mouse) ou vira uma barra de tarefas de largura inteira com os ícones no centro. Fica em
+  `~/.config/lumna/dock.json`; botão direito num app do dock fixa ou desafixa.
 
 Por baixo: iwd (Wi-Fi), BlueZ (Bluetooth), PipeWire (som), CUPS + Avahi (impressoras).
 
 ![Configurações](docs/configuracoes.png)
+
+![Configurações do dock](docs/dock-config.png)
 
 ## Arquivos
 

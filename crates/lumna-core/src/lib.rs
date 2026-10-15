@@ -37,6 +37,8 @@ pub struct Window {
     pub workspace_name: String,
     /// Id do monitor onde a janela está.
     pub monitor: i64,
+    /// 0 = normal, 1 = maximizada, 2 = tela cheia.
+    pub fullscreen: i64,
 }
 
 /// Workspace escondido onde ficam as janelas minimizadas (o Hyprland não tem "minimizar").
@@ -64,6 +66,8 @@ pub enum CompositorEvent {
     WindowClosed { address: String },
     /// A janela em foco mudou (ou o título dela).
     ActiveWindowChanged,
+    /// Uma janela entrou ou saiu de maximizada / tela cheia.
+    FullscreenChanged,
 }
 
 pub type Result<T> = std::result::Result<T, String>;

@@ -151,3 +151,20 @@ pub fn move_to_monitor_at(label: &str, x: i32, y: i32) {
         });
     }
 }
+
+/// Reposiciona a camada sem desmapear: bordas ancoradas, margem e reserva de espaço.
+/// Usado pelo dock, que muda de lugar e de forma conforme as configurações e as janelas.
+pub fn place(label: &str, anchors: &[Edge], margin: i32, exclusive: Exclusive) {
+    with_layer(label, |layer| {
+        for edge in [Edge::Top, Edge::Bottom, Edge::Left, Edge::Right] {
+            let on = anchors.contains(&edge);
+            layer.set_anchor(edge, on);
+            layer.set_layer_shell_margin(edge, if on { margin } else { 0 });
+        }
+        match exclusive {
+            Exclusive::Auto => layer.auto_exclusive_zone_enable(),
+            Exclusive::Ignore => layer.set_exclusive_zone(-1),
+            Exclusive::None => layer.set_exclusive_zone(0),
+        }
+    });
+}

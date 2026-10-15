@@ -4,6 +4,7 @@ mod automation;
 mod audio;
 mod bluetooth;
 mod control;
+mod dock;
 mod emma;
 mod files;
 mod games;
@@ -75,7 +76,8 @@ const DOCK: LayerSpec = LayerSpec {
     keyboard: KeyboardMode::None,
     exclusive: Exclusive::Auto,
     size: (320, 72),
-    visible: true,
+    // Quem mostra (e onde) é o `dock::update`, conforme as configurações.
+    visible: false,
 };
 
 const LAUNCHER: LayerSpec = LayerSpec {
@@ -784,17 +786,17 @@ fn apply_modes(app: &AppHandle, focused: Option<String>, show_switcher: bool) ->
         .filter(|label| label.starts_with("mode-"))
         .map(|label| (label.clone(), mode_at(label) != Mode::Desktop))
         .collect();
-    let dock_visible = mode_at("dock") == Mode::Desktop;
     let switcher_at = focused.and_then(|name| monitors.iter().find(|m| m.name == name).map(|m| (m.x, m.y)));
 
     automation::modes_changed(app, &snapshot.modes);
+    let docks = app.clone();
+    std::thread::spawn(move || dock::update(&docks, false));
     let _ = app.emit("lumna://modes", snapshot);
     let handle = app.clone();
     app.run_on_main_thread(move || {
         for (label, visible) in &screens {
             layer::set_visible(label, *visible);
         }
-        layer::set_visible("dock", dock_visible);
         if show_switcher {
             if let Some((x, y)) = switcher_at {
                 layer::move_to_monitor_at("switcher", x, y);
@@ -835,6 +837,10 @@ fn forward_events(app: AppHandle, compositor: SharedCompositor) {
                     follow_workspaces(&app);
                 }
                 automation::compositor_event(&app, &event);
+                // Janela maximizada, aberta, fechada ou trocada de workspace: o dock pode mudar.
+                if !matches!(event, CompositorEvent::ActiveWindowChanged) {
+                    dock::update(&app, false);
+                }
                 let _ = app.emit("lumna://compositor", event);
             });
             if connected {
@@ -858,7 +864,20 @@ fn create_layer(app: &tauri::App, label: &str, monitor: &gtk::gdk::Monitor, spec
         .decorations(false)
         .transparent(true)
         .build()?;
-    layer::make_layer(&window, monitor, spec)
+    layer::make_layer(&window, monitor, spec)?;
+    // O WebKit numa camada não avisa a página quando o mouse sai dela (`pointerleave` não chega).
+    // O GTK avisa: a página recebe `lumna://pointer-left` (o dock usa para descer de volta).
+    let target = window.clone();
+    window.with_webview(move |webview| {
+        use gtk::prelude::WidgetExt;
+        webview.inner().connect_leave_notify_event(move |_, event| {
+            // Só a saída de verdade: clicar também gera "saídas" de pega/solta (grab/ungrab).
+            if event.mode() == gtk::gdk::CrossingMode::Normal && event.detail() != gtk::gdk::NotifyType::Inferior {
+                let _ = target.emit_to(target.label(), "lumna://pointer-left", ());
+            }
+            gtk::glib::Propagation::Proceed
+        });
+    })
 }
 
 fn main() {
@@ -882,6 +901,7 @@ fn main() {
         .manage(MonitorPositions::default())
         .manage(emma::Emma::default())
         .manage(automation::Runner::default())
+        .manage(dock::Docks::default())
         .invoke_handler(tauri::generate_handler![
             workspaces,
             monitors,
@@ -901,6 +921,12 @@ fn main() {
             toggle_launcher,
             toggle_emma,
             desktop_wallpaper,
+            dock::dock_state,
+            dock::dock_config,
+            dock::dock_config_set,
+            dock::dock_config_reset,
+            dock::dock_pin,
+            dock::dock_monitors,
             wallpaper::wallpaper_list,
             wallpaper::wallpaper_set,
             wallpaper::wallpaper_add,
@@ -1017,9 +1043,9 @@ fn main() {
                     create_layer(app, &format!("desktop-{index}"), &monitor, &DESKTOP)?;
                     create_layer(app, &format!("topbar-{index}"), &monitor, &TOPBAR)?;
                     create_layer(app, &format!("mode-{index}"), &monitor, &MODE_SCREEN)?;
+                    create_layer(app, &format!("dock-{index}"), &monitor, &DOCK)?;
                 }
             }
-            create_layer(app, "dock", &primary, &DOCK)?;
             create_layer(app, "notifications", &primary, &NOTIFICATIONS)?;
             create_layer(app, "launcher", &primary, &LAUNCHER)?;
             create_layer(app, "switcher", &primary, &SWITCHER)?;
@@ -1037,6 +1063,8 @@ fn main() {
             bluetooth::watch(app.handle().clone());
             polkit::start(app.handle().clone());
             automation::start(app.handle().clone());
+            let handle = app.handle().clone();
+            std::thread::spawn(move || dock::update(&handle, true));
             Ok(())
         })
         .run(tauri::generate_context!())

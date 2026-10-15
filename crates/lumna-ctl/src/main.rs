@@ -15,7 +15,7 @@ comandos:
   mode layout per-screen | extend    um modo por tela, ou o mesmo modo em todas
   pad up|down|left|right|accept|back|menu|guide
                                      simula o controle (testes e controle remoto)
-  settings [rede|bluetooth|som|impressoras|sistema]
+  settings [rede|bluetooth|som|impressoras|papel-de-parede|dock|sistema]
                                      abre as Configurações (na página pedida)
   store [descobrir|instalados|atualizacoes|fontes]
                                      abre a Loja (na aba pedida)

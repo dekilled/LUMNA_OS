@@ -57,6 +57,15 @@ fn int(v: &Value, key: &str) -> i64 {
     v.get(key).and_then(Value::as_i64).unwrap_or_default()
 }
 
+/// Versões antigas mandam `true`/`false`; as novas, o modo (1 = maximizada, 2 = tela cheia).
+fn fullscreen(v: &Value) -> i64 {
+    match v.get("fullscreen") {
+        Some(Value::Bool(on)) => i64::from(*on) * 2,
+        Some(other) => other.as_i64().unwrap_or_default(),
+        None => 0,
+    }
+}
+
 fn text(v: &Value, key: &str) -> String {
     v.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
 }
@@ -112,6 +121,7 @@ pub fn parse_event(line: &str) -> Vec<CompositorEvent> {
             CompositorEvent::WorkspacesChanged,
         ],
         "activewindowv2" | "windowtitlev2" => vec![CompositorEvent::ActiveWindowChanged],
+        "fullscreen" => vec![CompositorEvent::FullscreenChanged],
         "monitoradded" | "monitorremoved" => vec![CompositorEvent::MonitorsChanged, CompositorEvent::WorkspacesChanged],
         _ => Vec::new(),
     }
@@ -167,6 +177,7 @@ impl Compositor for Hyprland {
                 workspace: c.get("workspace").map(|w| int(w, "id")).unwrap_or_default(),
                 workspace_name: c.get("workspace").map(|w| text(w, "name")).unwrap_or_default(),
                 monitor: int(c, "monitor"),
+                fullscreen: fullscreen(c),
             })
             .collect())
     }
@@ -194,6 +205,7 @@ impl Compositor for Hyprland {
             workspace: w.get("workspace").map(|ws| int(ws, "id")).unwrap_or_default(),
             workspace_name: w.get("workspace").map(|ws| text(ws, "name")).unwrap_or_default(),
             monitor: int(&w, "monitor"),
+            fullscreen: fullscreen(&w),
         }))
     }
 

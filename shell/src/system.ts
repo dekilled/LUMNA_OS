@@ -64,7 +64,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "papel-de-parede" | "sistema";
+export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "papel-de-parede" | "dock" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -568,3 +568,34 @@ export const wallpaperList = () => invoke<{ current: string; items: Wallpaper[] 
 export const wallpaperSet = (path: string) => invoke<void>("wallpaper_set", { path });
 export const wallpaperAdd = () => invoke<string[]>("wallpaper_add");
 export const wallpaperRemove = (path: string) => invoke<void>("wallpaper_remove", { path });
+
+// ---- Dock ----
+
+export type DockBehavior = "always" | "smart" | "expand";
+export type DockPosition = "bottom" | "left" | "right";
+/** Normal, escondido na borda (volta com o mouse) ou barra de largura inteira. */
+export type DockLook = "normal" | "hidden" | "expanded";
+
+export interface DockConfig {
+  /** Ids de apps, "|" (separador), "lumna:launcher" e "lumna:emma", na ordem. */
+  pinned: string[];
+  size: number;
+  spacing: number;
+  /** Opacidade do fundo, 0 a 1. */
+  opacity: number;
+  behavior: DockBehavior;
+  position: DockPosition;
+  /** "primary", "all" ou o nome de uma saída. */
+  monitors: string;
+}
+
+export const DOCK_SEPARATOR = "|";
+export const DOCK_LAUNCHER = "lumna:launcher";
+export const DOCK_EMMA = "lumna:emma";
+
+export const dockState = () => invoke<{ look: DockLook; config: DockConfig }>("dock_state");
+export const dockConfig = () => invoke<DockConfig>("dock_config");
+export const dockConfigSet = (config: DockConfig) => invoke<DockConfig>("dock_config_set", { config });
+export const dockConfigReset = () => invoke<DockConfig>("dock_config_reset");
+export const dockPin = (id: string, pinned: boolean) => invoke<DockConfig>("dock_pin", { id, pinned });
+export const dockMonitors = () => invoke<string[]>("dock_monitors");

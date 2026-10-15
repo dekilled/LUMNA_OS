@@ -26,6 +26,8 @@ export interface Window {
   workspace_name: string;
   /** Id do monitor. */
   monitor: number;
+  /** 0 = normal, 1 = maximizada, 2 = tela cheia. */
+  fullscreen: number;
 }
 
 export type WindowAction = "close" | "minimize" | "maximize" | "fullscreen" | "focus";
@@ -37,7 +39,8 @@ export type CompositorEvent =
   | { kind: "monitors_changed" }
   | { kind: "window_opened"; address: string; class: string; title: string }
   | { kind: "window_closed"; address: string }
-  | { kind: "active_window_changed" };
+  | { kind: "active_window_changed" }
+  | { kind: "fullscreen_changed" };
 
 export const workspaces = () => invoke<Workspace[]>("workspaces");
 export const monitors = () => invoke<Monitor[]>("monitors");

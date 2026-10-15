@@ -24,7 +24,7 @@ const label = getCurrentWebviewWindow().label;
 <template>
   <Desktop v-if="label.startsWith('desktop-')" />
   <Topbar v-else-if="label.startsWith('topbar-')" />
-  <Dock v-else-if="label === 'dock'" />
+  <Dock v-else-if="label.startsWith('dock-')" />
   <Launcher v-else-if="label === 'launcher'" />
   <Notifications v-else-if="label === 'notifications'" />
   <ModeScreen v-else-if="label.startsWith('mode-')" />
