@@ -890,7 +890,93 @@ fn forward_events(app: AppHandle, compositor: SharedCompositor) {
     });
 }
 
-fn create_layer(app: &tauri::App, label: &str, monitor: &gtk::gdk::Monitor, spec: &LayerSpec) -> tauri::Result<()> {
+/// Camadas que existem uma por monitor (`desktop-0`, `topbar-0`...).
+const PER_MONITOR: [(&str, &LayerSpec); 5] =
+    [("desktop-", &DESKTOP), ("topbar-", &TOPBAR), ("mode-", &MODE_SCREEN), ("dock-", &DOCK), ("rest-", &REST)];
+
+/// Monitor ligado, desligado ou de volta (acordar da suspensão desliga e religa as saídas): cada
+/// camada por monitor volta para o seu monitor, as que faltam são criadas, e modos e dock se refazem.
+fn watch_monitors(app: &AppHandle) {
+    use gtk::glib;
+    use std::cell::RefCell;
+    thread_local! {
+        static PENDING: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
+    }
+    let schedule = {
+        let app = app.clone();
+        move || {
+            let app = app.clone();
+            PENDING.with(|pending| {
+                if let Some(id) = pending.borrow_mut().take() {
+                    id.remove();
+                }
+                // As saídas chegam uma de cada vez e a geometria assenta depois: espera acalmar.
+                let id = glib::timeout_add_local_once(Duration::from_millis(1500), move || {
+                    PENDING.with(|pending| pending.borrow_mut().take());
+                    relayout_monitors(&app);
+                });
+                *pending.borrow_mut() = Some(id);
+            });
+        }
+    };
+    let Some(display) = gtk::gdk::Display::default() else { return };
+    let on_added = schedule.clone();
+    display.connect_monitor_added(move |_, _| on_added());
+    display.connect_monitor_removed(move |_, _| schedule());
+}
+
+fn relayout_monitors(app: &AppHandle) {
+    let Some(display) = gtk::gdk::Display::default() else { return };
+    let count = display.n_monitors();
+    for index in 0..count {
+        let Some(monitor) = display.monitor(index) else { continue };
+        let geometry = monitor.geometry();
+        for (prefix, spec) in PER_MONITOR {
+            let label = format!("{prefix}{index}");
+            if layer::exists(&label) {
+                app.state::<MonitorPositions>().0.lock().unwrap().insert(label.clone(), (geometry.x(), geometry.y()));
+                layer::set_monitor(&label, &monitor);
+                // Fundo e topbar estão sempre lá; modos, dock e descanso se acertam logo abaixo.
+                if prefix == "desktop-" || prefix == "topbar-" {
+                    layer::set_visible(&label, true);
+                }
+            } else if let Err(err) = create_layer(app, &label, &monitor, spec) {
+                eprintln!("lumna-shell: camada {label}: {err}");
+            }
+        }
+    }
+    // As camadas únicas voltam ao principal (as que abrem no monitor em foco se movem sozinhas ao abrir).
+    if let Some(primary) = display.monitor(0) {
+        for label in ["notifications", "launcher", "switcher", "wifi", "power", "auth", "emma"] {
+            layer::set_monitor(label, &primary);
+        }
+    }
+    // Monitores a menos: as camadas deles ficam escondidas até voltarem.
+    let extra: Vec<String> = app
+        .state::<MonitorPositions>()
+        .0
+        .lock()
+        .unwrap()
+        .keys()
+        .filter(|label| {
+            PER_MONITOR.iter().any(|(prefix, _)| {
+                label.strip_prefix(prefix).and_then(|i| i.parse::<i32>().ok()).is_some_and(|i| i >= count)
+            })
+        })
+        .cloned()
+        .collect();
+    for label in &extra {
+        layer::set_visible(label, false);
+    }
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        let _ = apply_modes(&handle, None, false);
+        dock::update(&handle, true);
+        let _ = handle.emit("lumna://monitors-relayout", ());
+    });
+}
+
+fn create_layer(app: &AppHandle, label: &str, monitor: &gtk::gdk::Monitor, spec: &LayerSpec) -> tauri::Result<()> {
     let geometry = monitor.geometry();
     app.state::<MonitorPositions>().0.lock().unwrap().insert(label.to_string(), (geometry.x(), geometry.y()));
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
@@ -1088,25 +1174,24 @@ fn main() {
             let primary = display.monitor(0).expect("nenhum monitor");
             // Tela de login: só ela, sem topbar, dock nem serviços da sessão.
             if greeter_mode {
-                create_layer(app, "greeter", &primary, &GREETER)?;
+                create_layer(app.handle(), "greeter", &primary, &GREETER)?;
                 return Ok(());
             }
             for index in 0..display.n_monitors() {
                 if let Some(monitor) = display.monitor(index) {
-                    create_layer(app, &format!("desktop-{index}"), &monitor, &DESKTOP)?;
-                    create_layer(app, &format!("topbar-{index}"), &monitor, &TOPBAR)?;
-                    create_layer(app, &format!("mode-{index}"), &monitor, &MODE_SCREEN)?;
-                    create_layer(app, &format!("dock-{index}"), &monitor, &DOCK)?;
-                    create_layer(app, &format!("rest-{index}"), &monitor, &REST)?;
+                    for (prefix, spec) in PER_MONITOR {
+                        create_layer(app.handle(), &format!("{prefix}{index}"), &monitor, spec)?;
+                    }
                 }
             }
-            create_layer(app, "notifications", &primary, &NOTIFICATIONS)?;
-            create_layer(app, "launcher", &primary, &LAUNCHER)?;
-            create_layer(app, "switcher", &primary, &SWITCHER)?;
-            create_layer(app, "wifi", &primary, &WIFI)?;
-            create_layer(app, "power", &primary, &POWER)?;
-            create_layer(app, "auth", &primary, &AUTH)?;
-            create_layer(app, "emma", &primary, &EMMA)?;
+            watch_monitors(app.handle());
+            create_layer(app.handle(), "notifications", &primary, &NOTIFICATIONS)?;
+            create_layer(app.handle(), "launcher", &primary, &LAUNCHER)?;
+            create_layer(app.handle(), "switcher", &primary, &SWITCHER)?;
+            create_layer(app.handle(), "wifi", &primary, &WIFI)?;
+            create_layer(app.handle(), "power", &primary, &POWER)?;
+            create_layer(app.handle(), "auth", &primary, &AUTH)?;
+            create_layer(app.handle(), "emma", &primary, &EMMA)?;
 
             forward_events(app.handle().clone(), compositor.clone());
             status::watch(app.handle().clone());

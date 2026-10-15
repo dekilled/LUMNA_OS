@@ -141,6 +141,14 @@ onMounted(async () => {
   );
   stops.push(await on<ModesSnapshot>("lumna://modes", applyModes));
   stops.push(await on("lumna://keyboard", refreshKeyboard));
+  // Monitores religados (acordou da suspensão, plugou ou tirou um): esta topbar pode estar noutro.
+  stops.push(
+    await on("lumna://monitors-relayout", async () => {
+      monitor.value = await monitorName().catch(() => null);
+      await refresh().catch(() => {});
+      applyModes(await modes());
+    }),
+  );
   refreshKeyboard();
   stops.push(await on<WifiState>("lumna://wifi", (w) => (wifi.value = w)));
   sys.value = await status();
