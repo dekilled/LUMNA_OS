@@ -110,7 +110,11 @@ const windowsOf = (app: App) =>
     .filter((w) => belongs(app, w.class))
     .sort((a, b) => parseInt(a.address, 16) - parseInt(b.address, 16));
 
-/** Clique no app: sem janela abre; com janelas, passa para a próxima (e traz de volta a minimizada). */
+/**
+ * Clique no app: sem janela abre; com janelas, passa para a próxima (e traz de volta a minimizada).
+ * A referência é a janela do app usada por último (histórico de foco do compositor), não a em foco:
+ * ao clicar no dock de outro monitor o foco vai para lá e a em foco deixa de ser do app.
+ */
 async function activate(app: App) {
   closeMenu();
   const list = windowsOf(app);
@@ -118,10 +122,14 @@ async function activate(app: App) {
     if (!isLoose(app)) launchApp(app.id);
     return;
   }
+  // Lista nova: o histórico de foco muda a cada clique.
+  const fresh = await windows().catch(() => open.value);
+  const history = (w: Window) => fresh.find((f) => f.address === w.address)?.focus_history ?? Number.MAX_SAFE_INTEGER;
+  const recent = list.reduce((a, b) => (history(b) < history(a) ? b : a));
   const current = await activeWindow().catch(() => null);
-  const index = list.findIndex((w) => w.address === current?.address);
-  // A em foco já é deste app: vai para a seguinte; senão, para a primeira (a minimizada primeiro).
-  const next = index >= 0 ? list[(index + 1) % list.length] : (list.find(isMinimized) ?? list[0]);
+  const otherApp = current !== null && !list.some((w) => w.address === current.address);
+  // Outro app na frente: volta a última usada (a minimizada primeiro); senão, a seguinte a ela.
+  const next = otherApp ? (list.find(isMinimized) ?? recent) : list[(list.indexOf(recent) + 1) % list.length];
   windowControl("focus", next.address).catch((e) => console.error(e));
 }
 
@@ -168,7 +176,8 @@ function removeSpecial(entry: Entry) {
 }
 
 async function refreshWindows() {
-  open.value = await windows().catch(() => []);
+  // As janelas do Firefox da Mídia (lumna-tv) são da tela da Mídia, não do dock.
+  open.value = (await windows().catch(() => [])).filter((w) => w.class !== "lumna-tv");
 }
 
 // ---- escondido na borda ----

@@ -192,6 +192,7 @@ pub fn update(app: &AppHandle, force: bool) {
     let docks = app.state::<Docks>();
     let config = docks.config.lock().unwrap().clone();
     let names: Vec<String> = monitors.iter().map(|m| m.name.clone()).collect();
+    let maxed = app.state::<crate::winmax::Maximized>();
 
     let mut changes = Vec::new();
     {
@@ -203,7 +204,9 @@ pub fn update(app: &AppHandle, force: bool) {
             let visible = desktop && shows_on(&config.monitors, index, &monitor.name, &names);
             // No workspace do monitor ou num especial aberto por cima dele (menos o das minimizadas).
             let shown = |ws: i64| ws == monitor.active_workspace || (ws != 0 && ws == monitor.special_workspace);
-            let maximized = windows.iter().any(|w| w.fullscreen > 0 && !w.minimized() && shown(w.workspace));
+            let maximized = windows
+                .iter()
+                .any(|w| (w.fullscreen > 0 || maxed.is_maximized(w)) && !w.minimized() && shown(w.workspace));
             let state = (visible, look_for(config.behavior, maximized));
             if force || applied.get(label) != Some(&state) {
                 applied.insert(label.clone(), state);

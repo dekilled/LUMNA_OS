@@ -1,66 +1,62 @@
 <script setup lang="ts">
-// Tela do modo Mídia, para ver de longe: destaque, "Continuar assistindo", serviços de streaming e
-// os vídeos do computador. Navega por controle, teclado, mouse ou pelo celular (LUMNA Controle).
+// Tela do modo Mídia (o "Início"), para ver de longe: os serviços, as últimas páginas de cada um
+// (Recentes, com o print de quando você saiu) e os vídeos do computador. Navega por controle,
+// teclado, mouse ou pelo celular (LUMNA Controle). Cada monitor tem a sua.
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
+import { SERVICE_COLOR, SERVICE_STYLE, serviceMark } from "../mediaBrand";
 import {
   artUrl,
   keyToPad,
   mediaServices,
   on,
   onPad,
-  openService,
   playVideo,
   remoteForget,
   remotePairing,
   remoteStopPairing,
+  timeAgo,
+  tvForget,
+  tvOpen,
+  tvResume,
+  tvState,
   videos,
   type PadAction,
   type Pairing,
+  type Recent,
   type Service,
+  type TvState,
   type Video,
 } from "../system";
 
 const props = defineProps<{ monitor: string | null }>();
 
-// Cores de cada serviço nos cartões (só o nome escrito; nada de logotipos).
-const SERVICE_STYLE: Record<string, string> = {
-  netflix: "linear-gradient(135deg, #3a0507, #0b0102)",
-  youtube: "linear-gradient(135deg, #3a0a0a, #120303)",
-  prime: "linear-gradient(135deg, #0b2a4a, #04101e)",
-  disney: "linear-gradient(135deg, #0c1a4d, #050a20)",
-  music: "linear-gradient(135deg, #3d1466, #12061f)",
-};
-const SERVICE_COLOR: Record<string, string> = {
-  netflix: "#e50914",
-  youtube: "#ff3d3d",
-  prime: "#38a8ff",
-  disney: "#6fa3ff",
-  music: "#c084fc",
-};
-
 const services = ref<Service[]>([]);
 const library = ref<Video[]>([]);
+const tv = ref<TvState>({ playing: null, live: [], recents: [] });
 const pairing = ref<Pairing | null>(null);
 const pairedWith = ref<string | null>(null);
 const secondsLeft = ref(0);
+/** Muda a cada minuto, para o "há 5 min" andar. */
+const tick = ref(0);
 let countdown: number | undefined;
+let minute: number | undefined;
 
 const continuing = computed(() => library.value.filter((v) => v.progress > 0.02 && v.progress < 0.95));
-const hero = computed(() => continuing.value[0] ?? null);
+const serviceName = (id: string) => services.value.find((s) => s.id === id)?.name ?? id;
 
 type Item =
-  | { kind: "hero" }
   | { kind: "service"; service: Service }
   | { kind: "local" }
+  | { kind: "recent"; recent: Recent }
   | { kind: "video"; video: Video };
 
 /** As linhas da tela, de cima para baixo; o cursor anda por elas como numa TV. */
 const rows = computed(() => {
   const list: { id: string; items: Item[] }[] = [];
-  if (hero.value) list.push({ id: "hero", items: [{ kind: "hero" }] });
-  if (continuing.value.length) list.push({ id: "continue", items: continuing.value.map((video) => ({ kind: "video", video })) });
   list.push({ id: "services", items: [...services.value.map((service) => ({ kind: "service" as const, service })), { kind: "local" }] });
+  if (tv.value.recents.length) list.push({ id: "recents", items: tv.value.recents.map((recent) => ({ kind: "recent", recent })) });
+  if (continuing.value.length) list.push({ id: "continue", items: continuing.value.map((video) => ({ kind: "video", video })) });
   if (library.value.length) list.push({ id: "videos", items: library.value.map((video) => ({ kind: "video", video })) });
   return list;
 });
@@ -75,18 +71,26 @@ watch([row, col], async () => {
 });
 const isCursor = (r: number, c: number) => r === row.value && c === col.value && !pairing.value;
 
+function goToRow(id: string) {
+  const r = rows.value.findIndex((x) => x.id === id);
+  if (r >= 0) {
+    row.value = r;
+    col.value = 0;
+  }
+}
+
 function activate(item: Item | undefined) {
   if (!item) return;
-  if (item.kind === "hero" && hero.value) playVideo(hero.value.id);
-  else if (item.kind === "video") playVideo(item.video.id);
-  else if (item.kind === "service") openService(item.service.id);
-  else if (item.kind === "local") {
-    const r = rows.value.findIndex((x) => x.id === "videos");
-    if (r >= 0) {
-      row.value = r;
-      col.value = 0;
-    }
-  }
+  if (item.kind === "video") playVideo(item.video.id);
+  else if (item.kind === "recent") tvResume(props.monitor, item.recent.id).catch((e) => console.error(e));
+  else if (item.kind === "service") {
+    // Serviço vivo (estacionado): volta onde estava; senão abre na página inicial dele.
+    tvOpen(props.monitor, item.service.id).catch((e) => console.error(e));
+  } else if (item.kind === "local") goToRow(continuing.value.length ? "continue" : "videos");
+}
+
+function forget(recent: Recent) {
+  tvForget(props.monitor, recent.id).catch(() => {});
 }
 
 function act(action: PadAction) {
@@ -130,7 +134,7 @@ function closePairing() {
   remoteStopPairing();
 }
 
-async function forget() {
+async function forgetPhones() {
   await remoteForget();
   if (pairing.value) pairing.value = { ...pairing.value, devices: [] };
 }
@@ -138,6 +142,13 @@ async function forget() {
 async function load() {
   library.value = await videos().catch(() => []);
 }
+
+async function loadTv() {
+  tv.value = await tvState(props.monitor).catch(() => tv.value);
+  col.value = Math.min(col.value, Math.max(0, (rows.value[row.value]?.items.length ?? 1) - 1));
+}
+
+const ago = (seconds: number) => (tick.value, timeAgo(seconds));
 
 const timeLeft = computed(() => {
   const m = Math.floor(secondsLeft.value / 60);
@@ -152,29 +163,41 @@ onMounted(async () => {
   stops.push(() => window.removeEventListener("keydown", onKey));
   stops.push(await onPad(() => props.monitor, act));
   stops.push(await on("lumna://videos-updated", load));
+  stops.push(await on<string>("lumna://tv", (monitor) => (!props.monitor || monitor === props.monitor) && loadTv()));
+  stops.push(
+    await on<{ monitor: string; row: string }>("lumna://media-focus", (e) => {
+      if (e.monitor === props.monitor) goToRow(e.row === "videos" && continuing.value.length ? "continue" : e.row);
+    }),
+  );
   stops.push(
     await on<string>("lumna://remote-paired", (name) => {
       pairedWith.value = name;
       window.setTimeout(closePairing, 2500);
     }),
   );
+  minute = window.setInterval(() => (tick.value += 1), 60_000);
   services.value = await mediaServices();
-  await load();
+  await Promise.all([load(), loadTv()]);
 });
+
+watch(() => props.monitor, loadTv);
 
 onUnmounted(() => {
   stops.forEach((stop) => stop());
   window.clearInterval(countdown);
+  window.clearInterval(minute);
 });
 </script>
 
 <template>
   <main class="media">
-    <div class="backdrop" :style="hero?.thumb ? { backgroundImage: `url('${artUrl(hero.thumb)}')` } : {}" />
     <div class="shade" />
 
     <header>
-      <h1>Início</h1>
+      <div>
+        <h1>Início</h1>
+        <p class="lead">Seus serviços e últimas páginas, em um só lugar.</p>
+      </div>
       <button class="pair" @click="openPairing">
         <Icon name="phone" :size="18" />
         Controle pelo celular
@@ -183,33 +206,8 @@ onUnmounted(() => {
 
     <div class="rows">
       <template v-for="(line, r) in rows" :key="line.id">
-        <section v-if="line.id === 'hero' && hero" class="hero" :class="{ cursor: isCursor(r, 0) }" @click="activate(line.items[0])">
-          <p class="eyebrow">Continuar de onde parou</p>
-          <h2>{{ hero.title }}</h2>
-          <button class="primary"><Icon name="play" :size="18" /> Continuar</button>
-        </section>
-
-        <section v-else-if="line.id === 'continue'" class="row">
-          <h3>Continuar assistindo</h3>
-          <div class="strip">
-            <article
-              v-for="(item, c) in line.items"
-              :key="c"
-              class="thumb"
-              :class="{ cursor: isCursor(r, c) }"
-              @click="activate(item)"
-            >
-              <template v-if="item.kind === 'video'">
-                <img v-if="item.video.thumb" :src="artUrl(item.video.thumb)!" alt="" />
-                <span class="name">{{ item.video.title }}</span>
-                <span class="bar"><span :style="{ width: `${Math.round(item.video.progress * 100)}%` }" /></span>
-              </template>
-            </article>
-          </div>
-        </section>
-
-        <section v-else-if="line.id === 'services'" class="row">
-          <h3>Assistir</h3>
+        <section v-if="line.id === 'services'" class="row">
+          <h3>Serviços</h3>
           <div class="strip">
             <article
               v-for="(item, c) in line.items"
@@ -222,6 +220,7 @@ onUnmounted(() => {
               <template v-if="item.kind === 'service'">
                 <Icon v-if="item.service.id === 'music'" name="music" :size="26" />
                 <strong :style="{ color: SERVICE_COLOR[item.service.id] }">{{ item.service.name }}</strong>
+                <span v-if="tv.live.includes(item.service.id)" class="live">Aberto</span>
               </template>
               <template v-else>
                 <Icon name="folder" :size="26" />
@@ -231,8 +230,39 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-else-if="line.id === 'videos'" class="row">
-          <h3>Seus vídeos</h3>
+        <section v-else-if="line.id === 'recents'" class="row">
+          <h3>Recentes</h3>
+          <div class="strip">
+            <article
+              v-for="(item, c) in line.items"
+              :key="c"
+              class="recent"
+              :class="{ cursor: isCursor(r, c) }"
+              @click="activate(item)"
+            >
+              <template v-if="item.kind === 'recent'">
+                <div class="shot">
+                  <img v-if="item.recent.thumb" :src="artUrl(item.recent.thumb)!" alt="" />
+                  <span class="mark" :style="{ background: SERVICE_COLOR[item.recent.service] ?? '#7c5cff' }">
+                    <Icon v-if="item.recent.service === 'music'" name="music" :size="14" />
+                    <b v-else>{{ serviceMark(serviceName(item.recent.service)) }}</b>
+                  </span>
+                  <button class="drop" title="Tirar dos recentes" @click.stop="forget(item.recent)">
+                    <Icon name="close" :size="13" />
+                  </button>
+                </div>
+                <div class="info">
+                  <span class="title">{{ item.recent.title }}</span>
+                  <span class="when">{{ serviceName(item.recent.service) }} · Última página · {{ ago(item.recent.at) }}</span>
+                </div>
+                <span class="resume"><Icon name="play" :size="14" /> Retomar</span>
+              </template>
+            </article>
+          </div>
+        </section>
+
+        <section v-else-if="line.id === 'continue' || line.id === 'videos'" class="row">
+          <h3>{{ line.id === "continue" ? "Continuar assistindo" : "Vídeos locais" }}</h3>
           <div class="strip">
             <article
               v-for="(item, c) in line.items"
@@ -244,6 +274,7 @@ onUnmounted(() => {
               <template v-if="item.kind === 'video'">
                 <img v-if="item.video.thumb" :src="artUrl(item.video.thumb)!" alt="" />
                 <span class="name">{{ item.video.title }}</span>
+                <span v-if="line.id === 'continue'" class="bar"><span :style="{ width: `${Math.round(item.video.progress * 100)}%` }" /></span>
               </template>
             </article>
           </div>
@@ -253,6 +284,13 @@ onUnmounted(() => {
         Coloque vídeos na pasta Vídeos para eles aparecerem aqui, com "continuar assistindo".
       </p>
     </div>
+
+    <footer class="keys">
+      <span><kbd>←</kbd><kbd>→</kbd> Navegar</span>
+      <span><kbd>Enter</kbd> Abrir</span>
+      <span><kbd>Super</kbd>+<kbd>M</kbd> Trocar serviço</span>
+      <span class="tip">Abra um card para voltar à página salva.</span>
+    </footer>
 
     <div v-if="pairing" class="overlay" @click.self="closePairing">
       <section class="panel">
@@ -275,7 +313,7 @@ onUnmounted(() => {
           </p>
           <footer>
             <span v-if="pairing.devices.length" class="small">Pareados: {{ pairing.devices.join(", ") }}</span>
-            <button v-if="pairing.devices.length" class="ghost" @click="forget">Esquecer celulares</button>
+            <button v-if="pairing.devices.length" class="ghost" @click="forgetPhones">Esquecer celulares</button>
             <button class="ghost" @click="closePairing">Fechar</button>
           </footer>
         </template>
@@ -297,14 +335,6 @@ onUnmounted(() => {
   background: linear-gradient(180deg, #0b0918, #150f2b);
   animation: enter 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.backdrop {
-  position: absolute;
-  inset: -40px;
-  background-size: cover;
-  background-position: center;
-  filter: blur(28px);
-  opacity: 0.35;
-}
 .shade {
   position: absolute;
   inset: 0;
@@ -312,7 +342,7 @@ onUnmounted(() => {
     radial-gradient(circle at 15% 0%, rgba(167, 139, 250, 0.22), transparent 50%),
     linear-gradient(180deg, rgba(10, 7, 22, 0.4), rgba(10, 7, 22, 0.95));
 }
-.media > :not(.backdrop):not(.shade):not(.overlay) {
+.media > :not(.shade):not(.overlay) {
   position: relative;
 }
 
@@ -324,6 +354,11 @@ header {
 h1 {
   margin: 0;
   font-size: 34px;
+}
+.lead {
+  margin: 4px 0 0;
+  color: var(--lumna-muted);
+  font-size: 15px;
 }
 .pair {
   display: flex;
@@ -340,6 +375,7 @@ h1 {
 }
 
 .rows {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -353,39 +389,6 @@ h1 {
   outline-offset: 3px;
   transform: scale(1.04);
   box-shadow: 0 0 36px rgba(167, 139, 250, 0.5);
-}
-
-.hero {
-  padding: 34px 36px;
-  border-radius: 24px;
-  background: linear-gradient(90deg, rgba(10, 7, 22, 0.85), rgba(10, 7, 22, 0.2));
-  border: 1px solid var(--lumna-line);
-  transition: transform 220ms ease;
-}
-.eyebrow {
-  margin: 0;
-  color: var(--lumna-muted);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.hero h2 {
-  margin: 8px 0 18px;
-  font-size: 40px;
-  letter-spacing: 0.06em;
-}
-.primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: 22px;
-  background: #fff;
-  color: #120c26;
-  font: inherit;
-  font-weight: 600;
 }
 
 h3 {
@@ -461,6 +464,126 @@ h3 {
 .service strong {
   font-size: 20px;
   letter-spacing: 0.02em;
+}
+
+.live {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ece8ff;
+}
+
+.recent {
+  position: relative;
+  flex: none;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--lumna-line);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.shot {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, #2a1d52, #120c26);
+}
+.shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mark {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+.drop {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 7, 22, 0.7);
+  color: #ece8ff;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.recent:hover .drop {
+  opacity: 1;
+}
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px 4px;
+  min-width: 0;
+}
+.info .title {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.info .when {
+  font-size: 12px;
+  color: var(--lumna-muted);
+}
+.resume {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 12px 12px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  background: #fff;
+  color: #120c26;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.keys {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-size: 13px;
+  color: var(--lumna-muted);
+}
+.keys .tip {
+  margin-left: auto;
+}
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin: 0 3px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ece8ff;
 }
 
 .hint {

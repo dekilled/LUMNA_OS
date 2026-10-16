@@ -34,6 +34,9 @@ export interface Window {
   monitor: number;
   /** 0 = normal, 1 = maximizada, 2 = tela cheia. */
   fullscreen: number;
+  floating: boolean;
+  /** Ordem do último foco (0 = a mais recente). */
+  focus_history: number;
 }
 
 export type WindowAction = "close" | "minimize" | "maximize" | "fullscreen" | "focus";

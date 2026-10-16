@@ -185,8 +185,8 @@ pub const CATALOG: &[Def] = &[
     Def {
         name: "media.open_service",
         label: "Abrir streaming",
-        description: "Abre um serviço de streaming em tela cheia, no modo TV: netflix, youtube, prime, disney ou music.",
-        params: r#"{"id":{"type":"string","enum":["netflix","youtube","prime","disney","music"]}}"#,
+        description: "Abre um serviço de streaming em tela cheia, no modo Mídia da tela em foco: youtube, netflix, prime, disney, paramount ou music.",
+        params: r#"{"id":{"type":"string","enum":["youtube","netflix","prime","disney","paramount","music"]}}"#,
         required: &["id"],
         risk: Risk::Act,
         default: "auto",
@@ -637,13 +637,8 @@ fn run_blocking(app: &AppHandle, name: &str, args: &Value) -> Outcome {
         "audio.output" => audio_output(arg(args, "name")),
         "media.control" => media_control(arg(args, "action")),
         "media.now_playing" => Ok(now_playing()),
-        "media.open_service" => media::service_command(arg(args, "id")).and_then(|command| {
-            // Um serviço por vez, como na tela do modo Mídia.
-            let _ = Command::new("pkill").args(["-f", "lumna/firefox-tv"]).status();
-            compositor.exec(&command)?;
-            crate::media_hint();
-            Ok(Outcome::done(format!("{} aberto", arg(args, "id"))))
-        }),
+        "media.open_service" => crate::media_open(app, None, arg(args, "id"), None)
+            .map(|()| Outcome::done(format!("{} aberto", arg(args, "id")))),
         "media.play_video" => {
             let videos = media::videos();
             match best(&videos, arg(args, "name"), |v| vec![v.title.clone()]) {

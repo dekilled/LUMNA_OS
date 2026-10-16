@@ -25,7 +25,9 @@ comandos:
   rest on|off                        mostra ou tira a tela de descanso
   power                              abre o menu de energia (sair, suspender, reiniciar, desligar)
   installer                          abre o instalador do LUMNA OS (só no pendrive)
-  media home                         na Mídia, fecha o que está em tela cheia (Super + Esc)
+  media menu                         na Mídia, barra de serviços por cima do vídeo (Super + M)
+  media home                         na Mídia, volta para o Início (a página vira Recente)
+  media open SERVIÇO                 abre um serviço na Mídia (youtube, netflix, prime, disney...)
   emma [open|close]                  abre ou fecha o painel da Emma (Super + A)
   actions                            lista as ações (o que a Emma e as macros podem fazer)
   action NOME [JSON]                 roda uma ação, ex.: action apps.open {\"name\":\"firefox\"}";

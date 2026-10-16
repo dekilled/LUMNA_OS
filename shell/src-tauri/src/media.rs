@@ -1,7 +1,7 @@
 //! Modo Mídia: serviços de streaming e os vídeos do próprio computador.
 //!
-//! - Streaming abre no Firefox em modo quiosque (tela cheia, sem barras), num perfil só da TV,
-//!   com o DRM (Widevine) ligado. O WebKit do shell não tem Widevine (ver docs/VIABILIDADE.md, 3.1).
+//! - Streaming abre no Firefox da TV (ver `tv.rs`): quiosque, perfil próprio, DRM (Widevine)
+//!   ligado. O WebKit do shell não tem Widevine (ver docs/VIABILIDADE.md, 3.1).
 //! - Vídeos locais tocam no mpv, que guarda onde você parou; é daí que sai o "Continuar assistindo".
 
 use std::path::{Path, PathBuf};
@@ -18,10 +18,11 @@ pub struct Service {
 }
 
 pub const SERVICES: &[Service] = &[
-    Service { id: "netflix", name: "Netflix", url: "https://www.netflix.com/browse" },
     Service { id: "youtube", name: "YouTube", url: "https://www.youtube.com" },
+    Service { id: "netflix", name: "Netflix", url: "https://www.netflix.com/browse" },
     Service { id: "prime", name: "Prime Video", url: "https://www.primevideo.com" },
     Service { id: "disney", name: "Disney+", url: "https://www.disneyplus.com" },
+    Service { id: "paramount", name: "Paramount+", url: "https://www.paramountplus.com" },
     Service { id: "music", name: "Música", url: "https://music.youtube.com" },
 ];
 
@@ -177,33 +178,6 @@ pub fn video_command(video: &Video) -> String {
     format!("mpv --fs --force-window=yes --save-position-on-quit {}", quote(&video.path.to_string_lossy()))
 }
 
-/// Perfil do Firefox só para a TV, com DRM ligado e sem perguntas de "navegador padrão".
-fn media_profile() -> Result<PathBuf, String> {
-    let dir = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home().join(".local/share"))
-        .join("lumna/firefox-tv");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let prefs = [
-        ("media.eme.enabled", "true"),
-        ("media.gmp-widevinecdm.enabled", "true"),
-        ("media.gmp-widevinecdm.visible", "true"),
-        ("browser.shell.checkDefaultBrowser", "false"),
-        ("browser.aboutwelcome.enabled", "false"),
-        ("datareporting.policy.dataSubmissionPolicyBypassNotification", "true"),
-        ("media.hardware-video-decoding.enabled", "true"),
-    ];
-    let user_js: String = prefs.iter().map(|(k, v)| format!("user_pref(\"{k}\", {v});\n")).collect();
-    std::fs::write(dir.join("user.js"), user_js).map_err(|e| e.to_string())?;
-    Ok(dir)
-}
-
-pub fn service_command(id: &str) -> Result<String, String> {
-    let service = SERVICES.iter().find(|s| s.id == id).ok_or_else(|| format!("serviço {id} não existe"))?;
-    let profile = media_profile()?;
-    Ok(format!("firefox --kiosk --new-instance --profile {} {}", quote(&profile.to_string_lossy()), service.url))
-}
-
 pub fn thumbs_dir() -> PathBuf {
     cache_dir()
 }
@@ -222,14 +196,5 @@ mod tests {
         // Mesmo nome que o mpv dá ao arquivo de posição de /tmp/a.mkv.
         assert_eq!(format!("{:X}", md5::compute(b"/tmp/a.mkv")).len(), 32);
         assert!(format!("{:X}", md5::compute(b"/tmp/a.mkv")).chars().all(|c| !c.is_ascii_lowercase()));
-    }
-
-    #[test]
-    fn every_service_opens_in_kiosk_mode() {
-        for service in SERVICES {
-            let cmd = service_command(service.id).unwrap();
-            assert!(cmd.starts_with("firefox --kiosk"), "{cmd}");
-            assert!(cmd.ends_with(service.url));
-        }
     }
 }

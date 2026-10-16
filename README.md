@@ -83,6 +83,7 @@ cair e aparecer `lumna login:`). O `root` não tem senha: `Ctrl + Alt + F2` e En
 | `Super + 1..9` | Ir para a área de trabalho |
 | `Super + Shift + 1..9` | Mover janela para a área de trabalho |
 | `Super + F` | Tela cheia |
+| `Super + M` (ou `Super + Esc`) | Na Mídia: barra de serviços por cima do vídeo (Início, trocar de serviço) |
 | `Super + Shift + L` | Bloquear a tela |
 | `Super + Shift + E` | Menu de energia: bloquear, sair, suspender, hibernar, reiniciar, desligar |
 | `Alt + Shift` | Troca de teclado (com mais de um em Configurações → Teclado e idioma) |
@@ -267,10 +268,20 @@ sistema live: habilite o `[multilib]` em `/etc/pacman.conf` e `sudo pacman -Syu 
 
 ## Mídia
 
-- **Streaming** (Netflix, YouTube, Prime Video, Disney+, Música) abre no Firefox em tela cheia,
-  num perfil só da TV com o DRM ligado. Na primeira vez o Firefox baixa o Widevine sozinho.
-- **Seus vídeos** são os da pasta Vídeos. Tocam no mpv, que guarda onde você parou: é daí que vêm
-  o destaque e o "Continuar assistindo".
+![Início da Mídia: serviços e Recentes](docs/midia-inicio.png)
+
+- **Streaming** (YouTube, Netflix, Prime Video, Disney+, Paramount+, Música) abre no Firefox da TV:
+  tela cheia, perfil e janela próprios (`lumna-tv`, separado do seu Firefox), DRM ligado. Na
+  primeira vez o Firefox baixa o Widevine sozinho. Um navegador só para todas as telas: o login
+  vale nos dois monitores, mas cada monitor tem a sua janela (YouTube num, Netflix no outro).
+- **Barra de serviços**: `Super + M`, `Super + Esc` ou o botão central do controle sobem a barra por
+  cima do vídeo. Setas escolhem, Enter troca, Esc volta ao vídeo. O microfone chama a Emma.
+- **Até 2 serviços vivos por monitor**: o que sai fica aberto e pausado, fora da tela; voltar a ele
+  é instantâneo. Abrir um terceiro fecha o usado há mais tempo.
+- **Recentes**: ao sair de um serviço (Início ou troca), a página é guardada com um print da tela.
+  O card "Retomar" volta para aquela página (o X no card tira dos recentes).
+- **Seus vídeos** são os da pasta Vídeos. Tocam no mpv, que guarda onde você parou: é daí que vem
+  o "Continuar assistindo".
 
 ## LUMNA Controle (celular)
 
@@ -280,8 +291,8 @@ App Android em `remote/android`. O GitHub Actions gera o APK (artefato `lumna-co
 2. Na TV, modo Mídia → **Controle pelo celular**: aparece um código de 6 dígitos.
 3. No app, toque na TV (ela aparece sozinha pela rede) e digite o código.
 
-Depois disso o celular entra sozinho. O app tem direcional, OK, voltar, início (fecha o que está
-na frente), menu, volume, play/pausa, ±10 s, os três modos e um campo para digitar na TV.
+Depois disso o celular entra sozinho. O app tem direcional, OK, voltar, início (na Mídia, volta
+para o Início guardando a página), menu, volume, play/pausa, ±10 s, os três modos e um campo para digitar na TV.
 "Esquecer celulares", na mesma tela da TV, desfaz todos os pareamentos.
 
 A TV só aceita conexões da rede local (porta 47800, WebSocket sem TLS) e só de celulares
