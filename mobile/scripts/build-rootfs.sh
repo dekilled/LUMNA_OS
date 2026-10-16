@@ -92,7 +92,7 @@ Description=Aumenta o rootfs do LUMNA para a partição inteira
 ConditionPathExists=!/var/lib/lumna/rootfs-resized
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'resize2fs "\$(findmnt -no SOURCE /)" && mkdir -p /var/lib/lumna && touch /var/lib/lumna/rootfs-resized'
+ExecStart=/bin/sh -c 'resize2fs "$$(findmnt -no SOURCE /)" && mkdir -p /var/lib/lumna && touch /var/lib/lumna/rootfs-resized'
 [Install]
 WantedBy=multi-user.target
 UNIT
