@@ -224,6 +224,15 @@ const AUTH: LayerSpec = LayerSpec {
     visible: false,
 };
 
+/// Rodando no celular (`--mobile`): as janelas dos apps não têm tamanho mínimo de desktop.
+static MOBILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Tamanho mínimo das janelas do LUMNA. No celular a tela tem ~432 px lógicos de largura: um mínimo
+/// de desktop deixa a janela maior que o espaço dela, e o toque cai fora do lugar.
+fn min_side(desktop: f64) -> f64 {
+    if MOBILE.load(std::sync::atomic::Ordering::Relaxed) { 200.0 } else { desktop }
+}
+
 /// Celular (`lumna-shell --mobile`): barra de status no topo, por cima do notch.
 const MOBILE_STATUS: LayerSpec = LayerSpec {
     namespace: "lumna-mobile-status",
@@ -555,7 +564,7 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
         .title("Configurações")
         .inner_size(1000.0, 680.0)
-        .min_inner_size(760.0, 520.0)
+        .min_inner_size(min_side(760.0), min_side(520.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -617,7 +626,7 @@ pub fn open_store(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "store", WebviewUrl::App(url.into()))
         .title("Loja")
         .inner_size(1100.0, 720.0)
-        .min_inner_size(800.0, 540.0)
+        .min_inner_size(min_side(800.0), min_side(540.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -643,7 +652,7 @@ pub fn open_files(app: &AppHandle, path: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html#{fragment}").into()))
         .title("Arquivos")
         .inner_size(1100.0, 700.0)
-        .min_inner_size(640.0, 420.0)
+        .min_inner_size(min_side(640.0), min_side(420.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -666,7 +675,7 @@ pub fn open_installer(app: &AppHandle) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "installer", WebviewUrl::App("index.html".into()))
         .title("Instalar LUMNA OS")
         .inner_size(980.0, 660.0)
-        .min_inner_size(820.0, 600.0)
+        .min_inner_size(min_side(820.0), min_side(600.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -1250,6 +1259,7 @@ fn create_layer(app: &AppHandle, label: &str, monitor: &gtk::gdk::Monitor, spec:
 fn main() {
     let greeter_mode = std::env::args().any(|a| a == "--greeter");
     let mobile_mode = std::env::args().any(|a| a == "--mobile");
+    MOBILE.store(mobile_mode, std::sync::atomic::Ordering::Relaxed);
     let compositor: SharedCompositor = match Hyprland::from_env() {
         Ok(hyprland) => Arc::new(hyprland),
         Err(err) => {

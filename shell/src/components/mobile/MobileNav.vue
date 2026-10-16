@@ -24,13 +24,24 @@ async function showHome() {
   for (const w of list) if (!isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
 }
 
+// Como no celular: um app por vez. Se a janela já existe (mesmo minimizada), volta para ela em vez
+// de abrir outra; e o que estava na frente sai de cena.
+// (o Arquivos põe a pasta no título: "Downloads · Arquivos")
+async function bringUp(title: string, open: () => Promise<void>) {
+  const list = await windows().catch(() => []);
+  const found = list.find((w) => w.title === title || w.title.endsWith(` · ${title}`));
+  for (const w of list) if (w !== found && !isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
+  if (found) await windowControl("focus", found.address);
+  else await open();
+}
+
 async function go(tab: Tab) {
   active.value = tab;
   if (tab === "inicio" || tab === "apps") {
     await showHome();
     await emit("lumna://mobile-tab", tab);
-  } else if (tab === "arquivos") await filesWindow();
-  else if (tab === "ajustes") await settingsOpen();
+  } else if (tab === "arquivos") await bringUp("Arquivos", () => filesWindow());
+  else if (tab === "ajustes") await bringUp("Configurações", () => settingsOpen());
   else await toggleEmma();
 }
 </script>

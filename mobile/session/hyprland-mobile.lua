@@ -5,6 +5,28 @@ hl.env("GDK_BACKEND", "wayland")
 hl.env("QT_QPA_PLATFORM", "wayland")
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland:LUMNA")
 
+-- Celular: um app por vez, ocupando o espaço entre a barra de status e a navegação. Sem vãos nem
+-- bordas (a tela é pequena), cantos arredondados e o vidro fosco das barras do LUMNA.
+hl.config({
+    general = { gaps_in = 0, gaps_out = 0, border_size = 0, layout = "dwindle" },
+    decoration = {
+        rounding = 18,
+        blur = { enabled = true, size = 8, passes = 3, vibrancy = 0.2 },
+    },
+    misc = {
+        disable_watchdog_warning = true,
+        force_default_wallpaper = 0,
+        disable_hyprland_logo = true,
+        disable_splash_rendering = true,
+    },
+})
+
+hl.window_rule({
+    name = "lumna-mobile-maximize",
+    match = { class = ".*" },
+    maximize = true,
+})
+
 hl.on("hyprland.start", function()
     -- A saída do shell vai para o journal: journalctl -t lumna-shell
     hl.exec_cmd("systemd-cat -t lumna-shell lumna-shell --mobile")
