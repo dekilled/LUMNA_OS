@@ -48,6 +48,9 @@ if [ -d $fw/postmarketos ]; then
     sudo install -Dm644 $fw/postmarketos/qca/crbtfw21.tlv $fw/qca/crbtfw21.tlv
 fi
 
+# o grupo wheel controla rede e modem também pelo ssh (senão: "Not authorized to control networking")
+sudo install -Dm644 "$(dirname "$0")/50-lumna-rede.rules" /etc/polkit-1/rules.d/50-lumna-rede.rules
+
 # rmtfs lendo as partições pelo nome (-P), em modo real (-r), e avisando o systemd quando pronto (-s)
 sudo mkdir -p /etc/systemd/system/rmtfs.service.d
 printf '[Service]\nExecStart=\nExecStart=/usr/bin/rmtfs -r -P -s\nRestart=always\n' |

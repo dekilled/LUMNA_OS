@@ -74,6 +74,17 @@ locale-gen
 echo LANG=pt_BR.UTF-8 > /etc/locale.conf
 echo 'LABEL=lumna-root / ext4 defaults,noatime 0 1' > /etc/fstab
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/wheel
+# o grupo wheel controla rede e modem também pelo ssh (o polkit só libera quem está na tela)
+mkdir -p /etc/polkit-1/rules.d
+cat > /etc/polkit-1/rules.d/50-lumna-rede.rules <<'RULE'
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("wheel") &&
+        (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 ||
+         action.id.indexOf("org.freedesktop.ModemManager1.") === 0)) {
+        return polkit.Result.YES;
+    }
+});
+RULE
 # Rede USB fixa: o PC conversa com o celular em 172.16.42.1
 cat > /etc/NetworkManager/system-connections/usb0.nmconnection <<NM
 [connection]
