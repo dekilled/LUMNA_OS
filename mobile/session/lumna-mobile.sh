@@ -19,6 +19,13 @@ fi
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
     hyprland wireplumber mesa foot ttf-dejavu
 
+# O perfil release do LUMNA usa LTO com 1 codegen unit: o último passo (o próprio lumna-shell) roda
+# num núcleo só e leva uns 30 min no 6T. Pra testar mudanças: LUMNA_RAPIDO=1 sh lumna-mobile.sh
+# (binário um pouco maior e mais lento, mas o último passo cai pra poucos minutos).
+if [ -n "${LUMNA_RAPIDO:-}" ]; then
+    export CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+fi
+
 # -f refaz o pacote, --nocheck pula os testes (lentos aqui), -i instala
 cd "$ROOT/packages/lumna-shell"
 makepkg -sfi --nocheck --noconfirm
