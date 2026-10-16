@@ -1,0 +1,14 @@
+[Unit]
+Description=Chaves do pacman do LUMNA (uma vez)
+ConditionPathExists=!/etc/pacman.d/gnupg/.lumna-keyring
+# No pendrive quem cuida é o pacman-init do archiso.
+ConditionKernelCommandLine=!archisobasedir
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/lumna/lumna-keyring
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

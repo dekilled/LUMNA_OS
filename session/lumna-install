@@ -125,6 +125,16 @@ for pkg in cloud-init livecd-sounds; do
   arch-chroot "$TARGET" pacman -Rns --noconfirm "$pkg" >/dev/null 2>&1 || true
 done
 
+step 74 "Chaves do pacman"
+# No pendrive as chaves ficam num tmpfs: o sistema copiado vem sem elas, e todo pacote do Arch
+# dava "assinatura inválida". Cria o chaveiro do sistema instalado e confia nas chaves do Arch.
+rm -rf "$TARGET/etc/pacman.d/gnupg"
+arch-chroot "$TARGET" pacman-key --init >/dev/null 2>&1
+arch-chroot "$TARGET" pacman-key --populate archlinux >/dev/null 2>&1
+touch "$TARGET/etc/pacman.d/gnupg/.lumna-keyring"
+# Relógio certo pela rede (assinaturas fora da validade também são recusadas).
+arch-chroot "$TARGET" systemctl enable systemd-timesyncd.service >/dev/null 2>&1 || true
+
 # ---- 3. configuração ----
 
 step 76 "Idioma, teclado e fuso"
