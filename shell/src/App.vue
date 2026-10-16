@@ -9,6 +9,9 @@ import GreeterApp from "./components/GreeterApp.vue";
 import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
+import MobileHome from "./components/mobile/MobileHome.vue";
+import MobileNav from "./components/mobile/MobileNav.vue";
+import MobileStatus from "./components/mobile/MobileStatus.vue";
 import Notifications from "./components/Notifications.vue";
 import RestScreen from "./components/RestScreen.vue";
 import PowerMenu from "./components/PowerMenu.vue";
@@ -45,5 +48,8 @@ const label = getCurrentWebviewWindow().label;
   <FilesApp v-else-if="label.startsWith('files-')" />
   <InstallerApp v-else-if="label === 'installer'" />
   <GreeterApp v-else-if="label === 'greeter'" />
+  <MobileHome v-else-if="label === 'mobile-home'" />
+  <MobileStatus v-else-if="label === 'mobile-status'" />
+  <MobileNav v-else-if="label === 'mobile-nav'" />
   <TextMenu />
 </template>

@@ -224,6 +224,43 @@ const AUTH: LayerSpec = LayerSpec {
     visible: false,
 };
 
+/// Celular (`lumna-shell --mobile`): barra de status no topo, por cima do notch.
+const MOBILE_STATUS: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-status",
+    layer: Layer::Top,
+    anchors: &[Edge::Top, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Auto,
+    size: (-1, 36),
+    visible: true,
+};
+
+/// Celular: a tela Início (relógio, Emma, grade de apps), embaixo das janelas dos apps.
+const MOBILE_HOME: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-home",
+    layer: Layer::Bottom,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::OnDemand,
+    // a tela toda, por trás da barra de status e da navegação (o eclipse passa por baixo delas)
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: true,
+};
+
+/// Celular: a barra de navegação de baixo (Início, Apps, Arquivos, Ajustes, Emma), sempre visível.
+const MOBILE_NAV: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-nav",
+    layer: Layer::Top,
+    anchors: &[Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Auto,
+    size: (-1, 92),
+    visible: true,
+};
+
 /// Tela de login (`lumna-shell --greeter`): a tela toda, com o teclado.
 const GREETER: LayerSpec = LayerSpec {
     namespace: "lumna-greeter",
@@ -1212,6 +1249,7 @@ fn create_layer(app: &AppHandle, label: &str, monitor: &gtk::gdk::Monitor, spec:
 
 fn main() {
     let greeter_mode = std::env::args().any(|a| a == "--greeter");
+    let mobile_mode = std::env::args().any(|a| a == "--mobile");
     let compositor: SharedCompositor = match Hyprland::from_env() {
         Ok(hyprland) => Arc::new(hyprland),
         Err(err) => {
@@ -1396,6 +1434,17 @@ fn main() {
             // Tela de login: só ela, sem topbar, dock nem serviços da sessão.
             if greeter_mode {
                 create_layer(app.handle(), "greeter", &primary, &GREETER)?;
+                return Ok(());
+            }
+            // Celular: uma tela só, com barra de status, Início e navegação; a Emma por cima.
+            if mobile_mode {
+                create_layer(app.handle(), "mobile-home", &primary, &MOBILE_HOME)?;
+                create_layer(app.handle(), "mobile-status", &primary, &MOBILE_STATUS)?;
+                create_layer(app.handle(), "mobile-nav", &primary, &MOBILE_NAV)?;
+                create_layer(app.handle(), "emma", &primary, &EMMA)?;
+                forward_events(app.handle().clone(), compositor.clone());
+                status::watch(app.handle().clone());
+                wifi::watch(app.handle().clone());
                 return Ok(());
             }
             for index in 0..display.n_monitors() {

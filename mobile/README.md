@@ -11,12 +11,19 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 > `alarm@lumna`. Falta: interface gráfica, bateria/carregador no rootfs (testar), Wi-Fi, modem, áudio.
 > O Z5 Pro GT está pausado (o kernel compila e o boot.img sai com header v1).
 
-## Próximo: a interface
+## A interface
 
-1. Hyprland no 6T (tela, toque, GPU Adreno 630 pelo freedreno).
-2. lumna-shell compilado para aarch64.
-3. Formato Celular no shell: barra de baixo (Início, Apps, Arquivos, Ajustes, Emma) e "Pergunte à Emma".
-4. Sessão de celular: escala da tela, teclado virtual, gestos.
+1. ✅ Hyprland no 6T: tela, toque e GPU Adreno 630 pelo freedreno (`session/primeira-tela.sh`).
+2. `lumna-shell --mobile`: barra de status, Início (relógio e "Pergunte à Emma"), aba Apps e
+   barra de navegação (Início, Apps, Arquivos, Ajustes, Emma). Arquivos, Ajustes e Emma abrem os
+   mesmos apps do PC. Compila no celular com `sh mobile/session/lumna-mobile.sh`.
+3. Falta: teclado virtual, gestos, Arquivos e Ajustes no formato do celular, tela de bloqueio.
+
+| Início | Apps |
+|---|---|
+| ![Início](docs/celular-inicio.png) | ![Apps](docs/celular-apps.png) |
+
+(Renderizado no navegador em 432×936, o tamanho lógico da tela do 6T com escala 2.5.)
 
 ## Aparelhos
 

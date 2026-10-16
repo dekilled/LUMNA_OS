@@ -1,0 +1,80 @@
+<script setup lang="ts">
+// Celular: barra de navegação de baixo. Início e Apps são abas da tela Início (e escondem os
+// apps abertos); Arquivos, Ajustes e Emma abrem as janelas e o painel que o PC já tem.
+import { ref } from "vue";
+import { emit } from "@tauri-apps/api/event";
+import Icon from "../Icon.vue";
+import { filesWindow, settingsOpen, toggleEmma } from "../../system";
+import { isMinimized, windowControl, windows } from "../../compositor";
+
+type Tab = "inicio" | "apps" | "arquivos" | "ajustes" | "emma";
+const active = ref<Tab>("inicio");
+
+const items: { tab: Tab; label: string; icon: string }[] = [
+  { tab: "inicio", label: "Início", icon: "home" },
+  { tab: "apps", label: "Apps", icon: "grid" },
+  { tab: "arquivos", label: "Arquivos", icon: "folder" },
+  { tab: "ajustes", label: "Ajustes", icon: "settings" },
+  { tab: "emma", label: "Emma", icon: "waves" },
+];
+
+// Volta para a tela Início: minimiza o que estiver aberto por cima.
+async function showHome() {
+  const list = await windows().catch(() => []);
+  for (const w of list) if (!isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
+}
+
+async function go(tab: Tab) {
+  active.value = tab;
+  if (tab === "inicio" || tab === "apps") {
+    await showHome();
+    await emit("lumna://mobile-tab", tab);
+  } else if (tab === "arquivos") await filesWindow();
+  else if (tab === "ajustes") await settingsOpen();
+  else await toggleEmma();
+}
+</script>
+
+<template>
+  <nav class="nav">
+    <button v-for="item in items" :key="item.tab" :class="{ on: active === item.tab }" @click="go(item.tab)">
+      <Icon :name="item.icon" :size="24" />
+      <span>{{ item.label }}</span>
+    </button>
+  </nav>
+  <div class="handle" />
+</template>
+
+<style scoped>
+.nav {
+  margin: 0 12px;
+  height: 66px;
+  display: flex;
+  border: 1px solid var(--lumna-line);
+  border-radius: 22px;
+  background: rgba(16, 12, 30, 0.92);
+}
+button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  color: var(--lumna-text);
+  font: inherit;
+  font-size: 11px;
+}
+button.on {
+  color: var(--lumna-violet-soft);
+}
+.handle {
+  margin: 10px auto 0;
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(236, 232, 255, 0.7);
+}
+</style>
