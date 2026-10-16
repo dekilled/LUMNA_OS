@@ -43,6 +43,12 @@ cp -a "$OUT"/modules/lib/modules/. "$ROOT/usr/lib/modules/"
 fwtar=$(fetch_git "$FIRMWARE_URL" "firmware-$DEVICE.tar.gz" "$FIRMWARE_GIT" "$FIRMWARE_REF")
 mkdir -p "$ROOT/usr/lib/firmware"
 bsdtar -xf "$fwtar" -C "$ROOT/usr/lib" --strip-components 2 '*/lib/firmware'
+# calibração do Wi-Fi (WCN3990) e do Bluetooth do OnePlus 6/6T, por cima da genérica do linux-firmware
+fwdir="$ROOT/usr/lib/firmware"
+if [ -d "$fwdir/postmarketos" ]; then
+    install -Dm644 "$fwdir/postmarketos/ath10k/WCN3990/hw1.0/board-2.bin" "$fwdir/ath10k/WCN3990/hw1.0/board-2.bin"
+    install -Dm644 "$fwdir/postmarketos/qca/crbtfw21.tlv" "$fwdir/qca/crbtfw21.tlv"
+fi
 
 chroot "$ROOT" /bin/bash -eu <<'CHROOT'
 pacman-key --init

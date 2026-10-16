@@ -27,6 +27,15 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 
 (Renderizado no navegador em 432×936, o tamanho lógico da tela do 6T com escala 2.5.)
 
+## Internet e chamadas
+
+`session/modem-wifi.sh` (no celular) compila do AUR a pilha da Qualcomm que o postmarketOS usa
+(qrtr, rmtfs, pd-mapper, tqftpserv), põe a calibração do Wi-Fi do OnePlus e liga o ModemManager.
+O Wi-Fi do 6T só sobe com o modem rodando. Depois de reiniciar: `sh session/modem-wifi.sh status`.
+
+Chamadas: o modem atende pelo ModemManager (`mmcli`); falta o áudio da ligação (q6voiced + UCM
+do sdm845) e um discador. Em operadora que só aceita VoLTE, a voz ainda é experimental no mainline.
+
 ## Aparelhos
 
 | Aparelho | SoC | Caminho | Papel |
