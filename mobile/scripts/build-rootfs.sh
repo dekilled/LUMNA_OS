@@ -85,6 +85,18 @@ route-metric=700
 method=ignore
 NM
 chmod 600 /etc/NetworkManager/system-connections/usb0.nmconnection
+# No primeiro boot o rootfs (6 GB na imagem) cresce até ocupar a userdata inteira
+cat > /etc/systemd/system/lumna-resize-root.service <<'UNIT'
+[Unit]
+Description=Aumenta o rootfs do LUMNA para a partição inteira
+ConditionPathExists=!/var/lib/lumna/rootfs-resized
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'resize2fs "\$(findmnt -no SOURCE /)" && mkdir -p /var/lib/lumna && touch /var/lib/lumna/rootfs-resized'
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl enable lumna-resize-root
 $P -Scc --noconfirm
 CHROOT
 

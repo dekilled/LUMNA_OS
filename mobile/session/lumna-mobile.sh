@@ -7,6 +7,15 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 [ "$(id -u)" != 0 ] || { echo "rode como alarm, sem sudo (o makepkg não roda como root)"; exit 1; }
 
+# O rootfs nasce com 6 GB; compilar Rust + WebKit precisa de uns 10 GB livres. O ext4 cresce
+# ligado, até ocupar a userdata inteira.
+livre=$(df -Pk / | awk 'NR == 2 { print int($4 / 1048576) }')
+if [ "$livre" -lt 15 ]; then
+    echo "só ${livre} GB livres: aumentando o rootfs para a partição inteira"
+    sudo resize2fs "$(findmnt -no SOURCE /)"
+    df -h /
+fi
+
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
     hyprland wireplumber mesa foot ttf-dejavu
 
