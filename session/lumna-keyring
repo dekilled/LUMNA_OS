@@ -1,0 +1,15 @@
+#!/bin/sh
+# Chaves do pacman: o pendrive do Arch monta as dele num tmpfs, então o sistema copiado pelo
+# instalador ficava sem chaves ("assinatura inválida / pacote corrompido" em todo pacote do Arch).
+# Roda uma vez (lumna-keyring.service): cria o chaveiro local e confia nas chaves do Arch.
+set -e
+marker=/etc/pacman.d/gnupg/.lumna-keyring
+[ -e "$marker" ] && exit 0
+# Relógio certo pela rede: assinatura "do futuro" ou vencida também é recusada.
+systemctl enable --now systemd-timesyncd.service >/dev/null 2>&1 || true
+if ! pacman-key --list-keys >/dev/null 2>&1; then
+  rm -rf /etc/pacman.d/gnupg
+fi
+pacman-key --init
+pacman-key --populate archlinux
+touch "$marker"

@@ -2227,6 +2227,7 @@ dependencies = [
  "tauri-build",
  "tokio",
  "tokio-tungstenite",
+ "tungstenite",
  "zbus",
 ]
 

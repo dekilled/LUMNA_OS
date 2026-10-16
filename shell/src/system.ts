@@ -427,7 +427,43 @@ export interface Pairing {
 export const mediaServices = () => invoke<Service[]>("media_services");
 export const videos = () => invoke<Video[]>("videos");
 export const playVideo = (id: string) => invoke<void>("play_video", { id });
-export const openService = (id: string) => invoke<void>("open_service", { id });
+
+/** Página de um serviço guardada ao sair dela (Início ou troca de serviço). */
+export interface Recent {
+  id: string;
+  service: string;
+  title: string;
+  url: string;
+  thumb: string | null;
+  /** Quando saiu da página (segundos desde 1970). */
+  at: number;
+}
+
+export interface TvState {
+  /** Serviço na frente neste monitor. */
+  playing: string | null;
+  /** Serviços vivos (na frente ou estacionados) neste monitor. */
+  live: string[];
+  recents: Recent[];
+}
+
+export const tvState = (monitor: string | null) => invoke<TvState>("tv_state", { monitor });
+export const tvOpen = (monitor: string | null, service: string, url: string | null = null) =>
+  invoke<void>("tv_open", { monitor, service, url });
+export const tvResume = (monitor: string | null, id: string) => invoke<void>("tv_resume", { monitor, id });
+export const tvHome = (monitor: string | null, focus: string | null = null) => invoke<void>("tv_home", { monitor, focus });
+export const tvForget = (monitor: string | null, id: string) => invoke<void>("tv_forget", { monitor, id });
+export const tvbarClose = () => invoke<void>("tvbar_close");
+
+/** "há 5 min", "há 2 h", "ontem"... */
+export function timeAgo(seconds: number): string {
+  const diff = Math.max(0, Date.now() / 1000 - seconds);
+  if (diff < 60) return "agora";
+  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+  if (diff < 172800) return "ontem";
+  return `há ${Math.floor(diff / 86400)} dias`;
+}
 export const remotePairing = () => invoke<Pairing>("remote_pairing");
 export const remoteStopPairing = () => invoke<void>("remote_stop_pairing");
 export const remoteForget = () => invoke<void>("remote_forget");

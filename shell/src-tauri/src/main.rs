@@ -28,9 +28,11 @@ mod status;
 mod store;
 mod system_info;
 mod tray;
+mod tv;
 mod vdf;
 mod wallpaper;
 mod wifi;
+mod winmax;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -234,6 +236,19 @@ const GREETER: LayerSpec = LayerSpec {
     visible: true,
 };
 
+/// Barra de serviços da Mídia: por cima do streaming, na tela toda (clique fora volta ao vídeo),
+/// com o teclado enquanto aberta.
+const TVBAR: LayerSpec = LayerSpec {
+    namespace: "lumna-tvbar",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+
 const NOTIFICATIONS: LayerSpec = LayerSpec {
     namespace: "lumna-notifications",
     layer: Layer::Overlay,
@@ -271,7 +286,8 @@ fn active_window(compositor: tauri::State<'_, SharedCompositor>) -> Result<Optio
 /// Minimizar, maximizar, fechar ou trazer para a frente uma janela (a em foco, se não disser qual).
 /// O Hyprland não tem "minimizar": a janela vai para um workspace escondido e volta pelo dock.
 #[tauri::command]
-fn window_control(compositor: tauri::State<'_, SharedCompositor>, address: Option<String>, action: String) -> Result<(), String> {
+fn window_control(app: AppHandle, address: Option<String>, action: String) -> Result<(), String> {
+    let compositor = app.state::<SharedCompositor>();
     let address = match address {
         Some(address) => address,
         None => compositor.active_window()?.map(|w| w.address).ok_or("nenhuma janela em foco")?,
@@ -279,7 +295,16 @@ fn window_control(compositor: tauri::State<'_, SharedCompositor>, address: Optio
     match action.as_str() {
         "close" => compositor.close_window(&address),
         "minimize" => compositor.move_window(&address, lumna_core::MINIMIZED),
-        "maximize" => compositor.maximize_window(&address),
+        // Leva uns instantes (o dock se ajusta antes); fora da thread principal.
+        "maximize" => {
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                if let Err(err) = winmax::toggle(&handle, &address) {
+                    eprintln!("lumna-shell: maximizar: {err}");
+                }
+            });
+            Ok(())
+        }
         "fullscreen" => compositor.fullscreen_window(&address),
         "focus" => {
             // Minimizada: volta para a área de trabalho em uso no monitor em foco.
@@ -655,10 +680,19 @@ struct PadEvent {
 /// Uma ação do controle (ou do `lumna-ctl pad`). Com um app ou jogo em foco, o controle é dele:
 /// só o botão central (troca de modo) continua com o LUMNA.
 pub fn pad_action(app: &AppHandle, action: pad::Action) {
+    // Barra de serviços da Mídia aberta: o controle é dela; o botão central volta ao vídeo.
+    if let Some(monitor) = app.state::<tv::Tv>().bar() {
+        if action == pad::Action::Guide {
+            close_tvbar(app);
+        } else {
+            let _ = app.emit("lumna://tvbar-pad", PadEvent { action, monitor: Some(monitor) });
+        }
+        return;
+    }
     let compositor = app.state::<SharedCompositor>();
     if action == pad::Action::Guide {
-        // Na Mídia, com um serviço ou vídeo aberto, o botão central volta para a tela da Mídia.
-        if media_home(app).unwrap_or(false) {
+        // Na Mídia, com um serviço ou vídeo na frente, o botão central abre a barra de serviços.
+        if media_menu(app).unwrap_or(false) {
             return;
         }
         if let Err(err) = switch_mode(app, Target::Next) {
@@ -714,16 +748,6 @@ fn play_video(
 }
 
 #[tauri::command]
-fn open_service(compositor: tauri::State<'_, SharedCompositor>, id: String) -> Result<(), String> {
-    let command = media::service_command(&id)?;
-    // Um serviço por vez: o Firefox da TV anterior fecha antes de abrir o próximo.
-    let _ = std::process::Command::new("pkill").args(["-f", "lumna/firefox-tv"]).status();
-    compositor.exec(&command)?;
-    media_hint();
-    Ok(())
-}
-
-#[tauri::command]
 fn remote_pairing(remote: tauri::State<'_, remote::Remote>) -> remote::Pairing {
     remote.start_pairing()
 }
@@ -738,37 +762,208 @@ fn remote_forget(remote: tauri::State<'_, remote::Remote>) -> Result<(), String>
     remote.forget_all()
 }
 
-/// Botão "início" do celular: fecha o que estiver na frente (streaming, vídeo) ou, se não houver
-/// nada, vai para a tela de Mídia.
-/// Na Mídia: fecha o serviço ou vídeo em foco e volta para a tela da Mídia (`Super + Esc`, botão
-/// central do controle). Fora da Mídia não faz nada (devolve `false`).
-pub fn media_home(app: &AppHandle) -> Result<bool, String> {
+/// Monitor em foco, se ele estiver no modo Mídia.
+fn focused_media_monitor(app: &AppHandle) -> Result<Option<lumna_core::Monitor>, String> {
     let compositor = app.state::<SharedCompositor>();
-    let Some(monitor) = compositor.monitors()?.into_iter().find(|m| m.focused) else { return Ok(false) };
-    if app.state::<Modes>().mode_of(&monitor.name) != Mode::Media {
+    let Some(monitor) = compositor.monitors()?.into_iter().find(|m| m.focused) else { return Ok(None) };
+    Ok((app.state::<Modes>().mode_of(&monitor.name) == Mode::Media).then_some(monitor))
+}
+
+/// Janelas na tela da Mídia que não são do Firefox da TV (o mpv dos vídeos locais).
+fn media_others(compositor: &dyn Compositor, monitor: &str) -> Vec<lumna_core::Window> {
+    let workspace = format!("media-{monitor}");
+    compositor
+        .windows()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|w| w.workspace_name == workspace && w.class != tv::APP_ID)
+        .collect()
+}
+
+fn monitor_or_focused(app: &AppHandle, monitor: Option<String>) -> Result<String, String> {
+    match monitor {
+        Some(name) => Ok(name),
+        None => app
+            .state::<SharedCompositor>()
+            .monitors()?
+            .into_iter()
+            .find(|m| m.focused)
+            .map(|m| m.name)
+            .ok_or_else(|| "nenhum monitor em foco".into()),
+    }
+}
+
+/// Barra de serviços da Mídia (`Super + M`, `Super + Esc`, botão central): só abre com um serviço
+/// ou vídeo na frente; aberta, fecha. Devolve `false` fora da Mídia ou sem nada na frente.
+pub fn media_menu(app: &AppHandle) -> Result<bool, String> {
+    let tv = app.state::<tv::Tv>();
+    if tv.bar().is_some() {
+        close_tvbar(app);
+        return Ok(true);
+    }
+    let Some(monitor) = focused_media_monitor(app)? else { return Ok(false) };
+    let compositor = app.state::<SharedCompositor>().inner().clone();
+    let playing = tv.playing(compositor.as_ref(), &monitor.name);
+    if playing.is_none() && media_others(compositor.as_ref(), &monitor.name).is_empty() {
         return Ok(false);
     }
-    if compositor.active_window()?.is_some() {
-        compositor.close_active_window()?;
+    // O print da miniatura sai antes de a barra aparecer por cima.
+    if playing.is_some() {
+        tv.snapshot(&monitor.name);
     }
-    switch_mode(app, Target::Set(Mode::Media))?;
+    tv.set_bar(Some(monitor.name.clone()));
+    let _ = app.asset_protocol_scope().allow_directory(tv::thumbs_dir(), false);
+    let state = tv.state(compositor.as_ref(), &monitor.name);
+    let payload = serde_json::json!({ "monitor": monitor.name, "state": state });
+    let handle = app.clone();
+    let (x, y) = (monitor.x, monitor.y);
+    app.run_on_main_thread(move || {
+        layer::move_to_monitor_at("tvbar", x, y);
+        layer::set_visible("tvbar", true);
+        let _ = handle.emit("lumna://tvbar", payload);
+    })
+    .map_err(|e| e.to_string())?;
     Ok(true)
 }
 
-/// Aviso de como voltar, ao abrir algo em tela cheia na Mídia.
+pub fn close_tvbar(app: &AppHandle) {
+    app.state::<tv::Tv>().set_bar(None);
+    let _ = app.run_on_main_thread(|| layer::set_visible("tvbar", false));
+}
+
+/// Avisa a tela da Mídia (Recentes e serviços vivos mudaram).
+fn tv_changed(app: &AppHandle, monitor: &str) {
+    let _ = app.emit("lumna://tv", monitor);
+}
+
+/// Volta para o Início da Mídia neste monitor: o serviço da frente vira Recente (e fica vivo,
+/// estacionado) e o vídeo local fecha (o mpv guarda onde parou).
+fn go_home(app: &AppHandle, monitor: &str) -> Result<(), String> {
+    close_tvbar(app);
+    let compositor = app.state::<SharedCompositor>().inner().clone();
+    for window in media_others(compositor.as_ref(), monitor) {
+        let _ = compositor.close_window(&window.address);
+    }
+    app.state::<tv::Tv>().home(compositor.as_ref(), monitor)?;
+    tv_changed(app, monitor);
+    Ok(())
+}
+
+/// Abre um serviço (ou retoma uma página) na Mídia. Sem monitor, no monitor em foco, que entra no
+/// modo Mídia se ainda não estiver nele.
+pub fn media_open(app: &AppHandle, monitor: Option<String>, service: &str, url: Option<&str>) -> Result<(), String> {
+    let monitor = match monitor {
+        Some(name) => name,
+        None => {
+            if focused_media_monitor(app)?.is_none() {
+                switch_mode(app, Target::Set(Mode::Media))?;
+            }
+            monitor_or_focused(app, None)?
+        }
+    };
+    close_tvbar(app);
+    let compositor = app.state::<SharedCompositor>().inner().clone();
+    for window in media_others(compositor.as_ref(), &monitor) {
+        let _ = compositor.close_window(&window.address);
+    }
+    let result = app.state::<tv::Tv>().open(compositor.as_ref(), &monitor, service, url);
+    tv_changed(app, &monitor);
+    if result.is_ok() {
+        media_hint();
+    }
+    result
+}
+
+/// Na Mídia: volta para o Início (botão "início" do celular, `lumna-ctl media home`). Fora da
+/// Mídia não faz nada (devolve `false`).
+pub fn media_home(app: &AppHandle) -> Result<bool, String> {
+    let Some(monitor) = focused_media_monitor(app)? else { return Ok(false) };
+    go_home(app, &monitor.name)?;
+    Ok(true)
+}
+
+/// Aviso de como trocar de serviço, na primeira vez que algo abre em tela cheia na Mídia.
 pub fn media_hint() {
+    static SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if SHOWN.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
     let _ = std::process::Command::new("notify-send")
-        .args(["-a", "LUMNA", "-t", "6000", "Para voltar à Mídia", "Super + Esc, ou o botão central do controle"])
+        .args(["-a", "LUMNA", "-t", "6000", "Trocar de serviço ou voltar ao Início", "Super + M, ou o botão central do controle"])
         .spawn();
 }
 
+/// Botão "início" do celular: na Mídia, volta para o Início; fora dela, fecha o que estiver na
+/// frente ou, se não houver nada, vai para a Mídia.
 pub fn remote_home(app: &AppHandle) -> Result<(), String> {
+    if media_home(app)? {
+        return Ok(());
+    }
     let compositor = app.state::<SharedCompositor>();
     if compositor.active_window()?.is_some() {
         compositor.close_active_window()
     } else {
         switch_mode(app, Target::Set(Mode::Media))
     }
+}
+
+// ---- Mídia: comandos da tela e da barra ----
+
+#[tauri::command]
+async fn tv_state(app: AppHandle, monitor: Option<String>) -> Result<tv::TvState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let monitor = monitor_or_focused(&app, monitor)?;
+        let _ = app.asset_protocol_scope().allow_directory(tv::thumbs_dir(), false);
+        let compositor = app.state::<SharedCompositor>().inner().clone();
+        Ok(app.state::<tv::Tv>().state(compositor.as_ref(), &monitor))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn tv_open(app: AppHandle, monitor: Option<String>, service: String, url: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || media_open(&app, monitor, &service, url.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn tv_resume(app: AppHandle, monitor: Option<String>, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let recent = tv::recents().into_iter().find(|r| r.id == id).ok_or("essa página saiu dos recentes")?;
+        media_open(&app, monitor, &recent.service, Some(&recent.url))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn tv_home(app: AppHandle, monitor: Option<String>, focus: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let monitor = monitor_or_focused(&app, monitor)?;
+        go_home(&app, &monitor)?;
+        // "Vídeos locais" na barra: o Início abre já na fileira dos vídeos.
+        if let Some(row) = focus {
+            let _ = app.emit("lumna://media-focus", serde_json::json!({ "monitor": monitor, "row": row }));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn tv_forget(app: AppHandle, monitor: Option<String>, id: String) {
+    app.state::<tv::Tv>().forget(&id);
+    if let Ok(monitor) = monitor_or_focused(&app, monitor) {
+        tv_changed(&app, &monitor);
+    }
+}
+
+#[tauri::command]
+fn tvbar_close(app: AppHandle) {
+    close_tvbar(&app);
 }
 
 // ---- modos ----
@@ -1037,6 +1232,8 @@ fn main() {
         .manage(emma::Emma::default())
         .manage(automation::Runner::default())
         .manage(dock::Docks::default())
+        .manage(tv::Tv::load())
+        .manage(winmax::Maximized::default())
         .invoke_handler(tauri::generate_handler![
             workspaces,
             monitors,
@@ -1099,7 +1296,12 @@ fn main() {
             media_services,
             videos,
             play_video,
-            open_service,
+            tv_state,
+            tv_open,
+            tv_resume,
+            tv_home,
+            tv_forget,
+            tvbar_close,
             remote_pairing,
             remote_stop_pairing,
             remote_forget,
@@ -1207,6 +1409,7 @@ fn main() {
             create_layer(app.handle(), "notifications", &primary, &NOTIFICATIONS)?;
             create_layer(app.handle(), "launcher", &primary, &LAUNCHER)?;
             create_layer(app.handle(), "switcher", &primary, &SWITCHER)?;
+            create_layer(app.handle(), "tvbar", &primary, &TVBAR)?;
             create_layer(app.handle(), "wifi", &primary, &WIFI)?;
             create_layer(app.handle(), "power", &primary, &POWER)?;
             create_layer(app.handle(), "traymenu", &primary, &TRAY_MENU)?;

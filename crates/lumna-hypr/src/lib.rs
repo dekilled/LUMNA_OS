@@ -66,6 +66,37 @@ fn fullscreen(v: &Value) -> i64 {
     }
 }
 
+/// `[x, y]` de um campo do JSON (`at`, `size`).
+fn pair(v: &Value, key: &str) -> (i32, i32) {
+    let get = |i: usize| v.get(key).and_then(|p| p.get(i)).and_then(Value::as_i64).unwrap_or_default() as i32;
+    (get(0), get(1))
+}
+
+fn reserved(m: &Value) -> [i32; 4] {
+    let get = |i: usize| m.get("reserved").and_then(|r| r.get(i)).and_then(Value::as_i64).unwrap_or_default() as i32;
+    [get(0), get(1), get(2), get(3)]
+}
+
+fn window_from(c: &Value) -> Window {
+    let (x, y) = pair(c, "at");
+    let (width, height) = pair(c, "size");
+    Window {
+        address: text(c, "address"),
+        class: text(c, "class"),
+        title: text(c, "title"),
+        workspace: c.get("workspace").map(|w| int(w, "id")).unwrap_or_default(),
+        workspace_name: c.get("workspace").map(|w| text(w, "name")).unwrap_or_default(),
+        monitor: int(c, "monitor"),
+        fullscreen: fullscreen(c),
+        x,
+        y,
+        width,
+        height,
+        floating: c.get("floating").and_then(Value::as_bool).unwrap_or(false),
+        focus_history: c.get("focusHistoryID").and_then(Value::as_i64).unwrap_or(i64::MAX),
+    }
+}
+
 fn scale(m: &Value) -> f64 {
     m.get("scale").and_then(Value::as_f64).filter(|s| *s > 0.0).unwrap_or(1.0)
 }
@@ -219,6 +250,7 @@ impl Compositor for Hyprland {
                 height: logical_size(m).1,
                 scale: scale(m),
                 label: monitor_label(m),
+                reserved: reserved(m),
             })
             .collect())
     }
@@ -279,15 +311,7 @@ impl Compositor for Hyprland {
             .into_iter()
             .flatten()
             .filter(|c| c.get("mapped").and_then(Value::as_bool).unwrap_or(true))
-            .map(|c| Window {
-                address: text(c, "address"),
-                class: text(c, "class"),
-                title: text(c, "title"),
-                workspace: c.get("workspace").map(|w| int(w, "id")).unwrap_or_default(),
-                workspace_name: c.get("workspace").map(|w| text(w, "name")).unwrap_or_default(),
-                monitor: int(c, "monitor"),
-                fullscreen: fullscreen(c),
-            })
+            .map(window_from)
             .collect())
     }
 
@@ -307,15 +331,7 @@ impl Compositor for Hyprland {
         if address.is_empty() {
             return Ok(None);
         }
-        Ok(Some(Window {
-            address,
-            class: text(&w, "class"),
-            title: text(&w, "title"),
-            workspace: w.get("workspace").map(|ws| int(ws, "id")).unwrap_or_default(),
-            workspace_name: w.get("workspace").map(|ws| text(ws, "name")).unwrap_or_default(),
-            monitor: int(&w, "monitor"),
-            fullscreen: fullscreen(&w),
-        }))
+        Ok(Some(window_from(&w)))
     }
 
     fn close_active_window(&self) -> Result<()> {
@@ -354,6 +370,19 @@ impl Compositor for Hyprland {
     fn maximize_window(&self, address: &str) -> Result<()> {
         self.focus_window(address)?;
         self.dispatch("hl.dsp.window.fullscreen({ mode = \"maximized\" })", "fullscreen 1")
+    }
+
+    fn place_window(&self, address: &str, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
+        let window = window_selector(address)?;
+        let lua = lua_string(&window)?;
+        self.dispatch(
+            &format!("hl.dsp.window.resize({{ x = {}, y = {}, window = {lua} }})", width.max(1), height.max(1)),
+            &format!("resizewindowpixel exact {} {},{window}", width.max(1), height.max(1)),
+        )?;
+        self.dispatch(
+            &format!("hl.dsp.window.move({{ x = {x}, y = {y}, window = {lua} }})"),
+            &format!("movewindowpixel exact {x} {y},{window}"),
+        )
     }
 
     fn exec(&self, command: &str) -> Result<()> {

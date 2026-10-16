@@ -251,10 +251,11 @@ if hl.plugin and hl.plugin.hyprbars then
         action = "lumna-ctl window minimize",
     })
 
-    -- As janelas do próprio LUMNA (Configurações, Loja, Arquivos) já têm a barra delas.
+    -- As janelas do próprio LUMNA (Configurações, Loja, Arquivos) já têm a barra delas; o Firefox
+    -- da Mídia (lumna-tv) é tela cheia.
     hl.window_rule({
         name = "lumna-own-bar",
-        match = { class = "^(lumna-shell|os\\.lumna\\.shell)$" },
+        match = { class = "^(lumna-shell|os\\.lumna\\.shell|lumna-tv)$" },
         ["hyprbars:no_bar"] = true,
     })
 end
@@ -272,8 +273,9 @@ hl.bind(mod .. " + B", hl.dsp.exec_cmd("firefox"))
 hl.bind(mod .. " + I", hl.dsp.exec_cmd("lumna-ctl settings"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("lumna-ctl store"))
 hl.bind(mod .. " + A", hl.dsp.exec_cmd("lumna-ctl emma"))
--- Na Mídia: fecha o serviço/vídeo em tela cheia e volta para a tela da Mídia.
-hl.bind(mod .. " + Escape", hl.dsp.exec_cmd("lumna-ctl media home"))
+-- Na Mídia: barra de serviços por cima do streaming/vídeo (trocar de serviço, voltar ao Início).
+hl.bind(mod .. " + M", hl.dsp.exec_cmd("lumna-ctl media menu"))
+hl.bind(mod .. " + Escape", hl.dsp.exec_cmd("lumna-ctl media menu"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mod .. " + T", hl.dsp.window.float({ action = "toggle" }))

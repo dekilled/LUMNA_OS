@@ -175,6 +175,7 @@ mod tests {
             height,
             scale: 1.0,
             label: name.into(),
+            reserved: [0; 4],
         }
     }
 

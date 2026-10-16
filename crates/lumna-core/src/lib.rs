@@ -33,6 +33,8 @@ pub struct Monitor {
     pub scale: f64,
     /// Fabricante e modelo, para mostrar à pessoa (ex.: "Samsung Odyssey G5").
     pub label: String,
+    /// Espaço reservado nas bordas (esquerda, cima, direita, baixo) por topbar e dock.
+    pub reserved: [i32; 4],
 }
 
 /// Teclado principal: os layouts configurados (`br`, `us`...) e qual está em uso.
@@ -55,6 +57,14 @@ pub struct Window {
     pub monitor: i64,
     /// 0 = normal, 1 = maximizada, 2 = tela cheia.
     pub fullscreen: i64,
+    /// Posição e tamanho no layout (sem a barra de título e a borda).
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub floating: bool,
+    /// Ordem do último foco (0 = a mais recente).
+    pub focus_history: i64,
 }
 
 /// Workspace escondido onde ficam as janelas minimizadas (o Hyprland não tem "minimizar").
@@ -117,6 +127,8 @@ pub trait Compositor: Send + Sync {
     fn fullscreen_window(&self, address: &str) -> Result<()>;
     /// Liga ou desliga o "maximizado" (ocupa a área toda, sem cobrir a topbar).
     fn maximize_window(&self, address: &str) -> Result<()>;
+    /// Põe uma janela flutuante nesta posição e tamanho (coordenadas do layout).
+    fn place_window(&self, address: &str, x: i32, y: i32, width: i32, height: i32) -> Result<()>;
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
     /// Põe o monitor na posição (x, y) do layout, mantendo a resolução preferida e a escala.
