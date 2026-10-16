@@ -19,6 +19,11 @@ Suporta só GPUs **AMD e Intel**.
 
 ![Tela de Mídia](docs/fase4-midia.png)
 
+## No celular
+
+O LUMNA também roda no **OnePlus 6T** (Arch Linux ARM com kernel mainline): veja [mobile/README.md](mobile/README.md).
+Por enquanto é o sistema base com SSH pela USB; a interface de celular é o próximo passo.
+
 ## Estrutura
 
 ```
@@ -32,6 +37,7 @@ packages/             PKGBUILDs dos pacotes lumna-*
 iso/                  perfil do ISO (releng do archiso + overlay do LUMNA) e ambiente de build
 remote/android/        LUMNA Controle: app Android de controle remoto (Kotlin)
 scripts/              build-iso.sh, run-vm.sh, make-art.py
+mobile/               LUMNA no celular: kernel, initramfs, rootfs ARM e flash (OnePlus 6T)
 ```
 
 ## Montar o ISO
