@@ -29,6 +29,9 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 
 ## Internet e chamadas
 
+✅ **Wi-Fi funcionando no 6T** (WCN3990 pelo ath10k, conectado pelo NetworkManager) e o modem
+ligado (`remoteproc running`, ModemManager enxerga). Falta: dados móveis e chamadas.
+
 `session/modem-wifi.sh` (no celular) compila do AUR a pilha da Qualcomm que o postmarketOS usa
 (qrtr, rmtfs, pd-mapper, tqftpserv), põe a calibração do Wi-Fi do OnePlus e liga o ModemManager.
 O Wi-Fi do 6T só sobe com o modem rodando. Depois de reiniciar: `sh session/modem-wifi.sh status`.
