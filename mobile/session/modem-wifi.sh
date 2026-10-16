@@ -15,7 +15,7 @@ if [ "${1:-}" = status ]; then
     echo "== processadores (modem e DSPs tem que estar 'running')"
     for r in /sys/class/remoteproc/remoteproc*; do printf '%s: %s %s\n' "$(cat $r/name)" "$(cat $r/state)" "$(cat $r/firmware 2>/dev/null)"; done
     echo "== serviços"
-    systemctl is-active rmtfs pd-mapper tqftpserv ModemManager NetworkManager | paste -sd' '
+    systemctl is-active rmtfs pd-mapper tqftpserv lumna-sim ModemManager NetworkManager | paste -sd' '
     echo "== Wi-Fi"
     nmcli -t device | grep -i wifi || echo "sem wlan0 ainda"
     echo "== modem (SIM, operadora)"
@@ -56,8 +56,12 @@ sudo mkdir -p /etc/systemd/system/rmtfs.service.d
 printf '[Service]\nExecStart=\nExecStart=/usr/bin/rmtfs -r -P -s\nRestart=always\n' |
     sudo tee /etc/systemd/system/rmtfs.service.d/lumna.conf >/dev/null
 
+# ativa o chip no modem a cada boot (no mainline ninguém abre a sessão do SIM; veja lumna-sim.sh)
+sudo install -Dm755 "$(dirname "$0")/lumna-sim.sh" /usr/lib/lumna/lumna-sim
+sudo install -Dm644 "$(dirname "$0")/lumna-sim.service" /etc/systemd/system/lumna-sim.service
+
 sudo systemctl daemon-reload
-for s in rmtfs pd-mapper tqftpserv ModemManager NetworkManager; do
+for s in rmtfs pd-mapper tqftpserv lumna-sim ModemManager NetworkManager; do
     sudo systemctl enable "$s" 2>/dev/null || echo "aviso: não achei o serviço $s"
 done
 echo

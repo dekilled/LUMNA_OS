@@ -1,0 +1,13 @@
+[Unit]
+Description=Ativa o chip (SIM) no modem do LUMNA
+After=rmtfs.service pd-mapper.service tqftpserv.service
+Wants=rmtfs.service
+Before=ModemManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/lumna/lumna-sim
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target
