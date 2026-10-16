@@ -62,6 +62,10 @@ systemctl disable systemd-networkd systemd-networkd.socket systemd-networkd-wait
 # henchman: o pau-mandado oficial. É só um apelido; o pacman continua lá pro makepkg e pros helpers do AUR
 ln -sf /usr/bin/pacman /usr/local/bin/henchman
 echo lumna > /etc/hostname
+# sem isto os programas reclamam que "C" não é UTF-8
+sed -i 's/^#\(pt_BR.UTF-8\|en_US.UTF-8\)/\1/' /etc/locale.gen
+locale-gen
+echo LANG=pt_BR.UTF-8 > /etc/locale.conf
 echo 'LABEL=lumna-root / ext4 defaults,noatime 0 1' > /etc/fstab
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/wheel
 # Rede USB fixa: o PC conversa com o celular em 172.16.42.1
