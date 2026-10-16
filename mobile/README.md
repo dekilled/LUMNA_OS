@@ -14,10 +14,12 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 ## A interface
 
 1. ✅ Hyprland no 6T: tela, toque e GPU Adreno 630 pelo freedreno (`session/primeira-tela.sh`).
-2. `lumna-shell --mobile`: barra de status, Início (relógio e "Pergunte à Emma"), aba Apps e
+2. ✅ `lumna-shell --mobile` rodando no 6T (a bateria já aparece na barra de status): barra de status, Início (relógio e "Pergunte à Emma"), aba Apps e
    barra de navegação (Início, Apps, Arquivos, Ajustes, Emma). Arquivos, Ajustes e Emma abrem os
    mesmos apps do PC. Compila no celular com `sh mobile/session/lumna-mobile.sh`.
 3. Falta: teclado virtual, gestos, Arquivos e Ajustes no formato do celular, tela de bloqueio.
+
+![LUMNA no OnePlus 6T](docs/6t-primeiro-boot.jpg)
 
 | Início | Apps |
 |---|---|
