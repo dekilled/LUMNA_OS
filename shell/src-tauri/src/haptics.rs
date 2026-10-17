@@ -73,7 +73,8 @@ impl Motor {
         for kind in kinds {
             let mut union = [0u16; 16];
             match kind {
-                FF_RUMBLE => union[0] = 0xffff,
+                // forte e fraco no máximo: cada driver lê um (o memless junta os dois)
+                FF_RUMBLE => union = [0xffff, 0xffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 FF_PERIODIC => {
                     union[0] = FF_SINE; // waveform
                     union[1] = 10; // period (ms)
