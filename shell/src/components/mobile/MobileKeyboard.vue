@@ -7,7 +7,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
 import { clipboardRead, keyboardKey, keyboardShow, keyboardType, on } from "../../system";
 
-type Page = "letras" | "simbolos" | "simbolos2" | "clipboard";
+type Page = "letras" | "simbolos" | "simbolos2" | "clipboard" | "ajustes";
 const page = ref<Page>("letras");
 const terminal = ref(false);
 const shift = ref<"off" | "once" | "lock">("off");
@@ -70,14 +70,50 @@ async function key(name: string) {
   await keyboardKey(name, m);
 }
 
-// apagar segurando: repete
+// ---- ajustes do teclado (⚙ no rodapé), guardados neste aparelho ----
+
+interface Settings {
+  /** apagar segurando repete */
+  repeat: boolean;
+  /** espera antes de começar a repetir (ms) */
+  repeatDelay: number;
+  /** intervalo entre as repetições (ms) */
+  repeatRate: number;
+  suggestions: boolean;
+}
+const SETTINGS = "lumna.keyboard.settings";
+const settings = ref<Settings>({ repeat: true, repeatDelay: 500, repeatRate: 120, suggestions: true });
+try {
+  settings.value = { ...settings.value, ...JSON.parse(localStorage.getItem(SETTINGS) ?? "{}") };
+} catch {}
+const saveSettings = () => {
+  try {
+    localStorage.setItem(SETTINGS, JSON.stringify(settings.value));
+  } catch {}
+};
+const speeds = [
+  { label: "Lenta", rate: 200 },
+  { label: "Média", rate: 120 },
+  { label: "Rápida", rate: 60 },
+];
+
+// apagar segurando: um toque apaga um; segurando, espera e repete no ritmo dos ajustes.
+// O dedo é "capturado" pela tecla, e qualquer jeito de soltar (levantar, cancelar, sair) para.
 let repeat = 0;
 let delay = 0;
-function holdStart(name: string) {
+let holding = false;
+function holdStart(e: PointerEvent, name: string) {
+  if (holding) return;
+  holding = true;
+  (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   key(name);
-  delay = window.setTimeout(() => (repeat = window.setInterval(() => key(name), 70)), 400);
+  if (!settings.value.repeat) return;
+  delay = window.setTimeout(() => {
+    repeat = window.setInterval(() => (holding ? key(name) : holdEnd()), settings.value.repeatRate);
+  }, settings.value.repeatDelay);
 }
 function holdEnd() {
+  holding = false;
   clearTimeout(delay);
   clearInterval(repeat);
 }
@@ -99,15 +135,19 @@ const learned = ref<Record<string, number>>({});
 try {
   learned.value = JSON.parse(localStorage.getItem(STORE) ?? "{}");
 } catch {}
-function learn(w: string) {
-  learned.value[w] = (learned.value[w] ?? 0) + 1;
+function saveLearned() {
   try {
     localStorage.setItem(STORE, JSON.stringify(learned.value));
   } catch {}
 }
+function learn(w: string) {
+  learned.value[w] = (learned.value[w] ?? 0) + 1;
+  saveLearned();
+}
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const suggestions = computed(() => {
+  if (!settings.value.suggestions) return [];
   const all = [...Object.keys(learned.value).sort((a, b) => learned.value[b] - learned.value[a]), ...BASE];
   const unique = [...new Set(all)];
   if (!word.value) return unique.slice(0, 3);
@@ -217,6 +257,41 @@ onUnmounted(() => stop?.());
       </div>
     </template>
 
+    <!-- ajustes do teclado -->
+    <template v-else-if="page === 'ajustes'">
+      <div class="row top">
+        <button class="key icon" @click="page = 'letras'"><Icon name="back" :size="22" /></button>
+        <div class="title">Ajustes do teclado</div>
+      </div>
+      <div class="prefs">
+        <label class="pref">
+          <span>Apagar segurando repete</span>
+          <input v-model="settings.repeat" type="checkbox" @change="saveSettings" />
+        </label>
+        <div class="pref" :class="{ off: !settings.repeat }">
+          <span>Espera antes de repetir <b>{{ (settings.repeatDelay / 1000).toFixed(1) }} s</b></span>
+          <input v-model.number="settings.repeatDelay" type="range" min="250" max="1200" step="50" :disabled="!settings.repeat" @change="saveSettings" />
+        </div>
+        <div class="pref" :class="{ off: !settings.repeat }">
+          <span>Velocidade ao repetir</span>
+          <div class="seg">
+            <button
+              v-for="s in speeds"
+              :key="s.rate"
+              :class="{ on: settings.repeatRate === s.rate }"
+              :disabled="!settings.repeat"
+              @click="settings.repeatRate = s.rate; saveSettings()"
+            >{{ s.label }}</button>
+          </div>
+        </div>
+        <label class="pref">
+          <span>Sugestões de palavras</span>
+          <input v-model="settings.suggestions" type="checkbox" @change="saveSettings" />
+        </label>
+        <button class="pref link" @click="learned = {}; saveLearned()">Esquecer as palavras aprendidas</button>
+      </div>
+    </template>
+
     <!-- letras e símbolos -->
     <template v-else>
       <div class="row top">
@@ -259,7 +334,13 @@ onUnmounted(() => stop?.());
         <button v-for="k in rows[2]" :key="k" class="key" @click="type(k)">{{ label(k) }}</button>
         <button v-if="page === 'simbolos'" class="key" @click="type('â')">â</button>
         <button v-if="page === 'simbolos2'" class="key" @click="type('ã')">ã</button>
-        <button class="key wide" @pointerdown="holdStart('BackSpace')" @pointerup="holdEnd" @pointerleave="holdEnd">
+        <button
+          class="key wide"
+          @pointerdown="holdStart($event, 'BackSpace')"
+          @pointerup="holdEnd"
+          @pointercancel="holdEnd"
+          @lostpointercapture="holdEnd"
+        >
           <Icon name="backspace" :size="20" />
         </button>
       </div>
@@ -274,6 +355,7 @@ onUnmounted(() => stop?.());
 
     <footer>
       <button @click="layout = layout === 'pt' ? 'en' : 'pt'"><Icon name="globe" :size="22" /> Trocar</button>
+      <button @click="page = page === 'ajustes' ? 'letras' : 'ajustes'"><Icon name="settings" :size="20" /> Ajustes</button>
       <button @click="keyboardShow(false)"><Icon name="chevron-down" :size="22" /> Ocultar</button>
     </footer>
     <div class="handle" />
@@ -437,6 +519,68 @@ onUnmounted(() => stop?.());
   font-size: 13px;
   text-align: center;
   padding-top: 20px;
+}
+.prefs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pref {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #1d1d22;
+  font-size: 14px;
+}
+label.pref {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.pref.off {
+  opacity: 0.45;
+}
+.pref b {
+  color: var(--lumna-violet-soft);
+  font-weight: 500;
+}
+.pref input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #9a7cf4;
+}
+.pref input[type="range"] {
+  accent-color: #9a7cf4;
+}
+.pref.link {
+  border: 0;
+  color: #e7a3a3;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+.seg {
+  display: flex;
+  gap: 5px;
+}
+.seg button {
+  flex: 1;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: #2a2a31;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.seg button.on {
+  background: #3c3355;
+  color: var(--lumna-violet-soft);
 }
 footer {
   margin-top: auto;
