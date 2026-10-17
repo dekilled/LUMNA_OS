@@ -79,6 +79,15 @@ const paths: Record<string, string> = {
   dock: "M3 4h18v16H3zM7 16h10",
   pin: "M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v6",
   waves: "M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4",
+  "arrow-left": "M19 12H5M11 6l-6 6 6 6",
+  "arrow-right": "M5 12h14M13 6l6 6-6 6",
+  "arrow-up": "M12 19V5M6 11l6-6 6 6",
+  "arrow-down": "M12 5v14M6 13l6 6 6-6",
+  shift: "M12 4l8 8h-4v7H8v-7H4z",
+  backspace: "M9 5h11v14H9l-6-7zM12 9l6 6M18 9l-6 6",
+  enter: "M20 5v7a3 3 0 0 1-3 3H5M9 11l-4 4 4 4",
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
+  dots: "M12 5h.01M12 12h.01M12 19h.01",
   music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
 };
 </script>

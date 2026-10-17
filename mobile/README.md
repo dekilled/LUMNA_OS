@@ -17,7 +17,15 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 2. ✅ `lumna-shell --mobile` rodando no 6T (a bateria já aparece na barra de status): barra de status, Início (relógio e "Pergunte à Emma"), aba Apps e
    barra de navegação (Início, Apps, Arquivos, Ajustes, Emma). Arquivos, Ajustes e Emma abrem os
    mesmos apps do PC. Compila no celular com `sh mobile/session/lumna-mobile.sh`.
-3. Falta: teclado virtual, gestos, Arquivos e Ajustes no formato do celular, tela de bloqueio.
+3. LUMNA Keyboard (`shell/src/components/mobile/MobileKeyboard.vue` + `touchkeys.rs`): letras ABNT
+   com ç, símbolos e acentos, fileira do terminal (Esc, Tab, Ctrl, Alt, Home, End), sugestões que
+   aprendem as palavras, área de transferência com fixados. Abre sozinho nos campos do LUMNA; nos
+   outros apps, toque na barrinha de baixo. As teclas chegam ao app pelo teclado virtual do Wayland (wtype).
+
+   | Letras | Terminal | Área de transferência |
+   |---|---|---|
+   | ![](docs/teclado-letras.png) | ![](docs/teclado-terminal.png) | ![](docs/teclado-clipboard.png) |
+4. Falta: gestos, Arquivos e Ajustes no formato do celular, tela de bloqueio.
 
 ![LUMNA no OnePlus 6T](docs/6t-primeiro-boot.jpg)
 

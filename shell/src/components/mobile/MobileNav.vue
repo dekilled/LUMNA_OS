@@ -4,7 +4,7 @@
 import { ref } from "vue";
 import { emit } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
-import { filesWindow, settingsOpen, toggleEmma } from "../../system";
+import { filesWindow, keyboardToggle, settingsOpen, toggleEmma } from "../../system";
 import { isMinimized, windowControl, windows } from "../../compositor";
 
 type Tab = "inicio" | "apps" | "arquivos" | "ajustes" | "emma";
@@ -53,7 +53,8 @@ async function go(tab: Tab) {
       <span>{{ item.label }}</span>
     </button>
   </nav>
-  <div class="handle" />
+  <!-- a barrinha abre o teclado nos apps que não são do LUMNA (terminal, navegador...) -->
+  <button class="handle-area" aria-label="Teclado" @click="keyboardToggle()"><div class="handle" /></button>
 </template>
 
 <style scoped>
@@ -81,8 +82,15 @@ button {
 button.on {
   color: var(--lumna-violet-soft);
 }
+.handle-area {
+  display: block;
+  width: 100%;
+  height: 26px;
+  border: 0;
+  background: none;
+}
 .handle {
-  margin: 10px auto 0;
+  margin: 0 auto;
   width: 120px;
   height: 4px;
   border-radius: 2px;

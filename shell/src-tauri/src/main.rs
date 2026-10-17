@@ -12,6 +12,7 @@ mod games;
 mod greeter;
 mod installer;
 mod keyboard;
+mod touchkeys;
 mod layer;
 mod lock;
 mod media;
@@ -268,6 +269,19 @@ const MOBILE_NAV: LayerSpec = LayerSpec {
     exclusive: Exclusive::Auto,
     size: (-1, 92),
     visible: true,
+};
+
+/// Celular: o LUMNA Keyboard, no rodapé e por cima de tudo (até do painel da Emma). Nunca pega o
+/// foco do teclado, para as teclas irem ao app em foco; reserva o espaço dele (os apps sobem).
+const KEYBOARD: LayerSpec = LayerSpec {
+    namespace: "lumna-keyboard",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Auto,
+    size: (-1, 352),
+    visible: false,
 };
 
 /// Tela de login (`lumna-shell --greeter`): a tela toda, com o teclado.
@@ -1425,6 +1439,10 @@ fn main() {
             actions::clipboard_write,
             emma::emma_status,
             emma::emma_login,
+            touchkeys::keyboard_type,
+            touchkeys::keyboard_key,
+            touchkeys::keyboard_show,
+            touchkeys::keyboard_toggle,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,
@@ -1452,6 +1470,8 @@ fn main() {
                 create_layer(app.handle(), "mobile-status", &primary, &MOBILE_STATUS)?;
                 create_layer(app.handle(), "mobile-nav", &primary, &MOBILE_NAV)?;
                 create_layer(app.handle(), "emma", &primary, &EMMA)?;
+                // por último: fica por cima da Emma (as duas são Overlay)
+                create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
                 forward_events(app.handle().clone(), compositor.clone());
                 status::watch(app.handle().clone());
                 wifi::watch(app.handle().clone());

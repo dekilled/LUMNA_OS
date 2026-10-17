@@ -744,3 +744,10 @@ export const trayActivate = (key: string, x: number, y: number, secondary = fals
   invoke<void>("tray_activate", { key, x, y, secondary });
 export const trayMenuOpen = (key: string, x: number) => invoke<void>("tray_menu_open", { key, x });
 export const trayMenuClick = (key: string, id: number) => invoke<void>("tray_menu_click", { key, id });
+
+// ---- LUMNA Keyboard (teclado na tela do celular) ----
+
+export const keyboardType = (text: string) => invoke<void>("keyboard_type", { text });
+export const keyboardKey = (key: string, mods: string[] = []) => invoke<void>("keyboard_key", { key, mods });
+export const keyboardShow = (show: boolean) => invoke<void>("keyboard_show", { show });
+export const keyboardToggle = () => invoke<void>("keyboard_toggle");

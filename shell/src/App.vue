@@ -10,6 +10,7 @@ import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
 import MobileHome from "./components/mobile/MobileHome.vue";
+import MobileKeyboard from "./components/mobile/MobileKeyboard.vue";
 import MobileNav from "./components/mobile/MobileNav.vue";
 import MobileStatus from "./components/mobile/MobileStatus.vue";
 import Notifications from "./components/Notifications.vue";
@@ -51,5 +52,6 @@ const label = getCurrentWebviewWindow().label;
   <MobileHome v-else-if="label === 'mobile-home'" />
   <MobileStatus v-else-if="label === 'mobile-status'" />
   <MobileNav v-else-if="label === 'mobile-nav'" />
+  <MobileKeyboard v-else-if="label === 'keyboard'" />
   <TextMenu />
 </template>
