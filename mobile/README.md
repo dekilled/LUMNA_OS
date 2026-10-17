@@ -160,6 +160,17 @@ Se faltar alguma coisa, o script avisa todos os comandos que faltam de uma vez e
 
 ### Compilar e testar
 
+**Compilar no PC (recomendado: no celular a RAM fica no limite):**
+```
+sh mobile/scripts/build-pc.sh                      # gera out/lumna-shell-*-aarch64.pkg.tar.zst
+sh mobile/scripts/build-pc.sh alarm@<ip-do-celular> # e já instala no celular pelo ssh
+```
+Compilação cruzada (o PC gera código ARM direto, sem emular), linkando contra um sysroot do
+Arch Linux ARM em `~/.cache/lumna/sysroot-aarch64` (baixado na primeira vez). No PC precisa de
+`rustup clang lld llvm pnpm nodejs base-devel`. No celular, com o pacote:
+`LUMNA_PACOTE=<arquivo> sh mobile/session/lumna-mobile.sh` (instala e configura, sem compilar).
+
+
 ```sh
 cd mobile/scripts
 ./backup.sh                                     # ANTES de tudo, com o Android ainda ligado e root

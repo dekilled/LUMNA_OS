@@ -3,6 +3,8 @@
 # Rode NO CELULAR, como alarm (sem sudo), dentro do clone do LUMNA_OS, com internet pela USB:
 #   sh mobile/session/lumna-mobile.sh
 # A compilação leva uns 30-60 min na primeira vez (Rust + WebKit no Snapdragon 845).
+# Mais leve: compile no PC (mobile/scripts/build-pc.sh), traga o pacote e rode
+#   LUMNA_PACOTE=lumna-shell-0.0.1-1-aarch64.pkg.tar.zst sh mobile/session/lumna-mobile.sh
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 [ "$(id -u)" != 0 ] || { echo "rode como alarm, sem sudo (o makepkg não roda como root)"; exit 1; }
@@ -26,9 +28,14 @@ if [ -n "${LUMNA_RAPIDO:-}" ]; then
     export CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
 fi
 
-# -f refaz o pacote, --nocheck pula os testes (lentos aqui), -i instala
-cd "$ROOT/packages/lumna-shell"
-makepkg -sfi --nocheck --noconfirm
+if [ -n "${LUMNA_PACOTE:-}" ]; then
+    # compilado no PC: só instala
+    sudo pacman -U --noconfirm "$(realpath "$LUMNA_PACOTE")"
+else
+    # -f refaz o pacote, --nocheck pula os testes (lentos aqui), -i instala
+    cd "$ROOT/packages/lumna-shell"
+    makepkg -sfi --nocheck --noconfirm
+fi
 
 # Bluetooth (WCN3990 pelo hci_uart; o firmware já vem no rootfs)
 sudo systemctl enable --now bluetooth.service || true

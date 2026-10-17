@@ -9,12 +9,14 @@ license=(GPL-3.0-or-later)
 depends=(webkit2gtk-4.1 gtk3 gtk-layer-shell hyprland wireplumber systemd-libs)
 provides=(notification-daemon)
 makedepends=(rust nodejs pnpm)
-options=(!lto !debug)
+options=(!lto !debug !strip)
 
 _root="$(realpath "$startdir/../..")"
 _target="${CARGO_TARGET_DIR:-$_root/target}"
 
 build() {
+  # Já compilado no PC (mobile/scripts/build-pc.sh): só empacota.
+  [ -z "${LUMNA_PREBUILT:-}" ] || return 0
   # No celular (aarch64) a RAM é curta: o rustc do lumna-shell, com muitas partes em paralelo,
   # passa da memória e o kernel mata ele (SIGKILL). Menos tarefas e menos partes ao mesmo tempo.
   if [ "$CARCH" = "aarch64" ]; then
@@ -32,11 +34,13 @@ build() {
 }
 
 check() {
+  [ -z "${LUMNA_PREBUILT:-}" ] || return 0
   cd "$_root"
   cargo test --release -p lumna-core -p lumna-hypr -p lumna-shell
 }
 
 package() {
-  install -Dm755 "$_target/release/lumna-shell" "$pkgdir/usr/bin/lumna-shell"
-  install -Dm755 "$_target/release/lumna-ctl" "$pkgdir/usr/bin/lumna-ctl"
+  local bin="${LUMNA_PREBUILT:-$_target/release}"
+  install -Dm755 "$bin/lumna-shell" "$pkgdir/usr/bin/lumna-shell"
+  install -Dm755 "$bin/lumna-ctl" "$pkgdir/usr/bin/lumna-ctl"
 }
