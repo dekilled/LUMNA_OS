@@ -365,6 +365,19 @@ const TVBAR: LayerSpec = LayerSpec {
     visible: false,
 };
 
+/// Cortina da Mídia: cobre a tela enquanto um serviço abre, volta ou sai (a mesma transição
+/// para todos, sem página branca carregando nem janela sumindo de repente).
+const TVCURTAIN: LayerSpec = LayerSpec {
+    namespace: "lumna-tvcurtain",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+
 const NOTIFICATIONS: LayerSpec = LayerSpec {
     namespace: "lumna-notifications",
     layer: Layer::Overlay,
@@ -881,7 +894,29 @@ pub fn pad_action(app: &AppHandle, action: pad::Action) {
         }
         return;
     }
-    if matches!(compositor.active_window(), Ok(Some(_))) {
+    if let Ok(Some(window)) = compositor.active_window() {
+        // Serviço ou vídeo da Mídia na frente: o controle (e o celular) mexe nele; voltar e menu
+        // abrem a barra de serviços. Fora da Mídia, o controle é do app.
+        if window.workspace_name.starts_with("media-") {
+            let key = match action {
+                pad::Action::Left => Some("Left"),
+                pad::Action::Right => Some("Right"),
+                pad::Action::Up => Some("Up"),
+                pad::Action::Down => Some("Down"),
+                pad::Action::Accept => Some("Return"),
+                _ => None,
+            };
+            match key {
+                Some(key) => {
+                    if let Err(err) = compositor.send_key(&window.address, key) {
+                        eprintln!("lumna-shell: tecla para {}: {err}", window.class);
+                    }
+                }
+                None => {
+                    let _ = media_menu(app);
+                }
+            }
+        }
         return;
     }
     let monitor = compositor.monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused)).map(|m| m.name);
@@ -1020,14 +1055,90 @@ fn tv_changed(app: &AppHandle, monitor: &str) {
 /// Volta para o Início da Mídia neste monitor: o serviço da frente vira Recente (e fica vivo,
 /// estacionado) e o vídeo local fecha (o mpv guarda onde parou).
 fn go_home(app: &AppHandle, monitor: &str) -> Result<(), String> {
-    close_tvbar(app);
     let compositor = app.state::<SharedCompositor>().inner().clone();
-    for window in media_others(compositor.as_ref(), monitor) {
+    let tv = app.state::<tv::Tv>();
+    let others = media_others(compositor.as_ref(), monitor);
+    let playing = tv.playing(compositor.as_ref(), monitor).is_some();
+    if !playing && others.is_empty() {
+        close_tvbar(app);
+        return Ok(());
+    }
+    // A miniatura do Recente sai antes da cortina (aberta pela barra, o print já foi tirado).
+    if playing && tv.bar().is_none() {
+        tv.snapshot(monitor);
+    }
+    close_tvbar(app);
+    curtain(app, monitor, None, true);
+    for window in others {
         let _ = compositor.close_window(&window.address);
     }
-    app.state::<tv::Tv>().home(compositor.as_ref(), monitor)?;
+    let result = tv.home(compositor.as_ref(), monitor);
     tv_changed(app, monitor);
-    Ok(())
+    media_focus(app);
+    curtain(app, monitor, None, false);
+    result.map(|_| ())
+}
+
+/// Cortina da Mídia neste monitor: fecha (cobrindo a tela com o nome do serviço, ou "Início") e
+/// espera cobrir; ou abre, mostrando o que ficou por baixo.
+fn curtain(app: &AppHandle, monitor: &str, service: Option<&str>, closed: bool) {
+    let Some((x, y)) = app
+        .state::<SharedCompositor>()
+        .monitors()
+        .ok()
+        .and_then(|list| list.into_iter().find(|m| m.name == monitor))
+        .map(|m| (m.x, m.y))
+    else {
+        return;
+    };
+    let name = service.and_then(|id| media::SERVICES.iter().find(|s| s.id == id)).map(|s| s.name);
+    let payload = serde_json::json!({ "closed": closed, "service": service, "name": name.unwrap_or("Início") });
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if closed {
+            layer::move_to_monitor_at("tvcurtain", x, y);
+            layer::set_visible("tvcurtain", true);
+        }
+        let _ = handle.emit_to("tvcurtain", "lumna://tvcurtain", payload);
+    });
+    if closed {
+        // O tempo do fade de entrada (TvCurtain.vue): só mexe nas janelas com a tela coberta.
+        std::thread::sleep(std::time::Duration::from_millis(280));
+    }
+}
+
+/// Teclado na tela da Mídia: a tela Início do monitor em foco, sem nada na frente, fica com o
+/// teclado (setas e Enter funcionam sem clicar; antes, depois de voltar ao Início, nada respondia).
+/// As outras soltam o teclado, para não prender quem está trabalhando no outro monitor.
+pub fn media_focus(app: &AppHandle) {
+    use std::sync::Mutex as StdMutex;
+    static APPLIED: StdMutex<Option<HashMap<String, bool>>> = StdMutex::new(None);
+    let compositor = app.state::<SharedCompositor>().inner().clone();
+    let (Ok(monitors), Ok(windows)) = (compositor.monitors(), compositor.windows()) else { return };
+    let modes = app.state::<Modes>().snapshot(None).modes;
+    let positions = app.state::<MonitorPositions>().0.lock().unwrap().clone();
+    let bar_open = app.state::<tv::Tv>().bar().is_some();
+    let mut wanted = Vec::new();
+    for (label, pos) in positions.iter().filter(|(label, _)| label.starts_with("mode-")) {
+        let Some(monitor) = monitors.iter().find(|m| (m.x, m.y) == *pos) else { continue };
+        let workspace = format!("media-{}", monitor.name);
+        let empty = !windows.iter().any(|w| w.workspace_name == workspace);
+        let home = modes.get(&monitor.name).copied().unwrap_or_default() == Mode::Media;
+        wanted.push((label.clone(), monitor.focused && home && empty && !bar_open));
+    }
+    let changes: Vec<(String, bool)> = {
+        let mut applied = APPLIED.lock().unwrap();
+        let applied = applied.get_or_insert_with(HashMap::new);
+        wanted.into_iter().filter(|(label, on)| applied.insert(label.clone(), *on) != Some(*on)).collect()
+    };
+    if changes.is_empty() {
+        return;
+    }
+    let _ = app.run_on_main_thread(move || {
+        for (label, on) in changes {
+            layer::set_keyboard(&label, if on { KeyboardMode::Exclusive } else { KeyboardMode::OnDemand });
+        }
+    });
 }
 
 /// Abre um serviço (ou retoma uma página) na Mídia. Sem monitor, no monitor em foco, que entra no
@@ -1042,13 +1153,20 @@ pub fn media_open(app: &AppHandle, monitor: Option<String>, service: &str, url: 
             monitor_or_focused(app, None)?
         }
     };
-    close_tvbar(app);
     let compositor = app.state::<SharedCompositor>().inner().clone();
+    let tv = app.state::<tv::Tv>();
+    // O serviço que sai vira Recente: o print dele sai antes da cortina.
+    if tv.bar().is_none() && tv.playing(compositor.as_ref(), &monitor).is_some_and(|p| p != service) {
+        tv.snapshot(&monitor);
+    }
+    close_tvbar(app);
+    curtain(app, &monitor, Some(service), true);
     for window in media_others(compositor.as_ref(), &monitor) {
         let _ = compositor.close_window(&window.address);
     }
-    let result = app.state::<tv::Tv>().open(compositor.as_ref(), &monitor, service, url);
+    let result = tv.open(compositor.as_ref(), &monitor, service, url);
     tv_changed(app, &monitor);
+    curtain(app, &monitor, Some(service), false);
     if result.is_ok() {
         media_hint();
     }
@@ -1216,7 +1334,10 @@ fn apply_modes(app: &AppHandle, focused: Option<String>, show_switcher: bool) ->
     automation::modes_changed(app, &snapshot.modes);
     remote::modes_changed(&snapshot.modes);
     let docks = app.clone();
-    std::thread::spawn(move || dock::update(&docks, false));
+    std::thread::spawn(move || {
+        dock::update(&docks, false);
+        media_focus(&docks);
+    });
     let _ = app.emit("lumna://modes", snapshot);
     let handle = app.clone();
     app.run_on_main_thread(move || {
@@ -1262,10 +1383,17 @@ fn forward_events(app: AppHandle, compositor: SharedCompositor) {
                 if matches!(event, CompositorEvent::WorkspaceFocused { .. } | CompositorEvent::MonitorFocused { .. }) {
                     follow_workspaces(&app);
                 }
+                if let CompositorEvent::WindowOpened { address, .. } = &event {
+                    let (app, address) = (app.clone(), address.clone());
+                    std::thread::spawn(move || winmax::on_open(&app, &address));
+                }
                 automation::compositor_event(&app, &event);
                 // Janela maximizada, aberta, fechada ou trocada de workspace: o dock pode mudar.
                 if !matches!(event, CompositorEvent::ActiveWindowChanged) {
                     dock::update(&app, false);
+                }
+                if !matches!(event, CompositorEvent::KeyboardLayout { .. }) {
+                    media_focus(&app);
                 }
                 let _ = app.emit("lumna://compositor", event);
             });
@@ -1691,6 +1819,7 @@ fn main() {
             create_layer(app.handle(), "launcher", &primary, &LAUNCHER)?;
             create_layer(app.handle(), "switcher", &primary, &SWITCHER)?;
             create_layer(app.handle(), "tvbar", &primary, &TVBAR)?;
+            create_layer(app.handle(), "tvcurtain", &primary, &TVCURTAIN)?;
             create_layer(app.handle(), "wifi", &primary, &WIFI)?;
             create_layer(app.handle(), "power", &primary, &POWER)?;
             create_layer(app.handle(), "traymenu", &primary, &TRAY_MENU)?;

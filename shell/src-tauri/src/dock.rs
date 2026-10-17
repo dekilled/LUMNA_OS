@@ -192,6 +192,7 @@ pub fn update(app: &AppHandle, force: bool) {
     let docks = app.state::<Docks>();
     let config = docks.config.lock().unwrap().clone();
     let names: Vec<String> = monitors.iter().map(|m| m.name.clone()).collect();
+    crate::winmax::prune(app, &windows);
     let maxed = app.state::<crate::winmax::Maximized>();
 
     let mut changes = Vec::new();
@@ -217,6 +218,12 @@ pub fn update(app: &AppHandle, force: bool) {
     if changes.is_empty() {
         return;
     }
+    // Depois que o dock mudar de lugar, as janelas maximizadas ocupam o espaço que sobrou.
+    let refit = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        crate::winmax::refit(&refit);
+    });
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         for (label, (visible, look)) in changes {

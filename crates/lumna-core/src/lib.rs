@@ -131,6 +131,14 @@ pub trait Compositor: Send + Sync {
     fn maximize_window(&self, address: &str) -> Result<()>;
     /// Põe uma janela flutuante nesta posição e tamanho (coordenadas do layout).
     fn place_window(&self, address: &str, x: i32, y: i32, width: i32, height: i32) -> Result<()>;
+    /// Muda uma propriedade da janela (`rounding`, `border_size`...); `unset` volta ao padrão.
+    fn set_window_prop(&self, _address: &str, _prop: &str, _value: &str) -> Result<()> {
+        Err("o compositor não muda propriedades de janela".into())
+    }
+    /// Manda uma tecla (`Left`, `Return`, `space`...) direto para uma janela.
+    fn send_key(&self, _address: &str, _key: &str) -> Result<()> {
+        Err("o compositor não manda teclas".into())
+    }
     /// Roda um comando como filho do compositor (as janelas abrem no workspace atual).
     fn exec(&self, command: &str) -> Result<()>;
     /// Põe o monitor na posição (x, y) do layout, mantendo a resolução preferida e a escala.

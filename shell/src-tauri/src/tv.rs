@@ -102,6 +102,30 @@ impl Bidi {
         self.call("browsingContext.navigate", json!({ "context": context, "url": url, "wait": "none" })).map(|_| ())
     }
 
+    /// Espera a página ter conteúdo (`interactive` ou `complete`), no máximo `limit`. Vale para a
+    /// cortina da Mídia não sair em cima de uma página branca.
+    fn wait_ready(&mut self, context: &str, limit: Duration) {
+        let deadline = Instant::now() + limit;
+        // Logo depois do navigate, o documento ainda é o about:blank anterior (já "complete").
+        std::thread::sleep(Duration::from_millis(300));
+        while Instant::now() < deadline {
+            let state = self
+                .call(
+                    "script.evaluate",
+                    json!({ "expression": "location.protocol + ' ' + document.readyState", "target": { "context": context }, "awaitPromise": false }),
+                )
+                .ok()
+                .and_then(|r| r["result"]["value"].as_str().map(String::from))
+                .unwrap_or_default();
+            if state.starts_with("http") && !state.ends_with("loading") {
+                // Mais um instante para a primeira pintura.
+                std::thread::sleep(Duration::from_millis(400));
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    }
+
     fn eval(&mut self, context: &str, expression: &str) -> Result<(), String> {
         self.call(
             "script.evaluate",
@@ -326,6 +350,9 @@ impl Tv {
                 let current = with_bidi(&mut inner, compositor, |b| b.url(&live.context)).unwrap_or_default();
                 if current != url {
                     with_bidi(&mut inner, compositor, |b| b.navigate(&live.context, url))?;
+                    if let Some(bidi) = inner.bidi.as_mut() {
+                        bidi.wait_ready(&live.context, Duration::from_secs(8));
+                    }
                 }
             }
             bring(compositor, &live.address, &workspace)?;
@@ -335,6 +362,9 @@ impl Tv {
             let (context, address) = new_window(&mut inner, compositor)?;
             with_bidi(&mut inner, compositor, |b| b.navigate(&context, url.unwrap_or(def.url)))?;
             bring(compositor, &address, &workspace)?;
+            if let Some(bidi) = inner.bidi.as_mut() {
+                bidi.wait_ready(&context, Duration::from_secs(8));
+            }
             inner.live.push(Live { monitor: monitor.into(), service: service.into(), context, address, used: now() });
             // No máximo 2 por monitor: fecha o usado há mais tempo.
             while inner.live.iter().filter(|l| l.monitor == monitor).count() > LIVE_PER_MONITOR {
