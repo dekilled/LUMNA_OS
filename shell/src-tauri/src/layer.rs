@@ -179,6 +179,11 @@ pub fn move_to_monitor_at(label: &str, x: i32, y: i32) {
     }
 }
 
+/// Troca quem recebe o teclado (a tela da Mídia pede o teclado só enquanto é a tela em uso).
+pub fn set_keyboard(label: &str, mode: KeyboardMode) {
+    with_layer(label, |layer| layer.set_keyboard_mode(mode));
+}
+
 /// Reposiciona a camada sem desmapear: bordas ancoradas, margem e reserva de espaço.
 /// Usado pelo dock, que muda de lugar e de forma conforme as configurações e as janelas.
 pub fn place(label: &str, anchors: &[Edge], margin: i32, exclusive: Exclusive) {

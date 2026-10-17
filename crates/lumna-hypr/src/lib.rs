@@ -341,7 +341,36 @@ impl Compositor for Hyprland {
 
     fn focus_window(&self, address: &str) -> Result<()> {
         let window = window_selector(address)?;
-        self.dispatch(&format!("hl.dsp.focus({{ window = {} }})", lua_string(&window)?), &format!("focuswindow {window}"))
+        let lua = lua_string(&window)?;
+        self.dispatch(&format!("hl.dsp.focus({{ window = {lua} }})"), &format!("focuswindow {window}"))?;
+        // O foco sozinho não tira a janela flutuante de baixo das outras: sobe ela para o topo.
+        let _ = self.dispatch(
+            &format!("hl.dsp.window.alter_zorder({{ mode = \"top\", window = {lua} }})"),
+            &format!("alterzorder top,{window}"),
+        );
+        Ok(())
+    }
+
+    fn set_window_prop(&self, address: &str, prop: &str, value: &str) -> Result<()> {
+        let window = window_selector(address)?;
+        if !prop.chars().chain(value.chars()).all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') {
+            return Err(format!("propriedade inválida: {prop} = {value}"));
+        }
+        self.dispatch(
+            &format!("hl.dsp.window.set_prop({{ prop = \"{prop}\", value = \"{value}\", window = {} }})", lua_string(&window)?),
+            &format!("setprop {window} {prop} {value}"),
+        )
+    }
+
+    fn send_key(&self, address: &str, key: &str) -> Result<()> {
+        let window = window_selector(address)?;
+        if key.is_empty() || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err(format!("tecla inválida: {key}"));
+        }
+        self.dispatch(
+            &format!("hl.dsp.send_shortcut({{ mods = \"\", key = \"{key}\", window = {} }})", lua_string(&window)?),
+            &format!("sendshortcut ,{key},{window}"),
+        )
     }
 
     fn close_window(&self, address: &str) -> Result<()> {

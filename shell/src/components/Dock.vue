@@ -5,7 +5,7 @@
 // - hidden: uma janela está maximizada — só uma faixa fina na borda, que traz o dock com o mouse;
 // - expanded: uma janela está maximizada — barra de largura inteira, ícones no centro (estilo Windows).
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { activeWindow, isMinimized, onCompositorEvent, windowControl, windows, type Window } from "../compositor";
+import { isMinimized, onCompositorEvent, windowControl, windows, type Window } from "../compositor";
 import {
   apps,
   DOCK_EMMA,
@@ -111,38 +111,41 @@ const windowsOf = (app: App) =>
     .sort((a, b) => parseInt(a.address, 16) - parseInt(b.address, 16));
 
 /**
- * Clique no app: sem janela abre; com janelas, passa para a próxima (e traz de volta a minimizada).
- * A referência é a janela do app usada por último (histórico de foco do compositor), não a em foco:
- * ao clicar no dock de outro monitor o foco vai para lá e a em foco deixa de ser do app.
+ * Clique no app: sem janela abre; com uma, traz ela para a frente (e de volta, se minimizada); com
+ * várias, abre a lista das janelas para escolher qual vem (o ciclo às cegas errava a janela).
  */
-async function activate(app: App) {
-  closeMenu();
-  const list = windowsOf(app);
+function activate(entry: Entry & { kind: "app" }) {
+  const list = windowsOf(entry.app);
   if (list.length === 0) {
-    if (!isLoose(app)) launchApp(app.id);
+    closeMenu();
+    if (!isLoose(entry.app)) launchApp(entry.app.id);
     return;
   }
-  // Lista nova: o histórico de foco muda a cada clique.
-  const fresh = await windows().catch(() => open.value);
-  const history = (w: Window) => fresh.find((f) => f.address === w.address)?.focus_history ?? Number.MAX_SAFE_INTEGER;
-  const recent = list.reduce((a, b) => (history(b) < history(a) ? b : a));
-  const current = await activeWindow().catch(() => null);
-  const otherApp = current !== null && !list.some((w) => w.address === current.address);
-  // Outro app na frente: volta a última usada (a minimizada primeiro); senão, a seguinte a ela.
-  const next = otherApp ? (list.find(isMinimized) ?? recent) : list[(list.indexOf(recent) + 1) % list.length];
-  windowControl("focus", next.address).catch((e) => console.error(e));
+  if (list.length === 1) {
+    closeMenu();
+    windowControl("focus", list[0].address).catch((e) => console.error(e));
+    return;
+  }
+  const same = menu.value?.key === entry.key && picker.value;
+  menu.value = same ? null : entry;
+  picker.value = !same;
 }
 
 // Menu do botão direito: janelas abertas, nova janela, fixar, fechar e as configurações do dock.
 const menu = ref<Entry | null>(null);
 
+/** Aberto pelo clique (só a lista de janelas), não pelo botão direito (o menu completo). */
+const picker = ref(false);
+
 function openMenu(event: MouseEvent, entry: Entry) {
   event.preventDefault();
-  menu.value = menu.value?.key === entry.key ? null : entry;
+  menu.value = menu.value?.key === entry.key && !picker.value ? null : entry;
+  picker.value = false;
 }
 
 function closeMenu() {
   menu.value = null;
+  picker.value = false;
 }
 
 function menuAction(run: () => unknown) {
@@ -296,6 +299,7 @@ onUnmounted(() => {
           </button>
           <span v-if="windowsOf(appMenu.app).length" class="line" />
           <button v-if="!isLoose(appMenu.app)" @click="newWindow"><Icon name="plus" :size="14" /><span class="label">Nova janela</span></button>
+          <template v-if="!picker">
           <button v-if="!isLoose(appMenu.app)" @click="togglePin">
             <Icon name="pin" :size="14" />
             <span class="label">{{ appMenu.pinned ? "Desafixar do dock" : "Fixar no dock" }}</span>
@@ -304,6 +308,7 @@ onUnmounted(() => {
             <Icon name="close" :size="14" />
             <span class="label">{{ windowsOf(appMenu.app).length > 1 ? "Fechar todas" : "Fechar" }}</span>
           </button>
+          </template>
         </template>
         <template v-else>
           <span class="menu-title">{{ menu.kind === "emma" ? "Emma" : "Todos os apps" }}</span>
@@ -311,10 +316,12 @@ onUnmounted(() => {
             <Icon name="close" :size="14" /><span class="label">Tirar do dock</span>
           </button>
         </template>
-        <span class="line" />
-        <button @click="menuAction(() => settingsOpen('dock'))">
-          <Icon name="settings" :size="14" /><span class="label">Configurações do dock…</span>
-        </button>
+        <template v-if="!picker">
+          <span class="line" />
+          <button @click="menuAction(() => settingsOpen('dock'))">
+            <Icon name="settings" :size="14" /><span class="label">Configurações do dock…</span>
+          </button>
+        </template>
       </div>
       <nav class="dock">
         <template v-for="entry in entries" :key="entry.key">
@@ -324,7 +331,7 @@ onUnmounted(() => {
             class="app"
             :class="{ open: menu?.key === entry.key }"
             :title="entry.app.name"
-            @click="activate(entry.app)"
+            @click="activate(entry)"
             @contextmenu="openMenu($event, entry)"
           >
             <img v-if="entry.app.icon" :src="entry.app.icon" alt="" />

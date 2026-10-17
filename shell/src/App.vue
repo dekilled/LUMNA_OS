@@ -30,6 +30,7 @@ import Switcher from "./components/Switcher.vue";
 import TextMenu from "./components/TextMenu.vue";
 import TrayMenu from "./components/TrayMenu.vue";
 import TvBar from "./components/TvBar.vue";
+import TvCurtain from "./components/TvCurtain.vue";
 import Topbar from "./components/Topbar.vue";
 import WifiMenu from "./components/WifiMenu.vue";
 
@@ -47,6 +48,7 @@ const label = getCurrentWebviewWindow().label;
   <ModeScreen v-else-if="label.startsWith('mode-')" />
   <Switcher v-else-if="label === 'switcher'" />
   <TvBar v-else-if="label === 'tvbar'" />
+  <TvCurtain v-else-if="label === 'tvcurtain'" />
   <WifiMenu v-else-if="label === 'wifi'" />
   <PowerMenu v-else-if="label === 'power'" />
   <TrayMenu v-else-if="label === 'traymenu'" />
