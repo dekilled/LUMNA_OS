@@ -103,19 +103,21 @@ interface Settings {
   suggestions: boolean;
 }
 const SETTINGS = "lumna.keyboard.settings";
-const settings = ref<Settings>({ repeat: true, repeatDelay: 500, repeatRate: 120, vibrate: true, vibrateMs: 15, suggestions: true });
+const settings = ref<Settings>({ repeat: true, repeatDelay: 500, repeatRate: 120, vibrate: true, vibrateMs: 30, suggestions: true });
 try {
   settings.value = { ...settings.value, ...JSON.parse(localStorage.getItem(SETTINGS) ?? "{}") };
 } catch {}
+// as forças antigas (10/18 ms) eram curtas demais pro motor do 6T
+if (![20, 30, 45].includes(settings.value.vibrateMs)) settings.value.vibrateMs = 30;
 const saveSettings = () => {
   try {
     localStorage.setItem(SETTINGS, JSON.stringify(settings.value));
   } catch {}
 };
 const buzzes = [
-  { label: "Leve", ms: 10 },
-  { label: "Média", ms: 18 },
-  { label: "Forte", ms: 30 },
+  { label: "Leve", ms: 20 },
+  { label: "Média", ms: 30 },
+  { label: "Forte", ms: 45 },
 ];
 const speeds = [
   { label: "Lenta", rate: 200 },

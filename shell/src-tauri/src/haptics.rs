@@ -15,6 +15,7 @@ const FF_RUMBLE: u16 = 0x50;
 const FF_PERIODIC: u16 = 0x51;
 const FF_CONSTANT: u16 = 0x52;
 const FF_SINE: u16 = 0x5a;
+const FF_GAIN: u16 = 0x60;
 /// _IOW('E', 0x80, struct ff_effect), com sizeof(ff_effect) = 48 no arm64/x86_64.
 const EVIOCSFF: libc::c_ulong = 0x4030_4580;
 
@@ -52,7 +53,13 @@ impl Motor {
             }
             let path = format!("/dev/input/{name}");
             match OpenOptions::new().read(true).write(true).open(&path) {
-                Ok(file) => return Ok(Motor { file, path, id: -1, kind: 0, length: 0 }),
+                Ok(file) => {
+                    let mut motor = Motor { file, path, id: -1, kind: 0, length: 0 };
+                    // Alguns drivers (o spmi_haptics do 6T entre eles) aceitam FF_GAIN; sem
+                    // ajustar, o ganho pode começar baixo. Ganho máximo: a força vem da duração.
+                    let _ = motor.send(FF_GAIN, 0xffff);
+                    return Ok(motor);
+                }
                 Err(e) => last = format!("{path}: {e}"),
             }
         }
@@ -98,11 +105,15 @@ impl Motor {
         if self.id < 0 || self.length != length {
             self.upload(length)?;
         }
-        // struct input_event: timeval (16 bytes, ignorado na escrita), type, code, value.
+        self.send(self.id as u16, 1)
+    }
+
+    /// struct input_event do tipo EV_FF: timeval (16 bytes, ignorado na escrita), type, code, value.
+    fn send(&mut self, code: u16, value: i32) -> Result<(), String> {
         let mut event = [0u8; 24];
         event[16..18].copy_from_slice(&EV_FF.to_ne_bytes());
-        event[18..20].copy_from_slice(&(self.id as u16).to_ne_bytes());
-        event[20..24].copy_from_slice(&1i32.to_ne_bytes());
+        event[18..20].copy_from_slice(&code.to_ne_bytes());
+        event[20..24].copy_from_slice(&value.to_ne_bytes());
         self.file.write_all(&event).map_err(|e| e.to_string())
     }
 }
@@ -150,11 +161,12 @@ fn sender() -> &'static Mutex<Sender<u16>> {
     })
 }
 
-/// Uma vibração de `ms` milissegundos (limitada entre 5 e 80).
+/// Uma vibração de `ms` milissegundos (limitada entre 15 e 80: o motor LRA do 6T precisa de uns
+/// 20 ms só pra embalar, abaixo disso não se sente nada).
 #[tauri::command]
 pub fn haptic(ms: u16) {
     if let Ok(tx) = sender().lock() {
-        let _ = tx.send(ms.clamp(5, 80));
+        let _ = tx.send(ms.clamp(15, 80));
     }
 }
 
