@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import AuthDialog from "./components/AuthDialog.vue";
 import Desktop from "./components/Desktop.vue";
 import Dock from "./components/Dock.vue";
 import EmmaPanel from "./components/EmmaPanel.vue";
 import FilesApp from "./components/files/FilesApp.vue";
+import MobileFiles from "./components/files/MobileFiles.vue";
 import GreeterApp from "./components/GreeterApp.vue";
 import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
@@ -35,6 +37,10 @@ import WifiMenu from "./components/WifiMenu.vue";
 
 // Cada janela do shell carrega o mesmo app; o rótulo diz qual peça desenhar.
 const label = getCurrentWebviewWindow().label;
+// janela estreita (celular): os apps com layout próprio de celular
+// (o compositor pode redimensionar a janela depois de abrir: acompanha)
+const narrow = ref(window.innerWidth < 600);
+window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600));
 </script>
 
 <template>
@@ -54,6 +60,7 @@ const label = getCurrentWebviewWindow().label;
   <SettingsApp v-else-if="label === 'settings'" />
   <StoreApp v-else-if="label === 'store'" />
   <AuthDialog v-else-if="label === 'auth'" />
+  <MobileFiles v-else-if="label.startsWith('files-') && narrow" />
   <FilesApp v-else-if="label.startsWith('files-')" />
   <InstallerApp v-else-if="label === 'installer'" />
   <GreeterApp v-else-if="label === 'greeter'" />

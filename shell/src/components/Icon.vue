@@ -45,6 +45,8 @@ const paths: Record<string, string> = {
   download: "M12 4v11M7 10l5 5 5-5M5 20h14",
   upload: "M12 20V9M7 14l5-5 5 5M5 4h14",
   menu: "M4 7h16M4 12h16M4 17h16",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+  external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
   minus: "M5 12h14",
   "skip-back": "M6 5v14M19 5L9 12l10 7z",
   "skip-forward": "M18 5v14M5 5l10 7-10 7z",
