@@ -11,6 +11,7 @@ import DockPage from "./DockPage.vue";
 import EnergyPage from "./EnergyPage.vue";
 import KeyboardPage from "./KeyboardPage.vue";
 import MobileDataPage from "./MobileDataPage.vue";
+import MobileSettings, { type MPage } from "./mobile/MobileSettings.vue";
 import NetworkPage from "./NetworkPage.vue";
 import PrintersPage from "./PrintersPage.vue";
 import SystemPage from "./SystemPage.vue";
@@ -34,15 +35,23 @@ const PAGES: { id: SettingsPage; label: string; icon: string; component: Compone
 const pick = (id: string | null | undefined) => PAGES.find((p) => p.id === id)?.id ?? "rede";
 const page = ref<SettingsPage>(pick(location.hash.slice(1)));
 
-// Tela estreita (celular): primeiro a lista; tocar num item abre a página, com "voltar".
+// Tela estreita (celular): os Ajustes com cara de celular (mobile/MobileSettings.vue).
 // Aberta já numa página (atalho da central, link do Telefone), vai direto nela.
 const narrow = ref(window.innerWidth < 600);
-const listing = ref(!location.hash.slice(1));
 const onResize = () => (narrow.value = window.innerWidth < 600);
-function choose(id: SettingsPage) {
-  page.value = id;
-  listing.value = false;
-}
+const MOBILE_PAGE: Partial<Record<string, MPage>> = {
+  rede: "wifi",
+  "dados-moveis": "dados",
+  bluetooth: "bluetooth",
+  som: "som",
+  telas: "tela",
+  "papel-de-parede": "tela",
+  dock: "tela",
+  teclado: "teclado",
+  energia: "energia",
+  sistema: "sistema",
+};
+const mobileStart = ref<MPage>(MOBILE_PAGE[location.hash.slice(1)] ?? "home");
 const current = () => PAGES.find((p) => p.id === page.value)!;
 
 const win = getCurrentWindow();
@@ -60,7 +69,7 @@ onMounted(async () => {
   stops.push(
     await on<string>("lumna://settings-page", (id) => {
       page.value = pick(id);
-      listing.value = false;
+      mobileStart.value = MOBILE_PAGE[id] ?? "home";
     }),
   );
 });
@@ -69,20 +78,18 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 </script>
 
 <template>
-  <div class="settings" :class="{ narrow }">
-    <WindowBar v-if="!narrow" title="Configurações" />
+  <MobileSettings v-if="narrow" :start="mobileStart" />
+  <div v-else class="settings">
+    <WindowBar title="Configurações" />
 
     <div class="body">
-      <nav v-if="!narrow || listing" class="sidebar">
-        <h1 v-if="narrow" class="list-title">Ajustes</h1>
-        <button v-for="p in PAGES" :key="p.id" :class="{ active: !narrow && p.id === page }" @click="choose(p.id)">
-          <Icon :name="p.icon" :size="narrow ? 22 : 18" />
+      <nav class="sidebar">
+        <button v-for="p in PAGES" :key="p.id" :class="{ active: p.id === page }" @click="page = p.id">
+          <Icon :name="p.icon" :size="18" />
           {{ p.label }}
-          <Icon v-if="narrow" class="chev" name="forward" :size="18" />
         </button>
       </nav>
-      <main v-if="!narrow || !listing" class="content">
-        <button v-if="narrow" class="back" @click="listing = true"><Icon name="arrow-left" :size="22" /> Ajustes</button>
+      <main class="content">
         <!-- Cada página é recriada ao entrar: a do Bluetooth procura aparelhos só enquanto está aberta. -->
         <component :is="current().component" :key="page" />
       </main>
@@ -145,46 +152,4 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   padding: 26px 32px 40px;
 }
 
-/* celular */
-.narrow .sidebar {
-  flex: 1;
-  width: auto;
-  padding: 24px 14px;
-  border-right: 0;
-  overflow-y: auto;
-  gap: 6px;
-}
-.narrow .sidebar button {
-  height: 56px;
-  padding: 0 16px;
-  gap: 16px;
-  border: 1px solid var(--lumna-line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--lumna-text);
-  font-size: 16px;
-}
-.narrow .sidebar .chev {
-  margin-left: auto;
-  color: var(--lumna-muted);
-}
-.list-title {
-  margin: 8px 6px 14px;
-  font-size: 32px;
-}
-.narrow .content {
-  padding: 16px 16px 40px;
-}
-.back {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  padding: 8px 4px;
-  border: 0;
-  background: none;
-  color: var(--lumna-violet-soft);
-  font: inherit;
-  font-size: 16px;
-}
 </style>

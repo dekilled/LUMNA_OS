@@ -888,3 +888,45 @@ export interface MobileData {
 }
 export const mobileDataInfo = () => invoke<MobileData>("mobile_data_info");
 export const mobileDataSet = (key: "apn" | "roaming" | "modes", value: string) => invoke<void>("mobile_data_set", { key, value });
+
+// ---- celular: Ajustes ----
+
+export interface WifiDetails {
+  ssid: string;
+  signal: number;
+  frequency: string;
+  security: string;
+  rate: string;
+  ipv4: string;
+  gateway: string;
+  dns: string[];
+  mac: string;
+}
+export const wifiAdd = (ssid: string, password: string, hidden: boolean) => invoke<void>("wifi_add", { ssid, password, hidden });
+export const wifiDetails = () => invoke<WifiDetails | null>("wifi_details");
+/** Fotos das pastas comuns (Imagens, Downloads, DCIM...), as mais novas primeiro. */
+export const wallpaperGallery = () => invoke<string[]>("wallpaper_gallery");
+/** Copia uma foto da galeria pra pasta de papéis de parede; devolve o caminho novo. */
+export const wallpaperImport = (path: string) => invoke<string>("wallpaper_import", { path });
+
+export interface Battery {
+  percent: number | null;
+  status: string;
+  health: number | null;
+  temperature: number | null;
+  voltage: number | null;
+  power: number | null;
+  cycles: number | null;
+  technology: string;
+}
+export const batteryInfo = () => invoke<Battery>("battery_info");
+
+export interface Profile {
+  name: string;
+  user: string;
+  host: string;
+  photo: string | null;
+}
+export const profileGet = () => invoke<Profile>("profile_get");
+export const profileSetName = (name: string) => invoke<void>("profile_set_name", { name });
+export const profileSetPhoto = (path: string) => invoke<void>("profile_set_photo", { path });

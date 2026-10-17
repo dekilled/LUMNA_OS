@@ -627,6 +627,119 @@ pub fn track_data_usage() {
     });
 }
 
+// ---- energia (bateria) ----
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Battery {
+    pub percent: Option<u8>,
+    /// Charging, Discharging, Full, Not charging
+    pub status: String,
+    /// capacidade atual em relação à de fábrica (%)
+    pub health: Option<u8>,
+    pub temperature: Option<f32>,
+    pub voltage: Option<f32>,
+    /// potência em watts (positiva carregando)
+    pub power: Option<f32>,
+    pub cycles: Option<u32>,
+    pub technology: String,
+}
+
+fn read_i64(dir: &Path, name: &str) -> Option<i64> {
+    std::fs::read_to_string(dir.join(name)).ok()?.trim().parse().ok()
+}
+
+#[tauri::command]
+pub fn battery_info() -> Battery {
+    let Some(dir) = first_entry("/sys/class/power_supply", |n| {
+        std::fs::read_to_string(format!("/sys/class/power_supply/{n}/type")).is_ok_and(|t| t.trim() == "Battery")
+    }) else {
+        return Battery::default();
+    };
+    let text = |name: &str| std::fs::read_to_string(dir.join(name)).map(|t| t.trim().to_string()).unwrap_or_default();
+    let full = read_i64(&dir, "charge_full").or_else(|| read_i64(&dir, "energy_full"));
+    let design = read_i64(&dir, "charge_full_design").or_else(|| read_i64(&dir, "energy_full_design"));
+    let status = text("status");
+    let current = read_i64(&dir, "current_now");
+    let volts = read_i64(&dir, "voltage_now").map(|v| v as f32 / 1_000_000.0);
+    Battery {
+        percent: read_i64(&dir, "capacity").map(|c| c.clamp(0, 100) as u8),
+        health: full.zip(design).filter(|(_, d)| *d > 0).map(|(f, d)| ((f * 100 / d).clamp(0, 100)) as u8),
+        temperature: read_i64(&dir, "temp").map(|t| t as f32 / 10.0),
+        voltage: volts,
+        power: current.zip(volts).map(|(c, v)| {
+            let watts = (c as f32 / 1_000_000.0 * v).abs();
+            if status == "Charging" { watts } else { -watts }
+        }),
+        cycles: read_i64(&dir, "cycle_count").filter(|c| *c > 0).map(|c| c as u32),
+        technology: text("technology"),
+        status,
+    }
+}
+
+// ---- perfil ----
+// O nome que o LUMNA mostra fica em ~/.config/lumna/profile.json; a foto é o ~/.face (o lugar
+// que as telas de login do Linux já procuram).
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Profile {
+    pub name: String,
+    pub user: String,
+    pub host: String,
+    pub photo: Option<String>,
+}
+
+fn home() -> PathBuf {
+    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"))
+}
+
+fn profile_file() -> PathBuf {
+    home().join(".config/lumna/profile.json")
+}
+
+#[tauri::command]
+pub fn profile_get(app: AppHandle) -> Profile {
+    let user = std::env::var("USER").unwrap_or_default();
+    let saved: serde_json::Value =
+        std::fs::read_to_string(profile_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    // sem nome salvo: o nome completo do /etc/passwd (campo GECOS), senão o usuário
+    let gecos = std::fs::read_to_string("/etc/passwd").ok().and_then(|p| {
+        p.lines()
+            .find(|l| l.starts_with(&format!("{user}:")))
+            .and_then(|l| l.split(':').nth(4))
+            .map(|g| g.split(',').next().unwrap_or("").to_string())
+    });
+    let face = home().join(".face");
+    let photo = face.exists().then(|| {
+        let _ = app.asset_protocol_scope().allow_file(&face);
+        face.to_string_lossy().to_string()
+    });
+    Profile {
+        name: saved["name"].as_str().map(str::to_string).or(gecos).filter(|n| !n.is_empty()).unwrap_or_else(|| user.clone()),
+        host: std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_default(),
+        user,
+        photo,
+    }
+}
+
+#[tauri::command]
+pub fn profile_set_name(name: String) -> Result<(), String> {
+    let file = profile_file();
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(file, serde_json::to_vec(&json!({ "name": name.trim() })).unwrap_or_default()).map_err(|e| e.to_string())
+}
+
+/// Foto do perfil: copia a imagem escolhida (da pasta pessoal) pro ~/.face.
+#[tauri::command]
+pub fn profile_set_photo(path: String) -> Result<(), String> {
+    let real = PathBuf::from(&path).canonicalize().map_err(|e| e.to_string())?;
+    if !real.starts_with(home()) {
+        return Err("Só dá pra usar imagens da sua pasta pessoal.".into());
+    }
+    std::fs::copy(real, home().join(".face")).map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -307,7 +307,18 @@ function openEmojis() {
 // ---- abrir e fechar ----
 
 let stop: UnlistenFn | null = null;
+// Os Ajustes (outra janela) mudam o mesmo armazenamento: aplica aqui na hora.
+function onStorage(e: StorageEvent) {
+  if (e.key === SETTINGS) {
+    try {
+      settings.value = { ...settings.value, ...JSON.parse(e.newValue ?? "{}") };
+    } catch {}
+  } else if (e.key === STORE) {
+    learned.value = {};
+  }
+}
 onMounted(async () => {
+  window.addEventListener("storage", onStorage);
   stop = await on<{ shown: boolean; lumna: boolean }>("lumna://keyboard", async ({ shown, lumna }) => {
     if (!shown) {
       page.value = "letras";
@@ -321,7 +332,10 @@ onMounted(async () => {
     bar.value = terminal.value ? "atalhos" : "ferramentas";
   });
 });
-onUnmounted(() => stop?.());
+onUnmounted(() => {
+  stop?.();
+  window.removeEventListener("storage", onStorage);
+});
 </script>
 
 <template>

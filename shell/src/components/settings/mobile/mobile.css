@@ -1,0 +1,278 @@
+/* Ajustes no celular: o visual dos esboços (cartões escuros, linhas grandes, toggles roxos). */
+
+.ms {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 105% -12%, transparent 30%, rgba(167, 139, 250, 0.45) 31%, rgba(91, 33, 182, 0.22) 33%, transparent 42%),
+    #090713;
+  color: var(--lumna-text);
+  user-select: none;
+}
+.ms-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 28px;
+  scrollbar-width: none;
+}
+.ms-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* cabeçalho das páginas: voltar + título */
+.ms-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 6px;
+}
+.ms-head h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+.ms-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+}
+
+.ms-label {
+  margin: 22px 4px 10px;
+  color: var(--lumna-muted);
+  font-size: 15px;
+}
+
+.ms-card {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  background: rgba(20, 17, 30, 0.9);
+  overflow: hidden;
+}
+.ms-card + .ms-card {
+  margin-top: 12px;
+}
+.ms-card.pad {
+  padding: 16px 18px;
+}
+
+.ms-row {
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+.ms-row + .ms-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ms-row:disabled {
+  opacity: 0.45;
+}
+.ms-row .ico {
+  width: 32px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--lumna-text);
+}
+.ms-row .ico.violet {
+  color: var(--lumna-violet-soft);
+}
+.ms-row .txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ms-row .txt strong {
+  font-size: 17px;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ms-row .txt small {
+  color: var(--lumna-muted);
+  font-size: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ms-row .txt small.on {
+  color: var(--lumna-violet-soft);
+}
+.ms-row .chev {
+  color: var(--lumna-muted);
+  flex: none;
+}
+.ms-row .value {
+  color: var(--lumna-muted);
+  font-size: 15px;
+  flex: none;
+}
+
+/* toggle */
+.ms-switch {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  flex: none;
+  border: 0;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background 160ms ease;
+}
+.ms-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 160ms ease;
+}
+.ms-switch.on {
+  background: #8b6cf0;
+}
+.ms-switch.on::after {
+  transform: translateX(22px);
+}
+.ms-switch:disabled {
+  opacity: 0.4;
+}
+
+/* botões */
+.ms-btn {
+  padding: 13px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(30, 26, 46, 0.95);
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+}
+.ms-btn.primary {
+  border: 0;
+  background: #6d4fc4;
+  color: #fff;
+  font-weight: 600;
+}
+.ms-btn.danger {
+  color: #fca5a5;
+}
+.ms-btn:disabled {
+  opacity: 0.45;
+}
+.ms-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.ms-actions .ms-btn {
+  flex: 1;
+}
+
+/* campos */
+.ms-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(24, 21, 36, 0.9);
+}
+.ms-field small {
+  color: var(--lumna-muted);
+  font-size: 13px;
+}
+.ms-field input,
+.ms-field select {
+  border: 0;
+  background: none;
+  color: var(--lumna-text);
+  font: inherit;
+  font-size: 17px;
+  outline: none;
+}
+.ms-field select option {
+  background: #1a1626;
+}
+
+.ms-note {
+  margin: 10px 4px 0;
+  color: var(--lumna-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.ms-error {
+  margin: 10px 4px 0;
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+/* folha de baixo (senha, confirmação) */
+.ms-sheet-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(5, 3, 14, 0.6);
+}
+.ms-sheet {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 20px 18px 28px;
+  border-radius: 24px 24px 0 0;
+  background: #17141f;
+}
+.ms-sheet h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+/* sinal de Wi-Fi em tracinhos */
+.ms-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+.ms-bars i {
+  width: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.ms-bars i.on {
+  background: var(--lumna-violet-soft);
+}
+
+.ms-slider {
+  width: 100%;
+  height: 28px;
+  accent-color: var(--lumna-violet-soft);
+}

@@ -17,7 +17,7 @@ if [ "$livre" -lt 15 ]; then
 fi
 
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
-    hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim
+    hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils
 
 # O perfil release do LUMNA usa LTO com 1 codegen unit: o último passo (o próprio lumna-shell) roda
 # num núcleo só e leva uns 30 min no 6T. Pra testar mudanças: LUMNA_RAPIDO=1 sh lumna-mobile.sh
@@ -29,6 +29,9 @@ fi
 # -f refaz o pacote, --nocheck pula os testes (lentos aqui), -i instala
 cd "$ROOT/packages/lumna-shell"
 makepkg -sfi --nocheck --noconfirm
+
+# Bluetooth (WCN3990 pelo hci_uart; o firmware já vem no rootfs)
+sudo systemctl enable --now bluetooth.service || true
 
 # Telefone e Contatos na grade de apps (o lumna-ctl abre as janelas do shell)
 sudo install -Dm644 "$ROOT/mobile/session/apps/phone.svg" /usr/share/lumna/icons/phone.svg

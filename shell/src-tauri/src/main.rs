@@ -20,6 +20,7 @@ mod media;
 mod mobile;
 mod modes;
 mod network;
+mod nmwifi;
 mod notifications;
 mod pad;
 mod phone;
@@ -1418,6 +1419,8 @@ fn main() {
             wallpaper::wallpaper_set_lock,
             wallpaper::wallpaper_add,
             wallpaper::wallpaper_remove,
+            wallpaper::wallpaper_gallery,
+            wallpaper::wallpaper_import,
             monitor_name,
             modes,
             switch_to,
@@ -1525,6 +1528,12 @@ fn main() {
             mobile::quick_mobile_data,
             mobile::quick_airplane,
             mobile::quick_quiet,
+            mobile::battery_info,
+            mobile::profile_get,
+            mobile::profile_set_name,
+            mobile::profile_set_photo,
+            wifi::wifi_add,
+            wifi::wifi_details,
             mobile::mobile_data_info,
             mobile::mobile_data_set,
             phone::phone_calls,

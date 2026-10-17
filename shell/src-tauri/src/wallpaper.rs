@@ -349,6 +349,65 @@ pub fn wallpaper_remove(app: AppHandle, path: String) -> Result<(), String> {
     Ok(())
 }
 
+// ---- celular: escolher do armazenamento ----
+// No celular não há o seletor de arquivos do portal: o LUMNA mostra as fotos das pastas comuns
+// (Imagens, Downloads, DCIM...) numa galeria própria, e a escolhida é copiada pra pasta de
+// papéis de parede da pessoa.
+
+const GALLERY_DIRS: [&str; 7] = ["Imagens", "Pictures", "Downloads", "DCIM", "Fotos", "Documentos", "Área de trabalho"];
+
+fn collect(dir: &Path, depth: u8, out: &mut Vec<(std::time::SystemTime, PathBuf)>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        if path.is_dir() {
+            if depth > 0 {
+                collect(&path, depth - 1, out);
+            }
+        } else if is_image(&path) {
+            let time = entry.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+            out.push((time, path));
+        }
+    }
+}
+
+/// Fotos das pastas comuns, as mais novas primeiro (até 300).
+#[tauri::command]
+pub async fn wallpaper_gallery() -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut found = Vec::new();
+        for dir in GALLERY_DIRS {
+            collect(&home().join(dir), 3, &mut found);
+        }
+        found.sort_by_key(|f| std::cmp::Reverse(f.0));
+        found.dedup_by(|a, b| a.1 == b.1);
+        found.into_iter().take(300).map(|(_, p)| p.to_string_lossy().to_string()).collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Copia uma imagem escolhida na galeria pra pasta de papéis de parede (e devolve o caminho novo).
+#[tauri::command]
+pub fn wallpaper_import(app: AppHandle, path: String) -> Result<String, String> {
+    let source = PathBuf::from(&path);
+    let real = source.canonicalize().map_err(|e| format!("{path}: {e}"))?;
+    if !is_image(&real) || !real.starts_with(home()) {
+        return Err("Só dá pra usar imagens da sua pasta pessoal.".into());
+    }
+    let dir = user_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = real.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "imagem.jpg".into());
+    let target = free_name(&dir, &name);
+    std::fs::copy(&real, &target).map_err(|e| e.to_string())?;
+    allow_assets(&app);
+    Ok(target.to_string_lossy().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
