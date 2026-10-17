@@ -70,6 +70,8 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         ["store"] => crate::open_store(app, None),
         ["store", tab] => crate::open_store(app, Some(tab.to_string())),
         ["phone"] => crate::open_phone(app, None),
+        ["remote"] => crate::open_remote(app, None),
+        ["remote", pc] => crate::open_remote(app, Some(pc.to_string())),
         ["phone", tab] => crate::open_phone(app, Some(tab.to_string())),
         ["settings"] => crate::open_settings(app, None),
         ["settings", page] => crate::open_settings(app, Some(page.to_string())),

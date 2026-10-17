@@ -15,6 +15,7 @@ import MDisplay from "./MDisplay.vue";
 import MEmma from "./MEmma.vue";
 import MEnergy from "./MEnergy.vue";
 import MKeyboard from "./MKeyboard.vue";
+import MMedia from "./MMedia.vue";
 import MProfile from "./MProfile.vue";
 import MWifi from "./MWifi.vue";
 import MWifiAdd from "./MWifiAdd.vue";
@@ -24,7 +25,7 @@ import "./mobile.css";
 
 export type MPage =
   | "home" | "wifi" | "wifi-detalhes" | "wifi-adicionar" | "bluetooth" | "bt-aparelho" | "connect" | "connect-pc" | "dados"
-  | "tela" | "som" | "teclado" | "emma" | "energia" | "sistema" | "perfil";
+  | "tela" | "som" | "teclado" | "emma" | "energia" | "sistema" | "perfil" | "midia";
 
 const props = defineProps<{ start?: MPage }>();
 
@@ -69,6 +70,7 @@ const TITLES: Record<MPage, string> = {
   energia: "Bateria e energia",
   sistema: "Sobre o LUMNA",
   perfil: "Perfil",
+  midia: "Modo Mídia",
 };
 // páginas do PC que servem aqui (já trazem o próprio título)
 const EMBEDDED: Partial<Record<MPage, Component>> = { som: AudioPage, dados: MobileDataPage, sistema: SystemPage };
@@ -85,6 +87,7 @@ const PAGES: Partial<Record<MPage, Component>> = {
   emma: MEmma,
   energia: MEnergy,
   perfil: MProfile,
+  midia: MMedia,
 };
 
 // pilha de navegação: [página, argumento]
@@ -110,15 +113,11 @@ const results = computed(() => {
   if (!q) return [];
   return ALL.filter((e) => `${e.title} ${e.sub} ${e.keys}`.toLowerCase().includes(q));
 });
+// o celular fica sempre no Desktop; o botão Mídia abre os ajustes do modo Mídia (o LUMNA Controle)
 const mode = ref<"desktop" | "midia">("desktop");
 const modeNote = ref("");
 function pickMode(m: "desktop" | "midia") {
-  if (m === "midia") {
-    modeNote.value = "No celular, o modo Mídia vira o controle remoto do PC. Ele chega junto com o Celular Connect.";
-    return;
-  }
-  modeNote.value = "";
-  mode.value = m;
+  if (m === "midia") open("midia");
 }
 const profile = ref<Profile | null>(null);
 profileGet()

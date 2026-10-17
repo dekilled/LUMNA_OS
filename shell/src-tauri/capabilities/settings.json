@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
   "description": "Janelas de Configurações, Loja e Arquivos: arrastar, minimizar, maximizar e fechar pela barra própria",
-  "windows": ["settings", "store", "files-*", "installer", "phone"],
+  "windows": ["settings", "store", "files-*", "installer", "phone", "remote"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

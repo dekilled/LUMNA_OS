@@ -32,7 +32,10 @@ use crate::link::{self, Features};
 
 const SERVICE: &str = "_lumna-remote._tcp.local.";
 /// Avisos do PC (o resto é resposta a um pedido nosso).
-const EVENTS: [&str; 6] = ["notification", "auth", "auth-done", "emma-ask", "clipboard", "file-offer"];
+const EVENTS: [&str; 7] = ["notification", "auth", "auth-done", "emma-ask", "clipboard", "file-offer", "mode"];
+
+/// Quais monitores de cada PC estão no modo Mídia, e o aviso aberto por isso.
+static MEDIA: Mutex<Option<HashMap<String, (Vec<String>, Option<u32>)>>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Computer {
@@ -201,6 +204,28 @@ fn on_event(app: &AppHandle, computer: &Computer, event: &Value) {
             let computer = computer.clone();
             let (offer, name, size) = (text("id"), text("name"), event["size"].as_u64().unwrap_or(0));
             tauri::async_runtime::spawn(async move { pull(&app, &computer, &offer, &name, size).await });
+        }
+        "mode" => {
+            let media: Vec<String> = event["media"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            let mut all = MEDIA.lock().unwrap();
+            let (before, notice) = all.get_or_insert_with(HashMap::new).entry(computer.id.clone()).or_default();
+            if media.is_empty() {
+                if let Some(id) = notice.take() {
+                    crate::notifications::local_close(app, id);
+                }
+            } else if before.is_empty() && notice.is_none() && link::settings().media_notify {
+                *notice = Some(crate::notifications::local_open(
+                    app,
+                    &computer.name,
+                    "Modo Mídia ligado",
+                    "Toque pra abrir o controle",
+                    false,
+                    Some(format!("remote:{}", computer.id)),
+                ));
+            }
+            *before = media.clone();
+            drop(all);
+            let _ = app.emit("lumna://connect-mode", json!({ "computer": computer.id, "media": media }));
         }
         "notification" => {
             let from = if text("app").is_empty() { computer.name.clone() } else { format!("{} · {}", computer.name, text("app")) };
@@ -390,6 +415,11 @@ fn spawn_link(app: &AppHandle, computer: Computer) {
             let result = session(&app, &computer, &mut rx).await;
             set_online(&app, &computer.id, false);
             link::recv_cancel_peer(&app, &computer.name);
+            // PC fora do ar: o aviso do Mídia some
+            if let Some((_, Some(id))) = MEDIA.lock().unwrap().as_mut().and_then(|m| m.remove(&computer.id)) {
+                crate::notifications::local_close(&app, id);
+            }
+            let _ = app.emit("lumna://connect-mode", json!({ "computer": computer.id, "media": [] }));
             if let Err(e) = result {
                 eprintln!("lumna-shell: connect {}: {e}", computer.name);
             } else {
@@ -514,6 +544,12 @@ pub fn connect_forget(app: AppHandle, id: String) -> Result<(), String> {
     LINKS.lock().unwrap().get_or_insert_with(HashMap::new).remove(&id);
     let _ = app.emit("lumna://connect", states());
     Ok(())
+}
+
+/// Os monitores de cada PC no modo Mídia (pro controle e pros Ajustes).
+#[tauri::command]
+pub fn connect_media() -> HashMap<String, Vec<String>> {
+    MEDIA.lock().unwrap().as_ref().map(|m| m.iter().map(|(k, (v, _))| (k.clone(), v.clone())).collect()).unwrap_or_default()
 }
 
 /// Manda um comando pro PC e espera a resposta (a Emma pode levar um tempo).

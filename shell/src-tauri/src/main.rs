@@ -667,6 +667,41 @@ pub fn open_phone(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Celular: o controle do modo Mídia do PC (tela cheia). `pc` = o id do PC no Connect.
+pub fn open_remote(app: &AppHandle, pc: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("remote") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(pc) = pc {
+            let _ = window.emit_to("remote", "lumna://remote-pc", pc);
+        }
+        return Ok(());
+    }
+    let url = format!("index.html#{}", pc.unwrap_or_default());
+    WebviewWindowBuilder::new(app, "remote", WebviewUrl::App(url.into()))
+        .title("LUMNA Controle")
+        .inner_size(420.0, 820.0)
+        .decorations(false)
+        .fullscreen(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn remote_open(app: AppHandle, pc: Option<String>) -> Result<(), String> {
+    open_remote(&app, pc)
+}
+
+/// Tocou num aviso do shell que abre algo (`Notification::open`).
+#[tauri::command]
+async fn notification_open(app: AppHandle, target: String) -> Result<(), String> {
+    match target.split_once(':') {
+        Some(("remote", pc)) => open_remote(&app, Some(pc.to_string()).filter(|p| !p.is_empty())),
+        _ => Err(format!("não sei abrir {target}")),
+    }
+}
+
 #[tauri::command]
 async fn phone_open(app: AppHandle, tab: Option<String>) -> Result<(), String> {
     open_phone(&app, tab)
@@ -1179,6 +1214,7 @@ fn apply_modes(app: &AppHandle, focused: Option<String>, show_switcher: bool) ->
     let switcher_at = focused.and_then(|name| monitors.iter().find(|m| m.name == name).map(|m| (m.x, m.y)));
 
     automation::modes_changed(app, &snapshot.modes);
+    remote::modes_changed(&snapshot.modes);
     let docks = app.clone();
     std::thread::spawn(move || dock::update(&docks, false));
     let _ = app.emit("lumna://modes", snapshot);
@@ -1556,6 +1592,7 @@ fn main() {
             connect::connect_send_clipboard,
             connect::connect_targets,
             connect::connect_share,
+            connect::connect_media,
             link::connect_settings,
             link::connect_settings_set,
             link::connect_transfers,
@@ -1592,6 +1629,8 @@ fn main() {
             phone::contacts_save,
             phone::contacts_delete,
             phone_open,
+            remote_open,
+            notification_open,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,

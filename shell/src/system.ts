@@ -27,6 +27,8 @@ export interface Notification {
   urgent: boolean;
   /** Chegou no "não perturbe": vai só pra central do celular. */
   quiet: boolean;
+  /** Avisos do próprio shell: o que abrir ao tocar (ex.: o controle do Mídia). */
+  open?: string;
 }
 
 export const apps = () => invoke<App[]>("apps");
@@ -334,6 +336,7 @@ export const layerHide = () => invoke<void>("layer_hide");
 
 export const notificationClosed = (id: number, reason: 1 | 2) => invoke<void>("notification_closed", { id, reason });
 export const notificationAction = (id: number, key: string) => invoke<void>("notification_action", { id, key });
+export const notificationOpen = (target: string) => invoke<void>("notification_open", { target });
 
 /** Escuta um evento do Rust (os emitidos para todas as janelas e os desta janela). */
 export const on = <T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> =>
@@ -1008,12 +1011,25 @@ export const connectShare = (target: ConnectTarget, paths: string[]) => invoke<v
 
 export interface ConnectSettings {
   enabled: boolean;
+  media_notify: boolean;
   receive_dir: string;
   default_dir: string;
 }
 export const connectSettings = () => invoke<ConnectSettings>("connect_settings");
-export const connectSettingsSet = (change: { enabled?: boolean; receiveDir?: string }) =>
-  invoke<ConnectSettings>("connect_settings_set", { enabled: change.enabled, receiveDir: change.receiveDir });
+export const connectSettingsSet = (change: { enabled?: boolean; receiveDir?: string; mediaNotify?: boolean }) =>
+  invoke<ConnectSettings>("connect_settings_set", { enabled: change.enabled, receiveDir: change.receiveDir, mediaNotify: change.mediaNotify });
+/** Celular: os monitores de cada PC que estão no modo Mídia (por id do PC). */
+export const connectMedia = () => invoke<Record<string, string[]>>("connect_media");
+/** Celular: abre o LUMNA Controle (o controle do modo Mídia), de um PC ou do primeiro conectado. */
+export const remoteOpen = (pc?: string) => invoke<void>("remote_open", { pc });
+export interface PcMonitor {
+  name: string;
+  label: string;
+  width: number;
+  height: number;
+  focused: boolean;
+  media: boolean;
+}
 
 export interface Transfer {
   id: string;

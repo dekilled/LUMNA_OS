@@ -61,11 +61,14 @@ pub struct Settings {
     /// Vazio = a pasta de Downloads.
     #[serde(default)]
     pub receive_dir: String,
+    /// Celular: avisar quando um PC entra no modo Mídia (tocar abre o controle).
+    #[serde(default = "yes")]
+    pub media_notify: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { enabled: true, receive_dir: String::new() }
+        Settings { enabled: true, receive_dir: String::new(), media_notify: true }
     }
 }
 
@@ -107,6 +110,7 @@ pub fn receive_dir() -> PathBuf {
 #[derive(Serialize)]
 pub struct SettingsView {
     pub enabled: bool,
+    pub media_notify: bool,
     pub receive_dir: String,
     pub default_dir: String,
 }
@@ -114,13 +118,21 @@ pub struct SettingsView {
 #[tauri::command]
 pub fn connect_settings() -> SettingsView {
     let s = settings();
-    SettingsView { enabled: s.enabled, receive_dir: receive_dir().to_string_lossy().into(), default_dir: downloads().to_string_lossy().into() }
+    SettingsView { enabled: s.enabled, media_notify: s.media_notify, receive_dir: receive_dir().to_string_lossy().into(), default_dir: downloads().to_string_lossy().into() }
 }
 
 /// Liga/desliga o Connect neste aparelho e troca a pasta de recebidos.
 #[tauri::command]
-pub fn connect_settings_set(app: AppHandle, enabled: Option<bool>, receive_dir: Option<String>) -> Result<SettingsView, String> {
+pub fn connect_settings_set(
+    app: AppHandle,
+    enabled: Option<bool>,
+    receive_dir: Option<String>,
+    media_notify: Option<bool>,
+) -> Result<SettingsView, String> {
     let mut s = settings();
+    if let Some(m) = media_notify {
+        s.media_notify = m;
+    }
     if let Some(dir) = receive_dir {
         let dir = dir.trim().to_string();
         if !dir.is_empty() {
