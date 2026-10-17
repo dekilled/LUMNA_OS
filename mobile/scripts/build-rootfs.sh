@@ -72,6 +72,9 @@ echo lumna > /etc/hostname
 sed -i 's/^#\(pt_BR.UTF-8\|en_US.UTF-8\)/\1/' /etc/locale.gen
 locale-gen
 echo LANG=pt_BR.UTF-8 > /etc/locale.conf
+# horário de Brasília, e a hora certa pela internet (systemd-timesyncd) assim que houver rede
+ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
+systemctl enable systemd-timesyncd
 echo 'LABEL=lumna-root / ext4 defaults,noatime 0 1' > /etc/fstab
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/wheel
 # o grupo wheel controla rede e modem também pelo ssh (o polkit só libera quem está na tela)
