@@ -27,6 +27,8 @@ pub struct Notification {
     /// Milissegundos; 0 = fica até ser fechada.
     pub timeout: u32,
     pub urgent: bool,
+    /// Chegou no "não perturbe": vai pra central (celular) sem aparecer por cima.
+    pub quiet: bool,
 }
 
 static CONNECTION: OnceLock<zbus::Connection> = OnceLock::new();
@@ -70,13 +72,14 @@ impl Server {
             actions: actions.chunks(2).filter(|c| c.len() == 2).map(|c| (c[0].clone(), c[1].clone())).collect(),
             timeout,
             urgent,
+            // Gaming, Mídia e o não perturbe do celular: só avisos urgentes aparecem.
+            quiet: !urgent && crate::do_not_disturb(&self.app),
         };
-        // Gaming e Mídia ficam em "não perturbe": só avisos urgentes aparecem.
-        if !urgent && crate::do_not_disturb(&self.app) {
-            return id;
-        }
+        let quiet = notification.quiet;
         let _ = self.app.emit("lumna://notification", notification);
-        crate::show_notifications(&self.app);
+        if !quiet {
+            crate::show_notifications(&self.app);
+        }
         id
     }
 

@@ -4,7 +4,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
-import { apps, artUrl, desktopWallpaper, launchApp, on, toggleEmma, type App } from "../../system";
+import { apps, artUrl, desktopWallpaper, launchApp, on, recentsSnapshot, toggleEmma, type App } from "../../system";
 import { isMinimized, windowControl, windows } from "../../compositor";
 
 const tab = ref<"inicio" | "apps">("inicio");
@@ -33,6 +33,7 @@ const shown = computed(() => {
 async function open(app: App) {
   query.value = "";
   // um app por vez: o que estiver aberto sai da frente
+  await recentsSnapshot();
   for (const w of await windows().catch(() => [])) if (!isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
   await launchApp(app.id);
 }

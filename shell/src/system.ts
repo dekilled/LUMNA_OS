@@ -25,6 +25,8 @@ export interface Notification {
   actions: [string, string][];
   timeout: number;
   urgent: boolean;
+  /** Chegou no "não perturbe": vai só pra central do celular. */
+  quiet: boolean;
 }
 
 export const apps = () => invoke<App[]>("apps");
@@ -752,3 +754,46 @@ export const keyboardKey = (key: string, mods: string[] = []) => invoke<void>("k
 export const keyboardShow = (show: boolean) => invoke<void>("keyboard_show", { show });
 export const keyboardToggle = () => invoke<void>("keyboard_toggle");
 export const haptic = (ms: number) => invoke<void>("haptic", { ms });
+
+// ---- celular: central e apps recentes ----
+
+export type MobilePanel = "mobile-center" | "mobile-recents";
+/** Sem `show`, alterna. */
+export const mobilePanel = (name: MobilePanel, show?: boolean) => invoke<void>("mobile_panel", { name, show: show ?? null });
+
+export interface Recent {
+  address: string;
+  class: string;
+  title: string;
+  pid: number;
+  /** KiB do app e dos processos filhos; `null` = janela do próprio LUMNA. */
+  memory_kb: number | null;
+  shot: string | null;
+  shot_at: number;
+  focus_history: number;
+}
+export interface Recents {
+  apps: Recent[];
+  total_kb: number;
+  available_kb: number;
+}
+export const recents = () => invoke<Recents>("recents");
+/** Fotografa as janelas visíveis antes de elas saírem da tela (pra aparecerem nos recentes). */
+export const recentsSnapshot = () => invoke<void>("recents_snapshot").catch(() => {});
+export const recentsKill = (address: string) => invoke<void>("recents_kill", { address });
+
+export interface Quick {
+  brightness: number | null;
+  flashlight: boolean | null;
+  mobile_data: boolean | null;
+  mobile_tech: string | null;
+  airplane: boolean;
+  rotation_sensor: boolean;
+  quiet: boolean;
+}
+export const quickState = () => invoke<Quick>("quick_state");
+export const quickBrightness = (percent: number) => invoke<void>("quick_brightness", { percent });
+export const quickFlashlight = (on: boolean) => invoke<void>("quick_flashlight", { on });
+export const quickMobileData = (on: boolean) => invoke<void>("quick_mobile_data", { on });
+export const quickAirplane = (on: boolean) => invoke<void>("quick_airplane", { on });
+export const quickQuiet = (on: boolean) => invoke<void>("quick_quiet", { on });

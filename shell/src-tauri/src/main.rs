@@ -17,6 +17,7 @@ mod touchkeys;
 mod layer;
 mod lock;
 mod media;
+mod mobile;
 mod modes;
 mod network;
 mod notifications;
@@ -278,6 +279,34 @@ const MOBILE_NAV: LayerSpec = LayerSpec {
 /// quando o teclado aparece, em vez de ficar por baixo dele).
 const MOBILE_EMMA: LayerSpec = LayerSpec { keyboard: KeyboardMode::OnDemand, exclusive: Exclusive::None, ..EMMA };
 
+/// Celular: a central (notificações e atalhos), por cima de tudo menos do teclado. Abre deslizando
+/// a barra de status pra baixo.
+const MOBILE_CENTER: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-center",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+
+/// Celular: os apps recentes (o "RAM"). Abre deslizando a navegação pra cima.
+const MOBILE_RECENTS: LayerSpec = LayerSpec { namespace: "lumna-mobile-recents", ..MOBILE_CENTER };
+
+/// Celular: avisos no topo, na largura da tela, logo abaixo da barra de status.
+const MOBILE_NOTIFICATIONS: LayerSpec = LayerSpec {
+    namespace: "lumna-notifications",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Left, Edge::Right],
+    margins: &[(Edge::Top, 40), (Edge::Left, 8), (Edge::Right, 8)],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::None,
+    size: (-1, 10),
+    visible: false,
+};
+
 /// Celular: o LUMNA Keyboard, no rodapé e por cima de tudo (até do painel da Emma). Nunca pega o
 /// foco do teclado, para as teclas irem ao app em foco; reserva o espaço dele (os apps sobem).
 const KEYBOARD: LayerSpec = LayerSpec {
@@ -477,6 +506,9 @@ fn notification_action(id: u32, key: String) {
 
 /// "Não perturbe" vale enquanto o monitor em foco estiver em Gaming ou Mídia.
 pub fn do_not_disturb(app: &AppHandle) -> bool {
+    if mobile::quiet() {
+        return true;
+    }
     let focused = app.state::<SharedCompositor>().monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused));
     focused.is_some_and(|m| app.state::<Modes>().mode_of(&m.name) != Mode::Desktop)
 }
@@ -1452,6 +1484,16 @@ fn main() {
             touchkeys::keyboard_toggle,
             touchkeys::keyboard_target,
             haptics::haptic,
+            mobile::mobile_panel,
+            mobile::recents,
+            mobile::recents_snapshot,
+            mobile::recents_kill,
+            mobile::quick_state,
+            mobile::quick_brightness,
+            mobile::quick_flashlight,
+            mobile::quick_mobile_data,
+            mobile::quick_airplane,
+            mobile::quick_quiet,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,
@@ -1479,11 +1521,16 @@ fn main() {
                 create_layer(app.handle(), "mobile-status", &primary, &MOBILE_STATUS)?;
                 create_layer(app.handle(), "mobile-nav", &primary, &MOBILE_NAV)?;
                 create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
+                create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
+                create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;
+                create_layer(app.handle(), "mobile-recents", &primary, &MOBILE_RECENTS)?;
                 // por último: fica por cima da Emma (as duas são Overlay)
                 create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
                 forward_events(app.handle().clone(), compositor.clone());
                 status::watch(app.handle().clone());
                 wifi::watch(app.handle().clone());
+                notifications::start(app.handle().clone());
+                bluetooth::watch(app.handle().clone());
                 return Ok(());
             }
             for index in 0..display.n_monitors() {

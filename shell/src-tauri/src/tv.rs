@@ -584,6 +584,7 @@ mod tests {
             height: 1080,
             floating: true,
             focus_history: 0,
+            pid: 0,
         };
         let live = vec![
             Live { monitor: "DP-1".into(), service: "youtube".into(), context: "a".into(), address: "0x1".into(), used: 5 },

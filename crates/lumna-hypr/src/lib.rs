@@ -94,6 +94,7 @@ fn window_from(c: &Value) -> Window {
         height,
         floating: c.get("floating").and_then(Value::as_bool).unwrap_or(false),
         focus_history: c.get("focusHistoryID").and_then(Value::as_i64).unwrap_or(i64::MAX),
+        pid: c.get("pid").and_then(Value::as_i64).unwrap_or(0),
     }
 }
 

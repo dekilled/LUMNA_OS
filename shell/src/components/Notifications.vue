@@ -57,6 +57,7 @@ const stops: (() => void)[] = [];
 onMounted(async () => {
   stops.push(
     await on<Notification>("lumna://notification", (n) => {
+      if (n.quiet) return;
       const index = items.value.findIndex((x) => x.id === n.id);
       if (index >= 0) items.value[index] = n;
       else items.value = [n, ...items.value].slice(0, 5);
@@ -100,11 +101,19 @@ onUnmounted(() => {
 <style scoped>
 .stack {
   width: 380px;
+  max-width: 100vw;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 4px 4px 16px;
   box-sizing: border-box;
+}
+
+/* celular: na largura da tela */
+@media (max-width: 560px) {
+  .stack {
+    width: 100vw;
+  }
 }
 
 .toast {

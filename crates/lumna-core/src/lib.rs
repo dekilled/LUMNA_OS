@@ -65,6 +65,8 @@ pub struct Window {
     pub floating: bool,
     /// Ordem do último foco (0 = a mais recente).
     pub focus_history: i64,
+    /// Processo dono da janela (0 = desconhecido).
+    pub pid: i64,
 }
 
 /// Workspace escondido onde ficam as janelas minimizadas (o Hyprland não tem "minimizar").
