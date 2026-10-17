@@ -366,6 +366,8 @@ async fn serve(app: AppHandle, stream: TcpStream) -> Result<(), String> {
                         devices_changed(&app);
                     }
                     device = Some((d.id, d.name));
+                    // já está no Mídia? o celular fica sabendo de cara
+                    let _ = tx.send(json!({ "type": "mode", "media": *MEDIA_NOW.lock().unwrap() }).to_string());
                     json!({ "type": "ready", "name": format!("LUMNA {}", hostname()) })
                 }
                 None => json!({ "type": "error", "message": "celular não pareado", "unpaired": true }),
@@ -464,8 +466,13 @@ fn command(app: &AppHandle, device_id: &str, msg: &Value) -> Result<Option<Value
         }
         "mode" => {
             let mode = Mode::parse(field("value")).ok_or("modo desconhecido")?;
+            // o Connect escolhe em que monitor (o projetor, a TV...)
+            if !field("monitor").is_empty() {
+                app.state::<crate::SharedCompositor>().focus_monitor(field("monitor"))?;
+            }
             crate::switch_mode(app, Target::Set(mode)).map(|_| None)
         }
+        "monitors" => Ok(Some(monitors(app)?)),
         // Fecha o que estiver na frente (o streaming, o vídeo) e volta para a tela de Mídia.
         "home" => crate::remote_home(app).map(|_| None),
         // ---- Celular Connect ----
@@ -532,6 +539,41 @@ fn command(app: &AppHandle, device_id: &str, msg: &Value) -> Result<Option<Value
         // o que está ligado pra este celular aqui no PC
         "features" => Ok(Some(json!({ "type": "features", "features": device.features }))),
         _ => Err("comando desconhecido".into()),
+    }
+}
+
+/// Os monitores do PC e o modo de cada um (pro controle escolher onde abrir o Mídia).
+fn monitors(app: &AppHandle) -> Result<Value, String> {
+    let modes = app.state::<crate::modes::Modes>();
+    let list: Vec<Value> = app
+        .state::<crate::SharedCompositor>()
+        .monitors()?
+        .into_iter()
+        .map(|m| {
+            json!({
+                "name": m.name,
+                "label": if m.label.is_empty() { m.name.clone() } else { m.label.clone() },
+                "width": m.width,
+                "height": m.height,
+                "focused": m.focused,
+                "media": modes.mode_of(&m.name) == Mode::Media,
+            })
+        })
+        .collect();
+    Ok(json!({ "type": "monitors", "monitors": list }))
+}
+
+static MEDIA_NOW: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Os modos mudaram: se mudou quem está no Mídia, os celulares ficam sabendo.
+pub fn modes_changed(modes: &std::collections::HashMap<String, Mode>) {
+    let mut media: Vec<String> = modes.iter().filter(|(_, m)| **m == Mode::Media).map(|(n, _)| n.clone()).collect();
+    media.sort();
+    let mut now = MEDIA_NOW.lock().unwrap();
+    if *now != media {
+        *now = media.clone();
+        drop(now);
+        broadcast(json!({ "type": "mode", "media": media }));
     }
 }
 

@@ -12,6 +12,7 @@ import {
   haptic,
   mobilePanel,
   notificationAction,
+  notificationOpen,
   notificationClosed,
   on,
   powerAction,
@@ -98,7 +99,11 @@ function clearAll() {
   for (const n of [...items.value]) forget(n);
 }
 async function tapNotification(n: Item) {
-  if (n.actions.some(([k]) => k === "default")) {
+  if (n.open) {
+    items.value = items.value.filter((x) => x.id !== n.id);
+    close();
+    await notificationOpen(n.open).catch(() => {});
+  } else if (n.actions.some(([k]) => k === "default")) {
     await notificationAction(n.id, "default").catch(() => {});
     items.value = items.value.filter((x) => x.id !== n.id);
     close();

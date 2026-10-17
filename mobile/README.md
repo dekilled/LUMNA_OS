@@ -78,7 +78,12 @@ desligar. E o resto, como um KDE Connect: o que copiar num aparece no outro, os 
 ligações do celular aparecem no PC, arquivos vão e vêm (no Arquivos: Enviar para…; no celular
 também pela página do PC) e agendamentos no PC (desligar, lembrete, um pedido pra Emma...).
 Cada lado liga/desliga os recursos de cada aparelho e escolhe a pasta de recebidos: no PC em
-Configurações > Celular, no celular em Ajustes > Celular Connect. Fora de casa: Tailscale nos dois (`sudo pacman -S tailscale`,
+Configurações > Celular, no celular em Ajustes > Celular Connect.
+
+Modo Mídia no celular: o **LUMNA Controle** (na grade de apps, ou Ajustes > botão Mídia). Tela
+cheia: escolhe o PC e a tela dele (a TV, o projetor…), liga/desliga o Mídia nela e controla com
+setas/OK (ou deslizando no OK), voltar, início, mídia, volume e digitar. Quando o PC entra no
+Mídia, aparece um aviso na central do celular; tocar nele abre o controle. Fora de casa: Tailscale nos dois (`sudo pacman -S tailscale`,
 `sudo systemctl enable --now tailscaled`, `sudo tailscale up`) e adicionar o PC pelo IP 100.x.
 
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do
