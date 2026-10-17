@@ -32,6 +32,7 @@ struct FfEffect {
 
 struct Motor {
     file: File,
+    path: String,
     id: i16,
     kind: u16,
     length: u16,
@@ -49,9 +50,10 @@ impl Motor {
             if ff.split_whitespace().all(|w| w.trim_start_matches('0').is_empty()) {
                 continue;
             }
-            match OpenOptions::new().read(true).write(true).open(format!("/dev/input/{name}")) {
-                Ok(file) => return Ok(Motor { file, id: -1, kind: 0, length: 0 }),
-                Err(e) => last = format!("/dev/input/{name}: {e}"),
+            let path = format!("/dev/input/{name}");
+            match OpenOptions::new().read(true).write(true).open(&path) {
+                Ok(file) => return Ok(Motor { file, path, id: -1, kind: 0, length: 0 }),
+                Err(e) => last = format!("{path}: {e}"),
             }
         }
         Err(last)
@@ -110,13 +112,37 @@ fn sender() -> &'static Mutex<Sender<u16>> {
     TX.get_or_init(|| {
         let (tx, rx) = channel::<u16>();
         std::thread::spawn(move || {
-            let mut motor = match Motor::open() {
-                Ok(m) => m,
-                Err(e) => return eprintln!("lumna-haptics: {e}"),
-            };
+            // Sem motor (ou sem permissão ainda: a regra udev pode chegar depois do shell), tenta
+            // de novo a cada 30 s de toques, e só repete no journal quando o erro muda.
+            let mut motor: Option<Motor> = None;
+            let mut last_error = String::new();
+            let mut retry_at = std::time::Instant::now();
             for length in rx {
-                if let Err(e) = motor.play(length) {
-                    return eprintln!("lumna-haptics: {e}");
+                if motor.is_none() && std::time::Instant::now() >= retry_at {
+                    match Motor::open() {
+                        Ok(m) => {
+                            eprintln!("lumna-haptics: motor em {}", m.path);
+                            motor = Some(m);
+                        }
+                        Err(e) => {
+                            if e != last_error {
+                                eprintln!("lumna-haptics: {e}");
+                                last_error = e;
+                            }
+                            retry_at = std::time::Instant::now() + std::time::Duration::from_secs(30);
+                        }
+                    }
+                }
+                let Some(m) = motor.as_mut() else { continue };
+                let first = m.id < 0;
+                match m.play(length) {
+                    Ok(()) if first => eprintln!("lumna-haptics: efeito tipo 0x{:x} gravado ({length} ms)", m.kind),
+                    Ok(()) => {}
+                    Err(e) => {
+                        eprintln!("lumna-haptics: {e}");
+                        motor = None;
+                        retry_at = std::time::Instant::now() + std::time::Duration::from_secs(30);
+                    }
                 }
             }
         });
