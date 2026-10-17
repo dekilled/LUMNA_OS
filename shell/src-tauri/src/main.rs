@@ -285,6 +285,20 @@ const MOBILE_NAV: LayerSpec = LayerSpec {
 /// quando o teclado aparece, em vez de ficar por baixo dele).
 const MOBILE_EMMA: LayerSpec = LayerSpec { keyboard: KeyboardMode::OnDemand, exclusive: Exclusive::None, ..EMMA };
 
+/// Celular: as faixas finas nas bordas laterais, só com um app aberto. Deslizar delas na
+/// diagonal (pra dentro e pra baixo) volta pra tela Início.
+const MOBILE_EDGE_LEFT: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-edge",
+    layer: Layer::Top,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::None,
+    size: (14, -1),
+    visible: false,
+};
+const MOBILE_EDGE_RIGHT: LayerSpec = LayerSpec { anchors: &[Edge::Top, Edge::Bottom, Edge::Right], ..MOBILE_EDGE_LEFT };
+
 /// Celular: a central (notificações e atalhos), por cima de tudo menos do teclado. Abre deslizando
 /// a barra de status pra baixo.
 const MOBILE_CENTER: LayerSpec = LayerSpec {
@@ -1579,6 +1593,7 @@ fn main() {
             mobile::quick_mobile_data,
             mobile::quick_airplane,
             mobile::quick_quiet,
+            mobile::mobile_edges,
             mobile::battery_info,
             connect::connect_computers,
             connect::connect_discover,
@@ -1657,6 +1672,8 @@ fn main() {
                 create_layer(app.handle(), "mobile-home", &primary, &MOBILE_HOME)?;
                 create_layer(app.handle(), "mobile-status", &primary, &MOBILE_STATUS)?;
                 create_layer(app.handle(), "mobile-nav", &primary, &MOBILE_NAV)?;
+                create_layer(app.handle(), "mobile-edge-left", &primary, &MOBILE_EDGE_LEFT)?;
+                create_layer(app.handle(), "mobile-edge-right", &primary, &MOBILE_EDGE_RIGHT)?;
                 create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
                 create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
                 create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;

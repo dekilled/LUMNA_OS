@@ -2,11 +2,13 @@
 // Celular: barra de navegação de baixo. Início e Apps são abas da tela Início (e escondem os
 // apps abertos); Arquivos, Ajustes e Emma abrem as janelas e o painel que o PC já tem.
 // A barrinha de baixo: toque ou deslize curto pra cima = teclado; deslize longo = apps recentes.
-import { computed, ref } from "vue";
-import { emit } from "@tauri-apps/api/event";
+// Com um app aberto o dock some: a camada encolhe pra só a faixa da barrinha (o app desce até
+// ela) e as bordas laterais ganham o gesto de voltar (MobileEdge.vue).
+import { computed, onMounted, ref, watch } from "vue";
 import Icon from "../Icon.vue";
-import { filesWindow, haptic, keyboardToggle, mobilePanel, recentsSnapshot, settingsOpen, toggleEmma } from "../../system";
+import { filesWindow, haptic, keyboardToggle, layerResize, mobileEdges, mobilePanel, on, recentsSnapshot, settingsOpen, toggleEmma } from "../../system";
 import { isMinimized, windowControl, windows } from "../../compositor";
+import { appUp, showHome, watchApps } from "./apps";
 
 type Tab = "inicio" | "apps" | "arquivos" | "ajustes" | "emma";
 const active = ref<Tab>("inicio");
@@ -19,13 +21,17 @@ const items: { tab: Tab; label: string; icon: string }[] = [
   { tab: "emma", label: "Emma", icon: "waves" },
 ];
 
-// Volta para a tela Início: minimiza o que estiver aberto por cima (antes, tira a foto dele pros
-// apps recentes).
-async function showHome() {
-  await recentsSnapshot();
-  const list = await windows().catch(() => []);
-  for (const w of list) if (!isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
-}
+const FULL = 92;
+const HANDLE = 26;
+watch(appUp, (up) => {
+  layerResize(-1, up ? HANDLE : FULL).catch(() => {});
+  mobileEdges(up).catch(() => {});
+  if (!up && active.value !== "inicio" && active.value !== "apps") active.value = "inicio";
+});
+onMounted(async () => {
+  watchApps();
+  await on<string>("lumna://mobile-tab", (t) => (active.value = t as Tab));
+});
 
 // Como no celular: um app por vez. Se a janela já existe (mesmo minimizada), volta para ela em vez
 // de abrir outra; e o que estava na frente sai de cena.
@@ -41,10 +47,7 @@ async function bringUp(title: string, open: () => Promise<void>) {
 
 async function go(tab: Tab) {
   active.value = tab;
-  if (tab === "inicio" || tab === "apps") {
-    await showHome();
-    await emit("lumna://mobile-tab", tab);
-  } else if (tab === "arquivos") await bringUp("Arquivos", () => filesWindow());
+  if (tab === "inicio" || tab === "apps") await showHome(tab); else if (tab === "arquivos") await bringUp("Arquivos", () => filesWindow());
   else if (tab === "ajustes") await bringUp("Configurações", () => settingsOpen());
   else await toggleEmma();
 }
@@ -103,8 +106,8 @@ function handleClick() {
 </script>
 
 <template>
-  <div class="root">
-  <nav class="nav">
+  <div class="root" :class="{ compact: appUp }">
+  <nav v-show="!appUp" class="nav">
     <button v-for="item in items" :key="item.tab" :class="{ on: active === item.tab }" @click="go(item.tab)">
       <Icon :name="item.icon" :size="24" />
       <span>{{ item.label }}</span>
@@ -129,6 +132,10 @@ function handleClick() {
 .root {
   height: 100vh;
   touch-action: none;
+}
+/* com um app aberto: só a faixa da barrinha, fechada (nada do fundo aparece embaixo do app) */
+.root.compact {
+  background: #111015;
 }
 .nav {
   margin: 0 12px;

@@ -34,6 +34,15 @@ const PANELS: [&str; 2] = ["mobile-center", "mobile-recents"];
 
 /// Abre, fecha (ou alterna, sem `show`) a central ou os recentes. Um fecha o outro, e o teclado
 /// sai da frente. O painel recebe `lumna://mobile-panel` pra se atualizar ao abrir.
+/// Mostra as faixas das bordas (o gesto de voltar pra Início) só enquanto um app está aberto.
+#[tauri::command]
+pub fn mobile_edges(app: AppHandle, show: bool) {
+    let _ = app.run_on_main_thread(move || {
+        layer::set_visible("mobile-edge-left", show);
+        layer::set_visible("mobile-edge-right", show);
+    });
+}
+
 #[tauri::command]
 pub fn mobile_panel(app: AppHandle, name: String, show: Option<bool>) -> Result<(), String> {
     if !PANELS.contains(&name.as_str()) {

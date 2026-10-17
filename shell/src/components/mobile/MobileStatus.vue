@@ -6,6 +6,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
 import { mobilePanel, on, status, type Status } from "../../system";
 import { swipe } from "../../swipe";
+import { appUp, watchApps } from "./apps";
 
 const sys = ref<Status | null>(null);
 const time = ref("");
@@ -17,6 +18,7 @@ const bar = ref<HTMLElement>();
 const tick = () => (time.value = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
 
 onMounted(async () => {
+  watchApps();
   tick();
   timer = window.setInterval(tick, 5000);
   sys.value = await status().catch(() => null);
@@ -31,7 +33,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="bar" class="status">
+  <div ref="bar" class="status" :class="{ solid: appUp }">
     <span class="time">{{ time }}</span>
     <span class="icons">
       <Icon :name="sys?.network === 'wifi' ? 'wifi' : sys?.network === 'ethernet' ? 'ethernet' : 'offline'" :size="15" />
@@ -55,6 +57,10 @@ onUnmounted(() => {
   font-weight: 500;
   background: linear-gradient(rgba(5, 3, 14, 0.85), rgba(5, 3, 14, 0));
   touch-action: none;
+}
+/* com um app aberto: grafite (sem transparência por cima do app) */
+.status.solid {
+  background: #1c1b22;
 }
 .icons,
 .battery {

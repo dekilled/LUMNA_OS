@@ -330,6 +330,8 @@ export const greeterLogin = (username: string, password: string, session: string
 export const greeterPower = (action: "poweroff" | "reboot" | "suspend") => invoke<void>("greeter_power", { action });
 
 /** Ajusta a camada desta janela ao tamanho do conteúdo. */
+/** Celular: liga/desliga as faixas das bordas (gesto de voltar pra Início). */
+export const mobileEdges = (show: boolean) => invoke<void>("mobile_edges", { show });
 export const layerResize = (width: number, height: number) =>
   invoke<void>("layer_resize", { width: Math.ceil(width), height: Math.ceil(height) });
 export const layerHide = () => invoke<void>("layer_hide");

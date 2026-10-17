@@ -14,6 +14,7 @@ import ModeScreen from "./components/ModeScreen.vue";
 import MobileHome from "./components/mobile/MobileHome.vue";
 import MobileKeyboard from "./components/mobile/MobileKeyboard.vue";
 import MobileNav from "./components/mobile/MobileNav.vue";
+import MobileEdge from "./components/mobile/MobileEdge.vue";
 import MobileCenter from "./components/mobile/MobileCenter.vue";
 import MobileRecents from "./components/mobile/MobileRecents.vue";
 import MobileCall from "./components/mobile/MobileCall.vue";
@@ -67,6 +68,8 @@ window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600)
   <MobileHome v-else-if="label === 'mobile-home'" />
   <MobileStatus v-else-if="label === 'mobile-status'" />
   <MobileNav v-else-if="label === 'mobile-nav'" />
+  <MobileEdge v-else-if="label === 'mobile-edge-left'" side="left" />
+  <MobileEdge v-else-if="label === 'mobile-edge-right'" side="right" />
   <MobileCenter v-else-if="label === 'mobile-center'" />
   <MobileRecents v-else-if="label === 'mobile-recents'" />
   <MobileCall v-else-if="label === 'mobile-call'" />
