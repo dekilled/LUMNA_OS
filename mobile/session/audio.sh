@@ -4,6 +4,7 @@
 #   sh mobile/session/audio.sh           # instala e liga tudo
 #   sh mobile/session/audio.sh status    # o que está rodando (manda pra Claudia se algo falhar)
 #   sh mobile/session/audio.sh teste     # um apito no alto-falante
+#   sh mobile/session/audio.sh log       # logo depois de uma ligação com problema: junta os logs
 #
 # O que entra:
 #  - PipeWire + WirePlumber (o som do sistema), com o ajuste da Qualcomm (48 kHz, buffers grandes)
@@ -24,6 +25,17 @@ if [ "${1:-}" = status ]; then
     echo "== lumna-voiced"
     systemctl --no-pager status lumna-voiced | head -5 || true
     journalctl -u lumna-voiced -n 15 --no-pager || true
+    exit 0
+fi
+
+# Depois de uma ligação que deu problema: junta tudo o que importa (rode logo em seguida).
+if [ "${1:-}" = log ]; then
+    since="${2:-15 min ago}"
+    echo "== lumna-voiced";  sudo journalctl -b --since "$since" -u lumna-voiced --no-pager -o short-precise | tail -40
+    echo "== ModemManager";  sudo journalctl -b --since "$since" -u ModemManager --no-pager -o short-precise | grep -iE "call|voice|state|disconnect|terminat|error|fail" | tail -60
+    echo "== lumna-shell";   sudo journalctl -b --since "$since" -t lumna-shell --no-pager -o short-precise | grep -iE "telefone|voz|pactl|loopback" | tail -40
+    echo "== kernel";        sudo journalctl -b --since "$since" -k --no-pager -o short-precise | grep -iE "remoteproc|crash|q6|apr|adsp|mss|modem|slim|wcd|tfa|snd|audio|qmi|ipa" | tail -60
+    echo "== perfil agora";  pactl list cards 2>/dev/null | grep -E "Name:|Active Profile"
     exit 0
 fi
 
