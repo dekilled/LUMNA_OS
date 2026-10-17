@@ -55,8 +55,10 @@ na barrinha de baixo, toque ou deslize curto abre o teclado e o deslize longo ab
 (arrastar o cartão pra cima fecha; segurar dá "Forçar parada").
 
 Telefone: o app Telefone (teclado, recentes e contatos) liga pelo ModemManager; uma chamada
-chegando abre a tela de ligação por cima de tudo e o celular vibra. O áudio da ligação (q6voiced
-+ UCM do sdm845) ainda falta. Em Ajustes > Dados móveis: APN, roaming, tipo de rede e o uso do mês.
+chegando abre a tela de ligação por cima de tudo e o celular vibra. O áudio (alto-falante, fone e
+o som da ligação) instala com `sh mobile/session/audio.sh`: PipeWire, o UCM do sdm845-mainline e o
+`lumna-voiced`, que abre o PCM de voz do DSP durante a chamada (o shell troca a placa pro perfil
+"Voice Call" sozinho). Conferir: `sh mobile/session/audio.sh status`. Em Ajustes > Dados móveis: APN, roaming, tipo de rede e o uso do mês.
 
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do
 usuário; aí o painel entra sozinho, como no desktop. O código da Emma (NewHarnessV2) é privado:

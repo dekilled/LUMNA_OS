@@ -5,8 +5,11 @@
 //! em andamento a camada `mobile-call` aparece por cima de tudo; tocando, o celular vibra.
 //! Quando uma chamada termina, ela entra no histórico (`~/.local/share/lumna/phone/calls.json`).
 //!
-//! O áudio da ligação (q6voiced + UCM do sdm845) ainda não existe: a chamada conecta, mas o som
-//! não passa pelo alto-falante e pelo microfone.
+//! Áudio da ligação: o som vai do modem pro fone e do microfone pro modem dentro do DSP. Pra isso
+//! acontecer, três coisas durante a chamada: o `lumna-voiced` (serviço do sistema) abre o PCM de
+//! voz; o shell troca a placa de som pro perfil "Voice Call" do UCM (que liga o fone e o
+//! microfone ao modem) e mantém a placa acordada com dois pw-loopback (o PipeWire suspende o
+//! que está parado, e a rota da voz cai junto). Quando a chamada acaba, volta pro perfil de antes.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -251,6 +254,103 @@ async fn refresh(app: &AppHandle, conn: &Connection) {
     if changed {
         *CALLS.lock().unwrap() = calls.clone();
         present(app, &calls);
+        let talking = calls.iter().any(|c| matches!(c.state.as_str(), "dialing" | "ringing-out" | "active" | "held"));
+        call_audio(talking);
+    }
+}
+
+// ---- áudio da ligação ----
+
+const VOICE_PROFILE: &str = "Voice Call";
+
+struct CallAudio {
+    on: bool,
+    /// placa e perfil de antes da ligação, pra voltar
+    card: Option<(String, String)>,
+    loopbacks: Vec<std::process::Child>,
+}
+
+static CALL_AUDIO: Mutex<CallAudio> = Mutex::new(CallAudio { on: false, card: None, loopbacks: Vec::new() });
+
+/// A placa que tem o perfil "Voice Call" (a do SDM845) e o perfil em uso nela.
+fn voice_card() -> Option<(String, String)> {
+    let out = std::process::Command::new("pactl").args(["-f", "json", "list", "cards"]).output().ok()?;
+    let cards: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    cards.as_array()?.iter().find_map(|card| {
+        if !card.get("profiles")?.as_object()?.contains_key(VOICE_PROFILE) {
+            return None;
+        }
+        let name = card.get("name")?.as_str()?.to_string();
+        let active = card.get("active_profile").and_then(|p| p.as_str()).unwrap_or("HiFi").to_string();
+        Some((name, active))
+    })
+}
+
+fn pactl_profile(card: &str, profile: &str) {
+    let ok = std::process::Command::new("pactl").args(["set-card-profile", card, profile]).status().is_ok_and(|s| s.success());
+    if !ok {
+        eprintln!("lumna-shell: telefone: não consegui pôr a placa {card} no perfil {profile}");
+    }
+}
+
+/// Liga ou desliga o caminho de áudio da chamada (numa thread: pactl e pw-loopback demoram).
+fn call_audio(on: bool) {
+    std::thread::spawn(move || {
+        let mut state = CALL_AUDIO.lock().unwrap();
+        if state.on == on {
+            return;
+        }
+        state.on = on;
+        if on {
+            match voice_card() {
+                Some((card, previous)) => {
+                    if previous != VOICE_PROFILE {
+                        pactl_profile(&card, VOICE_PROFILE);
+                    }
+                    state.card = Some((card, previous));
+                }
+                None => eprintln!("lumna-shell: telefone: nenhuma placa com o perfil \"{VOICE_PROFILE}\" (sh mobile/session/audio.sh)"),
+            }
+            // mantém a placa acordada durante a ligação (o mesmo contorno do postmarketOS)
+            for props in ["--capture-props=media.class=Audio/Sink", "--playback-props=media.class=Audio/Source"] {
+                match std::process::Command::new("pw-loopback").args(["-m", "[FL FR]", props]).spawn() {
+                    Ok(child) => state.loopbacks.push(child),
+                    Err(e) => eprintln!("lumna-shell: telefone: pw-loopback: {e}"),
+                }
+            }
+        } else {
+            for mut child in state.loopbacks.drain(..) {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            if let Some((card, previous)) = state.card.take() {
+                pactl_profile(&card, if previous == VOICE_PROFILE { "HiFi" } else { &previous });
+            }
+            let _ = voice_mic(true);
+        }
+    });
+}
+
+/// Número da placa que tem o PCM de voz (VoiceMMode1), de /proc/asound/pcm.
+fn voice_card_index() -> Option<String> {
+    let pcm = std::fs::read_to_string("/proc/asound/pcm").ok()?;
+    let line = pcm.lines().find(|l| l.contains("VoiceMMode1"))?;
+    let card = line.split('-').next()?.trim().trim_start_matches('0');
+    Some(if card.is_empty() { "0".into() } else { card.to_string() })
+}
+
+/// Liga/desliga o microfone da ligação na rota do DSP (é ela que leva a voz pro modem; mutar a
+/// fonte do PipeWire não adiantaria).
+fn voice_mic(on: bool) -> Result<(), String> {
+    let card = voice_card_index().ok_or("o PCM de voz não existe (driver q6voice)")?;
+    let out = std::process::Command::new("amixer")
+        .args(["-q", "-c", &card, "cset", "name=VoiceMMode1 Capture Mixer SLIMBUS_0_TX", if on { "1" } else { "0" }])
+        .output()
+        .map_err(|e| format!("amixer: {e}"))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
     }
 }
 
@@ -328,10 +428,10 @@ pub async fn phone_dtmf(path: String, tone: String) -> Result<(), String> {
     call_mm::<_, ()>(&system().await?, &path, CALL, "SendDtmf", &(tone.as_str(),)).await
 }
 
-/// Silencia o microfone (vale quando o áudio da ligação existir).
+/// Mudo: corta o microfone da ligação.
 #[tauri::command]
-pub fn phone_mute(on: bool) -> Result<(), String> {
-    crate::status::wpctl(&["set-mute", "@DEFAULT_AUDIO_SOURCE@", if on { "1" } else { "0" }])
+pub async fn phone_mute(on: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || voice_mic(!on)).await.map_err(|e| e.to_string())?
 }
 
 // ---- histórico ----
@@ -419,6 +519,13 @@ pub fn contacts_delete(id: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn placa_da_voz() {
+        let line = " 00-06: VoiceMMode1 (*) :  : playback 1 : capture 1";
+        let card = line.split('-').next().unwrap().trim().trim_start_matches('0');
+        assert_eq!(if card.is_empty() { "0" } else { card }, "0");
+    }
 
     #[test]
     fn estados_do_modemmanager() {

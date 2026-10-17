@@ -1,0 +1,22 @@
+# Configuração UCM do ALSA dos aparelhos SDM845 (OnePlus 6/6T, Poco F1...), do sdm845-mainline,
+# no mesmo commit que o postmarketOS usa. É um fork inteiro do alsa-ucm-conf: substitui o do Arch.
+# O do 6T (OnePlus/fajita) tem os perfis HiFi e "Voice Call" (fone + microfone ligados ao modem).
+pkgname=alsa-ucm-conf-sdm845
+pkgver=3
+pkgrel=1
+pkgdesc="ALSA UCM dos aparelhos Qualcomm SDM845 (sdm845-mainline)"
+arch=(any)
+url="https://gitlab.com/sdm845-mainline/alsa-ucm-conf"
+license=(BSD-3-Clause)
+makedepends=(git)
+provides=(alsa-ucm-conf)
+conflicts=(alsa-ucm-conf)
+_commit=1b8d290e5aa2ca16b7f2fa8d74910ad19ef88b3a
+source=("alsa-ucm-conf::git+https://gitlab.com/sdm845-mainline/alsa-ucm-conf.git#commit=$_commit")
+sha256sums=(SKIP)
+
+package() {
+  install -d "$pkgdir/usr/share/alsa"
+  cp -r "$srcdir/alsa-ucm-conf/ucm2" "$pkgdir/usr/share/alsa/"
+  install -Dm644 "$srcdir/alsa-ucm-conf/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -79,8 +79,13 @@ async function act(fn: () => Promise<void>) {
 const accept = () => call.value && act(() => phoneAccept(call.value!.path));
 const hangup = () => call.value && act(() => phoneHangup(call.value!.path));
 async function toggleMute() {
-  muted.value = !muted.value;
-  await phoneMute(muted.value).catch(() => {});
+  const next = !muted.value;
+  try {
+    await phoneMute(next);
+    muted.value = next;
+  } catch (e) {
+    error.value = String(e);
+  }
 }
 function tone(k: string) {
   haptic(18).catch(() => {});
@@ -124,7 +129,6 @@ onUnmounted(() => {
       <h1>{{ who.name }}</h1>
       <p v-if="who.number" class="number">{{ who.number }}</p>
       <p class="status" :class="{ ended: call?.state === 'ended' }">{{ status }}</p>
-      <p v-if="call && call.state === 'active'" class="note">O áudio da ligação ainda não funciona no LUMNA</p>
     </div>
 
     <!-- tocando: atender ou recusar -->
@@ -148,7 +152,8 @@ onUnmounted(() => {
         <button :class="{ on: pad }" @click="pad = !pad">
           <span class="ctl"><Icon name="dialpad" :size="26" /></span>Teclado
         </button>
-        <button disabled>
+        <!-- o UCM do 6T só tem fone e microfone no perfil de ligação: viva-voz vem depois -->
+        <button disabled title="Em breve">
           <span class="ctl"><Icon name="speaker" :size="26" /></span>Viva-voz
         </button>
       </div>
@@ -210,11 +215,6 @@ h1 {
 }
 .status.ended {
   color: #f87171;
-}
-.note {
-  margin: 10px 0 0;
-  color: var(--lumna-muted);
-  font-size: 12px;
 }
 .answer {
   width: 100%;
