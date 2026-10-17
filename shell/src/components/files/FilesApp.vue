@@ -6,6 +6,9 @@ import WindowBar from "../WindowBar.vue";
 import FileArt from "./FileArt.vue";
 import { crumbs, formatDate, formatSize, KIND_LABEL } from "./format";
 import {
+  connectShare,
+  connectTargets,
+  type ConnectTarget,
   filesInfo,
   filesList,
   filesMkdir,
@@ -403,6 +406,23 @@ async function finishRename(save: boolean) {
   }
 }
 
+// ---- Connect: "Enviar para" o celular (no PC) ou o PC (no celular) ----
+
+const targets = ref<ConnectTarget[]>([]);
+async function loadTargets() {
+  targets.value = await connectTargets().catch(() => []);
+}
+async function share(target: ConnectTarget) {
+  const paths = [...selected.value];
+  if (!paths.length) return;
+  try {
+    await connectShare(target, paths);
+    notify(`Enviando ${paths.length === 1 ? "1 arquivo" : `${paths.length} arquivos`} para ${target.name}…`);
+  } catch (e) {
+    notify(String(e), true);
+  }
+}
+
 async function copyPath() {
   const paths = selected.value.size ? [...selected.value] : [path.value];
   await navigator.clipboard.writeText(paths.join("\n")).catch(() => {});
@@ -491,6 +511,8 @@ function openMenu(event: MouseEvent, entry?: FileEntry, trashItem?: TrashItem) {
       ...(entry.dir && clipboard.value?.paths.length ? [{ label: "Colar dentro", icon: "paste", action: () => pasteInto(entry.path) }] : []),
       { label: "Renomear", icon: "edit", hint: "F2", disabled: n !== 1, action: () => startRename(entry) },
       { label: "Copiar caminho", icon: "link", action: copyPath },
+      ...(targets.value.length && !entry.dir ? [{}] : []),
+      ...(entry.dir ? [] : targets.value.map((t) => ({ label: `Enviar para ${t.name}`, icon: "send", action: () => share(t) }))),
       {},
       { label: "Mover para a lixeira", icon: "trash", hint: "Delete", danger: true, action: trashSelected },
       {},
@@ -643,6 +665,9 @@ let poll: number | undefined;
 let placesPoll: number | undefined;
 
 onMounted(async () => {
+  loadTargets();
+  stops.push(await on("lumna://connect", loadTargets));
+  stops.push(await on("lumna://remote-devices", loadTargets));
   window.addEventListener("keydown", onKey);
   window.addEventListener("storage", onStorage);
   stops.push(() => window.removeEventListener("keydown", onKey));

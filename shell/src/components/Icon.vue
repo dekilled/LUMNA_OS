@@ -43,6 +43,8 @@ const paths: Record<string, string> = {
   plus: "M12 5v14M5 12h14",
   home: "M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5",
   download: "M12 4v11M7 10l5 5 5-5M5 20h14",
+  upload: "M12 20V9M7 14l5-5 5 5M5 4h14",
+  clipboard: "M9 3h6v3H9zM9 4.5H5V21h14V4.5h-4M8.5 11h7M8.5 15h5",
   document: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6",
   image: "M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15 9.5h.01",
   video: "M3 6h13v12H3zM16 10l5-3v10l-5-3",

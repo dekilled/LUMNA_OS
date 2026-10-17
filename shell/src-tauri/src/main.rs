@@ -16,6 +16,7 @@ mod installer;
 mod keyboard;
 mod touchkeys;
 mod layer;
+mod link;
 mod lock;
 mod media;
 mod mobile;
@@ -31,6 +32,7 @@ mod power;
 mod printers;
 mod remote;
 mod rest;
+mod schedule;
 mod status;
 mod store;
 mod system_info;
@@ -1548,6 +1550,24 @@ fn main() {
             connect::connect_forget,
             connect::connect_send,
             connect::connect_ask_close,
+            connect::connect_set_features,
+            connect::connect_set_address,
+            connect::connect_send_files,
+            connect::connect_send_clipboard,
+            connect::connect_targets,
+            connect::connect_share,
+            link::connect_settings,
+            link::connect_settings_set,
+            link::connect_transfers,
+            link::connect_recent_files,
+            remote::remote_devices,
+            remote::remote_device_set,
+            remote::remote_device_forget,
+            remote::remote_send_files,
+            remote::remote_send_clipboard,
+            schedule::schedule_list,
+            schedule::schedule_add,
+            schedule::schedule_remove,
             mobilelock::lock_state,
             mobilelock::lock_unlock,
             mobilelock::lock_now,
@@ -1644,6 +1664,7 @@ fn main() {
             control::listen(app.handle().clone());
             pad::watch(app.handle().clone());
             remote::start(app.handle().clone());
+            schedule::start(app.handle().clone());
             wifi::watch(app.handle().clone());
             bluetooth::watch(app.handle().clone());
             polkit::start(app.handle().clone());

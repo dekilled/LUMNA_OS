@@ -1,8 +1,27 @@
 <script setup lang="ts">
-// Um PC pareado: como ele está, conversar com a Emma dele, comandos de energia e esquecer.
+// Um PC pareado: como ele está, mandar arquivos e o que foi copiado, conversar com a Emma dele,
+// agendamentos, energia, os recursos ligados pra ele, o endereço e esquecer.
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../../Icon.vue";
-import { connectComputers, connectForget, connectSend, on, type Computer } from "../../../system";
+import Schedules from "../../connect/Schedules.vue";
+import Transfers from "../../connect/Transfers.vue";
+import { formatSize } from "../../files/format";
+import {
+  connectComputers,
+  connectForget,
+  connectRecentFiles,
+  connectSend,
+  connectSendClipboard,
+  connectSendFiles,
+  connectSetAddress,
+  connectSetFeatures,
+  convertFileSrc,
+  on,
+  type Computer,
+  type ConnectFeatures,
+  type RecentFile,
+  type ScheduleTask,
+} from "../../../system";
 
 const props = defineProps<{ arg?: string }>();
 const emit = defineEmits<{ back: [] }>();
@@ -25,6 +44,22 @@ const chat = ref<{ from: "eu" | "emma"; text: string }[]>([]);
 const thinking = ref(false);
 const confirm = ref<"lock" | "suspend" | "reboot" | "poweroff" | null>(null);
 const error = ref("");
+const note = ref("");
+const tasks = ref<ScheduleTask[]>([]);
+const picking = ref(false);
+const recent = ref<RecentFile[]>([]);
+const chosen = ref<Set<string>>(new Set());
+const editing = ref(false);
+const address = ref("");
+
+const FEATURES: { key: keyof ConnectFeatures; title: string; sub: string }[] = [
+  { key: "notifications", title: "Avisos do PC", sub: "As notificações do PC aparecem aqui" },
+  { key: "phone_notifications", title: "Avisos deste celular no PC", sub: "Notificações e ligações chegando" },
+  { key: "clipboard", title: "Área de transferência", sub: "O que copiar num aparece no outro" },
+  { key: "files", title: "Receber arquivos", sub: "O que o PC mandar vai pra pasta de recebidos" },
+  { key: "control", title: "Senhas e confirmações", sub: "Pedidos de senha e da Emma do PC" },
+];
+const IMAGE = /\.(jpe?g|png|webp|gif)$/i;
 
 const ACTIONS = [
   { id: "lock", label: "Bloquear", icon: "lock" },
@@ -75,6 +110,74 @@ async function power(action: string) {
     error.value = String(e);
   }
 }
+function flash(text: string) {
+  note.value = text;
+  window.setTimeout(() => (note.value = ""), 3000);
+}
+async function toggle(key: keyof ConnectFeatures) {
+  if (!pc.value) return;
+  const features = { ...pc.value.features, [key]: !pc.value.features[key] };
+  pc.value.features = features;
+  await connectSetFeatures(pc.value.id, features).catch((e) => (error.value = String(e)));
+}
+async function loadTasks() {
+  if (!props.arg || !pc.value?.online) return;
+  const r = await connectSend(props.arg, { type: "schedule-list" }).catch(() => null);
+  if (r?.tasks) tasks.value = r.tasks;
+}
+async function addTask(task: Omit<ScheduleTask, "id" | "by">) {
+  error.value = "";
+  try {
+    const r = await connectSend(props.arg!, { type: "schedule-add", task });
+    tasks.value = r.tasks;
+  } catch (e) {
+    error.value = String(e);
+  }
+}
+async function removeTask(id: string) {
+  try {
+    const r = await connectSend(props.arg!, { type: "schedule-remove", id });
+    tasks.value = r.tasks;
+  } catch (e) {
+    error.value = String(e);
+  }
+}
+async function pickFiles() {
+  chosen.value = new Set();
+  picking.value = true;
+  recent.value = await connectRecentFiles().catch(() => []);
+}
+function choose(path: string) {
+  const s = new Set(chosen.value);
+  if (s.has(path)) s.delete(path);
+  else s.add(path);
+  chosen.value = s;
+}
+async function sendFiles() {
+  picking.value = false;
+  error.value = "";
+  await connectSendFiles(props.arg!, [...chosen.value]).catch((e) => (error.value = String(e)));
+}
+async function sendClipboard() {
+  error.value = "";
+  try {
+    await connectSendClipboard(props.arg!);
+    flash("Mandei o que você copiou pro PC.");
+  } catch (e) {
+    error.value = String(e);
+  }
+}
+async function saveAddress() {
+  error.value = "";
+  const [host, port] = address.value.trim().split(/:(?=\d+$)/);
+  try {
+    await connectSetAddress(props.arg!, host, port ? Number(port) : undefined);
+    editing.value = false;
+  } catch (e) {
+    error.value = String(e);
+  }
+}
+
 async function forget() {
   await connectForget(props.arg!).catch(() => {});
   emit("back");
@@ -85,12 +188,16 @@ const stops: (() => void)[] = [];
 onMounted(async () => {
   computers.value = await connectComputers().catch(() => []);
   loadInfo();
+  loadTasks();
   timer = window.setInterval(loadInfo, 15000);
   stops.push(
     await on<Computer[]>("lumna://connect", (list) => {
       const was = pc.value?.online;
       computers.value = list;
-      if (!was && pc.value?.online) loadInfo();
+      if (!was && pc.value?.online) {
+        loadInfo();
+        loadTasks();
+      }
     }),
   );
 });
@@ -118,6 +225,14 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div class="ms-label">Compartilhar</div>
+      <div class="grid two">
+        <button class="act" :disabled="!pc.online" @click="pickFiles()"><Icon name="upload" :size="24" /><span>Enviar arquivos</span></button>
+        <button class="act" :disabled="!pc.online" @click="sendClipboard()"><Icon name="clipboard" :size="24" /><span>Mandar o que copiei</span></button>
+      </div>
+      <p v-if="note" class="ms-note">{{ note }}</p>
+      <Transfers class="transfers" :peer="pc.name" />
+
       <div class="ms-label">Emma do PC</div>
       <div class="ms-card pad">
         <div v-for="(m, i) in chat" :key="i" class="bubble" :class="m.from">{{ m.text }}</div>
@@ -128,6 +243,9 @@ onUnmounted(() => {
         </form>
       </div>
 
+      <div class="ms-label">Agendamentos no PC</div>
+      <Schedules :tasks="tasks" :disabled="!pc.online" @add="addTask" @remove="removeTask" />
+
       <div class="ms-label">Energia</div>
       <div class="grid">
         <button v-for="a in ACTIONS" :key="a.id" class="act" :class="{ danger: a.id === 'poweroff' }" :disabled="!pc.online" @click="confirm = a.id">
@@ -137,11 +255,62 @@ onUnmounted(() => {
       </div>
       <p v-if="error" class="ms-error">{{ error }}</p>
 
+      <div class="ms-label">Recursos</div>
+      <div class="ms-card">
+        <div v-for="f in FEATURES" :key="f.key" class="ms-row">
+          <span class="txt"><strong>{{ f.title }}</strong><small>{{ f.sub }}</small></span>
+          <button class="ms-switch" :class="{ on: pc.features[f.key] }" :aria-label="f.title" @click="toggle(f.key)" />
+        </div>
+      </div>
+      <p class="ms-note">O PC tem os ajustes dele pra este celular em Configurações → Celular.</p>
+
+      <div class="ms-label">Conexão</div>
+      <div class="ms-card">
+        <button class="ms-row" @click="(address = pc.port === 47800 ? pc.host : `${pc.host}:${pc.port}`), (editing = true)">
+          <span class="txt"><strong>Endereço</strong><small>{{ pc.host }}{{ pc.port === 47800 ? "" : `:${pc.port}` }}</small></span>
+          <Icon class="chev" name="edit" :size="20" />
+        </button>
+      </div>
+
       <div class="ms-actions">
         <button class="ms-btn danger" @click="forget()">Esquecer este computador</button>
       </div>
     </template>
     <p v-else class="ms-note">Esse computador não está mais pareado.</p>
+
+    <div v-if="picking" class="ms-sheet-veil" @click.self="picking = false">
+      <div class="ms-sheet files">
+        <h2>Enviar pro {{ pc?.name }}</h2>
+        <div class="pick">
+          <button v-for="f in recent" :key="f.path" class="file" :class="{ on: chosen.has(f.path) }" @click="choose(f.path)">
+            <img v-if="IMAGE.test(f.name)" :src="convertFileSrc(f.path)" alt="" loading="lazy" />
+            <span v-else class="fi"><Icon name="file" :size="22" /></span>
+            <span class="fn"><strong>{{ f.name }}</strong><small>{{ formatSize(f.size) }}</small></span>
+            <span class="check"><Icon v-if="chosen.has(f.path)" name="check" :size="16" /></span>
+          </button>
+          <p v-if="!recent.length" class="ms-note">Nenhum arquivo recente. No Arquivos, segure um arquivo → Enviar para.</p>
+        </div>
+        <div class="ms-actions">
+          <button class="ms-btn" @click="picking = false">Cancelar</button>
+          <button class="ms-btn primary" :disabled="!chosen.size" @click="sendFiles()">Enviar{{ chosen.size ? ` (${chosen.size})` : "" }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="editing" class="ms-sheet-veil" @click.self="editing = false">
+      <div class="ms-sheet">
+        <h2>Endereço do PC</h2>
+        <p class="ms-note">O IP da rede ou o 100.x do Tailscale (pra usar fora de casa).</p>
+        <label class="ms-field">
+          <small>Endereço</small>
+          <input v-model="address" placeholder="192.168.0.10 ou 100.x.y.z" autocomplete="off" @keydown.enter="saveAddress()" />
+        </label>
+        <div class="ms-actions">
+          <button class="ms-btn" @click="editing = false">Cancelar</button>
+          <button class="ms-btn primary" :disabled="!address.trim()" @click="saveAddress()">Salvar</button>
+        </div>
+      </div>
+    </div>
 
     <div v-if="confirm" class="ms-sheet-veil" @click.self="confirm = null">
       <div class="ms-sheet">
@@ -246,6 +415,87 @@ h2 {
   color: var(--lumna-text);
   font: inherit;
   font-size: 12px;
+}
+.grid.two {
+  grid-template-columns: 1fr 1fr;
+}
+.grid.two .act {
+  font-size: 14px;
+}
+.transfers {
+  margin-top: 10px;
+}
+.files {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.pick {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 4px -4px 0;
+}
+.file {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.file.on {
+  background: rgba(139, 92, 246, 0.16);
+}
+.file img,
+.fi {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.fi {
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--lumna-muted);
+}
+.fn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.fn strong {
+  font-weight: 400;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fn small {
+  color: var(--lumna-muted);
+  font-size: 12.5px;
+}
+.check {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+}
+.file.on .check {
+  border-color: transparent;
+  background: #7c5ce6;
+  color: #fff;
 }
 .act.danger {
   color: #fca5a5;

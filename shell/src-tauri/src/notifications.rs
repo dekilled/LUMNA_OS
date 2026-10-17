@@ -84,6 +84,8 @@ impl Server {
             "body": notification.body,
             "urgent": notification.urgent,
         }));
+        // e, no celular, pros PCs do Connect
+        crate::connect::forward_notification(&notification.app_name, &notification.summary, &notification.body, notification.urgent);
         let _ = self.app.emit("lumna://notification", notification);
         if !quiet {
             crate::show_notifications(&self.app);

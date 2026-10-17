@@ -3,7 +3,18 @@
 // digitar o endereço, inclusive o do Tailscale) e o código de 6 dígitos que o PC mostra.
 import { onMounted, onUnmounted, ref } from "vue";
 import Icon from "../../Icon.vue";
-import { connectComputers, connectDiscover, connectPair, on, type Computer, type FoundComputer } from "../../../system";
+import Transfers from "../../connect/Transfers.vue";
+import {
+  connectComputers,
+  connectDiscover,
+  connectPair,
+  connectSettings,
+  connectSettingsSet,
+  on,
+  type Computer,
+  type ConnectSettings,
+  type FoundComputer,
+} from "../../../system";
 
 defineProps<{ arg?: string }>();
 const emit = defineEmits<{ open: [page: "connect-pc", arg: string] }>();
@@ -17,6 +28,31 @@ const code = ref("");
 const step = ref<"escolher" | "codigo">("escolher");
 const busy = ref(false);
 const error = ref("");
+const settings = ref<ConnectSettings | null>(null);
+const choosingDir = ref(false);
+const customDir = ref("");
+
+const home = () => settings.value?.default_dir.replace(/\/[^/]+$/, "") ?? "~";
+const DIRS = () => [
+  { label: "Downloads", path: settings.value?.default_dir ?? "" },
+  { label: "Documentos", path: `${home()}/Documentos` },
+  { label: "Imagens", path: `${home()}/Imagens` },
+  { label: "LUMNA Connect", path: `${home()}/LUMNA Connect` },
+];
+const shortDir = (p: string) => p.replace(home(), "~");
+
+async function setEnabled(enabled: boolean) {
+  settings.value = await connectSettingsSet({ enabled }).catch(() => settings.value);
+}
+async function setDir(path: string) {
+  error.value = "";
+  try {
+    settings.value = await connectSettingsSet({ receiveDir: path === settings.value?.default_dir ? "" : path });
+    choosingDir.value = false;
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 
 async function search() {
   searching.value = true;
@@ -53,6 +89,7 @@ async function pair() {
 const stops: (() => void)[] = [];
 onMounted(async () => {
   computers.value = await connectComputers().catch(() => []);
+  settings.value = await connectSettings().catch(() => null);
   stops.push(await on<Computer[]>("lumna://connect", (list) => (computers.value = list)));
 });
 onUnmounted(() => stops.forEach((s) => s()));
@@ -62,7 +99,14 @@ onUnmounted(() => stops.forEach((s) => s()));
   <div class="ms-scroll">
     <div class="hero">
       <span class="big"><Icon name="desktop" :size="38" /></span>
-      <p>Seu PC com o LUMNA no bolso: avisos da Emma, senhas, comandos de longe.</p>
+      <p>Seu PC com o LUMNA no bolso: avisos, arquivos, área de transferência, senhas, Emma e comandos de longe.</p>
+    </div>
+
+    <div class="ms-card">
+      <div class="ms-row">
+        <span class="txt"><strong>Celular Connect</strong><small>{{ settings?.enabled === false ? "Desligado: nada vai nem vem" : "Ligado" }}</small></span>
+        <button class="ms-switch" :class="{ on: settings?.enabled }" :disabled="!settings" aria-label="Celular Connect" @click="setEnabled(!settings?.enabled)" />
+      </div>
     </div>
 
     <div class="ms-label">Meus computadores</div>
@@ -83,6 +127,38 @@ onUnmounted(() => stops.forEach((s) => s()));
         <span class="ico violet"><Icon name="plus" :size="24" /></span>
         <span class="txt"><strong>Adicionar computador</strong><small>Na mesma rede ou pelo Tailscale</small></span>
       </button>
+    </div>
+
+    <div class="ms-label">Arquivos</div>
+    <div class="ms-card">
+      <button class="ms-row" @click="(customDir = ''), (choosingDir = true)">
+        <span class="ico"><Icon name="folder" :size="24" /></span>
+        <span class="txt"><strong>Pasta de recebidos</strong><small>{{ settings ? shortDir(settings.receive_dir) : "…" }}</small></span>
+        <Icon class="chev" name="forward" :size="20" />
+      </button>
+    </div>
+    <Transfers class="transfers" />
+
+    <div v-if="choosingDir" class="ms-sheet-veil" @click.self="choosingDir = false">
+      <div class="ms-sheet">
+        <h2>Pasta de recebidos</h2>
+        <div class="ms-card list">
+          <button v-for="d in DIRS()" :key="d.path" class="ms-row" @click="setDir(d.path)">
+            <span class="ico violet"><Icon name="folder" :size="22" /></span>
+            <span class="txt"><strong>{{ d.label }}</strong><small>{{ shortDir(d.path) }}</small></span>
+            <Icon v-if="settings?.receive_dir === d.path" class="chev" name="check" :size="20" />
+          </button>
+        </div>
+        <label class="ms-field manual">
+          <small>Ou outra pasta</small>
+          <input v-model="customDir" placeholder="~/Pasta" autocomplete="off" @keydown.enter="customDir.trim() && setDir(customDir.trim())" />
+        </label>
+        <p v-if="error" class="ms-error">{{ error }}</p>
+        <div class="ms-actions">
+          <button class="ms-btn" @click="choosingDir = false">Cancelar</button>
+          <button class="ms-btn primary" :disabled="!customDir.trim()" @click="setDir(customDir.trim())">Usar essa</button>
+        </div>
+      </div>
     </div>
 
     <div v-if="adding" class="ms-sheet-veil" @click.self="adding = false">
@@ -132,6 +208,9 @@ onUnmounted(() => stops.forEach((s) => s()));
 </template>
 
 <style scoped>
+.transfers {
+  margin-top: 10px;
+}
 .hero {
   display: flex;
   flex-direction: column;

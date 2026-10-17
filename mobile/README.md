@@ -74,7 +74,11 @@ mDNS). Pareamento: no PC, Configurações > Celular mostra um código de 6 dígi
 Ajustes > Celular Connect > Adicionar computador. Pareado, chegam no celular os avisos do PC, os
 pedidos de senha de administrador (o polkit do PC; a senha digitada no celular volta pra ele) e as
 confirmações da Emma; e do celular dá pra falar com a Emma do PC, bloquear, suspender, reiniciar e
-desligar. Fora de casa: Tailscale nos dois (`sudo pacman -S tailscale`,
+desligar. E o resto, como um KDE Connect: o que copiar num aparece no outro, os avisos e as
+ligações do celular aparecem no PC, arquivos vão e vêm (no Arquivos: Enviar para…; no celular
+também pela página do PC) e agendamentos no PC (desligar, lembrete, um pedido pra Emma...).
+Cada lado liga/desliga os recursos de cada aparelho e escolhe a pasta de recebidos: no PC em
+Configurações > Celular, no celular em Ajustes > Celular Connect. Fora de casa: Tailscale nos dois (`sudo pacman -S tailscale`,
 `sudo systemctl enable --now tailscaled`, `sudo tailscale up`) e adicionar o PC pelo IP 100.x.
 
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do

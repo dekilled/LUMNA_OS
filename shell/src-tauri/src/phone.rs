@@ -239,6 +239,11 @@ fn present(app: &AppHandle, calls: &[Call]) {
         });
     }
     if ringing && !RINGING.swap(true, Ordering::SeqCst) {
+        // tocando aqui: avisa nos PCs do Connect
+        if let Some(c) = calls.iter().find(|c| c.state == "incoming" || c.state == "waiting") {
+            let who = contact_name(&c.number).unwrap_or_else(|| if c.number.is_empty() { "Número privado".into() } else { c.number.clone() });
+            crate::connect::forward_notification("Telefone", &format!("Ligação de {who}"), &c.number, true);
+        }
         std::thread::spawn(|| {
             while RINGING.load(Ordering::SeqCst) {
                 crate::haptics::buzz(700);
@@ -555,6 +560,23 @@ pub struct Contact {
     pub address: String,
     pub birthday: String,
     pub favorite: bool,
+}
+
+/// O nome do contato com esse número (compara os últimos 8 dígitos: com ou sem +55, DDD, 0).
+fn contact_name(number: &str) -> Option<String> {
+    let digits = |n: &str| n.chars().filter(char::is_ascii_digit).collect::<String>();
+    let tail = |n: &str| {
+        let d = digits(n);
+        d[d.len().saturating_sub(8)..].to_string()
+    };
+    let wanted = tail(number);
+    if wanted.len() < 8 {
+        return None;
+    }
+    let list: Vec<Contact> = read_json("contacts.json");
+    list.into_iter()
+        .find(|c| c.phones.iter().any(|p| tail(&p.number) == wanted))
+        .map(|c| format!("{} {}", c.first, c.last).trim().to_string())
 }
 
 #[tauri::command]

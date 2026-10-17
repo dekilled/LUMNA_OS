@@ -951,12 +951,21 @@ export const powerMenuClose = () => invoke<void>("power_menu_close");
 
 // ---- celular: Connect (o PC pelo celular) ----
 
+/** O que um aparelho pareado pode fazer (cada lado guarda os seus). */
+export interface ConnectFeatures {
+  notifications: boolean;
+  phone_notifications: boolean;
+  clipboard: boolean;
+  files: boolean;
+  control: boolean;
+}
 export interface Computer {
   id: string;
   name: string;
   host: string;
   port: number;
   online: boolean;
+  features: ConnectFeatures;
 }
 export interface FoundComputer {
   name: string;
@@ -983,3 +992,72 @@ export const connectForget = (id: string) => invoke<void>("connect_forget", { id
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const connectSend = (id: string, message: Record<string, unknown>) => invoke<any>("connect_send", { id, message });
 export const connectAskClose = () => invoke<void>("connect_ask_close");
+export const connectSetFeatures = (id: string, features: ConnectFeatures) => invoke<void>("connect_set_features", { id, features });
+export const connectSetAddress = (id: string, host: string, port?: number) => invoke<void>("connect_set_address", { id, host, port });
+export const connectSendFiles = (id: string, paths: string[]) => invoke<void>("connect_send_files", { id, paths });
+export const connectSendClipboard = (id: string) => invoke<void>("connect_send_clipboard", { id });
+
+export interface ConnectTarget {
+  id: string;
+  name: string;
+  kind: "pc" | "phone";
+}
+/** Pra quem dá pra mandar arquivos agora (PCs, se este é o celular; celulares, se é o PC). */
+export const connectTargets = () => invoke<ConnectTarget[]>("connect_targets");
+export const connectShare = (target: ConnectTarget, paths: string[]) => invoke<void>("connect_share", { kind: target.kind, id: target.id, paths });
+
+export interface ConnectSettings {
+  enabled: boolean;
+  receive_dir: string;
+  default_dir: string;
+}
+export const connectSettings = () => invoke<ConnectSettings>("connect_settings");
+export const connectSettingsSet = (change: { enabled?: boolean; receiveDir?: string }) =>
+  invoke<ConnectSettings>("connect_settings_set", { enabled: change.enabled, receiveDir: change.receiveDir });
+
+export interface Transfer {
+  id: string;
+  name: string;
+  peer: string;
+  direction: "in" | "out";
+  done: number;
+  size: number;
+  state: "running" | "done" | "error";
+  error: string | null;
+  path: string | null;
+}
+export const connectTransfers = () => invoke<Transfer[]>("connect_transfers");
+
+export interface RecentFile {
+  path: string;
+  name: string;
+  size: number;
+  modified: number;
+}
+export const connectRecentFiles = () => invoke<RecentFile[]>("connect_recent_files");
+
+/** No PC: os celulares pareados. */
+export interface RemoteDevice {
+  id: string;
+  name: string;
+  online: boolean;
+  features: ConnectFeatures;
+}
+export const remoteDevices = () => invoke<RemoteDevice[]>("remote_devices");
+export const remoteDeviceSet = (id: string, features: ConnectFeatures) => invoke<void>("remote_device_set", { id, features });
+export const remoteDeviceForget = (id: string) => invoke<void>("remote_device_forget", { id });
+export const remoteSendClipboard = (id: string) => invoke<void>("remote_send_clipboard", { id });
+
+/** Agendamentos do PC. */
+export type ScheduleAction = "poweroff" | "reboot" | "suspend" | "lock" | "remind" | "emma";
+export interface ScheduleTask {
+  id: string;
+  at: number;
+  action: ScheduleAction;
+  text: string;
+  daily: boolean;
+  by: string;
+}
+export const scheduleList = () => invoke<ScheduleTask[]>("schedule_list");
+export const scheduleAdd = (task: Omit<ScheduleTask, "id" | "by">) => invoke<ScheduleTask>("schedule_add", { task });
+export const scheduleRemove = (id: string) => invoke<void>("schedule_remove", { id });
