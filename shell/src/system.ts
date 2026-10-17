@@ -856,7 +856,9 @@ export const contactFor = (list: Contact[], number: string) =>
   list.find((c) => c.phones.some((p) => sameNumber(p.number, number)));
 /** Número brasileiro bonito: +55 (11) 98765-4321. Outros ficam como vieram. */
 export function formatNumber(n: string): string {
-  const d = n.replace(/\D/g, "");
+  let d = n.replace(/\D/g, "");
+  // a operadora manda o número nacional com o 0 na frente (038 99171-7439): sai o 0
+  if (!n.startsWith("+") && d.startsWith("0") && (d.length === 11 || d.length === 12)) d = d.slice(1);
   const br = d.startsWith("55") && d.length >= 12 ? d.slice(2) : n.startsWith("+") ? null : d;
   if (br && (br.length === 10 || br.length === 11)) {
     const ddd = br.slice(0, 2);

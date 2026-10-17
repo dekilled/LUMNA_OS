@@ -40,6 +40,10 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 
 ✅ **Wi-Fi funcionando no 6T** (WCN3990 pelo ath10k, conectado pelo NetworkManager) e o modem
 ligado. ✅ **Chip registrado na rede** (Vivo, LTE, 75% de sinal) depois do `lumna-sim.service`.
+✅ **Primeira ligação recebida**: um Android ligou pro Arch Linux no 6T, com o nome do contato na
+tela de chamada do LUMNA.
+
+![Primeira ligação recebida no LUMNA](docs/primeira-ligacao.jpg)
 Falta: dados móveis (APN) e o áudio das chamadas.
 
 `session/modem-wifi.sh` (no celular) compila do AUR a pilha da Qualcomm que o postmarketOS usa
