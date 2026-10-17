@@ -55,6 +55,14 @@ cp "$HERE/ucm/PKGBUILD" "$build/"
 (cd "$build" && makepkg -f --noconfirm)
 sudo pacman -U --noconfirm --ask=4 "$build"/alsa-ucm-conf-sdm845-*.pkg.tar.*
 
+# firmware do amplificador do alto-falante (TFA98xx): o pacote do 6T guarda em postmarketos/,
+# mas o driver procura na raiz. Sem ele: "tfa98xx: Container file not loaded" e o alto-falante mudo.
+fw=/usr/lib/firmware
+if [ -f $fw/postmarketos/tfa98xx.cnt ] && [ ! -e $fw/tfa98xx.cnt ]; then
+    sudo install -Dm644 $fw/postmarketos/tfa98xx.cnt $fw/tfa98xx.cnt
+    echo "firmware do amplificador instalado: reinicie o celular pra ele carregar"
+fi
+
 # no 6T o alsa-restore deixa o alto-falante mudo
 sudo systemctl mask alsa-restore.service alsa-state.service 2>/dev/null || true
 

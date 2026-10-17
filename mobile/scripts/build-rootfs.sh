@@ -48,6 +48,8 @@ fwdir="$ROOT/usr/lib/firmware"
 if [ -d "$fwdir/postmarketos" ]; then
     install -Dm644 "$fwdir/postmarketos/ath10k/WCN3990/hw1.0/board-2.bin" "$fwdir/ath10k/WCN3990/hw1.0/board-2.bin"
     install -Dm644 "$fwdir/postmarketos/qca/crbtfw21.tlv" "$fwdir/qca/crbtfw21.tlv"
+    # amplificador do alto-falante (TFA98xx): o driver procura na raiz do firmware
+    install -Dm644 "$fwdir/postmarketos/tfa98xx.cnt" "$fwdir/tfa98xx.cnt"
 fi
 
 chroot "$ROOT" /bin/bash -eu <<'CHROOT'

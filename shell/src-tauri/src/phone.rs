@@ -272,31 +272,68 @@ const VOICE_PROFILE: &str = "Voice Call";
 
 struct CallAudio {
     on: bool,
-    /// placa e perfil de antes da ligação, pra voltar
+    /// placa e perfil pra onde voltar depois da ligação
     card: Option<(String, String)>,
     loopbacks: Vec<std::process::Child>,
+    /// dispositivo de dados móveis que teve a reconexão automática pausada
+    data_device: Option<String>,
 }
 
-static CALL_AUDIO: Mutex<CallAudio> = Mutex::new(CallAudio { on: false, card: None, loopbacks: Vec::new() });
+static CALL_AUDIO: Mutex<CallAudio> =
+    Mutex::new(CallAudio { on: false, card: None, loopbacks: Vec::new(), data_device: None });
 
-/// A placa que tem o perfil "Voice Call" (a do SDM845) e o perfil em uso nela.
+/// A placa que tem o perfil "Voice Call" (a do SDM845) e o perfil pra voltar depois: o que
+/// estava em uso, ou (se já estava em "Voice Call") o de música (HiFi...).
 fn voice_card() -> Option<(String, String)> {
     let out = std::process::Command::new("pactl").args(["-f", "json", "list", "cards"]).output().ok()?;
     let cards: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
     cards.as_array()?.iter().find_map(|card| {
-        if !card.get("profiles")?.as_object()?.contains_key(VOICE_PROFILE) {
+        let profiles = card.get("profiles")?.as_object()?;
+        if !profiles.contains_key(VOICE_PROFILE) {
             return None;
         }
         let name = card.get("name")?.as_str()?.to_string();
-        let active = card.get("active_profile").and_then(|p| p.as_str()).unwrap_or("HiFi").to_string();
-        Some((name, active))
+        let active = card.get("active_profile").and_then(|p| p.as_str()).unwrap_or_default();
+        let back = if !active.is_empty() && active != VOICE_PROFILE {
+            active.to_string()
+        } else {
+            let mut names: Vec<&String> = profiles.keys().filter(|p| *p != VOICE_PROFILE && *p != "off").collect();
+            names.sort_by_key(|p| !p.contains("HiFi"));
+            names.first().map(|p| p.to_string()).unwrap_or_else(|| "off".into())
+        };
+        Some((name, back))
     })
 }
 
 fn pactl_profile(card: &str, profile: &str) {
-    let ok = std::process::Command::new("pactl").args(["set-card-profile", card, profile]).status().is_ok_and(|s| s.success());
+    match std::process::Command::new("pactl").args(["set-card-profile", card, profile]).output() {
+        Ok(out) if out.status.success() => {}
+        Ok(out) => eprintln!(
+            "lumna-shell: telefone: não consegui pôr a placa {card} no perfil {profile}: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ),
+        Err(e) => eprintln!("lumna-shell: telefone: pactl: {e}"),
+    }
+}
+
+/// O dispositivo de dados móveis do NetworkManager (o modem), se houver.
+fn gsm_device() -> Option<String> {
+    let out = std::process::Command::new("nmcli").args(["-t", "-f", "DEVICE,TYPE", "device"]).output().ok()?;
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|l| l.split_once(':').filter(|(_, t)| *t == "gsm").map(|(d, _)| d.to_string()))
+}
+
+/// Pausa (ou devolve) a reconexão automática dos dados móveis. Numa ligação o 4G cai (a voz
+/// desce pra rede antiga, CSFB) e o NetworkManager tenta reconectar os dados na hora; o
+/// ModemManager travava nessa reconexão, reiniciava o modem e a ligação caía.
+fn data_autoconnect(device: &str, on: bool) {
+    let ok = std::process::Command::new("nmcli")
+        .args(["device", "set", device, "autoconnect", if on { "yes" } else { "no" }])
+        .status()
+        .is_ok_and(|s| s.success());
     if !ok {
-        eprintln!("lumna-shell: telefone: não consegui pôr a placa {card} no perfil {profile}");
+        eprintln!("lumna-shell: telefone: não consegui mudar a reconexão automática de {device}");
     }
 }
 
@@ -316,12 +353,14 @@ fn call_audio(on: bool) {
         }
         state.on = on;
         if on {
+            if let Some(device) = gsm_device() {
+                data_autoconnect(&device, false);
+                state.data_device = Some(device);
+            }
             match voice_card() {
-                Some((card, previous)) => {
-                    if previous != VOICE_PROFILE {
-                        pactl_profile(&card, VOICE_PROFILE);
-                    }
-                    state.card = Some((card, previous));
+                Some((card, back)) => {
+                    pactl_profile(&card, VOICE_PROFILE);
+                    state.card = Some((card, back));
                 }
                 None => eprintln!("lumna-shell: telefone: nenhuma placa com o perfil \"{VOICE_PROFILE}\" (sh mobile/session/audio.sh)"),
             }
@@ -337,10 +376,14 @@ fn call_audio(on: bool) {
                 let _ = child.kill();
                 let _ = child.wait();
             }
-            if let Some((card, previous)) = state.card.take() {
-                pactl_profile(&card, if previous == VOICE_PROFILE { "HiFi" } else { &previous });
+            if let Some((card, back)) = state.card.take() {
+                pactl_profile(&card, &back);
             }
             let _ = voice_mic(true);
+            // os dados voltam sozinhos (o NetworkManager reconecta com o autoconnect de volta)
+            if let Some(device) = state.data_device.take() {
+                data_autoconnect(&device, true);
+            }
         }
     });
 }
