@@ -41,8 +41,16 @@ fn queue() -> &'static Mutex<Sender<Job>> {
                         }
                     }
                 }
-                if let Err(e) = cmd.status() {
-                    eprintln!("lumna-keyboard: wtype: {e}");
+                // a saída vai para o journal: journalctl -t lumna-shell | grep lumna-keyboard
+                match cmd.output() {
+                    Ok(out) if !out.status.success() => eprintln!(
+                        "lumna-keyboard: wtype {:?} falhou ({}): {}",
+                        cmd.get_args().collect::<Vec<_>>(),
+                        out.status,
+                        String::from_utf8_lossy(&out.stderr).trim()
+                    ),
+                    Ok(_) => {}
+                    Err(e) => eprintln!("lumna-keyboard: wtype: {e}"),
                 }
             }
         });
