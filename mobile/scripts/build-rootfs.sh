@@ -88,6 +88,10 @@ polkit.addRule(function(action, subject) {
     }
 });
 RULE
+# o teclado do LUMNA vibra a cada toque: o motor de vibração fica liberado pra quem está na tela
+cat > /etc/udev/rules.d/70-lumna-vibra.rules <<'RULE'
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{capabilities/ff}=="?*", ATTRS{capabilities/ff}!="0", TAG+="uaccess"
+RULE
 # Rede USB fixa: o PC conversa com o celular em 172.16.42.1
 cat > /etc/NetworkManager/system-connections/usb0.nmconnection <<NM
 [connection]

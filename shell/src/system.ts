@@ -751,3 +751,4 @@ export const keyboardType = (text: string) => invoke<void>("keyboard_type", { te
 export const keyboardKey = (key: string, mods: string[] = []) => invoke<void>("keyboard_key", { key, mods });
 export const keyboardShow = (show: boolean) => invoke<void>("keyboard_show", { show });
 export const keyboardToggle = () => invoke<void>("keyboard_toggle");
+export const haptic = (ms: number) => invoke<void>("haptic", { ms });

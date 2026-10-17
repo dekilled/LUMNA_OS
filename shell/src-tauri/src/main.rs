@@ -10,6 +10,7 @@ mod emma;
 mod files;
 mod games;
 mod greeter;
+mod haptics;
 mod installer;
 mod keyboard;
 mod touchkeys;
@@ -286,7 +287,7 @@ const KEYBOARD: LayerSpec = LayerSpec {
     margins: &[],
     keyboard: KeyboardMode::None,
     exclusive: Exclusive::Auto,
-    size: (-1, 352),
+    size: (-1, 392),
     visible: false,
 };
 
@@ -1450,6 +1451,7 @@ fn main() {
             touchkeys::keyboard_show,
             touchkeys::keyboard_toggle,
             touchkeys::keyboard_target,
+            haptics::haptic,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,

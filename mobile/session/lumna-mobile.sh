@@ -30,6 +30,11 @@ fi
 cd "$ROOT/packages/lumna-shell"
 makepkg -sfi --nocheck --noconfirm
 
+# o teclado vibra a cada toque: libera o motor de vibração pra quem está na tela
+sudo install -Dm644 "$ROOT/mobile/session/70-lumna-vibra.rules" /etc/udev/rules.d/70-lumna-vibra.rules
+sudo udevadm control --reload
+sudo udevadm trigger --subsystem-match=input --action=change
+
 mkdir -p "$HOME/.config/lumna"
 cp "$ROOT/mobile/session/hyprland-mobile.lua" "$HOME/.config/lumna/hyprland-mobile.lua"
 # a primeira-tela.sh já liga o login automático; aqui só troca a config do teste pela do LUMNA

@@ -9,7 +9,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
-import { clipboardRead, keyboardKey, keyboardShow, keyboardType, on } from "../../system";
+import { clipboardRead, haptic, keyboardKey, keyboardShow, keyboardType, on } from "../../system";
 import { activeWindow } from "../../compositor";
 
 type Page = "letras" | "simbolos" | "simbolos2" | "clipboard" | "ajustes" | "emojis";
@@ -98,10 +98,12 @@ interface Settings {
   repeatDelay: number;
   /** intervalo entre as repetições (ms) */
   repeatRate: number;
+  vibrate: boolean;
+  vibrateMs: number;
   suggestions: boolean;
 }
 const SETTINGS = "lumna.keyboard.settings";
-const settings = ref<Settings>({ repeat: true, repeatDelay: 500, repeatRate: 120, suggestions: true });
+const settings = ref<Settings>({ repeat: true, repeatDelay: 500, repeatRate: 120, vibrate: true, vibrateMs: 15, suggestions: true });
 try {
   settings.value = { ...settings.value, ...JSON.parse(localStorage.getItem(SETTINGS) ?? "{}") };
 } catch {}
@@ -110,6 +112,11 @@ const saveSettings = () => {
     localStorage.setItem(SETTINGS, JSON.stringify(settings.value));
   } catch {}
 };
+const buzzes = [
+  { label: "Leve", ms: 10 },
+  { label: "Média", ms: 18 },
+  { label: "Forte", ms: 30 },
+];
 const speeds = [
   { label: "Lenta", rate: 200 },
   { label: "Média", rate: 120 },
@@ -122,9 +129,11 @@ let repeat = 0;
 let delay = 0;
 let holding = false;
 function holdStart(e: PointerEvent, name: string) {
-  if (holding) return;
+  if (holding || ghost) return;
   holding = true;
-  (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  try {
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  } catch {}
   key(name);
   if (!settings.value.repeat) return;
   delay = window.setTimeout(() => {
@@ -135,6 +144,34 @@ function holdEnd() {
   holding = false;
   clearTimeout(delay);
   clearInterval(repeat);
+}
+
+// ---- tato: vibração e o balãozinho da tecla ----
+// No WebKitGTK um toque pode chegar duas vezes: o do dedo e, logo depois de soltar, um "mouse"
+// emulado a partir dele. Os cliques já vêm um só, mas o apagar escuta o pointerdown direto e
+// apagava dois. Um segundo pointerdown de outro tipo logo em seguida (ou colado no anterior) é
+// esse fantasma: não vibra, não mostra balão e não apaga.
+let lastDown = { at: -1e9, type: "" };
+let ghost = false;
+const preview = ref<{ text: string; x: number; y: number; w: number } | null>(null);
+let previewHide = 0;
+function feel(e: PointerEvent) {
+  const now = performance.now();
+  ghost = (e.pointerType !== lastDown.type && now - lastDown.at < 600) || now - lastDown.at < 70;
+  if (ghost) return;
+  lastDown = { at: now, type: e.pointerType };
+  const button = (e.target as Element).closest("button");
+  if (!button) return;
+  if (settings.value.vibrate) haptic(settings.value.vibrateMs).catch(() => {});
+  const text = button.dataset.p;
+  clearTimeout(previewHide);
+  if (!text) return (preview.value = null);
+  const r = button.getBoundingClientRect();
+  preview.value = { text, x: r.left + r.width / 2, y: r.top, w: Math.max(r.width + 12, 48) };
+}
+function unfeel() {
+  clearTimeout(previewHide);
+  previewHide = window.setTimeout(() => (preview.value = null), 70);
 }
 
 function toggleShift() {
@@ -286,7 +323,8 @@ onUnmounted(() => stop?.());
 </script>
 
 <template>
-  <div class="kb" @contextmenu.prevent>
+  <div class="kb" @contextmenu.prevent @pointerdown.capture="feel" @pointerup.capture="unfeel" @pointercancel.capture="unfeel">
+    <div v-if="preview" class="bubble" :style="{ left: `${preview.x}px`, top: `${preview.y}px`, width: `${preview.w}px` }">{{ preview.text }}</div>
     <!-- área de transferência -->
     <template v-if="page === 'clipboard'">
       <div class="row top">
@@ -371,6 +409,22 @@ onUnmounted(() => stop?.());
           </div>
         </div>
         <label class="pref">
+          <span>Vibrar ao tocar</span>
+          <input v-model="settings.vibrate" type="checkbox" @change="saveSettings" />
+        </label>
+        <div class="pref" :class="{ off: !settings.vibrate }">
+          <span>Força da vibração</span>
+          <div class="seg">
+            <button
+              v-for="v in buzzes"
+              :key="v.ms"
+              :class="{ on: settings.vibrateMs === v.ms }"
+              :disabled="!settings.vibrate"
+              @click="settings.vibrateMs = v.ms; saveSettings(); haptic(v.ms)"
+            >{{ v.label }}</button>
+          </div>
+        </div>
+        <label class="pref">
           <span>Sugestões de palavras</span>
           <input v-model="settings.suggestions" type="checkbox" @change="saveSettings" />
         </label>
@@ -408,20 +462,20 @@ onUnmounted(() => stop?.());
         <button class="key" @click="key('Right')"><Icon name="arrow-right" :size="20" /></button>
       </div>
       <div class="row">
-        <button v-for="n in '1234567890'" :key="n" class="key" @click="type(n)">{{ n }}</button>
+        <button v-for="n in '1234567890'" :key="n" class="key" :data-p="n" @click="type(n)">{{ n }}</button>
       </div>
       <div class="row">
-        <button v-for="k in rows[0]" :key="k" class="key" @click="type(k)">{{ label(k) }}</button>
+        <button v-for="k in rows[0]" :key="k" class="key" :data-p="label(k)" @click="type(k)">{{ label(k) }}</button>
       </div>
       <div class="row">
-        <button v-for="k in rows[1]" :key="k" class="key" @click="type(k)">{{ label(k) }}</button>
+        <button v-for="k in rows[1]" :key="k" class="key" :data-p="label(k)" @click="type(k)">{{ label(k) }}</button>
       </div>
       <div class="row">
         <button v-if="page === 'letras'" class="key wide" :class="{ on: shift !== 'off', lock: shift === 'lock' }" @click="toggleShift">
           <Icon name="shift" :size="20" />
         </button>
         <button v-else class="key wide small" @click="page = page === 'simbolos' ? 'simbolos2' : 'simbolos'">{{ page === "simbolos" ? "=\\<" : "?123" }}</button>
-        <button v-for="k in rows[2]" :key="k" class="key" @click="type(k)">{{ label(k) }}</button>
+        <button v-for="k in rows[2]" :key="k" class="key" :data-p="label(k)" @click="type(k)">{{ label(k) }}</button>
         <button v-if="page === 'simbolos'" class="key" @click="type('â')">â</button>
         <button v-if="page === 'simbolos2'" class="key" @click="type('ã')">ã</button>
         <button
@@ -467,7 +521,7 @@ onUnmounted(() => stop?.());
 .row {
   display: flex;
   gap: 5px;
-  height: 38px;
+  height: 44px;
 }
 .key {
   flex: 1;
@@ -480,7 +534,8 @@ onUnmounted(() => stop?.());
   background: #2a2a31;
   color: inherit;
   font: inherit;
-  font-size: 19px;
+  font-size: 23px;
+  font-weight: 500;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
 }
 .key:active {
@@ -494,7 +549,7 @@ onUnmounted(() => stop?.());
   box-shadow: inset 0 -3px 0 var(--lumna-violet-soft);
 }
 .key.small {
-  font-size: 14px;
+  font-size: 15px;
 }
 .key.icon {
   flex: 0 0 44px;
@@ -507,16 +562,31 @@ onUnmounted(() => stop?.());
 }
 .key.mode {
   flex: 1.5;
-  font-size: 15px;
+  font-size: 16px;
 }
 .key.space {
   flex: 4.5;
-  font-size: 14px;
+  font-size: 15px;
 }
 .key.enter {
   flex: 1.5;
   background: #9a7cf4;
   color: #fff;
+}
+.bubble {
+  position: fixed;
+  z-index: 5;
+  height: 52px;
+  transform: translate(-50%, -100%) translateY(-4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #3a3a44;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  font-size: 30px;
+  font-weight: 500;
+  pointer-events: none;
 }
 .suggest {
   flex: 1;
