@@ -633,6 +633,30 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   transform: none;
 }
 
+/* Celular (tela estreita): a folha sobe de baixo, na largura toda, como no esboço do LUMNA no
+   celular. A camada respeita a barra de status, a navegação e o teclado, então a folha encolhe
+   quando o teclado aparece. */
+@media (max-width: 560px) {
+  .panel {
+    top: max(16px, 18%);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    border-radius: 22px 22px 0 0;
+  }
+  .panel::before {
+    content: "";
+    align-self: center;
+    flex: none;
+    width: 44px;
+    height: 4px;
+    margin-top: 8px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+
 header {
   display: flex;
   align-items: center;

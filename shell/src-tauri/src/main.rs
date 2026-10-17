@@ -273,7 +273,9 @@ const MOBILE_NAV: LayerSpec = LayerSpec {
 
 /// Celular: o painel da Emma pega o teclado só quando precisa. Com o teclado "exclusivo" (o do PC)
 /// o Hyprland entrega a ela até os toques que caem no LUMNA Keyboard, e o véu fecha o painel.
-const MOBILE_EMMA: LayerSpec = LayerSpec { keyboard: KeyboardMode::OnDemand, ..EMMA };
+/// Ela também respeita o espaço da barra de status, da navegação e do teclado (a folha encolhe
+/// quando o teclado aparece, em vez de ficar por baixo dele).
+const MOBILE_EMMA: LayerSpec = LayerSpec { keyboard: KeyboardMode::OnDemand, exclusive: Exclusive::None, ..EMMA };
 
 /// Celular: o LUMNA Keyboard, no rodapé e por cima de tudo (até do painel da Emma). Nunca pega o
 /// foco do teclado, para as teclas irem ao app em foco; reserva o espaço dele (os apps sobem).

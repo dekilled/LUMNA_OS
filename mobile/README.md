@@ -49,6 +49,10 @@ O Wi-Fi do 6T só sobe com o modem rodando. Depois de reiniciar: `sh session/mod
 Chamadas: o modem atende pelo ModemManager (`mmcli`); falta o áudio da ligação (q6voiced + UCM
 do sdm845) e um discador. Em operadora que só aceita VoLTE, a voz ainda é experimental no mainline.
 
+Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do
+usuário; aí o painel entra sozinho, como no desktop. O código da Emma (NewHarnessV2) é privado:
+o script fala como copiar do PC pela USB. Pra conferir: `sh mobile/session/emma.sh status`.
+
 ## Aparelhos
 
 | Aparelho | SoC | Caminho | Papel |
