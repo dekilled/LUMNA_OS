@@ -22,6 +22,22 @@ hl.config({
     },
 })
 
+-- Animações curtas (o padrão do Hyprland é lento pra celular). O modo desenvolvedor do LUMNA
+-- (Ajustes → Desenvolvedor → Animações) grava ~/.config/lumna/animations.lua, que vale por cima.
+hl.curve("lumna", { type = "bezier", points = { { 0.22, 1 }, { 0.36, 1 } } })
+hl.curve("lumnaFast", { type = "bezier", points = { { 0.2, 0.8 }, { 0.3, 1 } } })
+hl.animation({ leaf = "global", enabled = true, speed = 3, bezier = "lumna" })
+hl.animation({ leaf = "windows", enabled = true, speed = 2.5, bezier = "lumna" })
+hl.animation({ leaf = "windowsIn", enabled = true, speed = 2.5, bezier = "lumna", style = "popin 90%" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.8, bezier = "lumnaFast", style = "popin 90%" })
+hl.animation({ leaf = "layers", enabled = true, speed = 2, bezier = "lumna" })
+hl.animation({ leaf = "layersIn", enabled = true, speed = 2, bezier = "lumna", style = "fade" })
+hl.animation({ leaf = "layersOut", enabled = true, speed = 1.4, bezier = "lumnaFast", style = "fade" })
+hl.animation({ leaf = "fade", enabled = true, speed = 2, bezier = "lumna" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 2.5, bezier = "lumna", style = "slidefade 12%" })
+hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 2.5, bezier = "lumna", style = "fade" })
+pcall(dofile, (os.getenv("HOME") or "") .. "/.config/lumna/animations.lua")
+
 hl.window_rule({
     name = "lumna-mobile-maximize",
     match = { class = ".*" },

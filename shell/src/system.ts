@@ -759,6 +759,26 @@ export const keyboardKey = (key: string, mods: string[] = []) => invoke<void>("k
 export const keyboardShow = (show: boolean) => invoke<void>("keyboard_show", { show });
 export const keyboardToggle = () => invoke<void>("keyboard_toggle");
 export const haptic = (ms: number) => invoke<void>("haptic", { ms });
+export interface HapticsConfig {
+  touch: boolean;
+  ring: boolean;
+}
+export const hapticsGet = () => invoke<HapticsConfig>("haptics_get");
+export const hapticsSet = (config: HapticsConfig) => invoke<void>("haptics_set", { config });
+
+/** Modo desenvolvedor: as animações do Hyprland (velocidade em décimos de segundo). */
+export interface Animations {
+  enabled: boolean;
+  windows: number;
+  windows_style: "popin" | "slide" | "gnomed";
+  layers: number;
+  fade: number;
+  workspaces: number;
+  curve: "lumna" | "rapida" | "mola";
+}
+export const animationsGet = () => invoke<Animations>("animations_get");
+export const animationsSet = (config: Animations) => invoke<void>("animations_set", { config });
+export const animationsReset = () => invoke<Animations>("animations_reset");
 
 // ---- celular: central e apps recentes ----
 

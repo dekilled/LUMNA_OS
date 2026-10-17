@@ -1,4 +1,5 @@
 mod actions;
+mod animations;
 mod apps;
 mod automation;
 mod audio;
@@ -1594,6 +1595,11 @@ fn main() {
             mobile::quick_airplane,
             mobile::quick_quiet,
             mobile::mobile_edges,
+            animations::animations_get,
+            animations::animations_set,
+            animations::animations_reset,
+            haptics::haptics_get,
+            haptics::haptics_set,
             mobile::battery_info,
             connect::connect_computers,
             connect::connect_discover,

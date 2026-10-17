@@ -168,9 +168,62 @@ fn sender() -> &'static Mutex<Sender<u16>> {
 
 /// Uma vibração de `ms` milissegundos (limitada entre 15 e 80: o motor LRA do 6T precisa de uns
 /// 20 ms só pra embalar, abaixo disso não se sente nada).
+/// Ajustes → Vibração: no toque (teclado, gestos, botões) e nas ligações.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct HapticsConfig {
+    pub touch: bool,
+    pub ring: bool,
+}
+
+static TOUCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static RING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+static LOADED: std::sync::Once = std::sync::Once::new();
+
+fn config_path() -> std::path::PathBuf {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
+    std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from).unwrap_or_else(|| home.join(".config")).join("lumna/haptics.json")
+}
+
+fn load_config() {
+    LOADED.call_once(|| {
+        if let Some(c) = std::fs::read_to_string(config_path()).ok().and_then(|t| serde_json::from_str::<HapticsConfig>(&t).ok()) {
+            TOUCH.store(c.touch, std::sync::atomic::Ordering::Relaxed);
+            RING.store(c.ring, std::sync::atomic::Ordering::Relaxed);
+        }
+    });
+}
+
+/// A vibração das ligações chegando está ligada?
+pub fn ring_enabled() -> bool {
+    load_config();
+    RING.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[tauri::command]
+pub fn haptics_get() -> HapticsConfig {
+    load_config();
+    HapticsConfig { touch: TOUCH.load(std::sync::atomic::Ordering::Relaxed), ring: RING.load(std::sync::atomic::Ordering::Relaxed) }
+}
+
+#[tauri::command]
+pub fn haptics_set(config: HapticsConfig) -> Result<(), String> {
+    load_config();
+    TOUCH.store(config.touch, std::sync::atomic::Ordering::Relaxed);
+    RING.store(config.ring, std::sync::atomic::Ordering::Relaxed);
+    let path = config_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, serde_json::to_string(&config).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+/// Vibração de toque (teclado, gestos, botões): respeita o ajuste.
 #[tauri::command]
 pub fn haptic(ms: u16) {
-    buzz(ms.clamp(15, 80));
+    load_config();
+    if TOUCH.load(std::sync::atomic::Ordering::Relaxed) {
+        buzz(ms.clamp(15, 80));
+    }
 }
 
 /// Vibração mais longa (o toque de uma ligação), até 1 s.

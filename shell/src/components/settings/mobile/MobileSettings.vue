@@ -16,6 +16,8 @@ import MEmma from "./MEmma.vue";
 import MEnergy from "./MEnergy.vue";
 import MKeyboard from "./MKeyboard.vue";
 import MMedia from "./MMedia.vue";
+import MVibration from "./MVibration.vue";
+import MDev from "./MDev.vue";
 import MProfile from "./MProfile.vue";
 import MWifi from "./MWifi.vue";
 import MWifiAdd from "./MWifiAdd.vue";
@@ -25,7 +27,7 @@ import "./mobile.css";
 
 export type MPage =
   | "home" | "wifi" | "wifi-detalhes" | "wifi-adicionar" | "bluetooth" | "bt-aparelho" | "connect" | "connect-pc" | "dados"
-  | "tela" | "som" | "teclado" | "emma" | "energia" | "sistema" | "perfil" | "midia";
+  | "tela" | "som" | "teclado" | "emma" | "energia" | "sistema" | "perfil" | "midia" | "vibracao" | "dev";
 
 const props = defineProps<{ start?: MPage }>();
 
@@ -46,10 +48,12 @@ const YOURS: Entry[] = [
   { page: "tela", title: "Tela e aparência", sub: "Brilho, bloqueio e papel de parede", icon: "screens", keys: "brilho wallpaper fundo tema bloqueio senha apagar tela power" },
   { page: "som", title: "Som e microfone", sub: "Volume e entrada", icon: "volume", keys: "audio alto-falante fone microfone volume" },
   { page: "teclado", title: "Teclado e entrada", sub: "Vibração, repetição e sugestões", icon: "keyboard", keys: "lumna keyboard digitar vibrar apagar" },
+  { page: "vibracao", title: "Vibração e gestos", sub: "Vibrar ao tocar e os gestos do sistema", icon: "phone", keys: "vibrar haptics toque gesto deslizar borda" },
   { page: "emma", title: "Emma", sub: "Voz, contexto e ações", icon: "mic", keys: "assistente ia permissões" },
 ];
 const DEVICE: Entry[] = [
   { page: "energia", title: "Bateria e energia", sub: "Carga, saúde e economia", icon: "battery", keys: "bateria carregar economia desligar reiniciar" },
+  { page: "dev", title: "Desenvolvedor", sub: "Animações e ajustes finos", icon: "code", keys: "dev desenvolvedor animação velocidade lento rápido" },
   { page: "sistema", title: "Sobre o LUMNA", sub: "Aparelho e versão", icon: "info", keys: "sistema versão kernel memória" },
 ];
 const ALL = [...CONNECTIONS, ...YOURS, ...DEVICE];
@@ -71,6 +75,8 @@ const TITLES: Record<MPage, string> = {
   sistema: "Sobre o LUMNA",
   perfil: "Perfil",
   midia: "Modo Mídia",
+  vibracao: "Vibração e gestos",
+  dev: "Desenvolvedor",
 };
 // páginas do PC que servem aqui (já trazem o próprio título)
 const EMBEDDED: Partial<Record<MPage, Component>> = { som: AudioPage, dados: MobileDataPage, sistema: SystemPage };
@@ -88,6 +94,8 @@ const PAGES: Partial<Record<MPage, Component>> = {
   energia: MEnergy,
   perfil: MProfile,
   midia: MMedia,
+  vibracao: MVibration,
+  dev: MDev,
 };
 
 // pilha de navegação: [página, argumento]

@@ -8,12 +8,23 @@ import { showHome } from "./apps";
 const props = defineProps<{ side: "left" | "right" }>();
 const MIN = 45;
 let start: { x: number; y: number; id: number } | null = null;
+let armed = false;
 
 function down(e: PointerEvent) {
   start = { x: e.screenX, y: e.screenY, id: e.pointerId };
+  armed = false;
   try {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   } catch {}
+}
+// passou do ponto: uma vibraçãozinha avisa que soltar volta pra Início
+function move(e: PointerEvent) {
+  if (!start || e.pointerId !== start.id) return;
+  const dx = (e.screenX - start.x) * (props.side === "left" ? 1 : -1);
+  const dy = e.screenY - start.y;
+  const ok = dx >= MIN && dy >= MIN;
+  if (ok && !armed) haptic(18).catch(() => {});
+  armed = ok;
 }
 function up(e: PointerEvent) {
   if (!start || e.pointerId !== start.id) return;
@@ -29,7 +40,7 @@ function up(e: PointerEvent) {
 </script>
 
 <template>
-  <div class="edge" @pointerdown="down" @pointerup="up" @pointercancel="start = null" />
+  <div class="edge" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="start = null" />
 </template>
 
 <style scoped>

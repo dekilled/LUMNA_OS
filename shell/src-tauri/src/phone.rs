@@ -246,7 +246,9 @@ fn present(app: &AppHandle, calls: &[Call]) {
         }
         std::thread::spawn(|| {
             while RINGING.load(Ordering::SeqCst) {
-                crate::haptics::buzz(700);
+                if crate::haptics::ring_enabled() {
+                    crate::haptics::buzz(700);
+                }
                 std::thread::sleep(Duration::from_millis(1600));
             }
         });
