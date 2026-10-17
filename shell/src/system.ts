@@ -1,5 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 export interface App {
   id: string;
@@ -338,9 +339,13 @@ export const notificationClosed = (id: number, reason: 1 | 2) => invoke<void>("n
 export const notificationAction = (id: number, key: string) => invoke<void>("notification_action", { id, key });
 export const notificationOpen = (target: string) => invoke<void>("notification_open", { target });
 
-/** Escuta um evento do Rust (os emitidos para todas as janelas e os desta janela). */
+/**
+ * Escuta um evento do Rust: os emitidos para todas as janelas e os desta janela. O `listen` global
+ * recebia também os mandados para outra janela (o estado do dock de um monitor chegava no dock do
+ * outro, que aparecia junto).
+ */
 export const on = <T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> =>
-  listen<T>(event, (e) => handler(e.payload));
+  getCurrentWebviewWindow().listen<T>(event, (e) => handler(e.payload));
 
 /** Mantém a camada do tamanho do elemento, inclusive quando ele cresce ou encolhe. */
 export function fitLayerTo(element: HTMLElement): () => void {

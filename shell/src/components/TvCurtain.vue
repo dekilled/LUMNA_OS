@@ -5,29 +5,24 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import { SERVICE_COLOR, SERVICE_STYLE } from "../mediaBrand";
-import { layerHide, on } from "../system";
+import { on } from "../system";
 
 const closed = ref(false);
 const service = ref<string | null>(null);
 const name = ref("Início");
-let hideTimer: number | undefined;
 
 const background = computed(() =>
   service.value && SERVICE_STYLE[service.value] ? SERVICE_STYLE[service.value] : "linear-gradient(180deg, #0b0918, #150f2b)",
 );
 const accent = computed(() => (service.value && SERVICE_COLOR[service.value]) || "#a78bfa");
 
+/** Depois do fade de saída o LUMNA tira a camada da tela (main.rs, `curtain`). */
 function apply(data: { closed: boolean; service: string | null; name: string }) {
-  window.clearTimeout(hideTimer);
   if (data.closed) {
     service.value = data.service;
     name.value = data.name;
-    closed.value = true;
-  } else {
-    closed.value = false;
-    // Depois do fade de saída, a camada some (não fica por cima de nada, nem para o mouse).
-    hideTimer = window.setTimeout(() => !closed.value && layerHide(), 420);
   }
+  closed.value = data.closed;
 }
 
 const stops: (() => void)[] = [];
@@ -55,7 +50,6 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   color: #fff;
   opacity: 0;
   transition: opacity 380ms ease;
-  cursor: none;
 }
 .curtain.closed {
   opacity: 1;

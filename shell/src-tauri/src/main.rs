@@ -894,7 +894,10 @@ pub fn pad_action(app: &AppHandle, action: pad::Action) {
         }
         return;
     }
-    if let Ok(Some(window)) = compositor.active_window() {
+    // Uma janela estacionada (serviço da Mídia fora da tela) ou minimizada pode continuar "em
+    // foco" para o compositor: ela não está na tela, então não conta.
+    let active = compositor.active_window().ok().flatten().filter(|w| !w.workspace_name.starts_with("special:"));
+    if let Some(window) = active {
         // Serviço ou vídeo da Mídia na frente: o controle (e o celular) mexe nele; voltar e menu
         // abrem a barra de serviços. Fora da Mídia, o controle é do app.
         if window.workspace_name.starts_with("media-") {
@@ -1082,6 +1085,9 @@ fn go_home(app: &AppHandle, monitor: &str) -> Result<(), String> {
 /// Cortina da Mídia neste monitor: fecha (cobrindo a tela com o nome do serviço, ou "Início") e
 /// espera cobrir; ou abre, mostrando o que ficou por baixo.
 fn curtain(app: &AppHandle, monitor: &str, service: Option<&str>, closed: bool) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    /// Cada fechada da cortina ganha um número: a camada só some se ninguém fechou de novo.
+    static GENERATION: AtomicU64 = AtomicU64::new(0);
     let Some((x, y)) = app
         .state::<SharedCompositor>()
         .monitors()
@@ -1093,6 +1099,7 @@ fn curtain(app: &AppHandle, monitor: &str, service: Option<&str>, closed: bool) 
     };
     let name = service.and_then(|id| media::SERVICES.iter().find(|s| s.id == id)).map(|s| s.name);
     let payload = serde_json::json!({ "closed": closed, "service": service, "name": name.unwrap_or("Início") });
+    let generation = if closed { GENERATION.fetch_add(1, Ordering::SeqCst) + 1 } else { GENERATION.load(Ordering::SeqCst) };
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if closed {
@@ -1104,6 +1111,16 @@ fn curtain(app: &AppHandle, monitor: &str, service: Option<&str>, closed: bool) 
     if closed {
         // O tempo do fade de entrada (TvCurtain.vue): só mexe nas janelas com a tela coberta.
         std::thread::sleep(std::time::Duration::from_millis(280));
+    } else {
+        // Depois do fade de saída a camada sai da tela. Quem tira é o LUMNA, não a página: uma
+        // cortina transparente esquecida por cima engolia os cliques e o teclado da tela Início.
+        let handle = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(450));
+            if GENERATION.load(Ordering::SeqCst) == generation {
+                let _ = handle.run_on_main_thread(|| layer::set_visible("tvcurtain", false));
+            }
+        });
     }
 }
 

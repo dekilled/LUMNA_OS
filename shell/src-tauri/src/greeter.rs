@@ -160,6 +160,10 @@ pub async fn greeter_login(
         .unwrap_or_else(|| vec!["lumna-session".into()]);
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         login(&username, &password, &command)?;
+        // Avisa o lumna-greeter que o Hyprland vai fechar de propósito (não é para subir de novo).
+        if let Some(done) = std::env::var_os("LUMNA_GREETER_DONE") {
+            let _ = std::fs::write(done, b"");
+        }
         // Um instante para a animação de saída da tela.
         std::thread::sleep(std::time::Duration::from_millis(350));
         let _ = compositor.exit();

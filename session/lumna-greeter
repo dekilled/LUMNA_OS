@@ -9,6 +9,11 @@ export HOME="${XDG_RUNTIME_DIR:-/tmp}/lumna-greeter"
 export XDG_CACHE_HOME="$HOME/cache" XDG_DATA_HOME="$HOME/data" XDG_CONFIG_HOME="$HOME/config"
 mkdir -p "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
 
+# A tela de login marca aqui que a senha conferiu: o Hyprland dela fechou de propósito e não pode
+# subir de novo (era a tela de login aparecendo duas vezes antes do desktop).
+export LUMNA_GREETER_DONE="$HOME/done"
+rm -f "$LUMNA_GREETER_DONE"
+
 . /usr/lib/lumna/gpu-env
 
 run_hyprland /usr/share/lumna/greeter.lua
