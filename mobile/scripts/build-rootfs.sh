@@ -93,7 +93,11 @@ RULE
 # o teclado do LUMNA vibra a cada toque: o motor de vibração fica liberado pra quem está na tela
 cat > /etc/udev/rules.d/70-lumna-vibra.rules <<'RULE'
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{capabilities/ff}=="?*", ATTRS{capabilities/ff}!="0", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="pm8941_pwrkey", TAG+="uaccess"
 RULE
+# o botão power é do LUMNA (tocar bloqueia, segurar abre o menu), não do logind
+mkdir -p /etc/systemd/logind.conf.d
+printf '[Login]\nHandlePowerKey=ignore\nHandlePowerKeyLongPress=ignore\n' > /etc/systemd/logind.conf.d/50-lumna-power.conf
 # Rede USB fixa: o PC conversa com o celular em 172.16.42.1
 cat > /etc/NetworkManager/system-connections/usb0.nmconnection <<NM
 [connection]

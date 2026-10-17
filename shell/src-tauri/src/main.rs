@@ -18,6 +18,7 @@ mod layer;
 mod lock;
 mod media;
 mod mobile;
+mod mobilelock;
 mod modes;
 mod network;
 mod nmwifi;
@@ -296,6 +297,13 @@ const MOBILE_CENTER: LayerSpec = LayerSpec {
 
 /// Celular: a tela da ligação (tocando, chamando, em conversa), por cima de tudo.
 const MOBILE_CALL: LayerSpec = LayerSpec { namespace: "lumna-mobile-call", ..MOBILE_CENTER };
+
+/// Celular: a tela de bloqueio. Pega o teclado quando o campo de senha pede (o LUMNA Keyboard
+/// digita nela); fica abaixo da ligação, que aparece mesmo bloqueado.
+const MOBILE_LOCK: LayerSpec = LayerSpec { namespace: "lumna-mobile-lock", keyboard: KeyboardMode::OnDemand, ..MOBILE_CENTER };
+
+/// Celular: o menu de energia (segurar o botão power).
+const MOBILE_POWER: LayerSpec = LayerSpec { namespace: "lumna-mobile-power", ..MOBILE_CENTER };
 
 /// Celular: os apps recentes (o "RAM"). Abre deslizando a navegação pra cima.
 const MOBILE_RECENTS: LayerSpec = LayerSpec { namespace: "lumna-mobile-recents", ..MOBILE_CENTER };
@@ -1529,6 +1537,11 @@ fn main() {
             mobile::quick_airplane,
             mobile::quick_quiet,
             mobile::battery_info,
+            mobilelock::lock_state,
+            mobilelock::lock_unlock,
+            mobilelock::lock_now,
+            mobilelock::lock_config_set,
+            mobilelock::power_menu_close,
             mobile::profile_get,
             mobile::profile_set_name,
             mobile::profile_set_photo,
@@ -1578,7 +1591,9 @@ fn main() {
                 create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
                 create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;
                 create_layer(app.handle(), "mobile-recents", &primary, &MOBILE_RECENTS)?;
+                create_layer(app.handle(), "mobile-lock", &primary, &MOBILE_LOCK)?;
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
+                create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
                 // por último: fica por cima da Emma (as duas são Overlay)
                 create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
                 forward_events(app.handle().clone(), compositor.clone());
@@ -1588,6 +1603,7 @@ fn main() {
                 bluetooth::watch(app.handle().clone());
                 control::listen(app.handle().clone());
                 phone::watch(app.handle().clone());
+                mobilelock::start(app.handle().clone());
                 mobile::track_data_usage();
                 return Ok(());
             }

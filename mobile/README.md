@@ -64,6 +64,11 @@ o som da ligação) instala com `sh mobile/session/audio.sh`: PipeWire, o UCM do
 `lumna-voiced`, que abre o PCM de voz do DSP durante a chamada (o shell troca a placa pro perfil
 "Voice Call" sozinho). Conferir: `sh mobile/session/audio.sh status`. Em Ajustes > Dados móveis: APN, roaming, tipo de rede e o uso do mês.
 
+Bloqueio: a tela de bloqueio do LUMNA (senha do Linux, conferida pelo `unix_chkpwd`; o LUMNA
+Keyboard digita nela). Botão power: toque apaga a tela e bloqueia, segurar abre o menu de energia,
+e tocando uma ligação ele silencia. O tempo parado até apagar fica em Ajustes > Tela e aparência
+(hypridle). O logind não cuida mais do botão (`/etc/systemd/logind.conf.d/50-lumna-power.conf`).
+
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do
 usuário; aí o painel entra sozinho, como no desktop. O código da Emma (NewHarnessV2) é privado:
 o script fala como copiar do PC pela USB. Pra conferir: `sh mobile/session/emma.sh status`.

@@ -66,7 +66,7 @@ onMounted(load);
       <div class="ms-row"><span class="txt"><strong>Usuário</strong></span><span class="value">{{ profile?.user }}</span></div>
       <div class="ms-row"><span class="txt"><strong>Nome do aparelho</strong></span><span class="value">{{ profile?.host }}</span></div>
       <div class="ms-row">
-        <span class="txt"><strong>Senha</strong><small>Trocar pela tela de bloqueio, na próxima etapa</small></span>
+        <span class="txt"><strong>Senha</strong><small>A mesma da tela de bloqueio; troque no terminal com passwd</small></span>
       </div>
     </div>
     <p v-if="error" class="ms-error">{{ error }}</p>

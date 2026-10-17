@@ -17,7 +17,7 @@ if [ "$livre" -lt 15 ]; then
 fi
 
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
-    hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils
+    hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils hypridle
 
 # O perfil release do LUMNA usa LTO com 1 codegen unit: o último passo (o próprio lumna-shell) roda
 # num núcleo só e leva uns 30 min no 6T. Pra testar mudanças: LUMNA_RAPIDO=1 sh lumna-mobile.sh
@@ -43,6 +43,10 @@ cp "$ROOT"/mobile/session/apps/*.desktop "$HOME/.local/share/applications/"
 sudo install -Dm644 "$ROOT/mobile/session/70-lumna-vibra.rules" /etc/udev/rules.d/70-lumna-vibra.rules
 sudo udevadm control --reload
 sudo udevadm trigger --subsystem-match=input --action=change
+
+# o botão power é do LUMNA: o logind para de desligar/reiniciar com ele (recarrega sem derrubar a sessão)
+sudo install -Dm644 "$ROOT/mobile/session/50-lumna-power.conf" /etc/systemd/logind.conf.d/50-lumna-power.conf
+sudo systemctl kill -s HUP systemd-logind
 
 mkdir -p "$HOME/.config/lumna"
 cp "$ROOT/mobile/session/hyprland-mobile.lua" "$HOME/.config/lumna/hyprland-mobile.lua"

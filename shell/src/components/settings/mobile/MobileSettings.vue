@@ -41,7 +41,7 @@ const CONNECTIONS: Entry[] = [
   { page: "connect", title: "Celular Connect", sub: "Integração com o computador", icon: "desktop", keys: "pc computador emma remoto controle" },
 ];
 const YOURS: Entry[] = [
-  { page: "tela", title: "Tela e aparência", sub: "Brilho e papel de parede", icon: "screens", keys: "brilho wallpaper fundo tema" },
+  { page: "tela", title: "Tela e aparência", sub: "Brilho, bloqueio e papel de parede", icon: "screens", keys: "brilho wallpaper fundo tema bloqueio senha apagar tela power" },
   { page: "som", title: "Som e microfone", sub: "Volume e entrada", icon: "volume", keys: "audio alto-falante fone microfone volume" },
   { page: "teclado", title: "Teclado e entrada", sub: "Vibração, repetição e sugestões", icon: "keyboard", keys: "lumna keyboard digitar vibrar apagar" },
   { page: "emma", title: "Emma", sub: "Voz, contexto e ações", icon: "mic", keys: "assistente ia permissões" },

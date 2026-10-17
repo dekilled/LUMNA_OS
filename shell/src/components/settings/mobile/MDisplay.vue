@@ -5,6 +5,9 @@ import Icon from "../../Icon.vue";
 import MGallery from "./MGallery.vue";
 import {
   convertFileSrc,
+  lockConfigSet,
+  lockState,
+  type LockConfig,
   quickBrightness,
   quickState,
   wallpaperImport,
@@ -18,20 +21,38 @@ defineProps<{ arg?: string }>();
 const brightness = ref<number | null>(null);
 const items = ref<Wallpaper[]>([]);
 const current = ref("");
-const lock = ref<string | null>(null);
+const lockWall = ref<string | null>(null);
 const target = ref<"inicio" | "bloqueio" | "ambos">("ambos");
 const gallery = ref(false);
 const error = ref("");
+const lock = ref<LockConfig | null>(null);
+const TIMES = [
+  { s: 15, label: "15 segundos" },
+  { s: 30, label: "30 segundos" },
+  { s: 60, label: "1 minuto" },
+  { s: 120, label: "2 minutos" },
+  { s: 300, label: "5 minutos" },
+  { s: 600, label: "10 minutos" },
+  { s: 0, label: "Nunca" },
+];
+async function saveLock(change: Partial<LockConfig>) {
+  if (!lock.value) return;
+  try {
+    lock.value = await lockConfigSet({ ...lock.value, ...change });
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 
 const src = (p: string) => convertFileSrc(p);
-const preview = computed(() => (target.value === "bloqueio" ? lock.value ?? current.value : current.value));
+const preview = computed(() => (target.value === "bloqueio" ? lockWall.value ?? current.value : current.value));
 
 async function load() {
   const w = await wallpaperList().catch(() => null);
   if (w) {
     items.value = w.items;
     current.value = w.current;
-    lock.value = w.lock;
+    lockWall.value = w.lock;
   }
 }
 let timer = 0;
@@ -61,6 +82,7 @@ async function fromGallery(path: string) {
 }
 onMounted(async () => {
   brightness.value = (await quickState().catch(() => null))?.brightness ?? null;
+  lock.value = (await lockState().catch(() => null))?.config ?? null;
   load();
 });
 </script>
@@ -83,6 +105,21 @@ onMounted(async () => {
       </div>
       <p v-if="brightness == null" class="ms-note">Esta tela não tem brilho ajustável.</p>
     </div>
+
+    <div class="ms-label">Bloqueio</div>
+    <div class="ms-card">
+      <div class="ms-row">
+        <span class="txt"><strong>Pedir a senha</strong><small>Ao acender a tela (a senha do Linux)</small></span>
+        <button class="ms-switch" :class="{ on: lock?.enabled }" :disabled="!lock" aria-label="Pedir senha" @click="saveLock({ enabled: !lock?.enabled })" />
+      </div>
+      <div class="ms-row">
+        <span class="txt"><strong>Apagar a tela após</strong><small>Parado esse tempo, apaga e bloqueia</small></span>
+        <select class="time" :value="lock?.screen_off_after" :disabled="!lock" @change="saveLock({ screen_off_after: +($event.target as HTMLSelectElement).value })">
+          <option v-for="t in TIMES" :key="t.s" :value="t.s">{{ t.label }}</option>
+        </select>
+      </div>
+    </div>
+    <p class="ms-note">Botão power: toque apaga a tela e bloqueia; segurar abre o menu de energia.</p>
 
     <div class="ms-label">Papel de parede</div>
     <div class="ms-card pad">
@@ -111,6 +148,16 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.time {
+  max-width: 45%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: #1a1626;
+  color: var(--lumna-text);
+  font: inherit;
+  font-size: 14px;
+}
 .bright {
   display: flex;
   align-items: center;

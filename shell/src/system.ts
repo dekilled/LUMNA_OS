@@ -930,3 +930,21 @@ export interface Profile {
 export const profileGet = () => invoke<Profile>("profile_get");
 export const profileSetName = (name: string) => invoke<void>("profile_set_name", { name });
 export const profileSetPhoto = (path: string) => invoke<void>("profile_set_photo", { path });
+
+// ---- celular: tela de bloqueio e botão power ----
+
+export interface LockConfig {
+  enabled: boolean;
+  /** segundos parado até apagar a tela e bloquear (0 = nunca) */
+  screen_off_after: number;
+}
+export interface LockState {
+  locked: boolean;
+  screen_on: boolean;
+  config: LockConfig;
+}
+export const lockState = () => invoke<LockState>("lock_state");
+export const lockUnlock = (password: string) => invoke<void>("lock_unlock", { password });
+export const lockNow = () => invoke<void>("lock_now");
+export const lockConfigSet = (config: LockConfig) => invoke<LockConfig>("lock_config_set", { config });
+export const powerMenuClose = () => invoke<void>("power_menu_close");

@@ -453,6 +453,16 @@ async fn follow(app: &AppHandle) -> Result<(), String> {
     Err("conexão com o D-Bus caiu".into())
 }
 
+/// Silencia o toque de uma ligação chegando (o botão power). `true` se estava tocando.
+pub fn silence() -> bool {
+    RINGING.swap(false, Ordering::SeqCst)
+}
+
+/// Há uma ligação em andamento (ou tocando)?
+pub fn in_call() -> bool {
+    CALLS.lock().unwrap().iter().any(|c| c.state != "ended")
+}
+
 #[tauri::command]
 pub fn phone_calls() -> Vec<Call> {
     CALLS.lock().unwrap().clone()

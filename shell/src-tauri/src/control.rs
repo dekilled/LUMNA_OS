@@ -50,6 +50,10 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         }
         ["installer"] => crate::open_installer(app),
         ["power"] => crate::power::toggle_menu(app, None),
+        // no celular, o bloqueio é o do LUMNA (o hyprlock esconderia o teclado da tela)
+        ["lock", ..] | ["screen", _] | ["power-menu"] if crate::MOBILE.load(std::sync::atomic::Ordering::Relaxed) => {
+            crate::mobilelock::control(app, &command.split_whitespace().collect::<Vec<_>>())
+        }
         ["lock"] => crate::lock::lock_now(app),
         ["rest", "on"] => crate::rest::set(app, true),
         ["rest", "off"] => crate::rest::set(app, false),
