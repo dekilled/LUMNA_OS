@@ -434,6 +434,17 @@ async fn follow(app: &AppHandle) -> Result<(), String> {
         .build();
     let mut stream = zbus::MessageStream::for_match_rule(rule, &conn, Some(64)).await.map_err(|e| e.to_string())?;
     refresh(app, &conn).await;
+    // Sem ligação, a placa não pode ficar no perfil de ligação (o WirePlumber lembra o último
+    // perfil e devolveria o "Voice Call" no boot, com o som indo pro fone em vez do alto-falante).
+    if CALLS.lock().unwrap().is_empty() {
+        std::thread::spawn(|| {
+            if !CALL_AUDIO.lock().unwrap().on {
+                if let Some((card, back)) = voice_card() {
+                    pactl_profile(&card, &back);
+                }
+            }
+        });
+    }
     while stream.next().await.is_some() {
         // um monte de sinais chega junto (propriedades, estado): junta numa leitura só
         while let Ok(Some(_)) = tokio::time::timeout(Duration::from_millis(150), stream.next()).await {}

@@ -39,7 +39,15 @@ if [ "${1:-}" = log ]; then
     exit 0
 fi
 
+# Põe a placa no perfil de música (HiFi = alto-falante de baixo, perto do USB-C).
+hifi() {
+    card=$(pactl list cards short 2>/dev/null | awk '/platform-sound/ { print $2; exit }')
+    [ -n "$card" ] && pactl set-card-profile "$card" HiFi || echo "não consegui pôr a placa no perfil HiFi"
+}
+
 if [ "${1:-}" = teste ]; then
+    hifi
+    echo "== amplificador";  sudo dmesg | grep -i tfa98 | tail -5
     speaker-test -c 2 -t sine -f 440 -l 1
     exit 0
 fi
@@ -82,6 +90,7 @@ systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.
 systemctl --user restart wireplumber pipewire pipewire-pulse
 
 sleep 2
+hifi
 echo
 echo "Pronto. Confira com: sh mobile/session/audio.sh status"
 echo "Apito no alto-falante: sh mobile/session/audio.sh teste"
