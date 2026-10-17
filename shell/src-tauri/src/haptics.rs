@@ -19,7 +19,9 @@ const FF_GAIN: u16 = 0x60;
 /// _IOW('E', 0x80, struct ff_effect), com sizeof(ff_effect) = 48 no arm64/x86_64.
 const EVIOCSFF: libc::c_ulong = 0x4030_4580;
 
-/// `struct ff_effect`: cabeçalho e a união (os parâmetros de cada tipo começam no byte 16).
+/// `struct ff_effect`: cabeçalho de 14 bytes e a união, que no kernel começa no byte 16 (ela tem
+/// um ponteiro, então alinha em 8). Sem o `_pad` explícito o Rust põe a união no byte 14 e as
+/// intensidades caem uma casa pro lado: o kernel aceitava o efeito, mas com força zero.
 #[repr(C, align(8))]
 struct FfEffect {
     kind: u16,
@@ -28,6 +30,7 @@ struct FfEffect {
     trigger: [u16; 2],
     replay_length: u16,
     replay_delay: u16,
+    _pad: u16,
     union: [u16; 16],
 }
 
@@ -89,6 +92,7 @@ impl Motor {
                 trigger: [0; 2],
                 replay_length: length,
                 replay_delay: 0,
+                _pad: 0,
                 union,
             };
             // SAFETY: effect tem o layout de struct ff_effect e vive durante a chamada.
@@ -176,5 +180,7 @@ mod tests {
     #[test]
     fn ff_effect_tem_o_tamanho_do_kernel() {
         assert_eq!(std::mem::size_of::<super::FfEffect>(), 48);
+        assert_eq!(std::mem::offset_of!(super::FfEffect, replay_length), 10);
+        assert_eq!(std::mem::offset_of!(super::FfEffect, union), 16);
     }
 }
