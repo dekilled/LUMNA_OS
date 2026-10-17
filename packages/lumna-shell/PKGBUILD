@@ -15,6 +15,12 @@ _root="$(realpath "$startdir/../..")"
 _target="${CARGO_TARGET_DIR:-$_root/target}"
 
 build() {
+  # No celular (aarch64) a RAM é curta: o rustc do lumna-shell, com muitas partes em paralelo,
+  # passa da memória e o kernel mata ele (SIGKILL). Menos tarefas e menos partes ao mesmo tempo.
+  if [ "$CARCH" = "aarch64" ]; then
+    export CARGO_BUILD_JOBS=2
+    export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=4
+  fi
   cd "$_root/shell"
   pnpm install --frozen-lockfile
   pnpm tauri build --no-bundle
