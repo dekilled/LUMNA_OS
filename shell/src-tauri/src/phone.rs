@@ -148,14 +148,16 @@ fn prop_string(props: &HashMap<String, OwnedValue>, key: &str) -> String {
 }
 
 /// Lê as chamadas do modem, atualiza o que está sendo acompanhado e registra as que acabaram.
-async fn read_calls(conn: &Connection) -> Vec<Call> {
-    let Ok(modem) = voice_modem(conn).await else { return Vec::new() };
-    let paths: Vec<OwnedObjectPath> = call_mm(conn, &modem, VOICE, "ListCalls", &()).await.unwrap_or_default();
+/// `None` = a leitura falhou (o modem não respondeu agora): nada muda. Tratar uma falha
+/// passageira como "sem chamadas" derrubava o áudio no meio da ligação.
+async fn read_calls(conn: &Connection) -> Option<Vec<Call>> {
+    let modem = voice_modem(conn).await.ok()?;
+    let paths: Vec<OwnedObjectPath> = call_mm(conn, &modem, VOICE, "ListCalls", &()).await.ok()?;
     // primeiro lê tudo do D-Bus; depois mexe no estado (o lock não atravessa um await)
     let mut read = Vec::new();
     for path in paths {
         let path = path.to_string();
-        let Some(props) = call_props(conn, &path).await else { continue };
+        let props = call_props(conn, &path).await?;
         read.push((path, state_name(prop_i32(&props, "State")), prop_i32(&props, "Direction") == 1, prop_string(&props, "Number")));
     }
     let mut calls = Vec::new();
@@ -192,7 +194,7 @@ async fn read_calls(conn: &Connection) -> Vec<Call> {
         }
     }
     tracked.retain(|path, _| seen.contains(path));
-    calls
+    Some(calls)
 }
 
 fn log_call(t: &Tracked) {
@@ -249,12 +251,17 @@ fn present(app: &AppHandle, calls: &[Call]) {
 }
 
 async fn refresh(app: &AppHandle, conn: &Connection) {
-    let calls = read_calls(conn).await;
+    let Some(calls) = read_calls(conn).await else { return };
     let changed = *CALLS.lock().unwrap() != calls;
     if changed {
+        for c in &calls {
+            eprintln!("lumna-shell: telefone: {} {}", c.path.rsplit('/').next().unwrap_or(""), c.state);
+        }
         *CALLS.lock().unwrap() = calls.clone();
         present(app, &calls);
-        let talking = calls.iter().any(|c| matches!(c.state.as_str(), "dialing" | "ringing-out" | "active" | "held"));
+        // Qualquer chamada que não seja "tocando" nem "encerrada" segura o áudio ligado,
+        // inclusive estados de passagem (desconhecido, em espera).
+        let talking = calls.iter().any(|c| !matches!(c.state.as_str(), "ended" | "incoming" | "waiting"));
         call_audio(talking);
     }
 }
@@ -296,6 +303,13 @@ fn pactl_profile(card: &str, profile: &str) {
 /// Liga ou desliga o caminho de áudio da chamada (numa thread: pactl e pw-loopback demoram).
 fn call_audio(on: bool) {
     std::thread::spawn(move || {
+        if !on {
+            // Desligar espera um pouco e confere de novo: um piscar de estado não derruba a voz.
+            std::thread::sleep(Duration::from_secs(2));
+            if CALLS.lock().unwrap().iter().any(|c| !matches!(c.state.as_str(), "ended" | "incoming" | "waiting")) {
+                return;
+            }
+        }
         let mut state = CALL_AUDIO.lock().unwrap();
         if state.on == on {
             return;

@@ -4,7 +4,9 @@
 // O som da chamada vai direto do modem pro fone e do microfone pro modem, dentro do DSP; mas
 // alguém precisa "abrir" o PCM de voz (VoiceMMode1) pro DSP começar. Este daemon escuta o
 // ModemManager no D-Bus do sistema e abre o PCM quando uma chamada fica ativa (ou discando),
-// e fecha quando ela acaba.
+// e fecha só quando ela termina de verdade (estado "terminada" ou a chamada some do modem).
+// Estados de passagem (desconhecido, em espera) não fecham: fechar no meio deixava a ligação
+// muda no 6T enquanto o outro lado continuava na linha.
 //
 // Baseado no q6voiced do postmarketOS (MIT, Stephan Gerhold e outros), trocando o tinyalsa
 // (que não existe no Arch) pelo alsa-lib, e achando o dispositivo sozinho em /proc/asound/pcm.
@@ -83,12 +85,14 @@ static void voice_close(void)
 	fflush(stdout);
 }
 
-// MMCallState: 1 discando, 2 chamando do outro lado, 4 ativa. Alguns modems não avisam
-// "discando -> ativa", então discando e chamando já contam como ativa.
+// MMCallState: 1 discando, 2 chamando do outro lado, 4 ativa, 7 terminada. Alguns modems não
+// avisam "discando -> ativa", então discando e chamando já abrem.
 static bool active(int state)
 {
 	return state == 1 || state == 2 || state == 4;
 }
+
+#define TERMINATED 7
 
 int main(int argc, char **argv)
 {
@@ -106,6 +110,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	dbus_bus_add_match(conn, "type='signal',interface='org.freedesktop.ModemManager1.Call',member='StateChanged'", &err);
+	dbus_bus_add_match(conn, "type='signal',interface='org.freedesktop.ModemManager1.Modem.Voice',member='CallDeleted'", &err);
 	dbus_connection_flush(conn);
 	if (dbus_error_is_set(&err)) {
 		fprintf(stderr, "D-Bus match: %s\n", err.message);
@@ -121,10 +126,16 @@ int main(int argc, char **argv)
 			if (dbus_message_is_signal(msg, "org.freedesktop.ModemManager1.Call", "StateChanged") &&
 			    dbus_message_get_args(msg, &err, DBUS_TYPE_INT32, &old_state, DBUS_TYPE_INT32, &new_state, DBUS_TYPE_INVALID) &&
 			    old_state != new_state) {
+				printf("chamada: estado %d -> %d\n", old_state, new_state);
+				fflush(stdout);
 				if (active(new_state))
 					voice_open();
-				else if (active(old_state))
+				else if (new_state == TERMINATED)
 					voice_close();
+			} else if (dbus_message_is_signal(msg, "org.freedesktop.ModemManager1.Modem.Voice", "CallDeleted")) {
+				printf("chamada removida do modem\n");
+				fflush(stdout);
+				voice_close();
 			}
 			if (dbus_error_is_set(&err)) {
 				fprintf(stderr, "sinal: %s\n", err.message);
