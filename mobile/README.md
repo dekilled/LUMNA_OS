@@ -51,7 +51,7 @@ do sdm845) e um discador. Em operadora que só aceita VoLTE, a voz ainda é expe
 
 Gestos: deslizar a barra de status pra baixo abre a **central** (notificações e atalhos: Wi-Fi,
 Bluetooth, dados móveis, som, lanterna, não perturbe, modo avião, economia, brilho e volume);
-deslizar a navegação pra cima abre os **apps recentes**, com a memória que cada app usa
+na barrinha de baixo, toque ou deslize curto abre o teclado e o deslize longo abre os **apps recentes**, com a memória que cada app usa
 (arrastar o cartão pra cima fecha; segurar dá "Forçar parada").
 
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do

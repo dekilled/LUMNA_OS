@@ -1,12 +1,11 @@
 <script setup lang="ts">
 // Celular: barra de navegação de baixo. Início e Apps são abas da tela Início (e escondem os
 // apps abertos); Arquivos, Ajustes e Emma abrem as janelas e o painel que o PC já tem.
-// Deslizar a barra pra cima abre os apps recentes.
-import { onMounted, onUnmounted, ref } from "vue";
+// A barrinha de baixo: toque ou deslize curto pra cima = teclado; deslize longo = apps recentes.
+import { computed, ref } from "vue";
 import { emit } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
-import { filesWindow, keyboardToggle, mobilePanel, recentsSnapshot, settingsOpen, toggleEmma } from "../../system";
-import { swipe } from "../../swipe";
+import { filesWindow, haptic, keyboardToggle, mobilePanel, recentsSnapshot, settingsOpen, toggleEmma } from "../../system";
 import { isMinimized, windowControl, windows } from "../../compositor";
 
 type Tab = "inicio" | "apps" | "arquivos" | "ajustes" | "emma";
@@ -50,20 +49,61 @@ async function go(tab: Tab) {
   else await toggleEmma();
 }
 
-const root = ref<HTMLElement>();
-let stopSwipe: (() => void) | null = null;
 async function openRecents() {
   await recentsSnapshot();
   await mobilePanel("mobile-recents", true);
 }
-onMounted(() => {
-  if (root.value) stopSwipe = swipe(root.value, { on: { up: openRecents }, threshold: 24 });
-});
-onUnmounted(() => stopSwipe?.());
+
+// ---- gesto da barrinha ----
+// Curto (até LONG px pra cima) abre/fecha o teclado; longo abre os recentes. A barrinha estica
+// enquanto o dedo sobe e dá um toque de vibração quando passa pro "longo".
+const SHORT = 24;
+const LONG = 140;
+const lift = ref(0);
+let start: { y: number; id: number } | null = null;
+let swallow = false;
+const long = computed(() => lift.value >= LONG);
+
+function handleDown(e: PointerEvent) {
+  if (start) return;
+  start = { y: e.clientY, id: e.pointerId };
+  lift.value = 0;
+  try {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  } catch {}
+}
+function handleMove(e: PointerEvent) {
+  if (!start || e.pointerId !== start.id) return;
+  const was = long.value;
+  lift.value = Math.max(0, start.y - e.clientY);
+  if (long.value && !was) haptic(25).catch(() => {});
+}
+function handleUp(e: PointerEvent) {
+  if (!start || e.pointerId !== start.id) return;
+  start = null;
+  const up = lift.value;
+  lift.value = 0;
+  if (up < SHORT) return; // toque: o clique cuida
+  swallow = true;
+  window.setTimeout(() => (swallow = false), 400);
+  if (up >= LONG) openRecents();
+  else keyboardToggle();
+}
+function handleCancel() {
+  start = null;
+  lift.value = 0;
+}
+function handleClick() {
+  if (swallow) {
+    swallow = false;
+    return;
+  }
+  keyboardToggle();
+}
 </script>
 
 <template>
-  <div ref="root" class="root">
+  <div class="root">
   <nav class="nav">
     <button v-for="item in items" :key="item.tab" :class="{ on: active === item.tab }" @click="go(item.tab)">
       <Icon :name="item.icon" :size="24" />
@@ -71,7 +111,17 @@ onUnmounted(() => stopSwipe?.());
     </button>
   </nav>
   <!-- a barrinha abre o teclado nos apps que não são do LUMNA (terminal, navegador...) -->
-  <button class="handle-area" aria-label="Teclado" @click="keyboardToggle()"><div class="handle" /></button>
+  <button
+    class="handle-area"
+    aria-label="Teclado (deslize longo: apps recentes)"
+    @pointerdown="handleDown"
+    @pointermove="handleMove"
+    @pointerup="handleUp"
+    @pointercancel="handleCancel"
+    @click="handleClick"
+  >
+    <div class="handle" :class="{ long }" :style="{ width: `${120 + Math.min(lift, LONG) * 0.5}px` }" />
+  </button>
   </div>
 </template>
 
@@ -117,5 +167,9 @@ button.on {
   height: 4px;
   border-radius: 2px;
   background: rgba(236, 232, 255, 0.7);
+  transition: background 120ms ease;
+}
+.handle.long {
+  background: var(--lumna-violet-soft);
 }
 </style>
