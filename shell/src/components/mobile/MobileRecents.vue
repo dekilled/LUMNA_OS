@@ -189,21 +189,54 @@ function baseOffset(index: number): number {
   if (!el || !slot) return 0;
   return (el.clientWidth - slot.offsetWidth) / 2 - index * step();
 }
+// As animações são feitas aqui, quadro a quadro, e não com transition do CSS: no 6T a animação
+// do compositor do WebKit mostrava um quadro velho ("fantasma") quando o cartão encaixava.
+const tweens = new Map<HTMLElement, number>();
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+function tween(el: HTMLElement, from: number[], to: number[], ms: number, apply: (v: number[]) => void) {
+  cancelAnimationFrame(tweens.get(el) ?? 0);
+  const t0 = performance.now();
+  const tick = (now: number) => {
+    const t = Math.min(1, (now - t0) / ms);
+    const k = easeOut(t);
+    apply(from.map((f, i) => f + (to[i] - f) * k));
+    if (t < 1) tweens.set(el, requestAnimationFrame(tick));
+    else tweens.delete(el);
+  };
+  tweens.set(el, requestAnimationFrame(tick));
+}
+
+let trackX = 0;
+const cardPos = new WeakMap<HTMLElement, number[]>();
+function setTrack(track: HTMLElement, x: number) {
+  trackX = x;
+  track.style.transform = `translateX(${Math.round(x)}px)`;
+}
 function paintTrack(dx: number, animate: boolean) {
   if (layout.value !== "carrossel") return;
   const track = strip.value?.querySelector<HTMLElement>(".track");
   if (!track) return;
   // nas pontas a fila resiste (elástico)
   const atEdge = (current.value === 0 && dx > 0) || (current.value === list.value.length - 1 && dx < 0);
-  const x = Math.round(baseOffset(current.value) + (atEdge ? dx / 3 : dx));
-  track.style.transition = animate ? "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
-  track.style.transform = `translate3d(${x}px, 0, 0)`;
+  const x = baseOffset(current.value) + (atEdge ? dx / 3 : dx);
+  if (animate) tween(track, [trackX], [x], 260, ([v]) => setTrack(track, v));
+  else {
+    cancelAnimationFrame(tweens.get(track) ?? 0);
+    setTrack(track, x);
+  }
+}
+function setCard(card: HTMLElement, [dx, dy]: number[]) {
+  cardPos.set(card, [dx, dy]);
+  const d = Math.abs(dx) + Math.abs(dy);
+  card.style.transform = d >= 0.5 ? `translate(${Math.round(dx)}px, ${Math.round(dy)}px)` : "";
+  card.style.opacity = d >= 0.5 ? String(Math.max(0.3, 1 - d / 400)) : "";
 }
 function paintCard(card: HTMLElement, dx: number, dy: number, animate: boolean) {
-  card.style.transition = animate ? "transform 240ms ease, opacity 240ms ease" : "none";
-  const d = Math.abs(dx) + Math.abs(dy);
-  card.style.transform = d ? `translate3d(${Math.round(dx)}px, ${Math.round(dy)}px, 0)` : "";
-  card.style.opacity = d ? String(Math.max(0.3, 1 - d / 400)) : "";
+  if (animate) tween(card, cardPos.get(card) ?? [0, 0], [dx, dy], 220, (v) => setCard(card, v));
+  else {
+    cancelAnimationFrame(tweens.get(card) ?? 0);
+    setCard(card, [dx, dy]);
+  }
 }
 // um desenho por quadro, sempre o último pedido
 function schedule(paint: () => void) {
@@ -515,7 +548,6 @@ header p {
   height: 100%;
   display: flex;
   gap: 14px;
-  will-change: transform;
 }
 .grid {
   flex: 1;
@@ -558,9 +590,8 @@ header p {
 }
 .grid .card {
   flex: none;
-  aspect-ratio: 9 / 16;
-  max-height: 27vh;
-  margin: 0 auto;
+  width: 100%;
+  aspect-ratio: 9 / 15;
   border-radius: 16px;
 }
 .slot {
@@ -574,8 +605,7 @@ header p {
   color: var(--lumna-muted);
 }
 .slot.leaving .card {
-  transform: translate3d(0, -120%, 0) !important;
-  opacity: 0 !important;
+  opacity: 0.3;
 }
 .title {
   height: 44px;
