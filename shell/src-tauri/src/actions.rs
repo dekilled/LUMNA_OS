@@ -868,7 +868,7 @@ fn audio_volume(args: &Value) -> Result<Outcome, String> {
 }
 
 fn audio_outputs() -> Outcome {
-    let state = crate::audio::audio_state();
+    let state = crate::audio::read_state();
     if state.outputs.is_empty() {
         return Outcome::data("Sem saídas", "Nenhuma saída de som encontrada.");
     }
@@ -881,7 +881,7 @@ fn audio_outputs() -> Outcome {
 }
 
 fn audio_output(name: &str) -> Result<Outcome, String> {
-    let state = crate::audio::audio_state();
+    let state = crate::audio::read_state();
     let output = best(&state.outputs, name, |o| vec![o.name.clone()]).ok_or_else(|| format!("nenhuma saída parecida com \"{name}\""))?;
     crate::audio::audio_set_default(output.id)?;
     Ok(Outcome::done(format!("Som saindo em {}", output.name)))

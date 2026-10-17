@@ -6,6 +6,9 @@
 //! Atalhos que o PC não tem: brilho e lanterna (pelo logind, sem root), dados móveis e modo avião
 //! (pelo NetworkManager, que o polkit libera pro grupo wheel), não perturbe e rotação (só diz se
 //! existe sensor; girar a tela ainda não está feito).
+//!
+//! Os comandos que leem o /proc ou chamam nmcli/mmcli são assíncronos: comando síncrono do Tauri
+//! roda na thread da interface, e cada consulta congelava as animações de todas as camadas.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -149,10 +152,15 @@ fn mtime(path: &Path) -> u64 {
 }
 
 #[tauri::command]
-pub fn recents(app: AppHandle, compositor: tauri::State<'_, SharedCompositor>) -> Result<Recents, String> {
+pub async fn recents(app: AppHandle, compositor: tauri::State<'_, SharedCompositor>) -> Result<Recents, String> {
+    let compositor = compositor.inner().clone();
+    let _ = app.asset_protocol_scope().allow_directory(shots_dir(), false);
+    tauri::async_runtime::spawn_blocking(move || recents_now(&compositor)).await.map_err(|e| e.to_string())?
+}
+
+fn recents_now(compositor: &SharedCompositor) -> Result<Recents, String> {
     let own = i64::from(std::process::id());
     let parents = parents();
-    let _ = app.asset_protocol_scope().allow_directory(shots_dir(), false);
     let mut apps: Vec<Recent> = compositor
         .windows()?
         .into_iter()
@@ -205,7 +213,7 @@ pub async fn recents_snapshot(compositor: tauri::State<'_, SharedCompositor>) ->
 
 /// Forçar parada: mata o app e os processos filhos (nunca o próprio LUMNA).
 #[tauri::command]
-pub fn recents_kill(compositor: tauri::State<'_, SharedCompositor>, address: String) -> Result<(), String> {
+pub async fn recents_kill(compositor: tauri::State<'_, SharedCompositor>, address: String) -> Result<(), String> {
     let window = compositor.windows()?.into_iter().find(|w| w.address == address).ok_or("a janela já fechou")?;
     if window.pid <= 1 || window.pid == i64::from(std::process::id()) {
         return Err("essa janela é do próprio LUMNA".into());
@@ -310,7 +318,11 @@ fn mobile_tech() -> Option<String> {
 }
 
 #[tauri::command]
-pub fn quick_state() -> Quick {
+pub async fn quick_state() -> Quick {
+    tauri::async_runtime::spawn_blocking(quick_now).await.unwrap_or_default()
+}
+
+fn quick_now() -> Quick {
     let brightness = backlight().and_then(|b| {
         let max = read_u32(&b.join("max_brightness"))?.max(1);
         Some((read_u32(&b.join("brightness"))? * 100 / max) as u8)

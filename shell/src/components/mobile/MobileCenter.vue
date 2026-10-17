@@ -364,10 +364,13 @@ onMounted(async () => {
       error.value = "";
       if (!shown) return;
       now.value = new Date();
-      refresh();
+      // primeiro a central aparece (com os dados que já tinha), depois atualiza
+      requestAnimationFrame(() => refresh());
       poll = window.setInterval(refresh, 3000);
     }),
   );
+  // já deixa os atalhos carregados: a primeira abertura não espera nmcli, pw-dump...
+  refresh();
   if (root.value) {
     stops.push(
       swipe(root.value, {

@@ -25,8 +25,7 @@ const strip = ref<HTMLElement>();
 const current = ref(0);
 const menu = ref<Recent | null>(null);
 const error = ref("");
-// arrasto de um cartão: quanto subiu, e os que estão saindo
-const drag = ref<{ address: string; dy: number } | null>(null);
+// cartões saindo (fechados)
 const leaving = ref(new Set<string>());
 
 // Janelas do próprio LUMNA (sem memória própria): nome e ícone pelo título.
@@ -88,11 +87,16 @@ async function open(r: Recent) {
 
 async function closeApp(r: Recent) {
   leaving.value.add(r.address);
+  // o cartão do meio saiu: o vizinho da direita (ou o da esquerda, se era o último) toma o lugar
+  const index = list.value.indexOf(r);
   haptic(20).catch(() => {});
   await windowControl("close", r.address).catch(() => {});
-  window.setTimeout(() => {
+  window.setTimeout(async () => {
     list.value = list.value.filter((a) => a.address !== r.address);
     leaving.value.delete(r.address);
+    if (index >= 0 && current.value >= list.value.length) current.value = Math.max(0, list.value.length - 1);
+    await nextTick();
+    paintTrack(0, true);
     load();
   }, 260);
 }
@@ -122,29 +126,83 @@ async function forceStop(r: Recent) {
   }
 }
 
-// ---- gesto do cartão: toque abre, pra cima fecha, segurar abre o menu ----
-let start: { x: number; y: number; id: number; r: Recent; vertical: boolean | null } | null = null;
+// ---- gestos: o carrossel é nosso (sem a rolagem nativa) ----
+// Arrastar pro lado move a fila inteira com o dedo e, ao soltar, encaixa no cartão mais perto
+// (ou no vizinho, se o gesto foi rápido). Arrastar um cartão pra cima fecha o app. Toque abre,
+// segurar abre o menu. Durante o arrasto o estilo é escrito direto no elemento, a cada quadro,
+// sem passar pelo Vue: é o que deixa a animação lisa no 6T.
+const GAP = 14;
+let start: {
+  x: number;
+  y: number;
+  t: number;
+  id: number;
+  index: number;
+  card: HTMLElement | null;
+  axis: "x" | "y" | null;
+} | null = null;
 let hold = 0;
 let moved = false;
+let frame = 0;
+let lastX = 0;
+let lastT = 0;
+let velocity = 0;
 // O WebKitGTK repete o toque como "mouse" logo depois de soltar: esse eco é ignorado.
 let lastTouch = -1e9;
 
-function cardDown(e: PointerEvent, r: Recent) {
+function step(): number {
+  const slot = strip.value?.querySelector<HTMLElement>(".slot");
+  return (slot?.offsetWidth ?? 0) + GAP;
+}
+function baseOffset(index: number): number {
+  const el = strip.value;
+  const slot = el?.querySelector<HTMLElement>(".slot");
+  if (!el || !slot) return 0;
+  return (el.clientWidth - slot.offsetWidth) / 2 - index * step();
+}
+function paintTrack(dx: number, animate: boolean) {
+  const track = strip.value?.querySelector<HTMLElement>(".track");
+  if (!track) return;
+  // nas pontas a fila resiste (elástico)
+  const atEdge = (current.value === 0 && dx > 0) || (current.value === list.value.length - 1 && dx < 0);
+  const x = baseOffset(current.value) + (atEdge ? dx / 3 : dx);
+  track.style.transition = animate ? "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
+  track.style.transform = `translate3d(${x}px, 0, 0)`;
+}
+function paintCard(card: HTMLElement, dy: number, animate: boolean) {
+  card.style.transition = animate ? "transform 260ms ease, opacity 260ms ease" : "none";
+  card.style.transform = dy ? `translate3d(0, ${dy}px, 0)` : "";
+  card.style.opacity = dy ? String(Math.max(0.3, 1 + dy / 400)) : "";
+}
+
+function down(e: PointerEvent) {
   if (start) return;
   if (e.pointerType !== "touch" && performance.now() - lastTouch < 800) return;
   if (e.pointerType === "touch") lastTouch = performance.now();
-  start = { x: e.clientX, y: e.clientY, id: e.pointerId, r, vertical: null };
+  // o X do cartão é um botão comum
+  if ((e.target as Element).closest("button")) return;
+  const slot = (e.target as Element).closest<HTMLElement>(".slot");
+  const index = slot ? Number(slot.dataset.i) : -1;
+  start = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, index, card: slot?.querySelector(".card") ?? null, axis: null };
   moved = false;
+  velocity = 0;
+  lastX = e.clientX;
+  lastT = e.timeStamp;
+  try {
+    strip.value?.setPointerCapture(e.pointerId);
+  } catch {}
   clearTimeout(hold);
-  hold = window.setTimeout(() => {
-    if (start && !moved) {
-      haptic(30).catch(() => {});
-      menu.value = r;
-      start = null;
-    }
-  }, 550);
+  if (index >= 0 && (e.target as Element).closest(".card")) {
+    hold = window.setTimeout(() => {
+      if (start && !moved) {
+        haptic(30).catch(() => {});
+        menu.value = list.value[index] ?? null;
+        start = null;
+      }
+    }, 550);
+  }
 }
-function cardMove(e: PointerEvent) {
+function move(e: PointerEvent) {
   if (!start || e.pointerId !== start.id) return;
   const dx = e.clientX - start.x;
   const dy = e.clientY - start.y;
@@ -152,53 +210,67 @@ function cardMove(e: PointerEvent) {
     moved = true;
     clearTimeout(hold);
   }
-  // decide uma vez: vertical = fechar; horizontal = a lista rola sozinha
-  if (start.vertical === null && Math.hypot(dx, dy) > 10) {
-    start.vertical = Math.abs(dy) > Math.abs(dx);
-    if (start.vertical) (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  if (start.axis === null && Math.hypot(dx, dy) > 10) {
+    // vertical só vale num cartão (é o "fechar"); fora dele tudo vira arrasto lateral
+    start.axis = Math.abs(dy) > Math.abs(dx) && start.card ? "y" : "x";
   }
-  if (start.vertical) drag.value = { address: start.r.address, dy: Math.min(0, dy) };
+  if (e.timeStamp > lastT) {
+    velocity = (e.clientX - lastX) / (e.timeStamp - lastT);
+    lastX = e.clientX;
+    lastT = e.timeStamp;
+  }
+  cancelAnimationFrame(frame);
+  const s = start;
+  frame = requestAnimationFrame(() => {
+    if (s.axis === "x") paintTrack(dx, false);
+    else if (s.axis === "y" && s.card) paintCard(s.card, Math.min(0, dy), false);
+  });
 }
-function cardUp(e: PointerEvent) {
+function up(e: PointerEvent) {
   clearTimeout(hold);
   if (!start || e.pointerId !== start.id) return;
   if (e.pointerType === "touch") lastTouch = performance.now();
-  const r = start.r;
-  const wasVertical = start.vertical;
+  cancelAnimationFrame(frame);
+  const s = start;
   start = null;
-  const dy = drag.value?.dy ?? 0;
-  drag.value = null;
-  if (wasVertical && dy < -110) closeApp(r);
-  else if (!moved) open(r);
-}
-function cardCancel() {
-  clearTimeout(hold);
-  start = null;
-  drag.value = null;
-}
-
-function cardStyle(r: Recent) {
-  if (leaving.value.has(r.address)) return { transform: "translateY(-120%)", opacity: "0" };
-  if (drag.value?.address === r.address) {
-    const dy = drag.value.dy;
-    return { transform: `translateY(${dy}px)`, opacity: String(Math.max(0.3, 1 + dy / 400)), transition: "none" };
+  const dx = e.clientX - s.x;
+  const dy = e.clientY - s.y;
+  if (s.axis === "x") {
+    const w = step() || 1;
+    let target = Math.round(current.value - dx / w);
+    // gesto rápido: vai pro vizinho mesmo sem arrastar meio cartão
+    if (target === current.value && Math.abs(velocity) > 0.35) target -= Math.sign(velocity);
+    current.value = Math.max(0, Math.min(list.value.length - 1, target));
+    paintTrack(0, true);
+  } else if (s.axis === "y" && s.card) {
+    if (dy < -110) {
+      paintCard(s.card, -window.innerHeight * 0.6, true);
+      const r = list.value[s.index];
+      if (r) closeApp(r);
+    } else paintCard(s.card, 0, true);
+  } else if (!moved) {
+    // toque: no cartão do meio abre; num vizinho, traz ele pro meio; fora dos cartões, volta
+    if (s.index < 0) close();
+    else if (s.index === current.value) open(list.value[s.index]);
+    else {
+      current.value = s.index;
+      paintTrack(0, true);
+    }
   }
-  return {};
 }
-
-function onScroll() {
-  const el = strip.value;
-  if (!el) return;
-  const card = el.querySelector<HTMLElement>(".slot");
-  if (!card) return;
-  current.value = Math.round(el.scrollLeft / (card.offsetWidth + 14));
+function cancel() {
+  clearTimeout(hold);
+  cancelAnimationFrame(frame);
+  if (start?.card) paintCard(start.card, 0, true);
+  start = null;
+  paintTrack(0, true);
 }
 
 // O app que estava na frente fica no meio quando os recentes abrem.
 async function centerFirst() {
-  await nextTick();
-  strip.value?.scrollTo({ left: 0 });
   current.value = 0;
+  await nextTick();
+  paintTrack(0, false);
 }
 
 let timer = 0;
@@ -214,8 +286,8 @@ onMounted(async () => {
       if (!shown) return;
       await load();
       centerFirst();
-      // a memória muda enquanto olha: atualiza de tempos em tempos
-      timer = window.setInterval(load, 2500);
+      // a memória muda enquanto olha: atualiza de tempos em tempos (nunca no meio de um arrasto)
+      timer = window.setInterval(() => !start && load(), 2500);
     }),
   );
   stops.push(
@@ -243,8 +315,18 @@ onUnmounted(() => {
       <span>Nada aberto. Os apps que você abrir aparecem aqui.</span>
     </div>
 
-    <div v-else ref="strip" class="strip" @scroll.passive="onScroll" @click.self="close()">
-      <div v-for="(r, i) in list" :key="r.address" class="slot" :class="{ on: i === current }">
+    <div
+      v-else
+      ref="strip"
+      class="strip"
+      @pointerdown="down"
+      @pointermove="move"
+      @pointerup="up"
+      @pointercancel="cancel"
+      @contextmenu.prevent
+    >
+      <div class="track">
+      <div v-for="(r, i) in list" :key="r.address" class="slot" :class="{ on: i === current, leaving: leaving.has(r.address) }" :data-i="i">
         <div class="title">
           <img v-if="appFor(r)?.icon" :src="appFor(r)!.icon!" alt="" />
           <span v-else class="glyph"><Icon :name="glyphOf(r)" :size="20" /></span>
@@ -253,15 +335,7 @@ onUnmounted(() => {
             <Icon name="close" :size="18" />
           </button>
         </div>
-        <div
-          class="card"
-          :style="cardStyle(r)"
-          @pointerdown="cardDown($event, r)"
-          @pointermove="cardMove"
-          @pointerup="cardUp"
-          @pointercancel="cardCancel"
-          @contextmenu.prevent
-        >
+        <div class="card">
           <img v-if="shotUrl(r)" class="shot" :src="shotUrl(r)!" alt="" draggable="false" />
           <div v-else class="placeholder">
             <img v-if="appFor(r)?.icon" :src="appFor(r)!.icon!" alt="" />
@@ -273,6 +347,7 @@ onUnmounted(() => {
           <Icon name="memory" :size="14" />
           {{ r.memory_kb == null ? "parte do LUMNA" : size(r.memory_kb) }}
         </div>
+      </div>
       </div>
     </div>
 
@@ -351,23 +426,21 @@ header p {
   flex: 1;
   min-height: 0;
   margin-top: 18px;
+  overflow: hidden;
+  touch-action: none;
+}
+/* o cartão do meio fica centralizado; os vizinhos aparecem nas bordas */
+.track {
+  height: 100%;
   display: flex;
   gap: 14px;
-  /* o cartão do meio fica centralizado; os vizinhos aparecem nas bordas */
-  padding: 0 18vw;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  touch-action: pan-x;
-}
-.strip::-webkit-scrollbar {
-  display: none;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 .slot {
   flex: 0 0 64vw;
   display: flex;
   flex-direction: column;
-  scroll-snap-align: center;
   opacity: 0.6;
   transform: scale(0.94);
   transition: opacity 200ms ease, transform 200ms ease;
@@ -375,6 +448,10 @@ header p {
 .slot.on {
   opacity: 1;
   transform: none;
+}
+.slot.leaving .card {
+  transform: translate3d(0, -120%, 0) !important;
+  opacity: 0 !important;
 }
 .title {
   height: 44px;
@@ -421,8 +498,7 @@ header p {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 22px;
   background: #121019;
-  touch-action: pan-x;
-  transition: transform 260ms ease, opacity 260ms ease;
+  will-change: transform;
 }
 .slot.on .card {
   border: 2px solid var(--lumna-violet-soft);
