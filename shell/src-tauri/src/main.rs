@@ -1447,6 +1447,7 @@ fn main() {
             touchkeys::keyboard_key,
             touchkeys::keyboard_show,
             touchkeys::keyboard_toggle,
+            touchkeys::keyboard_target,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,

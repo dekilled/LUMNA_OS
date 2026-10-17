@@ -9,6 +9,7 @@ use std::process::Command;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Mutex, OnceLock};
 
+use serde_json::json;
 use tauri::{AppHandle, Emitter};
 
 use crate::layer;
@@ -58,6 +59,30 @@ fn queue() -> &'static Mutex<Sender<Job>> {
     })
 }
 
+/// Janela do LUMNA com um campo de texto em foco. As teclas vão direto para ela (pela página), sem
+/// passar pelo teclado virtual do Wayland: o WebKit lê as teclas de edição (apagar, setas, Enter)
+/// pela posição física da tecla, e o mapa de teclas que o wtype inventa não bate com ela.
+static TARGET: Mutex<Option<String>> = Mutex::new(None);
+
+#[tauri::command]
+pub fn keyboard_target(label: String, focused: bool) {
+    let mut target = TARGET.lock().unwrap();
+    if focused {
+        *target = Some(label);
+    } else if target.as_deref() == Some(label.as_str()) {
+        *target = None;
+    }
+}
+
+/// Entrega à janela do LUMNA em foco, se houver. `true` = entregue.
+fn to_lumna(app: &AppHandle, payload: serde_json::Value) -> bool {
+    let target = TARGET.lock().unwrap().clone();
+    match target {
+        Some(label) => app.emit_to(label.as_str(), "lumna://keyboard-input", payload).is_ok(),
+        None => false,
+    }
+}
+
 /// Nomes de tecla do xkb aceitos (o resto é recusado: a página não manda comando arbitrário).
 const KEYS: &[&str] = &[
     "BackSpace", "Return", "Tab", "Escape", "Left", "Right", "Up", "Down", "Home", "End", "Delete", "space",
@@ -65,15 +90,18 @@ const KEYS: &[&str] = &[
 const MODS: &[&str] = &["ctrl", "alt", "shift", "logo"];
 
 #[tauri::command]
-pub fn keyboard_type(text: String) -> Result<(), String> {
+pub fn keyboard_type(app: AppHandle, text: String) -> Result<(), String> {
     if text.is_empty() || text.len() > 4000 {
         return Err("texto vazio ou longo demais".into());
+    }
+    if to_lumna(&app, json!({ "kind": "text", "text": text })) {
+        return Ok(());
     }
     queue().lock().unwrap().send(Job::Text(text)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn keyboard_key(key: String, mods: Vec<String>) -> Result<(), String> {
+pub fn keyboard_key(app: AppHandle, key: String, mods: Vec<String>) -> Result<(), String> {
     // letra com Ctrl/Alt (Ctrl+C no terminal): uma letra minúscula também vale
     let letter = key.len() == 1 && key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
     if !KEYS.contains(&key.as_str()) && !letter {
@@ -81,6 +109,9 @@ pub fn keyboard_key(key: String, mods: Vec<String>) -> Result<(), String> {
     }
     if let Some(m) = mods.iter().find(|m| !MODS.contains(&m.as_str())) {
         return Err(format!("modificador desconhecido: {m}"));
+    }
+    if to_lumna(&app, json!({ "kind": "key", "key": key, "mods": mods })) {
+        return Ok(());
     }
     queue().lock().unwrap().send(Job::Key { key, mods }).map_err(|e| e.to_string())
 }
