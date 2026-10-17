@@ -28,6 +28,22 @@ const error = ref("");
 // cartões saindo (fechados)
 const leaving = ref(new Set<string>());
 
+// Dois jeitos de ver: o carrossel do esboço ou uma grade (mais leve: nada se move inteiro).
+type Layout = "carrossel" | "grade";
+const LAYOUT = "lumna.recents.layout";
+const layout = ref<Layout>("carrossel");
+try {
+  if (localStorage.getItem(LAYOUT) === "grade") layout.value = "grade";
+} catch {}
+async function toggleLayout() {
+  layout.value = layout.value === "carrossel" ? "grade" : "carrossel";
+  try {
+    localStorage.setItem(LAYOUT, layout.value);
+  } catch {}
+  await nextTick();
+  paintTrack(0, false);
+}
+
 // Janelas do próprio LUMNA (sem memória própria): nome e ícone pelo título.
 const LUMNA_WINDOWS: [string, string][] = [
   ["Arquivos", "folder"],
@@ -67,7 +83,17 @@ const subtitle = computed(() => {
 async function load() {
   try {
     const r = await loadRecents();
-    list.value = r.apps.filter((a) => !leaving.value.has(a.address));
+    const fresh = r.apps.filter((a) => !leaving.value.has(a.address));
+    // Mesmos apps na mesma ordem: só os números mudam (não refaz os cartões).
+    const same = fresh.length === list.value.length && fresh.every((a, i) => a.address === list.value[i].address);
+    if (same) {
+      fresh.forEach((a, i) => {
+        const old = list.value[i];
+        if (old.memory_kb !== a.memory_kb) old.memory_kb = a.memory_kb;
+        if (old.shot_at !== a.shot_at) Object.assign(old, { shot: a.shot, shot_at: a.shot_at });
+        if (old.title !== a.title) old.title = a.title;
+      });
+    } else list.value = fresh;
     memory.value = { total: r.total_kb, available: r.available_kb };
   } catch (e) {
     error.value = String(e);
@@ -126,29 +152,32 @@ async function forceStop(r: Recent) {
   }
 }
 
-// ---- gestos: o carrossel é nosso (sem a rolagem nativa) ----
-// Arrastar pro lado move a fila inteira com o dedo e, ao soltar, encaixa no cartão mais perto
-// (ou no vizinho, se o gesto foi rápido). Arrastar um cartão pra cima fecha o app. Toque abre,
-// segurar abre o menu. Durante o arrasto o estilo é escrito direto no elemento, a cada quadro,
-// sem passar pelo Vue: é o que deixa a animação lisa no 6T.
+// ---- gestos ----
+// Carrossel: arrastar pro lado move a fila com o dedo e, ao soltar, encaixa no cartão mais perto
+// (ou no vizinho, num gesto rápido); arrastar um cartão pra cima fecha o app.
+// Grade: a lista rola sozinha na vertical; arrastar um cartão pro lado fecha o app.
+// Nos dois: toque abre, segurar abre o menu. Durante o arrasto o estilo vai direto no elemento,
+// uma vez por quadro, sem passar pelo Vue.
 const GAP = 14;
 let start: {
   x: number;
   y: number;
-  t: number;
-  id: number;
   index: number;
   card: HTMLElement | null;
   axis: "x" | "y" | null;
+  type: string;
 } | null = null;
 let hold = 0;
 let moved = false;
 let frame = 0;
+let pending: (() => void) | null = null;
 let lastX = 0;
 let lastT = 0;
 let velocity = 0;
-// O WebKitGTK repete o toque como "mouse" logo depois de soltar: esse eco é ignorado.
-let lastTouch = -1e9;
+// O WebKitGTK manda o mesmo toque por mais de um caminho (dedo e "mouse" emulado). Um dedo só
+// manda aqui: enquanto um arrasto existe, os outros downs são ignorados; e logo depois de soltar,
+// um down de outro tipo é o eco.
+let lastUp = { at: -1e9, type: "" };
 
 function step(): number {
   const slot = strip.value?.querySelector<HTMLElement>(".slot");
@@ -161,36 +190,49 @@ function baseOffset(index: number): number {
   return (el.clientWidth - slot.offsetWidth) / 2 - index * step();
 }
 function paintTrack(dx: number, animate: boolean) {
+  if (layout.value !== "carrossel") return;
   const track = strip.value?.querySelector<HTMLElement>(".track");
   if (!track) return;
   // nas pontas a fila resiste (elástico)
   const atEdge = (current.value === 0 && dx > 0) || (current.value === list.value.length - 1 && dx < 0);
-  const x = baseOffset(current.value) + (atEdge ? dx / 3 : dx);
-  track.style.transition = animate ? "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
+  const x = Math.round(baseOffset(current.value) + (atEdge ? dx / 3 : dx));
+  track.style.transition = animate ? "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)" : "none";
   track.style.transform = `translate3d(${x}px, 0, 0)`;
 }
-function paintCard(card: HTMLElement, dy: number, animate: boolean) {
-  card.style.transition = animate ? "transform 260ms ease, opacity 260ms ease" : "none";
-  card.style.transform = dy ? `translate3d(0, ${dy}px, 0)` : "";
-  card.style.opacity = dy ? String(Math.max(0.3, 1 + dy / 400)) : "";
+function paintCard(card: HTMLElement, dx: number, dy: number, animate: boolean) {
+  card.style.transition = animate ? "transform 240ms ease, opacity 240ms ease" : "none";
+  const d = Math.abs(dx) + Math.abs(dy);
+  card.style.transform = d ? `translate3d(${Math.round(dx)}px, ${Math.round(dy)}px, 0)` : "";
+  card.style.opacity = d ? String(Math.max(0.3, 1 - d / 400)) : "";
+}
+// um desenho por quadro, sempre o último pedido
+function schedule(paint: () => void) {
+  pending = paint;
+  if (frame) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    pending?.();
+    pending = null;
+  });
+}
+function stopFrame() {
+  cancelAnimationFrame(frame);
+  frame = 0;
+  pending = null;
 }
 
 function down(e: PointerEvent) {
   if (start) return;
-  if (e.pointerType !== "touch" && performance.now() - lastTouch < 800) return;
-  if (e.pointerType === "touch") lastTouch = performance.now();
+  if (e.pointerType !== lastUp.type && performance.now() - lastUp.at < 500) return;
   // o X do cartão é um botão comum
   if ((e.target as Element).closest("button")) return;
   const slot = (e.target as Element).closest<HTMLElement>(".slot");
   const index = slot ? Number(slot.dataset.i) : -1;
-  start = { x: e.clientX, y: e.clientY, t: e.timeStamp, id: e.pointerId, index, card: slot?.querySelector(".card") ?? null, axis: null };
+  start = { x: e.clientX, y: e.clientY, index, card: slot?.querySelector(".card") ?? null, axis: null, type: e.pointerType };
   moved = false;
   velocity = 0;
   lastX = e.clientX;
   lastT = e.timeStamp;
-  try {
-    strip.value?.setPointerCapture(e.pointerId);
-  } catch {}
   clearTimeout(hold);
   if (index >= 0 && (e.target as Element).closest(".card")) {
     hold = window.setTimeout(() => {
@@ -202,8 +244,10 @@ function down(e: PointerEvent) {
     }, 550);
   }
 }
+// Os eventos de movimento valem de qualquer caminho (é o mesmo dedo): filtrar por pointerId
+// deixava o arrasto sem eventos quando o WebKit escolhia o outro caminho.
 function move(e: PointerEvent) {
-  if (!start || e.pointerId !== start.id) return;
+  if (!start) return;
   const dx = e.clientX - start.x;
   const dy = e.clientY - start.y;
   if (Math.hypot(dx, dy) > 8) {
@@ -211,47 +255,52 @@ function move(e: PointerEvent) {
     clearTimeout(hold);
   }
   if (start.axis === null && Math.hypot(dx, dy) > 10) {
-    // vertical só vale num cartão (é o "fechar"); fora dele tudo vira arrasto lateral
-    start.axis = Math.abs(dy) > Math.abs(dx) && start.card ? "y" : "x";
+    const vertical = Math.abs(dy) > Math.abs(dx);
+    if (layout.value === "carrossel") start.axis = vertical && start.card ? "y" : "x";
+    else start.axis = vertical ? "y" : start.card ? "x" : null;
   }
   if (e.timeStamp > lastT) {
     velocity = (e.clientX - lastX) / (e.timeStamp - lastT);
     lastX = e.clientX;
     lastT = e.timeStamp;
   }
-  cancelAnimationFrame(frame);
   const s = start;
-  frame = requestAnimationFrame(() => {
-    if (s.axis === "x") paintTrack(dx, false);
-    else if (s.axis === "y" && s.card) paintCard(s.card, Math.min(0, dy), false);
-  });
+  if (layout.value === "carrossel") {
+    if (s.axis === "x") schedule(() => paintTrack(dx, false));
+    else if (s.axis === "y" && s.card) schedule(() => paintCard(s.card!, 0, Math.min(0, dy), false));
+  } else if (s.axis === "x" && s.card) schedule(() => paintCard(s.card!, dx, 0, false));
 }
 function up(e: PointerEvent) {
   clearTimeout(hold);
-  if (!start || e.pointerId !== start.id) return;
-  if (e.pointerType === "touch") lastTouch = performance.now();
-  cancelAnimationFrame(frame);
+  if (!start) return;
+  lastUp = { at: performance.now(), type: e.pointerType };
+  stopFrame();
   const s = start;
   start = null;
   const dx = e.clientX - s.x;
   const dy = e.clientY - s.y;
-  if (s.axis === "x") {
+  const r = list.value[s.index];
+  if (layout.value === "carrossel" && s.axis === "x") {
     const w = step() || 1;
     let target = Math.round(current.value - dx / w);
     // gesto rápido: vai pro vizinho mesmo sem arrastar meio cartão
     if (target === current.value && Math.abs(velocity) > 0.35) target -= Math.sign(velocity);
     current.value = Math.max(0, Math.min(list.value.length - 1, target));
     paintTrack(0, true);
-  } else if (s.axis === "y" && s.card) {
-    if (dy < -110) {
-      paintCard(s.card, -window.innerHeight * 0.6, true);
-      const r = list.value[s.index];
-      if (r) closeApp(r);
-    } else paintCard(s.card, 0, true);
+  } else if (layout.value === "carrossel" && s.axis === "y" && s.card) {
+    if (dy < -110 && r) {
+      paintCard(s.card, 0, -window.innerHeight * 0.6, true);
+      closeApp(r);
+    } else paintCard(s.card, 0, 0, true);
+  } else if (layout.value === "grade" && s.axis === "x" && s.card) {
+    if (Math.abs(dx) > 100 && r) {
+      paintCard(s.card, Math.sign(dx) * window.innerWidth, 0, true);
+      closeApp(r);
+    } else paintCard(s.card, 0, 0, true);
   } else if (!moved) {
-    // toque: no cartão do meio abre; num vizinho, traz ele pro meio; fora dos cartões, volta
+    // toque: abre o cartão; no carrossel, um vizinho vem pro meio; fora dos cartões, volta
     if (s.index < 0) close();
-    else if (s.index === current.value) open(list.value[s.index]);
+    else if (layout.value === "grade" || s.index === current.value) open(list.value[s.index]);
     else {
       current.value = s.index;
       paintTrack(0, true);
@@ -260,8 +309,8 @@ function up(e: PointerEvent) {
 }
 function cancel() {
   clearTimeout(hold);
-  cancelAnimationFrame(frame);
-  if (start?.card) paintCard(start.card, 0, true);
+  stopFrame();
+  if (start?.card) paintCard(start.card, 0, 0, true);
   start = null;
   paintTrack(0, true);
 }
@@ -306,7 +355,12 @@ onUnmounted(() => {
   <main class="recents" @click.self="close()">
     <header>
       <div class="brand"><span class="gem" /> LUMNA</div>
-      <h1>Apps recentes</h1>
+      <div class="head-row">
+        <h1>Apps recentes</h1>
+        <button class="layout" :aria-label="layout === 'carrossel' ? 'Ver em grade' : 'Ver em carrossel'" @click="toggleLayout()">
+          <Icon :name="layout === 'carrossel' ? 'grid' : 'stack'" :size="20" />
+        </button>
+      </div>
       <p>{{ subtitle }}</p>
     </header>
 
@@ -318,43 +372,52 @@ onUnmounted(() => {
     <div
       v-else
       ref="strip"
-      class="strip"
+      :key="layout"
+      :class="layout === 'carrossel' ? 'strip' : 'grid'"
       @pointerdown="down"
       @pointermove="move"
       @pointerup="up"
       @pointercancel="cancel"
       @contextmenu.prevent
     >
-      <div class="track">
-      <div v-for="(r, i) in list" :key="r.address" class="slot" :class="{ on: i === current, leaving: leaving.has(r.address) }" :data-i="i">
-        <div class="title">
-          <img v-if="appFor(r)?.icon" :src="appFor(r)!.icon!" alt="" />
-          <span v-else class="glyph"><Icon :name="glyphOf(r)" :size="20" /></span>
-          <span class="name">{{ nameOf(r) }}</span>
-          <button v-if="i === current" class="x" aria-label="Fechar app" @click.stop="closeApp(r)">
-            <Icon name="close" :size="18" />
-          </button>
-        </div>
-        <div class="card">
-          <img v-if="shotUrl(r)" class="shot" :src="shotUrl(r)!" alt="" draggable="false" />
-          <div v-else class="placeholder">
+      <div :class="layout === 'carrossel' ? 'track' : 'cells'">
+        <div
+          v-for="(r, i) in list"
+          :key="r.address"
+          class="slot"
+          :class="{ on: layout === 'grade' || i === current, leaving: leaving.has(r.address) }"
+          :data-i="i"
+        >
+          <div class="title">
             <img v-if="appFor(r)?.icon" :src="appFor(r)!.icon!" alt="" />
-            <Icon v-else :name="glyphOf(r)" :size="56" />
-            <span>{{ r.title }}</span>
+            <span v-else class="glyph"><Icon :name="glyphOf(r)" :size="20" /></span>
+            <span class="name">{{ nameOf(r) }}</span>
+            <button v-if="layout === 'grade' || i === current" class="x" aria-label="Fechar app" @click.stop="closeApp(r)">
+              <Icon name="close" :size="16" />
+            </button>
+          </div>
+          <div class="card">
+            <img v-if="shotUrl(r)" class="shot" :src="shotUrl(r)!" alt="" draggable="false" decoding="async" />
+            <div v-else class="placeholder">
+              <img v-if="appFor(r)?.icon" :src="appFor(r)!.icon!" alt="" />
+              <Icon v-else :name="glyphOf(r)" :size="layout === 'grade' ? 40 : 56" />
+              <span>{{ r.title }}</span>
+            </div>
+          </div>
+          <div class="mem">
+            <Icon name="memory" :size="14" />
+            {{ r.memory_kb == null ? "parte do LUMNA" : size(r.memory_kb) }}
           </div>
         </div>
-        <div class="mem">
-          <Icon name="memory" :size="14" />
-          {{ r.memory_kb == null ? "parte do LUMNA" : size(r.memory_kb) }}
-        </div>
-      </div>
       </div>
     </div>
 
-    <div v-if="list.length > 1" class="dots">
+    <div v-if="layout === 'carrossel' && list.length > 1" class="dots">
       <span v-for="(r, i) in list" :key="r.address" :class="{ on: i === current }" />
     </div>
-    <p v-if="list.length" class="hint">Toque para abrir · Deslize para cima para fechar</p>
+    <p v-if="list.length" class="hint">
+      Toque para abrir · Deslize {{ layout === "carrossel" ? "para cima" : "para o lado" }} para fechar
+    </p>
     <p v-if="error" class="error" @click="error = ''">{{ error }}</p>
 
     <button v-if="list.length" class="all" @click="closeAll()"><Icon name="stack" :size="20" /> Fechar todos</button>
@@ -389,9 +452,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* fundo opaco: o compositor não precisa misturar nada por baixo a cada quadro */
   background:
     radial-gradient(circle at 115% -5%, transparent 44%, rgba(167, 139, 250, 0.45) 45%, rgba(91, 33, 182, 0.2) 47%, transparent 56%),
-    radial-gradient(ellipse at 30% 60%, rgba(29, 18, 64, 0.97), rgba(7, 4, 15, 0.98) 70%);
+    radial-gradient(ellipse at 30% 60%, #1d1240, #07040f 70%);
+  background-color: #07040f;
   user-select: none;
 }
 header {
@@ -411,6 +476,22 @@ header {
   transform: rotate(45deg);
   border: 2px solid var(--lumna-violet-soft);
   border-radius: 3px;
+}
+.head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.layout {
+  margin-top: 16px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--lumna-violet-soft);
 }
 h1 {
   margin: 18px 0 2px;
@@ -434,20 +515,63 @@ header p {
   height: 100%;
   display: flex;
   gap: 14px;
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+}
+.grid {
+  flex: 1;
+  min-height: 0;
+  margin-top: 14px;
+  padding: 0 14px;
+  overflow-y: auto;
+  touch-action: pan-y;
+  scrollbar-width: none;
+}
+.cells {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+.grid .slot {
+  min-width: 0;
+}
+.grid .title {
+  height: 34px;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.grid .title img,
+.grid .glyph {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.grid .name {
+  font-size: 14px;
+}
+.grid .x {
+  width: 30px;
+  height: 30px;
+}
+.grid .slot.on .card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.grid .card {
+  flex: none;
+  aspect-ratio: 9 / 16;
+  max-height: 27vh;
+  margin: 0 auto;
+  border-radius: 16px;
 }
 .slot {
   flex: 0 0 64vw;
   display: flex;
   flex-direction: column;
-  opacity: 0.6;
-  transform: scale(0.94);
-  transition: opacity 200ms ease, transform 200ms ease;
 }
-.slot.on {
-  opacity: 1;
-  transform: none;
+/* os vizinhos ficam mais apagados pela borda e pelo título, sem opacidade nem escala na fila
+   inteira (cada camada assim piscava no WebKitGTK) */
+.slot:not(.on) .title {
+  color: var(--lumna-muted);
 }
 .slot.leaving .card {
   transform: translate3d(0, -120%, 0) !important;
@@ -498,7 +622,6 @@ header p {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 22px;
   background: #121019;
-  will-change: transform;
 }
 .slot.on .card {
   border: 2px solid var(--lumna-violet-soft);
