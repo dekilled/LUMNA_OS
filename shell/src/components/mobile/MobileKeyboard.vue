@@ -1,15 +1,32 @@
 <script setup lang="ts">
-// LUMNA Keyboard: o teclado na tela do celular, como no esboço. Três telas: letras (ABNT, com ç),
-// símbolos e acentos (?123) e a área de transferência. O botão de grade liga a fileira do terminal
-// (Esc, Tab, Ctrl, Alt, Home, End). As teclas vão para o app em foco pelo backend (touchkeys.rs).
+// LUMNA Keyboard: o teclado na tela do celular, como no esboço. Teclas: letras (ABNT, com ç),
+// símbolos e acentos (?123, =\<). A barra de cima tem três camadas:
+//   ferramentas  a padrão ao abrir: Ajustes, Emojis, Área de transferência (e o que vier)
+//   sugestões    aparece sozinha quando você começa a digitar
+//   atalhos      Esc, Tab, Ctrl, Alt, Home, End; aparece sozinha no terminal e nos editores
+// O botão de grade alterna entre as ferramentas e a camada do momento.
+// As teclas vão para o app em foco pelo backend (touchkeys.rs).
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
 import { clipboardRead, keyboardKey, keyboardShow, keyboardType, on } from "../../system";
+import { activeWindow } from "../../compositor";
 
-type Page = "letras" | "simbolos" | "simbolos2" | "clipboard" | "ajustes";
+type Page = "letras" | "simbolos" | "simbolos2" | "clipboard" | "ajustes" | "emojis";
 const page = ref<Page>("letras");
+
+type Bar = "ferramentas" | "sugestoes" | "atalhos";
+const bar = ref<Bar>("ferramentas");
+// o app em foco é um terminal ou editor: a camada de atalhos é a dele, e , . viram / -
 const terminal = ref(false);
+const contextBar = (): Bar => (terminal.value ? "atalhos" : settings.value.suggestions ? "sugestoes" : "ferramentas");
+function toggleBar() {
+  bar.value = bar.value === "ferramentas" ? contextBar() : "ferramentas";
+}
+
+// classes de janela (minúsculas) que pedem os atalhos: terminais e editores
+const TERMINALS = ["foot", "kitty", "alacritty", "wezterm", "xterm", "konsole", "terminal", "terminator",
+  "code", "codium", "kate", "gedit", "mousepad", "neovide", "nvim", "zed", "emacs", "helix"];
 const shift = ref<"off" | "once" | "lock">("off");
 const ctrl = ref(false);
 const alt = ref(false);
@@ -56,6 +73,8 @@ async function type(ch: string) {
   }
   const out = label(ch);
   if (shift.value === "once") shift.value = "off";
+  // começou a digitar: as ferramentas dão lugar às sugestões (ou aos atalhos, no terminal)
+  if (bar.value === "ferramentas") bar.value = contextBar();
   word.value = /[\p{L}\p{N}]/u.test(out) ? word.value + out : "";
   await keyboardType(out);
 }
@@ -215,15 +234,52 @@ async function paste(c: Clip) {
   await keyboardType(c.text);
 }
 
+// ---- emojis ----
+
+const EMOJIS: Record<string, string> = {
+  Rostos: "😀😃😄😁😆😅😂🤣🙂🙃😉😊😇🥰😍🤩😘😋😛😜🤪😎🤓🧐🤔🤨😐😑😶🙄😏😴😌😔😕😟😢😭😤😠😡🤯😳🥺😱😨😰🤗🤭🤫🥱😬🤐😷🤒🤕🤢🤮🥵🥶😵🥳",
+  Gestos: "👍👎👌✌🤞🤟🤘🤙👈👉👆👇☝✋🤚🖐🖖👋🤝🙏👏🙌👐🤲💪🫶✍",
+  Corações: "❤🧡💛💚💙💜🖤🤍🤎💔❣💕💞💓💗💖💘💝💟",
+  Natureza: "🌙⭐🌟✨⚡🔥🌈☀🌤⛅🌧❄🌊🌸🌹🌻🌼🌷🌱🌿🍀🍁🐶🐱🐭🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🦋🐢🐍🐙",
+  Coisas: "🎉🎊🎁🎂🎈🎮🕹🎧🎵🎶📱💻⌨🖥📷🎥💡🔋🔌📌📎✏📝📚💼🗂📁⏰⌛🔒🔑🛠⚙🚀✈🚗🏠☕🍕🍔🍟🍫🍿🍺",
+  Símbolos: "✅❌⚠❗❓💯🔴🟠🟡🟢🔵🟣⚫⚪➕➖➗✖➡⬅⬆⬇🔁🔄💤💬👀🆗🆕",
+};
+const emojiTab = ref("Recentes");
+const RECENT = "lumna.keyboard.emojis";
+const recent = ref<string[]>([]);
+try {
+  recent.value = JSON.parse(localStorage.getItem(RECENT) ?? "[]");
+} catch {}
+const split = (str: string) => [...str].filter((c) => !/[\u200d\ufe0f]/.test(c));
+const emojiList = computed(() => (emojiTab.value === "Recentes" ? recent.value : split(EMOJIS[emojiTab.value] ?? "")));
+async function sendEmoji(e: string) {
+  recent.value = [e, ...recent.value.filter((x) => x !== e)].slice(0, 32);
+  try {
+    localStorage.setItem(RECENT, JSON.stringify(recent.value));
+  } catch {}
+  word.value = "";
+  await keyboardType(e);
+}
+function openEmojis() {
+  emojiTab.value = recent.value.length ? "Recentes" : "Rostos";
+  page.value = "emojis";
+}
+
 // ---- abrir e fechar ----
 
 let stop: UnlistenFn | null = null;
 onMounted(async () => {
-  stop = await on<boolean>("lumna://keyboard", (shown) => {
-    if (shown) {
-      word.value = "";
-      captureClipboard();
-    } else page.value = "letras";
+  stop = await on<{ shown: boolean; lumna: boolean }>("lumna://keyboard", async ({ shown, lumna }) => {
+    if (!shown) {
+      page.value = "letras";
+      return;
+    }
+    word.value = "";
+    captureClipboard();
+    const win = lumna ? null : await activeWindow().catch(() => null);
+    const cls = (win?.class ?? "").toLowerCase();
+    terminal.value = !!cls && TERMINALS.some((t) => cls.includes(t));
+    bar.value = terminal.value ? "atalhos" : "ferramentas";
   });
 });
 onUnmounted(() => stop?.());
@@ -254,6 +310,36 @@ onUnmounted(() => stop?.());
           <button class="more" @click.stop="removeClip(c)"><Icon name="dots" :size="16" /></button>
         </div>
         <div v-if="!shownClips.length" class="empty">Copie um texto e ele aparece aqui.</div>
+      </div>
+    </template>
+
+    <!-- emojis -->
+    <template v-else-if="page === 'emojis'">
+      <div class="row top">
+        <button class="key icon" @click="page = 'letras'"><Icon name="back" :size="22" /></button>
+        <div class="tabs">
+          <button
+            v-for="t in ['Recentes', ...Object.keys(EMOJIS)]"
+            :key="t"
+            :class="{ on: emojiTab === t }"
+            @click="emojiTab = t"
+          >{{ t }}</button>
+        </div>
+      </div>
+      <div class="emojis">
+        <button v-for="e in emojiList" :key="e" @click="sendEmoji(e)">{{ e }}</button>
+        <div v-if="!emojiList.length" class="empty">Os emojis que você usar aparecem aqui.</div>
+      </div>
+      <div class="row">
+        <button class="key mode" @click="page = 'letras'">ABC</button>
+        <button class="key space" @click="key('space')">espaço</button>
+        <button
+          class="key wide"
+          @pointerdown="holdStart($event, 'BackSpace')"
+          @pointerup="holdEnd"
+          @pointercancel="holdEnd"
+          @lostpointercapture="holdEnd"
+        ><Icon name="backspace" :size="20" /></button>
       </div>
     </template>
 
@@ -295,8 +381,13 @@ onUnmounted(() => stop?.());
     <!-- letras e símbolos -->
     <template v-else>
       <div class="row top">
-        <button class="key icon tools" :class="{ on: terminal }" @click="terminal = !terminal"><Icon name="grid" :size="22" /></button>
-        <template v-if="terminal">
+        <button class="key icon tools" :class="{ on: bar === 'ferramentas' }" @click="toggleBar"><Icon name="grid" :size="22" /></button>
+        <template v-if="bar === 'ferramentas'">
+          <button class="key tool" @click="page = 'ajustes'"><Icon name="settings" :size="18" /> Ajustes</button>
+          <button class="key tool" @click="openEmojis"><span class="emo">😊</span> Emojis</button>
+          <button class="key tool" @click="openClipboard"><Icon name="paste" :size="18" /> Copiados</button>
+        </template>
+        <template v-else-if="bar === 'atalhos'">
           <button class="key small" @click="key('Escape')">Esc</button>
           <button class="key small" @click="key('Tab')">Tab</button>
           <button class="key small" :class="{ on: ctrl }" @click="ctrl = !ctrl">Ctrl</button>
@@ -308,10 +399,9 @@ onUnmounted(() => stop?.());
           <div class="suggest">
             <button v-for="s in suggestions" :key="s" @click="pick(s)">{{ s }}</button>
           </div>
-          <button class="key icon" @click="openClipboard"><Icon name="paste" :size="22" /></button>
         </template>
       </div>
-      <div class="row arrows" :class="{ framed: !terminal }">
+      <div class="row arrows" :class="{ framed: bar !== 'atalhos' }">
         <button class="key" @click="key('Left')"><Icon name="arrow-left" :size="20" /></button>
         <button class="key" @click="key('Up')"><Icon name="arrow-up" :size="20" /></button>
         <button class="key" @click="key('Down')"><Icon name="arrow-down" :size="20" /></button>
@@ -355,7 +445,6 @@ onUnmounted(() => stop?.());
 
     <footer>
       <button @click="layout = layout === 'pt' ? 'en' : 'pt'"><Icon name="globe" :size="22" /> Trocar</button>
-      <button @click="page = page === 'ajustes' ? 'letras' : 'ajustes'"><Icon name="settings" :size="20" /> Ajustes</button>
       <button @click="keyboardShow(false)"><Icon name="chevron-down" :size="22" /> Ocultar</button>
     </footer>
     <div class="handle" />
@@ -519,6 +608,53 @@ onUnmounted(() => stop?.());
   font-size: 13px;
   text-align: center;
   padding-top: 20px;
+}
+.key.tool {
+  gap: 6px;
+  font-size: 13px;
+}
+.emo {
+  font-size: 16px;
+}
+.tabs {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs button {
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #1d1d22;
+  color: #a8a6b2;
+  font: inherit;
+  font-size: 13px;
+}
+.tabs button.on {
+  background: #3c3355;
+  color: var(--lumna-violet-soft);
+}
+.emojis {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-auto-rows: 44px;
+  align-content: start;
+}
+.emojis button {
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 26px;
+  font-family: "Noto Color Emoji", sans-serif;
+}
+.emojis button:active {
+  background: #2a2a31;
 }
 .prefs {
   flex: 1;

@@ -130,7 +130,9 @@ pub fn keyboard_show(app: AppHandle, show: bool) -> Result<(), String> {
         }
         layer::set_visible("keyboard", show);
         layer::set_visible("mobile-nav", !show);
-        let _ = handle.emit("lumna://keyboard", show);
+        // lumna = o teclado abriu num campo do LUMNA (senão é num app de fora: terminal, editor...)
+        let lumna = TARGET.lock().unwrap().is_some();
+        let _ = handle.emit("lumna://keyboard", json!({ "shown": show, "lumna": lumna }));
     })
     .map_err(|e| e.to_string())
 }
