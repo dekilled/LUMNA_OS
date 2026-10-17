@@ -66,7 +66,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
+export type SettingsPage = "rede" | "dados-moveis" | "bluetooth" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -797,3 +797,92 @@ export const quickFlashlight = (on: boolean) => invoke<void>("quick_flashlight",
 export const quickMobileData = (on: boolean) => invoke<void>("quick_mobile_data", { on });
 export const quickAirplane = (on: boolean) => invoke<void>("quick_airplane", { on });
 export const quickQuiet = (on: boolean) => invoke<void>("quick_quiet", { on });
+
+// ---- celular: telefone, contatos e dados móveis ----
+
+export interface Call {
+  path: string;
+  number: string;
+  state: "dialing" | "ringing-out" | "incoming" | "active" | "held" | "waiting" | "ended" | "unknown";
+  incoming: boolean;
+  active_since: number | null;
+}
+export interface CallLogEntry {
+  number: string;
+  incoming: boolean;
+  missed: boolean;
+  at: number;
+  duration: number;
+}
+export interface ContactPhone {
+  label: string;
+  number: string;
+}
+export interface Contact {
+  id: string;
+  first: string;
+  last: string;
+  phones: ContactPhone[];
+  email: string;
+  company: string;
+  address: string;
+  birthday: string;
+  favorite: boolean;
+}
+export type PhoneTab = "teclado" | "recentes" | "contatos";
+export const phoneOpen = (tab?: PhoneTab) => invoke<void>("phone_open", { tab: tab ?? null });
+export const phoneCalls = () => invoke<Call[]>("phone_calls");
+export const phoneCall = (number: string) => invoke<void>("phone_call", { number });
+export const phoneAccept = (path: string) => invoke<void>("phone_accept", { path });
+export const phoneHangup = (path?: string) => invoke<void>("phone_hangup", { path: path ?? null });
+export const phoneDtmf = (path: string, tone: string) => invoke<void>("phone_dtmf", { path, tone });
+export const phoneMute = (on: boolean) => invoke<void>("phone_mute", { on });
+export const phoneLog = () => invoke<CallLogEntry[]>("phone_log");
+export const phoneLogClear = () => invoke<void>("phone_log_clear");
+export const contactsList = () => invoke<Contact[]>("contacts_list");
+export const contactsSave = (contact: Contact) => invoke<Contact>("contacts_save", { contact });
+export const contactsDelete = (id: string) => invoke<void>("contacts_delete", { id });
+
+/** Só os dígitos (e o + do começo). */
+export const digits = (n: string) => n.replace(/[^\d+]/g, "");
+/** Mesmo número? Compara os últimos 8 dígitos (com ou sem +55, DDD, 9 na frente...). */
+export const sameNumber = (a: string, b: string) => {
+  const x = a.replace(/\D/g, "");
+  const y = b.replace(/\D/g, "");
+  return x.length >= 8 && y.length >= 8 && x.slice(-8) === y.slice(-8);
+};
+export const contactName = (c: Contact) => `${c.first} ${c.last}`.trim() || c.phones[0]?.number || "Sem nome";
+export const contactFor = (list: Contact[], number: string) =>
+  list.find((c) => c.phones.some((p) => sameNumber(p.number, number)));
+/** Número brasileiro bonito: +55 (11) 98765-4321. Outros ficam como vieram. */
+export function formatNumber(n: string): string {
+  const d = n.replace(/\D/g, "");
+  const br = d.startsWith("55") && d.length >= 12 ? d.slice(2) : n.startsWith("+") ? null : d;
+  if (br && (br.length === 10 || br.length === 11)) {
+    const ddd = br.slice(0, 2);
+    const rest = br.slice(2);
+    const cut = rest.length - 4;
+    return `${n.startsWith("+") ? "+55 " : ""}(${ddd}) ${rest.slice(0, cut)}-${rest.slice(cut)}`;
+  }
+  return n;
+}
+
+export interface ModeOption {
+  id: string;
+  label: string;
+}
+export interface MobileData {
+  modem: boolean;
+  operator: string;
+  state: string;
+  tech: string | null;
+  signal: number | null;
+  number: string;
+  connection: { name: string; apn: string; roaming: boolean; active: boolean } | null;
+  modes: ModeOption[];
+  mode: string;
+  usage: number;
+  month: string;
+}
+export const mobileDataInfo = () => invoke<MobileData>("mobile_data_info");
+export const mobileDataSet = (key: "apn" | "roaming" | "modes", value: string) => invoke<void>("mobile_data_set", { key, value });

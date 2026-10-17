@@ -83,7 +83,7 @@ function glyph(n: Notification): [string, string] {
   if (/m[uú]sica|music|spotify|player/.test(app)) return ["music", "#a78bfa"];
   if (/arquivo|files|download|transfer/.test(app)) return ["folder", "#7c9cf8"];
   if (/emma/.test(app)) return ["mic", "#a78bfa"];
-  if (/telefone|phone|chamada|call|sms|mensage/.test(app)) return ["phone", "#4ade80"];
+  if (/telefone|phone|chamada|call|sms|mensage/.test(app)) return ["call", "#4ade80"];
   if (/sistema|system|lumna|atualiza|update|pacman|bateria|battery/.test(app)) return ["settings", "#cbd5e1"];
   return ["bell", "#a78bfa"];
 }
@@ -172,7 +172,7 @@ const tiles = computed<Tile[]>(() => {
       on: q?.mobile_data ?? null,
       sub: q?.mobile_data == null ? "Sem conexão" : q.mobile_data ? (q.mobile_tech ?? "Ativado") : "Desativado",
       toggle: () => quickMobileData(!q?.mobile_data),
-      page: "rede",
+      page: "dados-moveis",
     },
     {
       id: "som",

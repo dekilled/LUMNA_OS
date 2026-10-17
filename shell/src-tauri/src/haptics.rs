@@ -170,8 +170,13 @@ fn sender() -> &'static Mutex<Sender<u16>> {
 /// 20 ms só pra embalar, abaixo disso não se sente nada).
 #[tauri::command]
 pub fn haptic(ms: u16) {
+    buzz(ms.clamp(15, 80));
+}
+
+/// Vibração mais longa (o toque de uma ligação), até 1 s.
+pub fn buzz(ms: u16) {
     if let Ok(tx) = sender().lock() {
-        let _ = tx.send(ms.clamp(15, 80));
+        let _ = tx.send(ms.clamp(15, 1000));
     }
 }
 

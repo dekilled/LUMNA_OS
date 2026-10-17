@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Contatos
+Comment=Sua agenda
+Exec=lumna-ctl phone contatos
+Icon=/usr/share/lumna/icons/contacts.svg
+Categories=Utility;
+Keywords=contatos;agenda;contacts;

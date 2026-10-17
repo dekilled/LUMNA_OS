@@ -22,6 +22,7 @@ mod modes;
 mod network;
 mod notifications;
 mod pad;
+mod phone;
 mod polkit;
 mod power;
 mod printers;
@@ -291,6 +292,9 @@ const MOBILE_CENTER: LayerSpec = LayerSpec {
     size: (-1, -1),
     visible: false,
 };
+
+/// Celular: a tela da ligação (tocando, chamando, em conversa), por cima de tudo.
+const MOBILE_CALL: LayerSpec = LayerSpec { namespace: "lumna-mobile-call", ..MOBILE_CENTER };
 
 /// Celular: os apps recentes (o "RAM"). Abre deslizando a navegação pra cima.
 const MOBILE_RECENTS: LayerSpec = LayerSpec { namespace: "lumna-mobile-recents", ..MOBILE_CENTER };
@@ -623,6 +627,33 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
         .build()
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+/// Abre o Telefone (uma janela só), na aba pedida: teclado, recentes ou contatos.
+pub fn open_phone(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("phone") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(tab) = tab {
+            let _ = window.emit_to("phone", "lumna://phone-tab", tab);
+        }
+        return Ok(());
+    }
+    let url = format!("index.html#{}", tab.unwrap_or_default());
+    WebviewWindowBuilder::new(app, "phone", WebviewUrl::App(url.into()))
+        .title("Telefone")
+        .inner_size(420.0, 820.0)
+        .min_inner_size(min_side(360.0), min_side(560.0))
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn phone_open(app: AppHandle, tab: Option<String>) -> Result<(), String> {
+    open_phone(&app, tab)
 }
 
 #[tauri::command]
@@ -1494,6 +1525,20 @@ fn main() {
             mobile::quick_mobile_data,
             mobile::quick_airplane,
             mobile::quick_quiet,
+            mobile::mobile_data_info,
+            mobile::mobile_data_set,
+            phone::phone_calls,
+            phone::phone_call,
+            phone::phone_accept,
+            phone::phone_hangup,
+            phone::phone_dtmf,
+            phone::phone_mute,
+            phone::phone_log,
+            phone::phone_log_clear,
+            phone::contacts_list,
+            phone::contacts_save,
+            phone::contacts_delete,
+            phone_open,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,
@@ -1524,6 +1569,7 @@ fn main() {
                 create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
                 create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;
                 create_layer(app.handle(), "mobile-recents", &primary, &MOBILE_RECENTS)?;
+                create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 // por último: fica por cima da Emma (as duas são Overlay)
                 create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
                 forward_events(app.handle().clone(), compositor.clone());
@@ -1531,6 +1577,9 @@ fn main() {
                 wifi::watch(app.handle().clone());
                 notifications::start(app.handle().clone());
                 bluetooth::watch(app.handle().clone());
+                control::listen(app.handle().clone());
+                phone::watch(app.handle().clone());
+                mobile::track_data_usage();
                 return Ok(());
             }
             for index in 0..display.n_monitors() {

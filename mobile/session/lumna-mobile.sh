@@ -30,6 +30,12 @@ fi
 cd "$ROOT/packages/lumna-shell"
 makepkg -sfi --nocheck --noconfirm
 
+# Telefone e Contatos na grade de apps (o lumna-ctl abre as janelas do shell)
+sudo install -Dm644 "$ROOT/mobile/session/apps/phone.svg" /usr/share/lumna/icons/phone.svg
+sudo install -Dm644 "$ROOT/mobile/session/apps/contacts.svg" /usr/share/lumna/icons/contacts.svg
+mkdir -p "$HOME/.local/share/applications"
+cp "$ROOT"/mobile/session/apps/*.desktop "$HOME/.local/share/applications/"
+
 # o teclado vibra a cada toque: libera o motor de vibração pra quem está na tela
 sudo install -Dm644 "$ROOT/mobile/session/70-lumna-vibra.rules" /etc/udev/rules.d/70-lumna-vibra.rules
 sudo udevadm control --reload

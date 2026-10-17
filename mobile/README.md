@@ -54,6 +54,10 @@ Bluetooth, dados móveis, som, lanterna, não perturbe, modo avião, economia, b
 na barrinha de baixo, toque ou deslize curto abre o teclado e o deslize longo abre os **apps recentes**, com a memória que cada app usa
 (arrastar o cartão pra cima fecha; segurar dá "Forçar parada").
 
+Telefone: o app Telefone (teclado, recentes e contatos) liga pelo ModemManager; uma chamada
+chegando abre a tela de ligação por cima de tudo e o celular vibra. O áudio da ligação (q6voiced
++ UCM do sdm845) ainda falta. Em Ajustes > Dados móveis: APN, roaming, tipo de rede e o uso do mês.
+
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do
 usuário; aí o painel entra sozinho, como no desktop. O código da Emma (NewHarnessV2) é privado:
 o script fala como copiar do PC pela USB. Pra conferir: `sh mobile/session/emma.sh status`.

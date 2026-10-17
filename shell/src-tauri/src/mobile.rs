@@ -396,9 +396,249 @@ pub fn quick_quiet(on: bool) {
     QUIET.store(on, Ordering::Relaxed);
 }
 
+// ---- dados móveis (página dos Ajustes) ----
+
+/// Saída `mmcli -m any -K` como chave → valor.
+fn mmcli_keys() -> HashMap<String, String> {
+    let Ok(out) = Command::new("mmcli").args(["-m", "any", "-K"]).output() else { return HashMap::new() };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|l| l.split_once(':'))
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .filter(|(_, v)| v != "--")
+        .collect()
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ModeOption {
+    /// "2g|3g|4g:4g" (permitidos:preferido)
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct DataConnection {
+    pub name: String,
+    pub apn: String,
+    pub roaming: bool,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct MobileData {
+    pub modem: bool,
+    pub operator: String,
+    pub state: String,
+    pub tech: Option<String>,
+    pub signal: Option<u8>,
+    pub number: String,
+    pub connection: Option<DataConnection>,
+    pub modes: Vec<ModeOption>,
+    pub mode: String,
+    /// bytes usados no mês (contados pelo LUMNA desde que ele começou a contar)
+    pub usage: u64,
+    pub month: String,
+}
+
+/// "allowed: 2g, 3g, 4g; preferred: 4g" → "2g|3g|4g:4g"
+fn mode_id(text: &str) -> Option<String> {
+    let allowed = text.split(';').next()?.trim().strip_prefix("allowed:")?.trim().replace(", ", "|");
+    let preferred = text.split(';').nth(1).and_then(|p| p.trim().strip_prefix("preferred:")).map(str::trim).unwrap_or("none");
+    Some(format!("{allowed}:{preferred}"))
+}
+
+fn mode_label(id: &str) -> String {
+    let (allowed, preferred) = id.split_once(':').unwrap_or((id, "none"));
+    let mut gens: Vec<String> = allowed.split('|').map(|g| g.to_uppercase()).collect();
+    gens.sort_by(|a, b| b.cmp(a));
+    match (gens.len(), preferred) {
+        (1, _) => format!("Só {}", gens[0]),
+        (_, "none") => format!("{} automático", gens.join(" / ")),
+        // preferir a geração mais nova é o "automático" dos celulares
+        (_, p) if p.to_uppercase() == gens[0] => format!("{} automático", gens.join(" / ")),
+        (_, p) => format!("{} (prefere {})", gens.join(" / "), p.to_uppercase()),
+    }
+}
+
+#[tauri::command]
+pub async fn mobile_data_info() -> MobileData {
+    tauri::async_runtime::spawn_blocking(|| {
+        let keys = mmcli_keys();
+        let gsm = gsm_connections();
+        let connection = gsm.first().map(|(name, active)| {
+            let fields = nmcli(&["-g", "gsm.apn,gsm.home-only", "connection", "show", name]).unwrap_or_default();
+            let mut lines = fields.lines();
+            DataConnection {
+                name: name.clone(),
+                apn: lines.next().unwrap_or_default().to_string(),
+                roaming: lines.next().unwrap_or_default() != "yes",
+                active: *active,
+            }
+        });
+        let mut modes: Vec<ModeOption> = keys
+            .iter()
+            .filter(|(k, _)| k.starts_with("modem.generic.supported-modes.value"))
+            .filter_map(|(_, v)| mode_id(v))
+            .map(|id| ModeOption { label: mode_label(&id), id })
+            .collect();
+        modes.sort_by(|a, b| b.id.len().cmp(&a.id.len()).then(b.id.cmp(&a.id)));
+        modes.dedup_by(|a, b| a.id == b.id);
+        let (usage, month) = {
+            let _guard = USAGE_LOCK.lock();
+            usage_now()
+        };
+        MobileData {
+            modem: !keys.is_empty(),
+            operator: keys.get("modem.3gpp.operator-name").cloned().unwrap_or_default(),
+            state: keys.get("modem.generic.state").cloned().unwrap_or_default(),
+            tech: mobile_tech(),
+            signal: keys.get("modem.generic.signal-quality.value").and_then(|v| v.parse().ok()),
+            number: keys.get("modem.generic.own-numbers.value[1]").cloned().unwrap_or_default(),
+            connection,
+            mode: keys.get("modem.generic.current-modes").and_then(|m| mode_id(m)).unwrap_or_default(),
+            modes,
+            usage,
+            month,
+        }
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Muda um ajuste: `apn`, `roaming` ("on"/"off") ou `modes` ("2g|3g|4g:4g").
+#[tauri::command]
+pub async fn mobile_data_set(key: String, value: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let gsm = gsm_connections();
+        let conn = || gsm.first().cloned().ok_or_else(|| "nenhuma conexão de dados móveis configurada".to_string());
+        match key.as_str() {
+            "apn" => {
+                let (name, active) = conn()?;
+                nmcli(&["connection", "modify", "id", &name, "gsm.apn", value.trim()])?;
+                if active {
+                    nmcli(&["connection", "up", "id", &name])?;
+                }
+                Ok(())
+            }
+            "roaming" => {
+                let (name, _) = conn()?;
+                nmcli(&["connection", "modify", "id", &name, "gsm.home-only", if value == "on" { "no" } else { "yes" }])
+                    .map(|_| ())
+            }
+            "modes" => {
+                let (allowed, preferred) = value.split_once(':').unwrap_or((&value, "none"));
+                let mut args = vec!["-m".to_string(), "any".into(), format!("--set-allowed-modes={allowed}")];
+                if preferred != "none" {
+                    args.push(format!("--set-preferred-mode={preferred}"));
+                }
+                let out = Command::new("mmcli").args(&args).output().map_err(|e| format!("mmcli: {e}"))?;
+                if out.status.success() {
+                    Ok(())
+                } else {
+                    Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+                }
+            }
+            _ => Err(format!("ajuste desconhecido: {key}")),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---- uso de dados ----
+// O kernel conta os bytes da interface de dados (rmnet...), mas zera a cada boot ou reconexão.
+// A cada minuto o LUMNA soma o que andou desde a última leitura num total do mês.
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize, Default)]
+struct Usage {
+    month: String,
+    bytes: u64,
+    iface: String,
+    boot: String,
+    counter: u64,
+}
+
+fn usage_file() -> PathBuf {
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .unwrap_or_else(|| PathBuf::from("/tmp"));
+    base.join("lumna/phone/data-usage.json")
+}
+
+fn this_month() -> String {
+    Command::new("date").arg("+%Y-%m").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
+}
+
+/// Interface IP da conexão de dados ativa.
+fn data_iface() -> Option<String> {
+    let devices = nmcli(&["-t", "-f", "DEVICE,TYPE,STATE", "device"]).ok()?;
+    let device = devices.lines().find_map(|l| {
+        let mut parts = l.split(':');
+        let (dev, kind, state) = (parts.next()?, parts.next()?, parts.next()?);
+        (kind == "gsm" && state == "connected").then(|| dev.to_string())
+    })?;
+    let iface = nmcli(&["-g", "GENERAL.IP-IFACE", "device", "show", &device]).ok()?.trim().to_string();
+    (!iface.is_empty()).then_some(iface)
+}
+
+/// Soma o que andou desde a última leitura e devolve (bytes do mês, mês).
+fn usage_now() -> (u64, String) {
+    let path = usage_file();
+    let mut usage: Usage = std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    let month = this_month();
+    if usage.month != month {
+        usage = Usage { month: month.clone(), ..Default::default() };
+    }
+    if let Some(iface) = data_iface() {
+        let stat = |name: &str| read_u32_64(&PathBuf::from(format!("/sys/class/net/{iface}/statistics/{name}")));
+        let counter = stat("rx_bytes") + stat("tx_bytes");
+        let boot = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").unwrap_or_default().trim().to_string();
+        let same = usage.iface == iface && usage.boot == boot && counter >= usage.counter;
+        usage.bytes += if same { counter - usage.counter } else { counter };
+        usage.iface = iface;
+        usage.boot = boot;
+        usage.counter = counter;
+    } else {
+        // sem conexão: a próxima conta começa do zero da interface nova
+        usage.iface.clear();
+    }
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::write(&path, serde_json::to_vec(&usage).unwrap_or_default());
+    (usage.bytes, usage.month)
+}
+
+fn read_u32_64(path: &Path) -> u64 {
+    std::fs::read_to_string(path).ok().and_then(|t| t.trim().parse().ok()).unwrap_or(0)
+}
+
+static USAGE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Conta o uso de dados a cada minuto, em segundo plano.
+pub fn track_data_usage() {
+    std::thread::spawn(|| loop {
+        {
+            let _guard = USAGE_LOCK.lock();
+            usage_now();
+        }
+        std::thread::sleep(std::time::Duration::from_secs(60));
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn modos_do_modem() {
+        assert_eq!(mode_id("allowed: 2g, 3g, 4g; preferred: 4g").as_deref(), Some("2g|3g|4g:4g"));
+        assert_eq!(mode_id("allowed: 4g; preferred: none").as_deref(), Some("4g:none"));
+        assert_eq!(mode_label("2g|3g|4g:4g"), "4G / 3G / 2G automático");
+        assert_eq!(mode_label("2g|3g|4g:3g"), "4G / 3G / 2G (prefere 3G)");
+        assert_eq!(mode_label("4g:none"), "Só 4G");
+    }
 
     #[test]
     fn a_arvore_inclui_netos() {
