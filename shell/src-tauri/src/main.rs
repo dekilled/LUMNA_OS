@@ -3,6 +3,7 @@ mod apps;
 mod automation;
 mod audio;
 mod bluetooth;
+mod connect;
 mod control;
 mod displays;
 mod dock;
@@ -297,6 +298,10 @@ const MOBILE_CENTER: LayerSpec = LayerSpec {
 
 /// Celular: a tela da ligação (tocando, chamando, em conversa), por cima de tudo.
 const MOBILE_CALL: LayerSpec = LayerSpec { namespace: "lumna-mobile-call", ..MOBILE_CENTER };
+
+/// Celular: pedidos que chegam do PC pelo Connect (senha, confirmação da Emma). Pega o teclado
+/// pra digitar a senha; fica abaixo do bloqueio (só responde quem desbloqueou o celular).
+const MOBILE_ASK: LayerSpec = LayerSpec { namespace: "lumna-mobile-ask", keyboard: KeyboardMode::OnDemand, ..MOBILE_CENTER };
 
 /// Celular: a tela de bloqueio. Pega o teclado quando o campo de senha pede (o LUMNA Keyboard
 /// digita nela); fica abaixo da ligação, que aparece mesmo bloqueado.
@@ -1537,6 +1542,12 @@ fn main() {
             mobile::quick_airplane,
             mobile::quick_quiet,
             mobile::battery_info,
+            connect::connect_computers,
+            connect::connect_discover,
+            connect::connect_pair,
+            connect::connect_forget,
+            connect::connect_send,
+            connect::connect_ask_close,
             mobilelock::lock_state,
             mobilelock::lock_unlock,
             mobilelock::lock_now,
@@ -1591,6 +1602,7 @@ fn main() {
                 create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
                 create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;
                 create_layer(app.handle(), "mobile-recents", &primary, &MOBILE_RECENTS)?;
+                create_layer(app.handle(), "mobile-ask", &primary, &MOBILE_ASK)?;
                 create_layer(app.handle(), "mobile-lock", &primary, &MOBILE_LOCK)?;
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
@@ -1604,6 +1616,7 @@ fn main() {
                 control::listen(app.handle().clone());
                 phone::watch(app.handle().clone());
                 mobilelock::start(app.handle().clone());
+                connect::start(app.handle().clone());
                 mobile::track_data_usage();
                 return Ok(());
             }

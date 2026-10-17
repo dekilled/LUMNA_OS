@@ -5,6 +5,7 @@ import Icon from "../Icon.vue";
 import WindowBar from "../WindowBar.vue";
 import { on, type SettingsPage } from "../../system";
 import AudioPage from "./AudioPage.vue";
+import ConnectPage from "./ConnectPage.vue";
 import BluetoothPage from "./BluetoothPage.vue";
 import DisplaysPage from "./DisplaysPage.vue";
 import DockPage from "./DockPage.vue";
@@ -22,6 +23,7 @@ const PAGES: { id: SettingsPage; label: string; icon: string; component: Compone
   { id: "rede", label: "Rede", icon: "wifi", component: NetworkPage },
   { id: "dados-moveis", label: "Dados móveis", icon: "signal", component: MobileDataPage },
   { id: "bluetooth", label: "Bluetooth", icon: "bluetooth", component: BluetoothPage },
+  { id: "celular", label: "Celular", icon: "phone", component: ConnectPage },
   { id: "som", label: "Som", icon: "volume", component: AudioPage },
   { id: "impressoras", label: "Impressoras", icon: "printer", component: PrintersPage },
   { id: "telas", label: "Telas", icon: "screens", component: DisplaysPage },

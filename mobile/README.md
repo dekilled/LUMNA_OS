@@ -69,6 +69,14 @@ Keyboard digita nela). Botão power: toque apaga a tela e bloqueia, segurar abre
 e tocando uma ligação ele silencia. O tempo parado até apagar fica em Ajustes > Tela e aparência
 (hypridle). O logind não cuida mais do botão (`/etc/systemd/logind.conf.d/50-lumna-power.conf`).
 
+Celular Connect: o celular conversa com o LUMNA do PC (WebSocket na porta 47800, achado pelo
+mDNS). Pareamento: no PC, Configurações > Celular mostra um código de 6 dígitos; no celular,
+Ajustes > Celular Connect > Adicionar computador. Pareado, chegam no celular os avisos do PC, os
+pedidos de senha de administrador (o polkit do PC; a senha digitada no celular volta pra ele) e as
+confirmações da Emma; e do celular dá pra falar com a Emma do PC, bloquear, suspender, reiniciar e
+desligar. Fora de casa: Tailscale nos dois (`sudo pacman -S tailscale`,
+`sudo systemctl enable --now tailscaled`, `sudo tailscale up`) e adicionar o PC pelo IP 100.x.
+
 Emma: `sh mobile/session/emma.sh` instala o backend (pacote `lumna-emma`) e liga o serviço do
 usuário; aí o painel entra sozinho, como no desktop. O código da Emma (NewHarnessV2) é privado:
 o script fala como copiar do PC pela USB. Pra conferir: `sh mobile/session/emma.sh status`.

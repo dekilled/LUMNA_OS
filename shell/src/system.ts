@@ -66,7 +66,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "dados-moveis" | "bluetooth" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
+export type SettingsPage = "rede" | "dados-moveis" | "bluetooth" | "celular" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -948,3 +948,38 @@ export const lockUnlock = (password: string) => invoke<void>("lock_unlock", { pa
 export const lockNow = () => invoke<void>("lock_now");
 export const lockConfigSet = (config: LockConfig) => invoke<LockConfig>("lock_config_set", { config });
 export const powerMenuClose = () => invoke<void>("power_menu_close");
+
+// ---- celular: Connect (o PC pelo celular) ----
+
+export interface Computer {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  online: boolean;
+}
+export interface FoundComputer {
+  name: string;
+  host: string;
+  port: number;
+}
+export interface ConnectAsk {
+  kind: "auth" | "emma";
+  computer: string;
+  computer_name: string;
+  cookie?: string;
+  message?: string;
+  user?: string;
+  error?: string | null;
+  call_id?: string;
+  label?: string;
+  reason?: string;
+}
+export const connectComputers = () => invoke<Computer[]>("connect_computers");
+export const connectDiscover = () => invoke<FoundComputer[]>("connect_discover");
+export const connectPair = (host: string, code: string, port?: number) =>
+  invoke<Computer>("connect_pair", { host, code, port: port ?? null });
+export const connectForget = (id: string) => invoke<void>("connect_forget", { id });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const connectSend = (id: string, message: Record<string, unknown>) => invoke<any>("connect_send", { id, message });
+export const connectAskClose = () => invoke<void>("connect_ask_close");

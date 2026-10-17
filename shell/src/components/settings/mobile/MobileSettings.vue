@@ -10,6 +10,7 @@ import SystemPage from "../SystemPage.vue";
 import MBluetooth from "./MBluetooth.vue";
 import MBtDevice from "./MBtDevice.vue";
 import MConnect from "./MConnect.vue";
+import MConnectPc from "./MConnectPc.vue";
 import MDisplay from "./MDisplay.vue";
 import MEmma from "./MEmma.vue";
 import MEnergy from "./MEnergy.vue";
@@ -22,7 +23,7 @@ import { profileGet, convertFileSrc, toggleEmma, type Profile } from "../../../s
 import "./mobile.css";
 
 export type MPage =
-  | "home" | "wifi" | "wifi-detalhes" | "wifi-adicionar" | "bluetooth" | "bt-aparelho" | "connect" | "dados"
+  | "home" | "wifi" | "wifi-detalhes" | "wifi-adicionar" | "bluetooth" | "bt-aparelho" | "connect" | "connect-pc" | "dados"
   | "tela" | "som" | "teclado" | "emma" | "energia" | "sistema" | "perfil";
 
 const props = defineProps<{ start?: MPage }>();
@@ -59,6 +60,7 @@ const TITLES: Record<MPage, string> = {
   bluetooth: "Bluetooth",
   "bt-aparelho": "Aparelho",
   connect: "Celular Connect",
+  "connect-pc": "Computador",
   dados: "Dados móveis",
   tela: "Tela e aparência",
   som: "Som e microfone",
@@ -77,6 +79,7 @@ const PAGES: Partial<Record<MPage, Component>> = {
   bluetooth: MBluetooth,
   "bt-aparelho": MBtDevice,
   connect: MConnect,
+  "connect-pc": MConnectPc,
   tela: MDisplay,
   teclado: MKeyboard,
   emma: MEmma,

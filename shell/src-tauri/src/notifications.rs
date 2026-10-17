@@ -76,6 +76,14 @@ impl Server {
             quiet: !urgent && crate::do_not_disturb(&self.app),
         };
         let quiet = notification.quiet;
+        // e pros celulares do Connect
+        crate::remote::broadcast(serde_json::json!({
+            "type": "notification",
+            "app": notification.app_name,
+            "summary": notification.summary,
+            "body": notification.body,
+            "urgent": notification.urgent,
+        }));
         let _ = self.app.emit("lumna://notification", notification);
         if !quiet {
             crate::show_notifications(&self.app);
@@ -120,6 +128,26 @@ fn emit_signal(member: &'static str, body: impl serde::Serialize + zbus::zvarian
             eprintln!("lumna-shell: sinal {member}: {err}");
         }
     });
+}
+
+/// Notificação criada pelo próprio shell (avisos do PC pelo Connect), como se viesse de um app.
+pub fn local(app: &AppHandle, app_name: &str, summary: &str, body: &str, urgent: bool) {
+    static NEXT: AtomicU32 = AtomicU32::new(1_000_000);
+    let notification = Notification {
+        id: NEXT.fetch_add(1, Ordering::Relaxed),
+        app_name: app_name.to_string(),
+        summary: summary.to_string(),
+        body: body.to_string(),
+        actions: Vec::new(),
+        timeout: if urgent { 0 } else { 6000 },
+        urgent,
+        quiet: !urgent && crate::do_not_disturb(app),
+    };
+    let quiet = notification.quiet;
+    let _ = app.emit("lumna://notification", notification);
+    if !quiet {
+        crate::show_notifications(app);
+    }
 }
 
 pub fn closed(id: u32, reason: u32) {

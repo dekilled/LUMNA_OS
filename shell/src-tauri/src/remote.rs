@@ -8,6 +8,13 @@
 //! Mensagens são JSON, uma por quadro de texto. Do celular:
 //! `{"type":"pair","code":"482913","name":"Pixel"}`, `{"type":"hello","token":"..."}` e, depois de
 //! entrar, `pad` (as ações do controle), `text`, `key`, `media`, `volume`, `mode` e `home`.
+//!
+//! Celular Connect (o LUMNA no celular): além disso, `info`, `power`, `emma` (conversar com a Emma
+//! daqui), `emma-decide` (aprovar uma ação dela) e `auth-respond` (a senha de um pedido do polkit).
+//! E o PC avisa os celulares conectados, sem eles pedirem: `notification`, `auth` / `auth-done`
+//! (pedido de senha) e `emma-ask` (a Emma quer confirmar uma ação).
+//!
+//! Rede: só a local, e a do Tailscale (100.64.0.0/10), que leva o Connect pra fora de casa.
 
 use std::io::Read;
 use std::net::IpAddr;
@@ -15,7 +22,10 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use futures_util::{SinkExt, StreamExt};
+use tokio::sync::mpsc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
@@ -97,14 +107,29 @@ fn same(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// Só aceita conexões da rede local (e da própria máquina).
+/// Só aceita conexões da rede local (e da própria máquina), e do Tailscale (a rede privada que
+/// leva o Connect pra fora de casa: 100.64.0.0/10 e fd7a:115c:a1e0::/48).
 fn is_local(ip: IpAddr) -> bool {
     match ip {
-        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            v4.is_loopback() || v4.is_private() || v4.is_link_local() || (o[0] == 100 && (o[1] & 0xc0) == 64)
+        }
         IpAddr::V6(v6) => {
             v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00 || (v6.segments()[0] & 0xffc0) == 0xfe80
         }
     }
+}
+
+// ---- avisos pros celulares conectados ----
+
+static NEXT_CLIENT: AtomicU64 = AtomicU64::new(1);
+static CLIENTS: Mutex<Vec<(u64, mpsc::UnboundedSender<String>)>> = Mutex::new(Vec::new());
+
+/// Manda um aviso pra todos os celulares conectados (e já pareados).
+pub fn broadcast(event: Value) {
+    let text = event.to_string();
+    CLIENTS.lock().unwrap().retain(|(_, tx)| tx.send(text.clone()).is_ok());
 }
 
 fn local_addresses() -> Vec<String> {
@@ -206,14 +231,29 @@ pub fn start(app: AppHandle) {
 async fn serve(app: AppHandle, stream: TcpStream) -> Result<(), String> {
     let mut ws = tokio_tungstenite::accept_async(stream).await.map_err(|e| e.to_string())?;
     let mut device: Option<String> = None;
-    while let Some(message) = ws.next().await {
+    // avisos do PC pra este celular (entra na lista quando ele se identifica)
+    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let client = NEXT_CLIENT.fetch_add(1, Ordering::Relaxed);
+    let result = loop {
+        let message = tokio::select! {
+            message = ws.next() => match message {
+                Some(message) => message,
+                None => break Ok(()),
+            },
+            Some(event) = rx.recv() => {
+                if let Err(e) = ws.send(Message::Text(event.into())).await {
+                    break Err(e.to_string());
+                }
+                continue;
+            }
+        };
         let text = match message {
             Ok(Message::Text(text)) => text.to_string(),
-            Ok(Message::Close(_)) => break,
+            Ok(Message::Close(_)) => break Ok(()),
             Ok(_) => continue,
             // Celular que some sem se despedir (Wi-Fi caiu, app fechado): normal, não é erro.
-            Err(Error::Protocol(ProtocolError::ResetWithoutClosingHandshake)) => break,
-            Err(err) => return Err(err.to_string()),
+            Err(Error::Protocol(ProtocolError::ResetWithoutClosingHandshake)) => break Ok(()),
+            Err(err) => break Err(err.to_string()),
         };
         let Ok(msg) = serde_json::from_str::<Value>(&text) else { continue };
         let kind = msg["type"].as_str().unwrap_or_default();
@@ -225,6 +265,7 @@ async fn serve(app: AppHandle, stream: TcpStream) -> Result<(), String> {
                     Ok(token) => {
                         let _ = app.emit("lumna://remote-paired", &name);
                         device = Some(name);
+                        CLIENTS.lock().unwrap().push((client, tx.clone()));
                         json!({ "type": "paired", "token": token, "name": format!("LUMNA {}", hostname()) })
                     }
                     Err(reason) => json!({ "type": "error", "message": reason }),
@@ -232,6 +273,9 @@ async fn serve(app: AppHandle, stream: TcpStream) -> Result<(), String> {
             }
             ("hello", _) => match app.state::<Remote>().device_for(&field("token")) {
                 Some(name) => {
+                    if device.is_none() {
+                        CLIENTS.lock().unwrap().push((client, tx.clone()));
+                    }
                     device = Some(name);
                     json!({ "type": "ready", "name": format!("LUMNA {}", hostname()) })
                 }
@@ -248,9 +292,12 @@ async fn serve(app: AppHandle, stream: TcpStream) -> Result<(), String> {
                     .map_or_else(|err| json!({ "type": "error", "message": err }), |extra| extra.unwrap_or(json!({ "type": "ok" })))
             }
         };
-        ws.send(Message::Text(reply.to_string().into())).await.map_err(|e| e.to_string())?;
-    }
-    Ok(())
+        if let Err(e) = ws.send(Message::Text(reply.to_string().into())).await {
+            break Err(e.to_string());
+        }
+    };
+    CLIENTS.lock().unwrap().retain(|(id, _)| *id != client);
+    result
 }
 
 fn run(program: &str, args: &[&str]) -> Result<(), String> {
@@ -313,8 +360,61 @@ fn command(app: &AppHandle, msg: &Value) -> Result<Option<Value>, String> {
         }
         // Fecha o que estiver na frente (o streaming, o vídeo) e volta para a tela de Mídia.
         "home" => crate::remote_home(app).map(|_| None),
+        // ---- Celular Connect ----
+        "info" => Ok(Some(info())),
+        "power" => {
+            let action = field("action");
+            if !matches!(action, "lock" | "suspend" | "reboot" | "poweroff") {
+                return Err("ação de energia desconhecida".into());
+            }
+            tauri::async_runtime::block_on(crate::power::power_action(app.clone(), action.to_string())).map(|_| None)
+        }
+        "emma" => {
+            let text = field("text");
+            if text.trim().is_empty() || text.len() > 4000 {
+                return Err("mensagem vazia ou longa demais".into());
+            }
+            let reply = crate::emma::ask(app, text)?;
+            Ok(Some(json!({ "type": "emma-reply", "content": reply })))
+        }
+        "emma-decide" => {
+            let allow = msg["allow"].as_bool().unwrap_or(false);
+            tauri::async_runtime::block_on(crate::emma::emma_decide(app.clone(), field("call_id").to_string(), allow)).map(|_| None)
+        }
+        "auth-respond" => {
+            crate::polkit::auth_respond(field("cookie").to_string(), Some(field("password").to_string()));
+            Ok(None)
+        }
         _ => Err("comando desconhecido".into()),
     }
+}
+
+/// Como está o PC (pra página do aparelho no celular).
+fn info() -> Value {
+    let uptime = std::fs::read_to_string("/proc/uptime")
+        .ok()
+        .and_then(|t| t.split_whitespace().next()?.parse::<f64>().ok())
+        .map_or(0, |s| s as u64);
+    let load = std::fs::read_to_string("/proc/loadavg").ok().and_then(|t| t.split_whitespace().next().map(str::to_string));
+    let (total, available) = {
+        let text = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
+        let get = |key: &str| {
+            text.lines().find(|l| l.starts_with(key)).and_then(|l| l.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0)
+        };
+        (get("MemTotal:"), get("MemAvailable:"))
+    };
+    let status = crate::status::read();
+    json!({
+        "type": "info",
+        "host": hostname(),
+        "user": std::env::var("USER").unwrap_or_default(),
+        "uptime": uptime,
+        "load": load,
+        "memory_total_kb": total,
+        "memory_available_kb": available,
+        "battery": status.battery,
+        "charging": status.charging,
+    })
 }
 
 #[cfg(test)]
@@ -328,6 +428,9 @@ mod tests {
         assert!(is_local("127.0.0.1".parse().unwrap()));
         assert!(is_local("fe80::1".parse().unwrap()));
         assert!(!is_local("8.8.8.8".parse().unwrap()));
+        // Tailscale
+        assert!(is_local("100.101.102.103".parse().unwrap()));
+        assert!(!is_local("100.128.0.1".parse().unwrap()));
         assert!(!is_local("2001:db8::1".parse().unwrap()));
     }
 

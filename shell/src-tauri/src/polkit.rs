@@ -157,6 +157,14 @@ impl Agent {
             let (tx, rx) = oneshot::channel();
             self.answers.lock().unwrap().insert(cookie.clone(), tx);
             let request = Request { cookie: cookie.clone(), message: message.clone(), action: action_id.clone(), user: user.clone(), error };
+            // o pedido também vai pros celulares do Connect (dá pra digitar a senha de lá)
+            crate::remote::broadcast(serde_json::json!({
+                "type": "auth",
+                "cookie": request.cookie,
+                "message": request.message,
+                "user": request.user,
+                "error": request.error,
+            }));
             crate::auth_layer(&self.app, Some(request));
             let Ok(Some(password)) = rx.await else {
                 break Err(PkError::Cancelled("cancelado".into()));
@@ -181,6 +189,7 @@ impl Agent {
             }
         };
         self.answers.lock().unwrap().remove(&cookie);
+        crate::remote::broadcast(serde_json::json!({ "type": "auth-done", "cookie": cookie }));
         crate::auth_layer(&self.app, None);
         result
     }
