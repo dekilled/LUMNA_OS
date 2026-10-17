@@ -7,7 +7,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
 import { clipboardRead, keyboardKey, keyboardShow, keyboardType, on } from "../../system";
 
-type Page = "letras" | "simbolos" | "clipboard";
+type Page = "letras" | "simbolos" | "simbolos2" | "clipboard";
 const page = ref<Page>("letras");
 const terminal = ref(false);
 const shift = ref<"off" | "once" | "lock">("off");
@@ -25,7 +25,13 @@ const symbols = [
   ["!", '"', "'", ":", ";", "/", "?", "_", "=", "~"],
   ["á", "é", "í", "ó", "ú", "ã", "õ"],
 ];
-const rows = computed(() => (page.value === "simbolos" ? symbols : letters.value));
+// segunda página (o "=\\<" na página de símbolos): o que o terminal pede e o resto
+const symbols2 = [
+  ["|", "\\", "[", "]", "{", "}", "<", ">", "^", "`"],
+  ["€", "£", "°", "§", "¬", "•", "¿", "¡", "…", "¨"],
+  ["â", "ê", "ô", "à", "ü", "ñ", "ç"],
+];
+const rows = computed(() => (page.value === "simbolos" ? symbols : page.value === "simbolos2" ? symbols2 : letters.value));
 const label = (k: string) => (shift.value !== "off" ? k.toUpperCase() : k);
 
 // ---- digitar ----
@@ -249,9 +255,10 @@ onUnmounted(() => stop?.());
         <button v-if="page === 'letras'" class="key wide" :class="{ on: shift !== 'off', lock: shift === 'lock' }" @click="toggleShift">
           <Icon name="shift" :size="20" />
         </button>
-        <button v-else class="key wide" @click="type('ç')">ç</button>
+        <button v-else class="key wide small" @click="page = page === 'simbolos' ? 'simbolos2' : 'simbolos'">{{ page === "simbolos" ? "=\\<" : "?123" }}</button>
         <button v-for="k in rows[2]" :key="k" class="key" @click="type(k)">{{ label(k) }}</button>
         <button v-if="page === 'simbolos'" class="key" @click="type('â')">â</button>
+        <button v-if="page === 'simbolos2'" class="key" @click="type('ã')">ã</button>
         <button class="key wide" @pointerdown="holdStart('BackSpace')" @pointerup="holdEnd" @pointerleave="holdEnd">
           <Icon name="backspace" :size="20" />
         </button>
