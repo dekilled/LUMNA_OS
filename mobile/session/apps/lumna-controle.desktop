@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LUMNA Controle
+Comment=O controle do modo Mídia do PC
+Exec=lumna-ctl remote
+Icon=/usr/share/lumna/icons/remote.svg
+Categories=AudioVideo;Utility;
+Keywords=controle;remoto;mídia;tv;projetor;pc;connect;

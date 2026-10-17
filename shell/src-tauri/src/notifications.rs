@@ -29,6 +29,9 @@ pub struct Notification {
     pub urgent: bool,
     /// Chegou no "não perturbe": vai pra central (celular) sem aparecer por cima.
     pub quiet: bool,
+    /// Do próprio shell: o que abrir ao tocar (ex.: `remote:<pc>`, o controle do modo Mídia).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open: Option<String>,
 }
 
 static CONNECTION: OnceLock<zbus::Connection> = OnceLock::new();
@@ -74,6 +77,7 @@ impl Server {
             urgent,
             // Gaming, Mídia e o não perturbe do celular: só avisos urgentes aparecem.
             quiet: !urgent && crate::do_not_disturb(&self.app),
+            open: None,
         };
         let quiet = notification.quiet;
         // e pros celulares do Connect
@@ -134,9 +138,15 @@ fn emit_signal(member: &'static str, body: impl serde::Serialize + zbus::zvarian
 
 /// Notificação criada pelo próprio shell (avisos do PC pelo Connect), como se viesse de um app.
 pub fn local(app: &AppHandle, app_name: &str, summary: &str, body: &str, urgent: bool) {
+    local_open(app, app_name, summary, body, urgent, None);
+}
+
+/// Como `local`, com o que abrir ao tocar. Devolve o id (pra fechar depois).
+pub fn local_open(app: &AppHandle, app_name: &str, summary: &str, body: &str, urgent: bool, open: Option<String>) -> u32 {
     static NEXT: AtomicU32 = AtomicU32::new(1_000_000);
+    let id = NEXT.fetch_add(1, Ordering::Relaxed);
     let notification = Notification {
-        id: NEXT.fetch_add(1, Ordering::Relaxed),
+        id,
         app_name: app_name.to_string(),
         summary: summary.to_string(),
         body: body.to_string(),
@@ -144,12 +154,19 @@ pub fn local(app: &AppHandle, app_name: &str, summary: &str, body: &str, urgent:
         timeout: if urgent { 0 } else { 6000 },
         urgent,
         quiet: !urgent && crate::do_not_disturb(app),
+        open,
     };
     let quiet = notification.quiet;
     let _ = app.emit("lumna://notification", notification);
     if !quiet {
         crate::show_notifications(app);
     }
+    id
+}
+
+/// Tira um aviso do shell da tela e da central.
+pub fn local_close(app: &AppHandle, id: u32) {
+    let _ = app.emit("lumna://notification-close", id);
 }
 
 pub fn closed(id: u32, reason: u32) {

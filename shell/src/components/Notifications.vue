@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import { fitLayerTo, layerHide, notificationAction, notificationClosed, on, type Notification } from "../system";
+import { fitLayerTo, layerHide, notificationAction, notificationClosed, notificationOpen, on, type Notification } from "../system";
 import Icon from "./Icon.vue";
 
 const items = ref<Notification[]>([]);
@@ -40,7 +40,10 @@ function act(n: Notification, key: string) {
 }
 
 function onClick(n: Notification) {
-  if (n.actions.some(([key]) => key === "default")) act(n, "default");
+  if (n.open) {
+    remove(n.id);
+    notificationOpen(n.open).catch(() => {});
+  } else if (n.actions.some(([key]) => key === "default")) act(n, "default");
   else dismiss(n);
 }
 

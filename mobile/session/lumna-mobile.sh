@@ -36,6 +36,7 @@ sudo systemctl enable --now bluetooth.service || true
 # Telefone e Contatos na grade de apps (o lumna-ctl abre as janelas do shell)
 sudo install -Dm644 "$ROOT/mobile/session/apps/phone.svg" /usr/share/lumna/icons/phone.svg
 sudo install -Dm644 "$ROOT/mobile/session/apps/contacts.svg" /usr/share/lumna/icons/contacts.svg
+sudo install -Dm644 "$ROOT/mobile/session/apps/remote.svg" /usr/share/lumna/icons/remote.svg
 mkdir -p "$HOME/.local/share/applications"
 cp "$ROOT"/mobile/session/apps/*.desktop "$HOME/.local/share/applications/"
 

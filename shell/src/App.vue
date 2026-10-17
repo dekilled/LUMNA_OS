@@ -19,6 +19,7 @@ import MobileLock from "./components/mobile/MobileLock.vue";
 import MobileAsk from "./components/mobile/MobileAsk.vue";
 import MobilePower from "./components/mobile/MobilePower.vue";
 import PhoneApp from "./components/phone/PhoneApp.vue";
+import RemoteApp from "./components/remote/RemoteApp.vue";
 import MobileStatus from "./components/mobile/MobileStatus.vue";
 import Notifications from "./components/Notifications.vue";
 import RestScreen from "./components/RestScreen.vue";
@@ -66,6 +67,7 @@ const label = getCurrentWebviewWindow().label;
   <MobileAsk v-else-if="label === 'mobile-ask'" />
   <MobilePower v-else-if="label === 'mobile-power'" />
   <PhoneApp v-else-if="label === 'phone'" />
+  <RemoteApp v-else-if="label === 'remote'" />
   <MobileKeyboard v-else-if="label === 'keyboard'" />
   <TextMenu />
 </template>
