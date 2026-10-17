@@ -22,7 +22,7 @@ if [ ! -f "$EMMA_SRC/backend/server.py" ]; then
     cat <<MSG
 Não achei o código da Emma em $EMMA_SRC (o NewHarnessV2 é privado).
 Copie do PC pela USB, rodando NO PC, de dentro da pasta que contém o NewHarnessV2:
-  tar -czf - NewHarnessV2/backend NewHarnessV2/BUILD | ssh alarm@172.16.42.1 'tar -C ~ -xzf -'
+  tar -czf - NewHarnessV2/backend | ssh alarm@172.16.42.1 'tar -C ~ -xzf -'
 ou clone aqui com a sua conta do GitHub:
   git clone --depth 1 https://github.com/dekilled/NewHarnessV2 ~/NewHarnessV2
 MSG
