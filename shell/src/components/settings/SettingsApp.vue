@@ -5,11 +5,14 @@ import Icon from "../Icon.vue";
 import WindowBar from "../WindowBar.vue";
 import { on, type SettingsPage } from "../../system";
 import AudioPage from "./AudioPage.vue";
+import ConnectPage from "./ConnectPage.vue";
 import BluetoothPage from "./BluetoothPage.vue";
 import DisplaysPage from "./DisplaysPage.vue";
 import DockPage from "./DockPage.vue";
 import EnergyPage from "./EnergyPage.vue";
 import KeyboardPage from "./KeyboardPage.vue";
+import MobileDataPage from "./MobileDataPage.vue";
+import MobileSettings, { type MPage } from "./mobile/MobileSettings.vue";
 import NetworkPage from "./NetworkPage.vue";
 import PrintersPage from "./PrintersPage.vue";
 import SystemPage from "./SystemPage.vue";
@@ -18,7 +21,9 @@ import "./settings.css";
 
 const PAGES: { id: SettingsPage; label: string; icon: string; component: Component }[] = [
   { id: "rede", label: "Rede", icon: "wifi", component: NetworkPage },
+  { id: "dados-moveis", label: "Dados móveis", icon: "signal", component: MobileDataPage },
   { id: "bluetooth", label: "Bluetooth", icon: "bluetooth", component: BluetoothPage },
+  { id: "celular", label: "Celular", icon: "phone", component: ConnectPage },
   { id: "som", label: "Som", icon: "volume", component: AudioPage },
   { id: "impressoras", label: "Impressoras", icon: "printer", component: PrintersPage },
   { id: "telas", label: "Telas", icon: "screens", component: DisplaysPage },
@@ -31,6 +36,24 @@ const PAGES: { id: SettingsPage; label: string; icon: string; component: Compone
 
 const pick = (id: string | null | undefined) => PAGES.find((p) => p.id === id)?.id ?? "rede";
 const page = ref<SettingsPage>(pick(location.hash.slice(1)));
+
+// Tela estreita (celular): os Ajustes com cara de celular (mobile/MobileSettings.vue).
+// Aberta já numa página (atalho da central, link do Telefone), vai direto nela.
+const narrow = ref(window.innerWidth < 600);
+const onResize = () => (narrow.value = window.innerWidth < 600);
+const MOBILE_PAGE: Partial<Record<string, MPage>> = {
+  rede: "wifi",
+  "dados-moveis": "dados",
+  bluetooth: "bluetooth",
+  som: "som",
+  telas: "tela",
+  "papel-de-parede": "tela",
+  dock: "tela",
+  teclado: "teclado",
+  energia: "energia",
+  sistema: "sistema",
+};
+const mobileStart = ref<MPage>(MOBILE_PAGE[location.hash.slice(1)] ?? "home");
 const current = () => PAGES.find((p) => p.id === page.value)!;
 
 const win = getCurrentWindow();
@@ -42,15 +65,23 @@ function onKey(event: KeyboardEvent) {
 
 onMounted(async () => {
   window.addEventListener("keydown", onKey);
+  window.addEventListener("resize", onResize);
   stops.push(() => window.removeEventListener("keydown", onKey));
-  stops.push(await on<string>("lumna://settings-page", (id) => (page.value = pick(id))));
+  stops.push(() => window.removeEventListener("resize", onResize));
+  stops.push(
+    await on<string>("lumna://settings-page", (id) => {
+      page.value = pick(id);
+      mobileStart.value = MOBILE_PAGE[id] ?? "home";
+    }),
+  );
 });
 
 onUnmounted(() => stops.forEach((stop) => stop()));
 </script>
 
 <template>
-  <div class="settings">
+  <MobileSettings v-if="narrow" :start="mobileStart" />
+  <div v-else class="settings">
     <WindowBar title="Configurações" />
 
     <div class="body">
@@ -122,4 +153,5 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   overflow-y: auto;
   padding: 26px 32px 40px;
 }
+
 </style>

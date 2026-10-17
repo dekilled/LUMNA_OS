@@ -105,8 +105,14 @@ pub fn parse_dump(json: &str) -> AudioState {
     state
 }
 
+/// Assíncrono: o pw-dump leva um tempinho, e um comando síncrono roda na thread da interface
+/// (travaria todas as camadas enquanto isso).
 #[tauri::command]
-pub fn audio_state() -> AudioState {
+pub async fn audio_state() -> AudioState {
+    tauri::async_runtime::spawn_blocking(read_state).await.unwrap_or_default()
+}
+
+pub fn read_state() -> AudioState {
     Command::new("pw-dump")
         .output()
         .ok()

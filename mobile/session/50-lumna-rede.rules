@@ -1,0 +1,9 @@
+// LUMNA no celular: quem é do grupo wheel controla a rede e o modem, também pelo ssh
+// (sem isto o NetworkManager e o ModemManager só obedecem a quem está na tela).
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("wheel") &&
+        (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 ||
+         action.id.indexOf("org.freedesktop.ModemManager1.") === 0)) {
+        return polkit.Result.YES;
+    }
+});

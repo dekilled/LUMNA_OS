@@ -50,6 +50,10 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         }
         ["installer"] => crate::open_installer(app),
         ["power"] => crate::power::toggle_menu(app, None),
+        // no celular, o bloqueio é o do LUMNA (o hyprlock esconderia o teclado da tela)
+        ["lock", ..] | ["screen", _] | ["power-menu"] if crate::MOBILE.load(std::sync::atomic::Ordering::Relaxed) => {
+            crate::mobilelock::control(app, &command.split_whitespace().collect::<Vec<_>>())
+        }
         ["lock"] => crate::lock::lock_now(app),
         ["rest", "on"] => crate::rest::set(app, true),
         ["rest", "off"] => crate::rest::set(app, false),
@@ -65,6 +69,8 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         ["emma", "close"] => crate::emma_panel(app, LauncherAction::Close),
         ["store"] => crate::open_store(app, None),
         ["store", tab] => crate::open_store(app, Some(tab.to_string())),
+        ["phone"] => crate::open_phone(app, None),
+        ["phone", tab] => crate::open_phone(app, Some(tab.to_string())),
         ["settings"] => crate::open_settings(app, None),
         ["settings", page] => crate::open_settings(app, Some(page.to_string())),
         _ => Err(format!("comando desconhecido: {command:?}")),

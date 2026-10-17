@@ -25,6 +25,8 @@ export interface Notification {
   actions: [string, string][];
   timeout: number;
   urgent: boolean;
+  /** Chegou no "não perturbe": vai só pra central do celular. */
+  quiet: boolean;
 }
 
 export const apps = () => invoke<App[]>("apps");
@@ -64,7 +66,7 @@ export const wifiPower = (on: boolean) => invoke<void>("wifi_power", { on });
 
 // ---- Configurações ----
 
-export type SettingsPage = "rede" | "bluetooth" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
+export type SettingsPage = "rede" | "dados-moveis" | "bluetooth" | "celular" | "som" | "impressoras" | "telas" | "teclado" | "energia" | "papel-de-parede" | "dock" | "sistema";
 export const settingsOpen = (page?: SettingsPage) => invoke<void>("settings_open", { page: page ?? null });
 
 export interface NetInterface {
@@ -744,3 +746,318 @@ export const trayActivate = (key: string, x: number, y: number, secondary = fals
   invoke<void>("tray_activate", { key, x, y, secondary });
 export const trayMenuOpen = (key: string, x: number) => invoke<void>("tray_menu_open", { key, x });
 export const trayMenuClick = (key: string, id: number) => invoke<void>("tray_menu_click", { key, id });
+
+// ---- LUMNA Keyboard (teclado na tela do celular) ----
+
+export const keyboardType = (text: string) => invoke<void>("keyboard_type", { text });
+export const keyboardKey = (key: string, mods: string[] = []) => invoke<void>("keyboard_key", { key, mods });
+export const keyboardShow = (show: boolean) => invoke<void>("keyboard_show", { show });
+export const keyboardToggle = () => invoke<void>("keyboard_toggle");
+export const haptic = (ms: number) => invoke<void>("haptic", { ms });
+
+// ---- celular: central e apps recentes ----
+
+export type MobilePanel = "mobile-center" | "mobile-recents";
+/** Sem `show`, alterna. */
+export const mobilePanel = (name: MobilePanel, show?: boolean) => invoke<void>("mobile_panel", { name, show: show ?? null });
+
+export interface Recent {
+  address: string;
+  class: string;
+  title: string;
+  pid: number;
+  /** KiB do app e dos processos filhos; `null` = janela do próprio LUMNA. */
+  memory_kb: number | null;
+  shot: string | null;
+  shot_at: number;
+  focus_history: number;
+}
+export interface Recents {
+  apps: Recent[];
+  total_kb: number;
+  available_kb: number;
+}
+export const recents = () => invoke<Recents>("recents");
+/** Fotografa as janelas visíveis antes de elas saírem da tela (pra aparecerem nos recentes). */
+export const recentsSnapshot = () => invoke<void>("recents_snapshot").catch(() => {});
+export const recentsKill = (address: string) => invoke<void>("recents_kill", { address });
+
+export interface Quick {
+  brightness: number | null;
+  flashlight: boolean | null;
+  mobile_data: boolean | null;
+  mobile_tech: string | null;
+  airplane: boolean;
+  rotation_sensor: boolean;
+  quiet: boolean;
+}
+export const quickState = () => invoke<Quick>("quick_state");
+export const quickBrightness = (percent: number) => invoke<void>("quick_brightness", { percent });
+export const quickFlashlight = (on: boolean) => invoke<void>("quick_flashlight", { on });
+export const quickMobileData = (on: boolean) => invoke<void>("quick_mobile_data", { on });
+export const quickAirplane = (on: boolean) => invoke<void>("quick_airplane", { on });
+export const quickQuiet = (on: boolean) => invoke<void>("quick_quiet", { on });
+
+// ---- celular: telefone, contatos e dados móveis ----
+
+export interface Call {
+  path: string;
+  number: string;
+  state: "dialing" | "ringing-out" | "incoming" | "active" | "held" | "waiting" | "ended" | "unknown";
+  incoming: boolean;
+  active_since: number | null;
+}
+export interface CallLogEntry {
+  number: string;
+  incoming: boolean;
+  missed: boolean;
+  at: number;
+  duration: number;
+}
+export interface ContactPhone {
+  label: string;
+  number: string;
+}
+export interface Contact {
+  id: string;
+  first: string;
+  last: string;
+  phones: ContactPhone[];
+  email: string;
+  company: string;
+  address: string;
+  birthday: string;
+  favorite: boolean;
+}
+export type PhoneTab = "teclado" | "recentes" | "contatos";
+export const phoneOpen = (tab?: PhoneTab) => invoke<void>("phone_open", { tab: tab ?? null });
+export const phoneCalls = () => invoke<Call[]>("phone_calls");
+export const phoneCall = (number: string) => invoke<void>("phone_call", { number });
+export const phoneAccept = (path: string) => invoke<void>("phone_accept", { path });
+export const phoneHangup = (path?: string) => invoke<void>("phone_hangup", { path: path ?? null });
+export const phoneDtmf = (path: string, tone: string) => invoke<void>("phone_dtmf", { path, tone });
+export const phoneMute = (on: boolean) => invoke<void>("phone_mute", { on });
+export const phoneLog = () => invoke<CallLogEntry[]>("phone_log");
+export const phoneLogClear = () => invoke<void>("phone_log_clear");
+export const contactsList = () => invoke<Contact[]>("contacts_list");
+export const contactsSave = (contact: Contact) => invoke<Contact>("contacts_save", { contact });
+export const contactsDelete = (id: string) => invoke<void>("contacts_delete", { id });
+
+/** Só os dígitos (e o + do começo). */
+export const digits = (n: string) => n.replace(/[^\d+]/g, "");
+/** Mesmo número? Compara os últimos 8 dígitos (com ou sem +55, DDD, 9 na frente...). */
+export const sameNumber = (a: string, b: string) => {
+  const x = a.replace(/\D/g, "");
+  const y = b.replace(/\D/g, "");
+  return x.length >= 8 && y.length >= 8 && x.slice(-8) === y.slice(-8);
+};
+export const contactName = (c: Contact) => `${c.first} ${c.last}`.trim() || c.phones[0]?.number || "Sem nome";
+export const contactFor = (list: Contact[], number: string) =>
+  list.find((c) => c.phones.some((p) => sameNumber(p.number, number)));
+/** Número brasileiro bonito: +55 (11) 98765-4321. Outros ficam como vieram. */
+export function formatNumber(n: string): string {
+  let d = n.replace(/\D/g, "");
+  // a operadora manda o número nacional com o 0 na frente (038 99171-7439): sai o 0
+  if (!n.startsWith("+") && d.startsWith("0") && (d.length === 11 || d.length === 12)) d = d.slice(1);
+  const br = d.startsWith("55") && d.length >= 12 ? d.slice(2) : n.startsWith("+") ? null : d;
+  if (br && (br.length === 10 || br.length === 11)) {
+    const ddd = br.slice(0, 2);
+    const rest = br.slice(2);
+    const cut = rest.length - 4;
+    return `${n.startsWith("+") ? "+55 " : ""}(${ddd}) ${rest.slice(0, cut)}-${rest.slice(cut)}`;
+  }
+  return n;
+}
+
+export interface ModeOption {
+  id: string;
+  label: string;
+}
+export interface MobileData {
+  modem: boolean;
+  operator: string;
+  state: string;
+  tech: string | null;
+  signal: number | null;
+  number: string;
+  connection: { name: string; apn: string; roaming: boolean; active: boolean } | null;
+  modes: ModeOption[];
+  mode: string;
+  usage: number;
+  month: string;
+}
+export const mobileDataInfo = () => invoke<MobileData>("mobile_data_info");
+export const mobileDataSet = (key: "apn" | "roaming" | "modes", value: string) => invoke<void>("mobile_data_set", { key, value });
+
+// ---- celular: Ajustes ----
+
+export interface WifiDetails {
+  ssid: string;
+  signal: number;
+  frequency: string;
+  security: string;
+  rate: string;
+  ipv4: string;
+  gateway: string;
+  dns: string[];
+  mac: string;
+}
+export const wifiAdd = (ssid: string, password: string, hidden: boolean) => invoke<void>("wifi_add", { ssid, password, hidden });
+export const wifiDetails = () => invoke<WifiDetails | null>("wifi_details");
+/** Fotos das pastas comuns (Imagens, Downloads, DCIM...), as mais novas primeiro. */
+export const wallpaperGallery = () => invoke<string[]>("wallpaper_gallery");
+/** Copia uma foto da galeria pra pasta de papéis de parede; devolve o caminho novo. */
+export const wallpaperImport = (path: string) => invoke<string>("wallpaper_import", { path });
+
+export interface Battery {
+  percent: number | null;
+  status: string;
+  health: number | null;
+  temperature: number | null;
+  voltage: number | null;
+  power: number | null;
+  cycles: number | null;
+  technology: string;
+}
+export const batteryInfo = () => invoke<Battery>("battery_info");
+
+export interface Profile {
+  name: string;
+  user: string;
+  host: string;
+  photo: string | null;
+}
+export const profileGet = () => invoke<Profile>("profile_get");
+export const profileSetName = (name: string) => invoke<void>("profile_set_name", { name });
+export const profileSetPhoto = (path: string) => invoke<void>("profile_set_photo", { path });
+
+// ---- celular: tela de bloqueio e botão power ----
+
+export interface LockConfig {
+  enabled: boolean;
+  /** segundos parado até apagar a tela e bloquear (0 = nunca) */
+  screen_off_after: number;
+}
+export interface LockState {
+  locked: boolean;
+  screen_on: boolean;
+  config: LockConfig;
+}
+export const lockState = () => invoke<LockState>("lock_state");
+export const lockUnlock = (password: string) => invoke<void>("lock_unlock", { password });
+export const lockNow = () => invoke<void>("lock_now");
+export const lockConfigSet = (config: LockConfig) => invoke<LockConfig>("lock_config_set", { config });
+export const powerMenuClose = () => invoke<void>("power_menu_close");
+
+// ---- celular: Connect (o PC pelo celular) ----
+
+/** O que um aparelho pareado pode fazer (cada lado guarda os seus). */
+export interface ConnectFeatures {
+  notifications: boolean;
+  phone_notifications: boolean;
+  clipboard: boolean;
+  files: boolean;
+  control: boolean;
+}
+export interface Computer {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  online: boolean;
+  features: ConnectFeatures;
+}
+export interface FoundComputer {
+  name: string;
+  host: string;
+  port: number;
+}
+export interface ConnectAsk {
+  kind: "auth" | "emma";
+  computer: string;
+  computer_name: string;
+  cookie?: string;
+  message?: string;
+  user?: string;
+  error?: string | null;
+  call_id?: string;
+  label?: string;
+  reason?: string;
+}
+export const connectComputers = () => invoke<Computer[]>("connect_computers");
+export const connectDiscover = () => invoke<FoundComputer[]>("connect_discover");
+export const connectPair = (host: string, code: string, port?: number) =>
+  invoke<Computer>("connect_pair", { host, code, port: port ?? null });
+export const connectForget = (id: string) => invoke<void>("connect_forget", { id });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const connectSend = (id: string, message: Record<string, unknown>) => invoke<any>("connect_send", { id, message });
+export const connectAskClose = () => invoke<void>("connect_ask_close");
+export const connectSetFeatures = (id: string, features: ConnectFeatures) => invoke<void>("connect_set_features", { id, features });
+export const connectSetAddress = (id: string, host: string, port?: number) => invoke<void>("connect_set_address", { id, host, port });
+export const connectSendFiles = (id: string, paths: string[]) => invoke<void>("connect_send_files", { id, paths });
+export const connectSendClipboard = (id: string) => invoke<void>("connect_send_clipboard", { id });
+
+export interface ConnectTarget {
+  id: string;
+  name: string;
+  kind: "pc" | "phone";
+}
+/** Pra quem dá pra mandar arquivos agora (PCs, se este é o celular; celulares, se é o PC). */
+export const connectTargets = () => invoke<ConnectTarget[]>("connect_targets");
+export const connectShare = (target: ConnectTarget, paths: string[]) => invoke<void>("connect_share", { kind: target.kind, id: target.id, paths });
+
+export interface ConnectSettings {
+  enabled: boolean;
+  receive_dir: string;
+  default_dir: string;
+}
+export const connectSettings = () => invoke<ConnectSettings>("connect_settings");
+export const connectSettingsSet = (change: { enabled?: boolean; receiveDir?: string }) =>
+  invoke<ConnectSettings>("connect_settings_set", { enabled: change.enabled, receiveDir: change.receiveDir });
+
+export interface Transfer {
+  id: string;
+  name: string;
+  peer: string;
+  direction: "in" | "out";
+  done: number;
+  size: number;
+  state: "running" | "done" | "error";
+  error: string | null;
+  path: string | null;
+}
+export const connectTransfers = () => invoke<Transfer[]>("connect_transfers");
+
+export interface RecentFile {
+  path: string;
+  name: string;
+  size: number;
+  modified: number;
+}
+export const connectRecentFiles = () => invoke<RecentFile[]>("connect_recent_files");
+
+/** No PC: os celulares pareados. */
+export interface RemoteDevice {
+  id: string;
+  name: string;
+  online: boolean;
+  features: ConnectFeatures;
+}
+export const remoteDevices = () => invoke<RemoteDevice[]>("remote_devices");
+export const remoteDeviceSet = (id: string, features: ConnectFeatures) => invoke<void>("remote_device_set", { id, features });
+export const remoteDeviceForget = (id: string) => invoke<void>("remote_device_forget", { id });
+export const remoteSendClipboard = (id: string) => invoke<void>("remote_send_clipboard", { id });
+
+/** Agendamentos do PC. */
+export type ScheduleAction = "poweroff" | "reboot" | "suspend" | "lock" | "remind" | "emma";
+export interface ScheduleTask {
+  id: string;
+  at: number;
+  action: ScheduleAction;
+  text: string;
+  daily: boolean;
+  by: string;
+}
+export const scheduleList = () => invoke<ScheduleTask[]>("schedule_list");
+export const scheduleAdd = (task: Omit<ScheduleTask, "id" | "by">) => invoke<ScheduleTask>("schedule_add", { task });
+export const scheduleRemove = (id: string) => invoke<void>("schedule_remove", { id });

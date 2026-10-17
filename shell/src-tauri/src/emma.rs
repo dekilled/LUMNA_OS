@@ -243,6 +243,15 @@ fn now_local() -> String {
 
 fn emit(app: &AppHandle, event: &Value) {
     let _ = app.emit("lumna://emma", event);
+    // a Emma quer confirmar uma ação: os celulares do Connect também podem responder
+    if event["type"] == "tool_confirm" {
+        crate::remote::broadcast(json!({
+            "type": "emma-ask",
+            "call_id": event["tool"]["id"],
+            "label": event["label"],
+            "reason": event["reason"],
+        }));
+    }
 }
 
 /// Conversa uma mensagem inteira: manda, repassa os eventos ao painel e executa as ações.

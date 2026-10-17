@@ -27,6 +27,8 @@ pub struct Notification {
     /// Milissegundos; 0 = fica até ser fechada.
     pub timeout: u32,
     pub urgent: bool,
+    /// Chegou no "não perturbe": vai pra central (celular) sem aparecer por cima.
+    pub quiet: bool,
 }
 
 static CONNECTION: OnceLock<zbus::Connection> = OnceLock::new();
@@ -70,13 +72,24 @@ impl Server {
             actions: actions.chunks(2).filter(|c| c.len() == 2).map(|c| (c[0].clone(), c[1].clone())).collect(),
             timeout,
             urgent,
+            // Gaming, Mídia e o não perturbe do celular: só avisos urgentes aparecem.
+            quiet: !urgent && crate::do_not_disturb(&self.app),
         };
-        // Gaming e Mídia ficam em "não perturbe": só avisos urgentes aparecem.
-        if !urgent && crate::do_not_disturb(&self.app) {
-            return id;
-        }
+        let quiet = notification.quiet;
+        // e pros celulares do Connect
+        crate::remote::broadcast(serde_json::json!({
+            "type": "notification",
+            "app": notification.app_name,
+            "summary": notification.summary,
+            "body": notification.body,
+            "urgent": notification.urgent,
+        }));
+        // e, no celular, pros PCs do Connect
+        crate::connect::forward_notification(&notification.app_name, &notification.summary, &notification.body, notification.urgent);
         let _ = self.app.emit("lumna://notification", notification);
-        crate::show_notifications(&self.app);
+        if !quiet {
+            crate::show_notifications(&self.app);
+        }
         id
     }
 
@@ -117,6 +130,26 @@ fn emit_signal(member: &'static str, body: impl serde::Serialize + zbus::zvarian
             eprintln!("lumna-shell: sinal {member}: {err}");
         }
     });
+}
+
+/// Notificação criada pelo próprio shell (avisos do PC pelo Connect), como se viesse de um app.
+pub fn local(app: &AppHandle, app_name: &str, summary: &str, body: &str, urgent: bool) {
+    static NEXT: AtomicU32 = AtomicU32::new(1_000_000);
+    let notification = Notification {
+        id: NEXT.fetch_add(1, Ordering::Relaxed),
+        app_name: app_name.to_string(),
+        summary: summary.to_string(),
+        body: body.to_string(),
+        actions: Vec::new(),
+        timeout: if urgent { 0 } else { 6000 },
+        urgent,
+        quiet: !urgent && crate::do_not_disturb(app),
+    };
+    let quiet = notification.quiet;
+    let _ = app.emit("lumna://notification", notification);
+    if !quiet {
+        crate::show_notifications(app);
+    }
 }
 
 pub fn closed(id: u32, reason: u32) {

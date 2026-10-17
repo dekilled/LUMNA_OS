@@ -3,6 +3,7 @@ mod apps;
 mod automation;
 mod audio;
 mod bluetooth;
+mod connect;
 mod control;
 mod displays;
 mod dock;
@@ -10,20 +11,28 @@ mod emma;
 mod files;
 mod games;
 mod greeter;
+mod haptics;
 mod installer;
 mod keyboard;
+mod touchkeys;
 mod layer;
+mod link;
 mod lock;
 mod media;
+mod mobile;
+mod mobilelock;
 mod modes;
 mod network;
+mod nmwifi;
 mod notifications;
 mod pad;
+mod phone;
 mod polkit;
 mod power;
 mod printers;
 mod remote;
 mod rest;
+mod schedule;
 mod status;
 mod store;
 mod system_info;
@@ -224,6 +233,113 @@ const AUTH: LayerSpec = LayerSpec {
     visible: false,
 };
 
+/// Rodando no celular (`--mobile`): as janelas dos apps não têm tamanho mínimo de desktop.
+static MOBILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Tamanho mínimo das janelas do LUMNA. No celular a tela tem ~432 px lógicos de largura: um mínimo
+/// de desktop deixa a janela maior que o espaço dela, e o toque cai fora do lugar.
+fn min_side(desktop: f64) -> f64 {
+    if MOBILE.load(std::sync::atomic::Ordering::Relaxed) { 200.0 } else { desktop }
+}
+
+/// Celular (`lumna-shell --mobile`): barra de status no topo, por cima do notch.
+const MOBILE_STATUS: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-status",
+    layer: Layer::Top,
+    anchors: &[Edge::Top, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Auto,
+    size: (-1, 36),
+    visible: true,
+};
+
+/// Celular: a tela Início (relógio, Emma, grade de apps), embaixo das janelas dos apps.
+const MOBILE_HOME: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-home",
+    layer: Layer::Bottom,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::OnDemand,
+    // a tela toda, por trás da barra de status e da navegação (o eclipse passa por baixo delas)
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: true,
+};
+
+/// Celular: a barra de navegação de baixo (Início, Apps, Arquivos, Ajustes, Emma), sempre visível.
+const MOBILE_NAV: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-nav",
+    layer: Layer::Top,
+    anchors: &[Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Auto,
+    size: (-1, 92),
+    visible: true,
+};
+
+/// Celular: o painel da Emma pega o teclado só quando precisa. Com o teclado "exclusivo" (o do PC)
+/// o Hyprland entrega a ela até os toques que caem no LUMNA Keyboard, e o véu fecha o painel.
+/// Ela também respeita o espaço da barra de status, da navegação e do teclado (a folha encolhe
+/// quando o teclado aparece, em vez de ficar por baixo dele).
+const MOBILE_EMMA: LayerSpec = LayerSpec { keyboard: KeyboardMode::OnDemand, exclusive: Exclusive::None, ..EMMA };
+
+/// Celular: a central (notificações e atalhos), por cima de tudo menos do teclado. Abre deslizando
+/// a barra de status pra baixo.
+const MOBILE_CENTER: LayerSpec = LayerSpec {
+    namespace: "lumna-mobile-center",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+
+/// Celular: a tela da ligação (tocando, chamando, em conversa), por cima de tudo.
+const MOBILE_CALL: LayerSpec = LayerSpec { namespace: "lumna-mobile-call", ..MOBILE_CENTER };
+
+/// Celular: pedidos que chegam do PC pelo Connect (senha, confirmação da Emma). Pega o teclado
+/// pra digitar a senha; fica abaixo do bloqueio (só responde quem desbloqueou o celular).
+const MOBILE_ASK: LayerSpec = LayerSpec { namespace: "lumna-mobile-ask", keyboard: KeyboardMode::OnDemand, ..MOBILE_CENTER };
+
+/// Celular: a tela de bloqueio. Pega o teclado quando o campo de senha pede (o LUMNA Keyboard
+/// digita nela); fica abaixo da ligação, que aparece mesmo bloqueado.
+const MOBILE_LOCK: LayerSpec = LayerSpec { namespace: "lumna-mobile-lock", keyboard: KeyboardMode::OnDemand, ..MOBILE_CENTER };
+
+/// Celular: o menu de energia (segurar o botão power).
+const MOBILE_POWER: LayerSpec = LayerSpec { namespace: "lumna-mobile-power", ..MOBILE_CENTER };
+
+/// Celular: os apps recentes (o "RAM"). Abre deslizando a navegação pra cima.
+const MOBILE_RECENTS: LayerSpec = LayerSpec { namespace: "lumna-mobile-recents", ..MOBILE_CENTER };
+
+/// Celular: avisos no topo, na largura da tela, logo abaixo da barra de status.
+const MOBILE_NOTIFICATIONS: LayerSpec = LayerSpec {
+    namespace: "lumna-notifications",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Left, Edge::Right],
+    margins: &[(Edge::Top, 40), (Edge::Left, 8), (Edge::Right, 8)],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::None,
+    size: (-1, 10),
+    visible: false,
+};
+
+/// Celular: o LUMNA Keyboard, no rodapé e por cima de tudo (até do painel da Emma). Nunca pega o
+/// foco do teclado, para as teclas irem ao app em foco; reserva o espaço dele (os apps sobem).
+const KEYBOARD: LayerSpec = LayerSpec {
+    namespace: "lumna-keyboard",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::Auto,
+    size: (-1, 392),
+    visible: false,
+};
+
 /// Tela de login (`lumna-shell --greeter`): a tela toda, com o teclado.
 const GREETER: LayerSpec = LayerSpec {
     namespace: "lumna-greeter",
@@ -410,6 +526,9 @@ fn notification_action(id: u32, key: String) {
 
 /// "Não perturbe" vale enquanto o monitor em foco estiver em Gaming ou Mídia.
 pub fn do_not_disturb(app: &AppHandle) -> bool {
+    if mobile::quiet() {
+        return true;
+    }
     let focused = app.state::<SharedCompositor>().monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused));
     focused.is_some_and(|m| app.state::<Modes>().mode_of(&m.name) != Mode::Desktop)
 }
@@ -518,12 +637,39 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
         .title("Configurações")
         .inner_size(1000.0, 680.0)
-        .min_inner_size(760.0, 520.0)
+        .min_inner_size(min_side(760.0), min_side(520.0))
         .decorations(false)
         .transparent(true)
         .build()
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+/// Abre o Telefone (uma janela só), na aba pedida: teclado, recentes ou contatos.
+pub fn open_phone(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("phone") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(tab) = tab {
+            let _ = window.emit_to("phone", "lumna://phone-tab", tab);
+        }
+        return Ok(());
+    }
+    let url = format!("index.html#{}", tab.unwrap_or_default());
+    WebviewWindowBuilder::new(app, "phone", WebviewUrl::App(url.into()))
+        .title("Telefone")
+        .inner_size(420.0, 820.0)
+        .min_inner_size(min_side(360.0), min_side(560.0))
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn phone_open(app: AppHandle, tab: Option<String>) -> Result<(), String> {
+    open_phone(&app, tab)
 }
 
 #[tauri::command]
@@ -580,7 +726,7 @@ pub fn open_store(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "store", WebviewUrl::App(url.into()))
         .title("Loja")
         .inner_size(1100.0, 720.0)
-        .min_inner_size(800.0, 540.0)
+        .min_inner_size(min_side(800.0), min_side(540.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -606,7 +752,7 @@ pub fn open_files(app: &AppHandle, path: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html#{fragment}").into()))
         .title("Arquivos")
         .inner_size(1100.0, 700.0)
-        .min_inner_size(640.0, 420.0)
+        .min_inner_size(min_side(640.0), min_side(420.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -629,7 +775,7 @@ pub fn open_installer(app: &AppHandle) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "installer", WebviewUrl::App("index.html".into()))
         .title("Instalar LUMNA OS")
         .inner_size(980.0, 660.0)
-        .min_inner_size(820.0, 600.0)
+        .min_inner_size(min_side(820.0), min_side(600.0))
         .decorations(false)
         .transparent(true)
         .build()
@@ -1212,6 +1358,8 @@ fn create_layer(app: &AppHandle, label: &str, monitor: &gtk::gdk::Monitor, spec:
 
 fn main() {
     let greeter_mode = std::env::args().any(|a| a == "--greeter");
+    let mobile_mode = std::env::args().any(|a| a == "--mobile");
+    MOBILE.store(mobile_mode, std::sync::atomic::Ordering::Relaxed);
     let compositor: SharedCompositor = match Hyprland::from_env() {
         Ok(hyprland) => Arc::new(hyprland),
         Err(err) => {
@@ -1286,6 +1434,8 @@ fn main() {
             wallpaper::wallpaper_set_lock,
             wallpaper::wallpaper_add,
             wallpaper::wallpaper_remove,
+            wallpaper::wallpaper_gallery,
+            wallpaper::wallpaper_import,
             monitor_name,
             modes,
             switch_to,
@@ -1377,6 +1527,71 @@ fn main() {
             actions::clipboard_write,
             emma::emma_status,
             emma::emma_login,
+            touchkeys::keyboard_type,
+            touchkeys::keyboard_key,
+            touchkeys::keyboard_show,
+            touchkeys::keyboard_toggle,
+            touchkeys::keyboard_target,
+            haptics::haptic,
+            mobile::mobile_panel,
+            mobile::recents,
+            mobile::recents_snapshot,
+            mobile::recents_kill,
+            mobile::quick_state,
+            mobile::quick_brightness,
+            mobile::quick_flashlight,
+            mobile::quick_mobile_data,
+            mobile::quick_airplane,
+            mobile::quick_quiet,
+            mobile::battery_info,
+            connect::connect_computers,
+            connect::connect_discover,
+            connect::connect_pair,
+            connect::connect_forget,
+            connect::connect_send,
+            connect::connect_ask_close,
+            connect::connect_set_features,
+            connect::connect_set_address,
+            connect::connect_send_files,
+            connect::connect_send_clipboard,
+            connect::connect_targets,
+            connect::connect_share,
+            link::connect_settings,
+            link::connect_settings_set,
+            link::connect_transfers,
+            link::connect_recent_files,
+            remote::remote_devices,
+            remote::remote_device_set,
+            remote::remote_device_forget,
+            remote::remote_send_files,
+            remote::remote_send_clipboard,
+            schedule::schedule_list,
+            schedule::schedule_add,
+            schedule::schedule_remove,
+            mobilelock::lock_state,
+            mobilelock::lock_unlock,
+            mobilelock::lock_now,
+            mobilelock::lock_config_set,
+            mobilelock::power_menu_close,
+            mobile::profile_get,
+            mobile::profile_set_name,
+            mobile::profile_set_photo,
+            wifi::wifi_add,
+            wifi::wifi_details,
+            mobile::mobile_data_info,
+            mobile::mobile_data_set,
+            phone::phone_calls,
+            phone::phone_call,
+            phone::phone_accept,
+            phone::phone_hangup,
+            phone::phone_dtmf,
+            phone::phone_mute,
+            phone::phone_log,
+            phone::phone_log_clear,
+            phone::contacts_list,
+            phone::contacts_save,
+            phone::contacts_delete,
+            phone_open,
             emma::emma_logout,
             emma::emma_send,
             emma::emma_decide,
@@ -1396,6 +1611,33 @@ fn main() {
             // Tela de login: só ela, sem topbar, dock nem serviços da sessão.
             if greeter_mode {
                 create_layer(app.handle(), "greeter", &primary, &GREETER)?;
+                return Ok(());
+            }
+            // Celular: uma tela só, com barra de status, Início e navegação; a Emma por cima.
+            if mobile_mode {
+                create_layer(app.handle(), "mobile-home", &primary, &MOBILE_HOME)?;
+                create_layer(app.handle(), "mobile-status", &primary, &MOBILE_STATUS)?;
+                create_layer(app.handle(), "mobile-nav", &primary, &MOBILE_NAV)?;
+                create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
+                create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
+                create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;
+                create_layer(app.handle(), "mobile-recents", &primary, &MOBILE_RECENTS)?;
+                create_layer(app.handle(), "mobile-ask", &primary, &MOBILE_ASK)?;
+                create_layer(app.handle(), "mobile-lock", &primary, &MOBILE_LOCK)?;
+                create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
+                create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
+                // por último: fica por cima da Emma (as duas são Overlay)
+                create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
+                forward_events(app.handle().clone(), compositor.clone());
+                status::watch(app.handle().clone());
+                wifi::watch(app.handle().clone());
+                notifications::start(app.handle().clone());
+                bluetooth::watch(app.handle().clone());
+                control::listen(app.handle().clone());
+                phone::watch(app.handle().clone());
+                mobilelock::start(app.handle().clone());
+                connect::start(app.handle().clone());
+                mobile::track_data_usage();
                 return Ok(());
             }
             for index in 0..display.n_monitors() {
@@ -1422,6 +1664,7 @@ fn main() {
             control::listen(app.handle().clone());
             pad::watch(app.handle().clone());
             remote::start(app.handle().clone());
+            schedule::start(app.handle().clone());
             wifi::watch(app.handle().clone());
             bluetooth::watch(app.handle().clone());
             polkit::start(app.handle().clone());

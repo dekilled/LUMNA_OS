@@ -9,6 +9,17 @@ import GreeterApp from "./components/GreeterApp.vue";
 import InstallerApp from "./components/InstallerApp.vue";
 import Launcher from "./components/Launcher.vue";
 import ModeScreen from "./components/ModeScreen.vue";
+import MobileHome from "./components/mobile/MobileHome.vue";
+import MobileKeyboard from "./components/mobile/MobileKeyboard.vue";
+import MobileNav from "./components/mobile/MobileNav.vue";
+import MobileCenter from "./components/mobile/MobileCenter.vue";
+import MobileRecents from "./components/mobile/MobileRecents.vue";
+import MobileCall from "./components/mobile/MobileCall.vue";
+import MobileLock from "./components/mobile/MobileLock.vue";
+import MobileAsk from "./components/mobile/MobileAsk.vue";
+import MobilePower from "./components/mobile/MobilePower.vue";
+import PhoneApp from "./components/phone/PhoneApp.vue";
+import MobileStatus from "./components/mobile/MobileStatus.vue";
 import Notifications from "./components/Notifications.vue";
 import RestScreen from "./components/RestScreen.vue";
 import PowerMenu from "./components/PowerMenu.vue";
@@ -45,5 +56,16 @@ const label = getCurrentWebviewWindow().label;
   <FilesApp v-else-if="label.startsWith('files-')" />
   <InstallerApp v-else-if="label === 'installer'" />
   <GreeterApp v-else-if="label === 'greeter'" />
+  <MobileHome v-else-if="label === 'mobile-home'" />
+  <MobileStatus v-else-if="label === 'mobile-status'" />
+  <MobileNav v-else-if="label === 'mobile-nav'" />
+  <MobileCenter v-else-if="label === 'mobile-center'" />
+  <MobileRecents v-else-if="label === 'mobile-recents'" />
+  <MobileCall v-else-if="label === 'mobile-call'" />
+  <MobileLock v-else-if="label === 'mobile-lock'" />
+  <MobileAsk v-else-if="label === 'mobile-ask'" />
+  <MobilePower v-else-if="label === 'mobile-power'" />
+  <PhoneApp v-else-if="label === 'phone'" />
+  <MobileKeyboard v-else-if="label === 'keyboard'" />
   <TextMenu />
 </template>

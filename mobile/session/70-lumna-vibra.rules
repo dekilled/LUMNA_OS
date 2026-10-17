@@ -1,0 +1,5 @@
+# Quem está na tela pode usar:
+# - o motor de vibração (dispositivo de entrada com force feedback): o teclado do LUMNA vibra;
+# - o botão power do PMIC: o LUMNA lê ele direto (tocar bloqueia, segurar abre o menu).
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{capabilities/ff}=="?*", ATTRS{capabilities/ff}!="0", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="pm8941_pwrkey", TAG+="uaccess"

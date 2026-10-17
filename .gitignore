@@ -12,3 +12,7 @@ remote/android/.gradle/
 remote/android/build/
 remote/android/app/build/
 remote/android/local.properties
+/mobile/cache
+/mobile/out
+/mobile/backup
+__pycache__/

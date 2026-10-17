@@ -247,9 +247,28 @@ fn get_string(props: &Properties, key: &str) -> Option<String> {
 }
 
 // ---- comandos da interface ----
+// Sem o iwd e com o NetworkManager (o celular), tudo vai pro `nmwifi`.
+
+async fn has_owner(conn: &Connection, name: &str) -> bool {
+    let Ok(dbus) = zbus::fdo::DBusProxy::new(conn).await else { return false };
+    let Ok(name) = zbus::names::BusName::try_from(name) else { return false };
+    dbus.name_has_owner(name).await.unwrap_or(false)
+}
+
+pub async fn use_nm() -> bool {
+    let Ok(conn) = Connection::system().await else { return false };
+    !has_owner(&conn, IWD).await && has_owner(&conn, "org.freedesktop.NetworkManager").await
+}
+
+async fn nm<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    tauri::async_runtime::spawn_blocking(f).await.expect("thread do nmcli")
+}
 
 #[tauri::command]
 pub async fn wifi_state() -> WifiState {
+    if use_nm().await {
+        return nm(crate::nmwifi::state).await;
+    }
     match wifi().await {
         Ok(wifi) => wifi.state().await,
         Err(_) => WifiState::default(),
@@ -259,6 +278,9 @@ pub async fn wifi_state() -> WifiState {
 /// Procura redes. Responde na hora; a lista nova chega pelo evento `lumna://wifi`.
 #[tauri::command]
 pub async fn wifi_scan() -> Result<(), String> {
+    if use_nm().await {
+        return nm(crate::nmwifi::scan).await;
+    }
     let wifi = wifi().await?;
     let station = wifi.station().await?;
     // "Busy": já está procurando; dá no mesmo.
@@ -269,6 +291,9 @@ pub async fn wifi_scan() -> Result<(), String> {
 /// Conecta numa rede. A senha só é usada se o iwd pedir (rede nova com senha).
 #[tauri::command]
 pub async fn wifi_connect(path: String, passphrase: Option<String>) -> Result<(), String> {
+    if path.starts_with(crate::nmwifi::PREFIX) {
+        return nm(move || crate::nmwifi::connect(&path, passphrase)).await;
+    }
     let wifi = wifi().await?;
     wifi.register_agent().await;
     if let Some(passphrase) = passphrase {
@@ -281,6 +306,9 @@ pub async fn wifi_connect(path: String, passphrase: Option<String>) -> Result<()
 
 #[tauri::command]
 pub async fn wifi_disconnect() -> Result<(), String> {
+    if use_nm().await {
+        return nm(crate::nmwifi::disconnect).await;
+    }
     let wifi = wifi().await?;
     let station = wifi.station().await?;
     wifi.call::<_, ()>(&station, STATION, "Disconnect", &()).await.map_err(|e| explain(&e))
@@ -289,6 +317,9 @@ pub async fn wifi_disconnect() -> Result<(), String> {
 /// Esquece a senha salva da rede (ela também desconecta, se for a atual).
 #[tauri::command]
 pub async fn wifi_forget(path: String) -> Result<(), String> {
+    if path.starts_with(crate::nmwifi::PREFIX) {
+        return nm(move || crate::nmwifi::forget(&path)).await;
+    }
     let wifi = wifi().await?;
     let objects = wifi.objects().await.map_err(|e| explain(&e))?;
     let known = objects
@@ -303,6 +334,9 @@ pub async fn wifi_forget(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn wifi_power(on: bool) -> Result<(), String> {
+    if use_nm().await {
+        return nm(move || crate::nmwifi::power(on)).await;
+    }
     let wifi = wifi().await?;
     let objects = wifi.objects().await.map_err(|e| explain(&e))?;
     let (path, _) = Wifi::device(&objects).ok_or("Nenhuma placa Wi-Fi encontrada.")?;
@@ -311,9 +345,36 @@ pub async fn wifi_power(on: bool) -> Result<(), String> {
         .map_err(|e| explain(&e))
 }
 
+/// Rede escondida (ou digitada à mão), no NetworkManager.
+#[tauri::command]
+pub async fn wifi_add(ssid: String, password: String, hidden: bool) -> Result<(), String> {
+    if !use_nm().await {
+        return Err("Adicionar rede à mão ainda não funciona com o iwd.".into());
+    }
+    nm(move || crate::nmwifi::add(&ssid, &password, hidden)).await
+}
+
+/// Propriedades da rede conectada (sinal, frequência, IP...).
+#[tauri::command]
+pub async fn wifi_details() -> Option<crate::nmwifi::Details> {
+    nm(crate::nmwifi::details).await
+}
+
 /// Manda o estado novo para as janelas sempre que o iwd avisa alguma mudança.
+/// Com o NetworkManager, confere a cada poucos segundos.
 pub fn watch(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
+        if use_nm().await {
+            let mut last = WifiState::default();
+            loop {
+                let state = nm(crate::nmwifi::state).await;
+                if state != last {
+                    let _ = app.emit("lumna://wifi", &state);
+                    last = state;
+                }
+                tokio::time::sleep(Duration::from_secs(4)).await;
+            }
+        }
         let mut wait = Duration::from_secs(2);
         loop {
             if let Err(err) = follow(&app).await {

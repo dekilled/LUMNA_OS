@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Telefone
+Comment=Ligações, chamadas recentes e contatos
+Exec=lumna-ctl phone
+Icon=/usr/share/lumna/icons/phone.svg
+Categories=Utility;Telephony;
+Keywords=telefone;ligar;chamada;discador;contatos;phone;dialer;

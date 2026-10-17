@@ -1,0 +1,12 @@
+[Unit]
+Description=LUMNA: áudio das ligações (abre o PCM de voz do QDSP6)
+After=ModemManager.service sound.target
+Wants=ModemManager.service
+
+[Service]
+ExecStart=/usr/local/bin/lumna-voiced
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
