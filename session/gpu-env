@@ -29,6 +29,8 @@ run_hyprland() {
     Hyprland --config "$1"
     status=$?
     [ "$status" -eq 0 ] && return 0
+    # Tela de login que fechou depois da senha certa: não é queda, o greetd abre a sessão agora.
+    [ -n "${LUMNA_GREETER_DONE:-}" ] && [ -e "$LUMNA_GREETER_DONE" ] && return 0
     if [ $(($(date +%s) - started)) -ge 20 ] || [ "$tries" -ge 3 ]; then
       return "$status"
     fi
