@@ -8,6 +8,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct Animations {
     pub enabled: bool,
     /// Abrir/fechar/mover janelas.
@@ -20,6 +21,9 @@ pub struct Animations {
     pub workspaces: f32,
     /// Curva: "lumna" (freia suave), "rapida" (quase linear) ou "mola".
     pub curve: String,
+    /// Trocar de app e ir pra Início (no celular é uma troca de área): "slidefade", "slide",
+    /// "slidevert" ou "fade".
+    pub switch_style: String,
 }
 
 impl Default for Animations {
@@ -32,6 +36,7 @@ impl Default for Animations {
             fade: 2.0,
             workspaces: 2.5,
             curve: "lumna".into(),
+            switch_style: "slidefade".into(),
         }
     }
 }
@@ -54,6 +59,12 @@ fn lua(a: &Animations) -> Vec<String> {
         "mola" => "spring = \"lumnaSpring\"",
         _ => "bezier = \"lumna\"",
     };
+    let switch = match a.switch_style.as_str() {
+        "slide" => "slide",
+        "slidevert" => "slidevert",
+        "fade" => "fade",
+        _ => "slidefade 20%",
+    };
     let style = match a.windows_style.as_str() {
         "slide" => "slide",
         "gnomed" => "gnomed",
@@ -71,7 +82,7 @@ fn lua(a: &Animations) -> Vec<String> {
         format!("hl.animation({{ leaf = \"layersIn\", enabled = {on}, speed = {:.1}, {curve}, style = \"fade\" }})", clamp(a.layers)),
         format!("hl.animation({{ leaf = \"layersOut\", enabled = {on}, speed = {:.1}, bezier = \"lumnaFast\", style = \"fade\" }})", clamp(a.layers * 0.7)),
         format!("hl.animation({{ leaf = \"fade\", enabled = {on}, speed = {:.1}, bezier = \"lumna\" }})", clamp(a.fade)),
-        format!("hl.animation({{ leaf = \"workspaces\", enabled = {on}, speed = {:.1}, {curve}, style = \"slidefade 12%\" }})", clamp(a.workspaces)),
+        format!("hl.animation({{ leaf = \"workspaces\", enabled = {on}, speed = {:.1}, {curve}, style = \"{switch}\" }})", clamp(a.workspaces)),
         format!("hl.animation({{ leaf = \"specialWorkspace\", enabled = {on}, speed = {:.1}, {curve}, style = \"fade\" }})", clamp(a.workspaces)),
     ]
 }

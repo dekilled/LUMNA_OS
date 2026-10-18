@@ -24,15 +24,21 @@ async function reset() {
 onMounted(async () => (anim.value = await animationsGet().catch(() => null)));
 
 const SPEEDS: { key: "windows" | "layers" | "fade" | "workspaces"; title: string; sub: string }[] = [
-  { key: "windows", title: "Janelas", sub: "Abrir, fechar e trocar de app" },
+  { key: "windows", title: "Abrir um app novo", sub: "A janela aparecendo pela primeira vez" },
   { key: "layers", title: "Barras e painéis", sub: "Central, recentes, teclado, avisos" },
   { key: "fade", title: "Esmaecer", sub: "Aparecer e sumir" },
-  { key: "workspaces", title: "Minimizar e áreas", sub: "Voltar pra Início, trocar de área" },
+  { key: "workspaces", title: "Trocar de app", sub: "Ir pra Início e voltar pra um app" },
 ];
 const STYLES = [
   { id: "popin", label: "Crescer" },
   { id: "slide", label: "Deslizar" },
   { id: "gnomed", label: "Encolher" },
+] as const;
+const SWITCHES = [
+  { id: "slidefade", label: "Suave" },
+  { id: "slide", label: "Deslizar" },
+  { id: "slidevert", label: "Subir" },
+  { id: "fade", label: "Esmaecer" },
 ] as const;
 const CURVES = [
   { id: "lumna", label: "Suave" },
@@ -70,7 +76,12 @@ const ms = (v: number) => `${Math.round(v * 100)} ms`;
         </div>
       </div>
 
-      <div class="ms-label">Abrir janelas</div>
+      <div class="ms-label">Trocar de app e ir pra Início</div>
+      <div class="chips">
+        <button v-for="o in SWITCHES" :key="o.id" :class="{ on: anim.switch_style === o.id }" @click="change({ switch_style: o.id })">{{ o.label }}</button>
+      </div>
+
+      <div class="ms-label">Abrir um app novo</div>
       <div class="chips">
         <button v-for="o in STYLES" :key="o.id" :class="{ on: anim.windows_style === o.id }" @click="change({ windows_style: o.id })">{{ o.label }}</button>
       </div>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ref } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import AuthDialog from "./components/AuthDialog.vue";
 import Desktop from "./components/Desktop.vue";
@@ -42,17 +41,6 @@ const label = getCurrentWebviewWindow().label;
 // janela estreita (celular): os apps com layout próprio de celular
 // (o compositor pode redimensionar a janela depois de abrir: acompanha)
 const narrow = ref(window.innerWidth < 600);
-// no celular as janelas nascem escondidas: aparecem depois do primeiro desenho, pra animação do
-// Hyprland já trazer o conteúdo (e não uma janela vazia que se preenche de uma vez)
-if (["settings", "phone", "remote", "store", "installer"].includes(label) || label.startsWith("files-")) {
-  onMounted(() =>
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        getCurrentWindow().show().catch(() => {});
-      }),
-    ),
-  );
-}
 window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600));
 </script>
 

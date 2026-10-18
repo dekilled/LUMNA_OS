@@ -775,6 +775,7 @@ export interface Animations {
   fade: number;
   workspaces: number;
   curve: "lumna" | "rapida" | "mola";
+  switch_style: "slidefade" | "slide" | "slidevert" | "fade";
 }
 export const animationsGet = () => invoke<Animations>("animations_get");
 export const animationsSet = (config: Animations) => invoke<void>("animations_set", { config });

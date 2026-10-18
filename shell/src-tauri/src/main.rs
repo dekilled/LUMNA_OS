@@ -248,35 +248,16 @@ fn app_size(app: &AppHandle, desktop: (f64, f64), full: bool) -> (f64, f64) {
     }
     let monitor = app.state::<SharedCompositor>().monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused));
     match monitor {
-        Some(m) if full => {
-            reveal_later(app);
-            (m.width as f64, m.height as f64)
-        }
+        Some(m) if full => (m.width as f64, m.height as f64),
         // 36 da barra de status, 26 da faixa da barrinha (o dock some com o app aberto)
         Some(m) => {
             // a navegação já encolhe pra faixa da barrinha antes do app aparecer (senão o app
             // abre acima do dock e pula 66 px quando ele some)
             let _ = app.emit_to("mobile-nav", "lumna://app-opening", ());
-            reveal_later(app);
             (m.width as f64, (m.height - 36 - 26).max(200) as f64)
         }
         None => desktop,
     }
-}
-
-/// No celular a janela nasce escondida e a página mostra ela depois do primeiro desenho (o
-/// Hyprland anima a janela já com o conteúdo). Se a página não mostrar em 2 s, mostra aqui.
-fn reveal_later(app: &AppHandle) {
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(2000));
-        for (label, window) in handle.webview_windows() {
-            let ours = matches!(label.as_str(), "settings" | "phone" | "remote" | "store" | "installer") || label.starts_with("files-");
-            if ours && !window.is_visible().unwrap_or(true) {
-                let _ = window.show();
-            }
-        }
-    });
 }
 
 fn min_side(desktop: f64) -> f64 {
@@ -694,7 +675,7 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
         .title("Configurações")
         .inner_size(app_size(app, (1000.0, 680.0), false).0, app_size(app, (1000.0, 680.0), false).1)
-        .visible(!MOBILE.load(std::sync::atomic::Ordering::Relaxed))
+        .background_color(tauri::window::Color(8, 6, 15, 255))
         .min_inner_size(min_side(760.0), min_side(520.0))
         .decorations(false)
         .transparent(true)
@@ -717,7 +698,7 @@ pub fn open_phone(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "phone", WebviewUrl::App(url.into()))
         .title("Telefone")
         .inner_size(app_size(app, (420.0, 820.0), false).0, app_size(app, (420.0, 820.0), false).1)
-        .visible(!MOBILE.load(std::sync::atomic::Ordering::Relaxed))
+        .background_color(tauri::window::Color(8, 6, 15, 255))
         .min_inner_size(min_side(360.0), min_side(560.0))
         .decorations(false)
         .transparent(true)
@@ -740,7 +721,7 @@ pub fn open_remote(app: &AppHandle, pc: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "remote", WebviewUrl::App(url.into()))
         .title("LUMNA Controle")
         .inner_size(app_size(app, (420.0, 820.0), true).0, app_size(app, (420.0, 820.0), true).1)
-        .visible(!MOBILE.load(std::sync::atomic::Ordering::Relaxed))
+        .background_color(tauri::window::Color(8, 6, 15, 255))
         .decorations(false)
         .fullscreen(true)
         .build()
@@ -821,7 +802,7 @@ pub fn open_store(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "store", WebviewUrl::App(url.into()))
         .title("Loja")
         .inner_size(app_size(app, (1100.0, 720.0), false).0, app_size(app, (1100.0, 720.0), false).1)
-        .visible(!MOBILE.load(std::sync::atomic::Ordering::Relaxed))
+        .background_color(tauri::window::Color(8, 6, 15, 255))
         .min_inner_size(min_side(800.0), min_side(540.0))
         .decorations(false)
         .transparent(true)
@@ -848,7 +829,7 @@ pub fn open_files(app: &AppHandle, path: Option<String>) -> Result<(), String> {
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html#{fragment}").into()))
         .title("Arquivos")
         .inner_size(app_size(app, (1100.0, 700.0), false).0, app_size(app, (1100.0, 700.0), false).1)
-        .visible(!MOBILE.load(std::sync::atomic::Ordering::Relaxed))
+        .background_color(tauri::window::Color(8, 6, 15, 255))
         .min_inner_size(min_side(640.0), min_side(420.0))
         .decorations(false)
         .transparent(true)
@@ -872,7 +853,7 @@ pub fn open_installer(app: &AppHandle) -> Result<(), String> {
     WebviewWindowBuilder::new(app, "installer", WebviewUrl::App("index.html".into()))
         .title("Instalar LUMNA OS")
         .inner_size(app_size(app, (980.0, 660.0), false).0, app_size(app, (980.0, 660.0), false).1)
-        .visible(!MOBILE.load(std::sync::atomic::Ordering::Relaxed))
+        .background_color(tauri::window::Color(8, 6, 15, 255))
         .min_inner_size(min_side(820.0), min_side(600.0))
         .decorations(false)
         .transparent(true)
