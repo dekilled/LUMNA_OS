@@ -59,6 +59,8 @@ EOF
 fi
 
 # ---- 2. compilação cruzada ----
+# rustup sem versão padrão (máquina nova, outro sistema): escolhe a estável
+rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
 rustup target add "$TARGET" >/dev/null
 gccdir=$(ls -d "$SYS"/usr/lib/gcc/aarch64-unknown-linux-gnu/* 2>/dev/null | tail -1)
 [ -n "$gccdir" ] || die "o sysroot ficou sem o gcc ARM (rode de novo com LUMNA_SYSROOT_UPDATE=1)"
