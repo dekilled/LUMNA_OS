@@ -1,6 +1,11 @@
 -- LUMNA no celular (OnePlus 6T): tela 1080x2340 (402 ppi), escala 2.5 = 432x936 lógicos.
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "2.5" })
 hl.env("XCURSOR_SIZE", "24")
+-- O GTK3 (e o WebKit dos apps do LUMNA) só conhece escala inteira e, até a janela "entrar" na
+-- tela, desenha em escala 1: o Hyprland estica esse quadro (o "zoom" com fonte esticada) e logo
+-- depois vem o quadro certo. Minimizar e voltar repete isso. Escala 3 fixa desde o primeiro
+-- quadro (o layout continua com 432 de largura; o Hyprland só reduz 3 -> 2.5).
+hl.env("GDK_SCALE", "3")
 hl.env("GDK_BACKEND", "wayland")
 hl.env("QT_QPA_PLATFORM", "wayland")
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland:LUMNA")
