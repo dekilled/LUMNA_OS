@@ -25,7 +25,8 @@ tmp=$(mktemp -d)
 cp "$tmp/bin/busybox" "$IRD/bin/busybox"
 rm -rf "$tmp"
 for a in sh cat echo ls mkdir mount umount ln sleep seq head tee modprobe insmod ifconfig \
-    udhcpd telnetd findfs blkid switch_root dmesg ps kill vi grep sed df free reboot poweroff; do
+    udhcpd telnetd findfs blkid switch_root dmesg ps kill vi grep sed df free reboot poweroff \
+    chroot cp mv rm tail sync; do
     ln -sf busybox "$IRD/bin/$a"
 done
 
