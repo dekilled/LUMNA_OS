@@ -179,7 +179,7 @@ onUnmounted(() => {
 }
 .dialog-veil {
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--kb-inset, 0px) 0;
   display: grid;
   place-items: center;
   background: rgba(5, 2, 15, 0.55);

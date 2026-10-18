@@ -49,6 +49,8 @@ if (["settings", "phone", "remote", "store", "installer"].includes(label) || lab
     // a janela já termina 26 px acima da borda (a faixa da barrinha)
     const inset = k.shown && k.lumna ? Math.max(0, k.height - 26) : 0;
     document.documentElement.style.setProperty("--app-h", inset ? `calc(100vh - ${inset}px)` : "100vh");
+    // folhas, avisos e barras presas no fundo da tela sobem junto (o campo fica acima do teclado)
+    document.documentElement.style.setProperty("--kb-inset", `${inset}px`);
     if (inset) requestAnimationFrame(() => (document.activeElement as HTMLElement | null)?.scrollIntoView?.({ block: "center" }));
   });
 }

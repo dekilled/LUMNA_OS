@@ -575,7 +575,7 @@ h2 {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: 18px;
+  bottom: calc(18px + var(--kb-inset, 0px));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -619,7 +619,7 @@ h2 {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 96px;
+  bottom: calc(96px + var(--kb-inset, 0px));
   transform: translateX(-50%);
   max-width: 86vw;
   padding: 10px 16px;
@@ -641,7 +641,7 @@ h2 {
 }
 .veil {
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--kb-inset, 0px) 0;
   display: flex;
   align-items: flex-end;
   background: rgba(5, 3, 14, 0.6);

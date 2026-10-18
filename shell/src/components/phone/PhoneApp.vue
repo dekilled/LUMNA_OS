@@ -468,7 +468,7 @@ h1 {
 }
 .menu {
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--kb-inset, 0px) 0;
   z-index: 5;
 }
 .menu-box {

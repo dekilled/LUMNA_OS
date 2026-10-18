@@ -207,7 +207,7 @@ button:disabled {
 }
 .veil {
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--kb-inset, 0px) 0;
   z-index: 50;
   display: flex;
   align-items: flex-end;
