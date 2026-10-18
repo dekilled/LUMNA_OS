@@ -3,7 +3,6 @@
 import { ref } from "vue";
 import { emit } from "@tauri-apps/api/event";
 import { isMinimized, onCompositorEvent, windowControl, windows } from "../../compositor";
-import { recentsSnapshot } from "../../system";
 
 export const appUp = ref(false);
 
@@ -23,9 +22,9 @@ export function watchApps() {
   }
 }
 
-/** Volta para a tela Início: minimiza o que estiver aberto (antes, tira a foto pros recentes). */
+/** Volta para a tela Início: minimiza o que estiver aberto. (A foto pros recentes não é tirada
+ * aqui: o grim trava o compositor um instante a cada troca; ela sai ao abrir os recentes.) */
 export async function showHome(tab: "inicio" | "apps" = "inicio") {
-  await recentsSnapshot();
   const list = await windows().catch(() => []);
   for (const w of list) if (!isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
   appUp.value = false;

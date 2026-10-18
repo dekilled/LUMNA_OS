@@ -41,7 +41,9 @@ onMounted(async () => {
 async function bringUp(title: string, open: () => Promise<void>) {
   const list = await windows().catch(() => []);
   const found = list.find((w) => w.title === title || w.title.endsWith(` · ${title}`));
-  await recentsSnapshot();
+  // (sem foto pros recentes aqui: o grim trava o compositor um instante a cada troca de app; a
+  // miniatura é tirada ao abrir os recentes)
+  appUp.value = true;
   for (const w of list) if (w !== found && !isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
   if (found) await windowControl("focus", found.address);
   else await open();

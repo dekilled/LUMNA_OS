@@ -21,6 +21,9 @@ pub enum Exclusive {
     Ignore,
     /// Não reserva nada.
     None,
+    /// Reserva sempre essa altura/largura, mesmo que a camada mude de tamanho (a navegação do
+    /// celular: o dock cresce e encolhe sem os apps serem redimensionados).
+    Fixed(i32),
 }
 
 pub struct LayerSpec {
@@ -67,6 +70,7 @@ pub fn make_layer(window: &WebviewWindow, monitor: &gtk::gdk::Monitor, spec: &La
         Exclusive::Auto => layer.auto_exclusive_zone_enable(),
         Exclusive::Ignore => layer.set_exclusive_zone(-1),
         Exclusive::None => layer.set_exclusive_zone(0),
+        Exclusive::Fixed(size) => layer.set_exclusive_zone(size),
     }
     layer.set_size_request(spec.size.0, spec.size.1);
 
@@ -192,6 +196,7 @@ pub fn place(label: &str, anchors: &[Edge], margin: i32, exclusive: Exclusive) {
             Exclusive::Auto => layer.auto_exclusive_zone_enable(),
             Exclusive::Ignore => layer.set_exclusive_zone(-1),
             Exclusive::None => layer.set_exclusive_zone(0),
+        Exclusive::Fixed(size) => layer.set_exclusive_zone(size),
         }
     });
 }

@@ -296,7 +296,9 @@ const MOBILE_NAV: LayerSpec = LayerSpec {
     anchors: &[Edge::Bottom, Edge::Left, Edge::Right],
     margins: &[],
     keyboard: KeyboardMode::None,
-    exclusive: Exclusive::Auto,
+    // só a faixa da barrinha (26 px) é reservada, sempre: o dock (Início) desenha por cima de
+    // uma tela sem apps, e os apps nunca são redimensionados quando ele aparece ou some
+    exclusive: Exclusive::Fixed(26),
     size: (-1, 92),
     visible: true,
 };
