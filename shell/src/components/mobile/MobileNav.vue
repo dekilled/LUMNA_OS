@@ -30,6 +30,8 @@ watch(appUp, (up) => {
 });
 onMounted(async () => {
   watchApps();
+  // um app do LUMNA está abrindo: some o dock antes dele aparecer (o compositor confirma depois)
+  await on("lumna://app-opening", () => (appUp.value = true));
   await on<string>("lumna://mobile-tab", (t) => (active.value = t as Tab));
 });
 

@@ -239,6 +239,27 @@ static MOBILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::ne
 
 /// Tamanho mínimo das janelas do LUMNA. No celular a tela tem ~432 px lógicos de largura: um mínimo
 /// de desktop deixa a janela maior que o espaço dela, e o toque cai fora do lugar.
+/// Tamanho inicial das janelas do LUMNA. No celular elas já nascem do tamanho útil da tela (entre a
+/// barra de status e a faixa da barrinha): se nascessem no tamanho de PC, o WebKit desenhava a
+/// tela errada por um instante até o Hyprland maximizar (o "flash" ao abrir um app).
+fn app_size(app: &AppHandle, desktop: (f64, f64), full: bool) -> (f64, f64) {
+    if !MOBILE.load(std::sync::atomic::Ordering::Relaxed) {
+        return desktop;
+    }
+    let monitor = app.state::<SharedCompositor>().monitors().ok().and_then(|m| m.into_iter().find(|m| m.focused));
+    match monitor {
+        Some(m) if full => (m.width as f64, m.height as f64),
+        // 36 da barra de status, 26 da faixa da barrinha (o dock some com o app aberto)
+        Some(m) => {
+            // a navegação já encolhe pra faixa da barrinha antes do app aparecer (senão o app
+            // abre acima do dock e pula 66 px quando ele some)
+            let _ = app.emit_to("mobile-nav", "lumna://app-opening", ());
+            (m.width as f64, (m.height - 36 - 26).max(200) as f64)
+        }
+        None => desktop,
+    }
+}
+
 fn min_side(desktop: f64) -> f64 {
     if MOBILE.load(std::sync::atomic::Ordering::Relaxed) { 200.0 } else { desktop }
 }
@@ -651,7 +672,7 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
     let url = format!("index.html#{}", page.unwrap_or_default());
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
         .title("Configurações")
-        .inner_size(1000.0, 680.0)
+        .inner_size(app_size(app, (1000.0, 680.0), false).0, app_size(app, (1000.0, 680.0), false).1)
         .min_inner_size(min_side(760.0), min_side(520.0))
         .decorations(false)
         .transparent(true)
@@ -673,7 +694,7 @@ pub fn open_phone(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     let url = format!("index.html#{}", tab.unwrap_or_default());
     WebviewWindowBuilder::new(app, "phone", WebviewUrl::App(url.into()))
         .title("Telefone")
-        .inner_size(420.0, 820.0)
+        .inner_size(app_size(app, (420.0, 820.0), false).0, app_size(app, (420.0, 820.0), false).1)
         .min_inner_size(min_side(360.0), min_side(560.0))
         .decorations(false)
         .transparent(true)
@@ -695,7 +716,7 @@ pub fn open_remote(app: &AppHandle, pc: Option<String>) -> Result<(), String> {
     let url = format!("index.html#{}", pc.unwrap_or_default());
     WebviewWindowBuilder::new(app, "remote", WebviewUrl::App(url.into()))
         .title("LUMNA Controle")
-        .inner_size(420.0, 820.0)
+        .inner_size(app_size(app, (420.0, 820.0), true).0, app_size(app, (420.0, 820.0), true).1)
         .decorations(false)
         .fullscreen(true)
         .build()
@@ -775,7 +796,7 @@ pub fn open_store(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     let url = format!("index.html#{}", tab.unwrap_or_default());
     WebviewWindowBuilder::new(app, "store", WebviewUrl::App(url.into()))
         .title("Loja")
-        .inner_size(1100.0, 720.0)
+        .inner_size(app_size(app, (1100.0, 720.0), false).0, app_size(app, (1100.0, 720.0), false).1)
         .min_inner_size(min_side(800.0), min_side(540.0))
         .decorations(false)
         .transparent(true)
@@ -801,7 +822,7 @@ pub fn open_files(app: &AppHandle, path: Option<String>) -> Result<(), String> {
         .collect();
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html#{fragment}").into()))
         .title("Arquivos")
-        .inner_size(1100.0, 700.0)
+        .inner_size(app_size(app, (1100.0, 700.0), false).0, app_size(app, (1100.0, 700.0), false).1)
         .min_inner_size(min_side(640.0), min_side(420.0))
         .decorations(false)
         .transparent(true)
@@ -824,7 +845,7 @@ pub fn open_installer(app: &AppHandle) -> Result<(), String> {
     }
     WebviewWindowBuilder::new(app, "installer", WebviewUrl::App("index.html".into()))
         .title("Instalar LUMNA OS")
-        .inner_size(980.0, 660.0)
+        .inner_size(app_size(app, (980.0, 660.0), false).0, app_size(app, (980.0, 660.0), false).1)
         .min_inner_size(min_side(820.0), min_side(600.0))
         .decorations(false)
         .transparent(true)
