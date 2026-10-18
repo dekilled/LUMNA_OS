@@ -28,8 +28,11 @@ watch(appUp, (up) => {
   mobileEdges(up).catch(() => {});
   if (!up && active.value !== "inicio" && active.value !== "apps") active.value = "inicio";
 });
+// o teclado por cima (apps do LUMNA) traz a barrinha dele: a nossa some, senão aparecem duas
+const keyboardOver = ref(false);
 onMounted(async () => {
   watchApps();
+  await on<{ shown: boolean; lumna: boolean }>("lumna://keyboard", (k) => (keyboardOver.value = k.shown && k.lumna));
   await on<string>("lumna://mobile-tab", (t) => (active.value = t as Tab));
 });
 
@@ -127,7 +130,7 @@ function handleClick() {
     @pointercancel="handleCancel"
     @click="handleClick"
   >
-    <div class="handle" :class="{ long }" :style="{ width: `${120 + Math.min(lift, LONG) * 0.5}px` }" />
+    <div class="handle" :class="{ long, hidden: keyboardOver }" :style="{ width: `${120 + Math.min(lift, LONG) * 0.5}px` }" />
   </button>
   </div>
 </template>
@@ -165,10 +168,14 @@ button {
 button.on {
   color: var(--lumna-violet-soft);
 }
+/* a faixa inteira é a área de toque; a barrinha fica no meio dela */
 .handle-area {
-  display: block;
   width: 100%;
   height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 0;
   background: none;
 }
@@ -179,6 +186,9 @@ button.on {
   border-radius: 2px;
   background: rgba(236, 232, 255, 0.7);
   transition: background 120ms ease;
+}
+.handle.hidden {
+  opacity: 0;
 }
 .handle.long {
   background: var(--lumna-violet-soft);
