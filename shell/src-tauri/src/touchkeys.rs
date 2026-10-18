@@ -63,6 +63,8 @@ fn queue() -> &'static Mutex<Sender<Job>> {
 /// passar pelo teclado virtual do Wayland: o WebKit lê as teclas de edição (apagar, setas, Enter)
 /// pela posição física da tecla, e o mapa de teclas que o wtype inventa não bate com ela.
 static TARGET: Mutex<Option<String>> = Mutex::new(None);
+/// O teclado aberto agora está por cima de um app do LUMNA (sem reservar espaço).
+static OVERLAY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[tauri::command]
 pub fn keyboard_target(label: String, focused: bool) {
@@ -120,7 +122,17 @@ pub fn keyboard_key(app: AppHandle, key: String, mods: Vec<String>) -> Result<()
 /// ocupa o rodapé, como no esboço) e volta quando ele fecha.
 #[tauri::command]
 pub fn keyboard_show(app: AppHandle, show: bool) -> Result<(), String> {
+    use tauri::Manager;
     let handle = app.clone();
+    // a janela na frente é do próprio LUMNA? (mesmo processo; vale também quando o teclado é aberto
+    // pela barrinha, sem campo em foco)
+    let ours = show
+        && app
+            .state::<crate::SharedCompositor>()
+            .active_window()
+            .ok()
+            .flatten()
+            .is_some_and(|w| w.pid == i64::from(std::process::id()));
     app.run_on_main_thread(move || {
         if !layer::exists("keyboard") {
             return;
@@ -129,7 +141,9 @@ pub fn keyboard_show(app: AppHandle, show: bool) -> Result<(), String> {
             return;
         }
         // lumna = o teclado abriu num campo do LUMNA (senão é num app de fora: terminal, editor...)
-        let lumna = TARGET.lock().unwrap().is_some();
+        // ao fechar, vale o modo em que ele abriu
+        let lumna = if show { TARGET.lock().unwrap().is_some() || ours } else { OVERLAY.load(std::sync::atomic::Ordering::Relaxed) };
+        OVERLAY.store(show && lumna, std::sync::atomic::Ordering::Relaxed);
         // Nos campos do LUMNA o teclado fica por cima, sem reservar espaço: a janela não muda de
         // tamanho (cada redimensionamento faz o WebKit redesenhar = flick) e a própria página
         // encolhe por dentro (lumna://keyboard). Apps de fora não sabem fazer isso: pra eles o

@@ -78,6 +78,8 @@ fn lua(a: &Animations) -> Vec<String> {
         format!("hl.animation({{ leaf = \"windows\", enabled = {on}, speed = {:.1}, {curve} }})", clamp(a.windows)),
         format!("hl.animation({{ leaf = \"windowsIn\", enabled = {on}, speed = {:.1}, {curve}, style = \"{style}\" }})", clamp(a.windows)),
         format!("hl.animation({{ leaf = \"windowsOut\", enabled = {on}, speed = {:.1}, bezier = \"lumnaFast\", style = \"{style}\" }})", clamp(a.windows * 0.7)),
+        // mudar de tamanho sem animação (senão aparece o app duplicado: imagem velha e nova)
+        "hl.animation({ leaf = \"windowsMove\", enabled = false })".into(),
         format!("hl.animation({{ leaf = \"layers\", enabled = {on}, speed = {:.1}, {curve} }})", clamp(a.layers)),
         format!("hl.animation({{ leaf = \"layersIn\", enabled = {on}, speed = {:.1}, {curve}, style = \"fade\" }})", clamp(a.layers)),
         format!("hl.animation({{ leaf = \"layersOut\", enabled = {on}, speed = {:.1}, bezier = \"lumnaFast\", style = \"fade\" }})", clamp(a.layers * 0.7)),

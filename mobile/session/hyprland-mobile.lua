@@ -35,6 +35,9 @@ hl.animation({ leaf = "global", enabled = true, speed = 3, bezier = "lumna" })
 hl.animation({ leaf = "windows", enabled = true, speed = 2.5, bezier = "lumna" })
 hl.animation({ leaf = "windowsIn", enabled = true, speed = 2.5, bezier = "lumna", style = "popin 90%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.8, bezier = "lumnaFast", style = "popin 90%" })
+-- Mudar de tamanho (o teclado de um app de fora, girar a tela) sem animação: o Hyprland misturava
+-- a imagem velha esticada com a nova (o "fantasma" de duas cópias do app).
+hl.animation({ leaf = "windowsMove", enabled = false })
 hl.animation({ leaf = "layers", enabled = true, speed = 2, bezier = "lumna" })
 hl.animation({ leaf = "layersIn", enabled = true, speed = 2, bezier = "lumna", style = "fade" })
 hl.animation({ leaf = "layersOut", enabled = true, speed = 1.4, bezier = "lumnaFast", style = "fade" })
