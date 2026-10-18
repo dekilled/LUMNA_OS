@@ -448,7 +448,7 @@ fn window_control(app: AppHandle, address: Option<String>, action: String) -> Re
     };
     match action.as_str() {
         "close" => compositor.close_window(&address),
-        "minimize" => compositor.move_window(&address, lumna_core::MINIMIZED),
+        "minimize" => compositor.move_window(&address, &lumna_core::minimized_workspace(&address)),
         // Leva uns instantes (o dock se ajusta antes); fora da thread principal.
         "maximize" => {
             let handle = app.clone();

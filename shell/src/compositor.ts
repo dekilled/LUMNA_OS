@@ -28,7 +28,7 @@ export interface Window {
   class: string;
   title: string;
   workspace: number;
-  /** "special:minimized" = minimizada pelo LUMNA. */
+  /** "special:minimized-*" = minimizada pelo LUMNA (cada janela no seu). */
   workspace_name: string;
   /** Id do monitor. */
   monitor: number;
@@ -66,7 +66,7 @@ export const windowBars = () => invoke<boolean>("window_bars");
 export const keyboardCurrent = () => invoke<{ layouts: string[]; active: number }>("keyboard_current");
 export const keyboardNext = () => invoke<void>("keyboard_next");
 
-export const isMinimized = (w: Window) => w.workspace_name === "special:minimized";
+export const isMinimized = (w: Window) => w.workspace_name.startsWith("special:minimized");
 export const focusWorkspace = (id: number) => invoke<void>("focus_workspace", { id });
 
 export const onCompositorEvent = (handler: (event: CompositorEvent) => void) =>

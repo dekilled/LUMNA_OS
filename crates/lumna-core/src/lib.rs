@@ -51,7 +51,7 @@ pub struct Window {
     pub class: String,
     pub title: String,
     pub workspace: i64,
-    /// Nome do workspace (`special:minimized` = minimizada pelo LUMNA).
+    /// Nome do workspace (`special:minimized-*` = minimizada pelo LUMNA).
     pub workspace_name: String,
     /// Id do monitor onde a janela está.
     pub monitor: i64,
@@ -72,9 +72,16 @@ pub struct Window {
 /// Workspace escondido onde ficam as janelas minimizadas (o Hyprland não tem "minimizar").
 pub const MINIMIZED: &str = "special:minimized";
 
+/// Cada janela minimizada vai pro seu próprio workspace escondido. Num só, o Hyprland dividia a
+/// área entre elas (com dois apps, cada um ficava com metade) e a janela, ao voltar, era esticada
+/// da metade pra tela toda: o "flick" ao trocar de app no celular.
+pub fn minimized_workspace(address: &str) -> String {
+    format!("{MINIMIZED}-{}", address.trim_start_matches("0x"))
+}
+
 impl Window {
     pub fn minimized(&self) -> bool {
-        self.workspace_name == MINIMIZED
+        self.workspace_name == MINIMIZED || self.workspace_name.starts_with(&format!("{MINIMIZED}-"))
     }
 }
 
@@ -154,4 +161,35 @@ pub trait Compositor: Send + Sync {
     fn exit(&self) -> Result<()>;
     /// Bloqueia a thread chamando `on_event` a cada evento até a conexão cair.
     fn listen(&self, on_event: &mut dyn FnMut(CompositorEvent)) -> Result<()>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cada_janela_minimizada_no_seu_workspace() {
+        assert_eq!(minimized_workspace("0x55aa01"), "special:minimized-55aa01");
+        let mut w = Window {
+            address: "0x55aa01".into(),
+            class: String::new(),
+            title: String::new(),
+            workspace: -98,
+            workspace_name: minimized_workspace("0x55aa01"),
+            monitor: 0,
+            fullscreen: 0,
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            floating: false,
+            focus_history: 0,
+            pid: 0,
+        };
+        assert!(w.minimized());
+        w.workspace_name = MINIMIZED.into();
+        assert!(w.minimized());
+        w.workspace_name = "special:media".into();
+        assert!(!w.minimized());
+    }
 }
