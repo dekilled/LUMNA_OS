@@ -68,8 +68,16 @@ Regras: superfícies grafite e opacas (o roxo só no acento e no wallpaper); rai
 e popovers, 10 px nos cartões; ícones de traço; hierarquia por tamanho e peso, quase sem cor; abas
 no topo com sublinhado violeta que desliza; popovers surgem da topbar (fade + 6 px, 180 ms).
 
-**Um arquivo de tokens para PC e celular** (`shell/src/ui/tokens.css`): o celular já está perto
-desse visual; os dois passam a ler as mesmas variáveis, e o celular só muda tamanhos.
+**Uma base, dois layouts.** PC e celular dividem a fundação: um arquivo de tokens
+(`shell/src/ui/tokens.css`: cores, acento, raios, tipografia, sombras, tempos de animação) e os
+componentes pequenos (toggle, slider, abas com sublinhado, linha de lista, cartão, busca, ícones).
+O layout de cada um continua próprio: o celular mantém o desenho que já tem (barra de navegação
+embaixo, central com Notificações/Atalhos, ladrilhos dos Apps, Ajustes em cartões); o PC segue os
+mockups (topbar, dock, janelas com abas). Assim uma mudança de cor ou de toggle vale nos dois, sem
+o celular virar um desktop encolhido.
+
+No celular muda: as cores de fundo passam para a paleta comum e entram os polimentos de uso que
+atrapalham hoje (lista a fechar com o uso no aparelho).
 
 ## 4. Como o código fica
 
@@ -95,7 +103,7 @@ Cada etapa termina com algo que dá para usar, testado no harness e no PC pelo c
 | 3 | **Início** | substitui o launcher: abas por categoria, Recentes (`recently-used.xbel`), busca de arquivos, rodapé | busca e abertura tão rápidas quanto o launcher de hoje |
 | 4 | **Janelas** | Painel de controle (moldura + páginas com os componentes), Loja, Arquivos (abas de lugares, Favoritos, Mover para…) | todas as páginas funcionando como antes |
 | 5 | **Telas especiais** | login, bloqueio, descanso, energia, avisos, senha, Emma, Mídia, Gaming nos tokens novos | — |
-| 6 | **Celular** | `mobile.css` sobre os tokens | o celular continua igual ou melhor |
+| 6 | **Celular** | `mobile.css` sobre os tokens e os componentes comuns; layouts do celular mantidos; cores de fundo e polimentos de uso | o celular continua igual ou melhor |
 | 7 | **Virada** | o visual novo vira o padrão, o clássico sai | tudo acima estável |
 
 Fora desta reestruturação (funcionalidades que os mockups pedem, mas não são visual): rede
@@ -114,3 +122,5 @@ editável (IP/DNS/proxy), VPN WireGuard, wallpaper por modo e videopaper.
 6. **Canal de teste:** publicar o `[lumna-teste]` pelo GitHub Actions (proposto), ou testar só
    pelo ISO de teste.
 7. **Editor** no Início: Mousepad, ou um editor próprio mais para frente.
+8. **Ícones dos apps:** no celular os ladrilhos têm ícones de traço coloridos (Notas amarelo, Música
+   rosa); nos mockups do PC são brancos. Escolher um só estilo para os dois.
