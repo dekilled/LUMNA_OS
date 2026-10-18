@@ -31,7 +31,8 @@ for c in rustup cargo clang ld.lld llvm-ar pnpm node pacman makepkg; do command 
 DEPS="glibc gcc gcc-libs linux-api-headers webkit2gtk-4.1 gtk3 gtk-layer-shell libsoup3 systemd-libs openssl zlib"
 if [ ! -f "$SYS/.lumna-ok" ] || [ -n "${LUMNA_SYSROOT_UPDATE:-}" ]; then
     echo "==> sysroot aarch64 em $SYS"
-    mkdir -p "$SYS/var/lib/pacman" "$SYS/etc"
+    # o pacman não cria essas sozinho com --root/--cachedir
+    mkdir -p "$SYS/var/lib/pacman" "$SYS/var/cache/pacman/pkg" "$SYS/var/log" "$SYS/etc" "$SYS/tmp"
     conf="$SYS/etc/lumna-pacman.conf"
     cat > "$conf" <<EOF
 [options]
