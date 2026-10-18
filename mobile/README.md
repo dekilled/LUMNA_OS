@@ -234,6 +234,14 @@ O aparelho é não-A/B. A partição recovery (TWRP/SHRP) não é tocada, então
 
 ## Avisos
 
+**Celular não liga o LUMNA, volta pro bootloader?** O bootloader da OnePlus conta as tentativas
+de boot de cada slot e desiste quando acabam (ele espera o sistema confirmar cada boot). Pra
+destravar, no fastboot: `fastboot getvar current-slot` e `fastboot getvar all 2>&1 | grep slot-`;
+o slot do LUMNA é o que tem o boot.img dele (normalmente o que o `flash.sh slot` escolheu).
+`fastboot set_active <slot>` zera as tentativas. Pra não acontecer de novo, `boot-ok.sh` (o
+`lumna-mobile.sh` já roda) instala o `qbootctl` e um serviço que confirma cada boot.
+
+
 - `backup.sh` salva `modemst1`, `modemst2`, `fsg` e `persist`. Elas são **únicas de cada aparelho** (IMEI, calibração). Se perder, não tem de onde tirar outra. Guarde em mais de um lugar.
 - Se o `fastboot boot` der tela preta, confira primeiro o telnet. A tela pode só estar demorando. Depois veja a [página do aparelho no wiki do postmarketOS](https://wiki.postmarketos.org/wiki/OnePlus_6_(oneplus-enchilada)), que lista os detalhes de bootloader do 6/6T.
 - Os valores de cada aparelho (offsets, kernel, firmware) ficam em `devices/<aparelho>/device.conf`, tirados do [pmaports](https://gitlab.postmarketos.org/postmarketOS/pmaports) num commit fixo.

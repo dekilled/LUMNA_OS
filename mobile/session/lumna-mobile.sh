@@ -37,6 +37,9 @@ else
     makepkg -sfi --nocheck --noconfirm
 fi
 
+# o bootloader A/B precisa ouvir "liguei direitinho" a cada boot (senão desiste do slot)
+[ -x /usr/local/bin/qbootctl ] || sh "$ROOT/mobile/session/boot-ok.sh"
+
 # Bluetooth (WCN3990 pelo hci_uart; o firmware já vem no rootfs)
 sudo systemctl enable --now bluetooth.service || true
 

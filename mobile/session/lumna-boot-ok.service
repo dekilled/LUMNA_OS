@@ -1,0 +1,12 @@
+# Diz ao bootloader da OnePlus que este boot deu certo (senão, depois de 7 reinícios, ele desiste
+# do slot do LUMNA). Ver mobile/session/boot-ok.sh.
+[Unit]
+Description=LUMNA: marca o slot de boot como bom
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/qbootctl -m
+
+[Install]
+WantedBy=multi-user.target
