@@ -101,6 +101,12 @@ onMounted(async () => {
       }
     }),
   );
+  // fechou o teclado na tela da senha: volta pro descanso (relógio grande), como no Android
+  stops.push(
+    await on<{ shown: boolean }>("lumna://keyboard", (k) => {
+      if (!k.shown && view.value === "senha" && !busy.value) reset();
+    }),
+  );
   stops.push(
     await on<boolean>("lumna://screen", (on) => {
       screenOn.value = on;

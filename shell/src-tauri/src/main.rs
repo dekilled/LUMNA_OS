@@ -369,7 +369,8 @@ const KEYBOARD: LayerSpec = LayerSpec {
     margins: &[],
     keyboard: KeyboardMode::None,
     exclusive: Exclusive::Auto,
-    size: (-1, 392),
+    // o fim é a faixa da barrinha (26 px, a mesma da navegação, no mesmo lugar)
+    size: (-1, 404),
     visible: false,
 };
 

@@ -149,13 +149,16 @@ pub fn keyboard_show(app: AppHandle, show: bool) -> Result<(), String> {
         // encolhe por dentro (lumna://keyboard). Apps de fora não sabem fazer isso: pra eles o
         // teclado reserva o espaço, como antes.
         if show {
-            layer::set_exclusive("keyboard", if lumna { layer::Exclusive::None } else { layer::Exclusive::Auto });
+            // por cima: até o fundo da tela, cobrindo a faixa da navegação (o teclado desenha a mesma
+            // barrinha no mesmo lugar). Com 0 ("None") ele parava acima da faixa e sobrava um vão
+            // com o que estivesse atrás (a tela de bloqueio, a Emma).
+            layer::set_exclusive("keyboard", if lumna { layer::Exclusive::Ignore } else { layer::Exclusive::Auto });
         }
         layer::set_visible("keyboard", show);
         if !lumna {
             layer::set_visible("mobile-nav", !show);
         }
-        let _ = handle.emit("lumna://keyboard", json!({ "shown": show, "lumna": lumna, "height": 392 }));
+        let _ = handle.emit("lumna://keyboard", json!({ "shown": show, "lumna": lumna, "height": 404 }));
     })
     .map_err(|e| e.to_string())
 }

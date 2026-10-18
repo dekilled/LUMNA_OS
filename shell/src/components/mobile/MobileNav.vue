@@ -4,9 +4,10 @@
 // A barrinha de baixo: toque ou deslize curto pra cima = teclado; deslize longo = apps recentes.
 // Com um app aberto o dock some: a camada encolhe pra só a faixa da barrinha (o app desce até
 // ela) e as bordas laterais ganham o gesto de voltar (MobileEdge.vue).
-import { computed, onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
+import HandleStrip from "./HandleStrip.vue";
 import Icon from "../Icon.vue";
-import { filesWindow, haptic, keyboardToggle, layerResize, mobileEdges, mobilePanel, on, recentsSnapshot, settingsOpen, toggleEmma } from "../../system";
+import { filesWindow, layerResize, mobileEdges, on, settingsOpen, toggleEmma } from "../../system";
 import { windows } from "../../compositor";
 import { appUp, showApp, showHome, watchApps } from "./apps";
 
@@ -28,7 +29,7 @@ watch(appUp, (up) => {
   mobileEdges(up).catch(() => {});
   if (!up && active.value !== "inicio" && active.value !== "apps") active.value = "inicio";
 });
-// o teclado por cima (apps do LUMNA) traz a barrinha dele: a nossa some, senão aparecem duas
+// com o teclado aberto quem desenha a barrinha (no mesmo lugar) é ele: a nossa some por baixo
 const keyboardOver = ref(false);
 onMounted(async () => {
   watchApps();
@@ -59,57 +60,6 @@ async function go(tab: Tab) {
   else await toggleEmma();
 }
 
-async function openRecents() {
-  await recentsSnapshot();
-  await mobilePanel("mobile-recents", true);
-}
-
-// ---- gesto da barrinha ----
-// Curto (até LONG px pra cima) abre/fecha o teclado; longo abre os recentes. A barrinha estica
-// enquanto o dedo sobe e dá um toque de vibração quando passa pro "longo".
-const SHORT = 24;
-const LONG = 140;
-const lift = ref(0);
-let start: { y: number; id: number } | null = null;
-let swallow = false;
-const long = computed(() => lift.value >= LONG);
-
-function handleDown(e: PointerEvent) {
-  if (start) return;
-  start = { y: e.clientY, id: e.pointerId };
-  lift.value = 0;
-  try {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  } catch {}
-}
-function handleMove(e: PointerEvent) {
-  if (!start || e.pointerId !== start.id) return;
-  const was = long.value;
-  lift.value = Math.max(0, start.y - e.clientY);
-  if (long.value && !was) haptic(25).catch(() => {});
-}
-function handleUp(e: PointerEvent) {
-  if (!start || e.pointerId !== start.id) return;
-  start = null;
-  const up = lift.value;
-  lift.value = 0;
-  if (up < SHORT) return; // toque: o clique cuida
-  swallow = true;
-  window.setTimeout(() => (swallow = false), 400);
-  if (up >= LONG) openRecents();
-  else keyboardToggle();
-}
-function handleCancel() {
-  start = null;
-  lift.value = 0;
-}
-function handleClick() {
-  if (swallow) {
-    swallow = false;
-    return;
-  }
-  keyboardToggle();
-}
 </script>
 
 <template>
@@ -120,18 +70,7 @@ function handleClick() {
       <span>{{ item.label }}</span>
     </button>
   </nav>
-  <!-- a barrinha abre o teclado nos apps que não são do LUMNA (terminal, navegador...) -->
-  <button
-    class="handle-area"
-    aria-label="Teclado (deslize longo: apps recentes)"
-    @pointerdown="handleDown"
-    @pointermove="handleMove"
-    @pointerup="handleUp"
-    @pointercancel="handleCancel"
-    @click="handleClick"
-  >
-    <div class="handle" :class="{ long, hidden: keyboardOver }" :style="{ width: `${120 + Math.min(lift, LONG) * 0.5}px` }" />
-  </button>
+  <HandleStrip :hidden="keyboardOver" />
   </div>
 </template>
 
@@ -167,30 +106,5 @@ button {
 }
 button.on {
   color: var(--lumna-violet-soft);
-}
-/* a faixa inteira é a área de toque; a barrinha fica no meio dela */
-.handle-area {
-  width: 100%;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-.handle {
-  margin: 0 auto;
-  width: 120px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(236, 232, 255, 0.7);
-  transition: background 120ms ease;
-}
-.handle.hidden {
-  opacity: 0;
-}
-.handle.long {
-  background: var(--lumna-violet-soft);
 }
 </style>

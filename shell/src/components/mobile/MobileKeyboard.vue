@@ -9,6 +9,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
+import HandleStrip from "./HandleStrip.vue";
 import { clipboardRead, haptic, keyboardKey, keyboardShow, keyboardType, on } from "../../system";
 import { activeWindow } from "../../compositor";
 
@@ -517,7 +518,8 @@ onUnmounted(() => {
       <button @click="layout = layout === 'pt' ? 'en' : 'pt'"><Icon name="globe" :size="22" /> Trocar</button>
       <button @click="keyboardShow(false)"><Icon name="chevron-down" :size="22" /> Ocultar</button>
     </footer>
-    <div class="handle" />
+    <!-- a mesma barrinha da navegação, no mesmo lugar (o teclado vai até o fundo da tela) -->
+    <HandleStrip />
   </div>
 </template>
 
@@ -821,12 +823,5 @@ footer button {
   color: inherit;
   font: inherit;
   font-size: 14px;
-}
-.handle {
-  margin: 4px auto 6px;
-  width: 120px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(236, 232, 255, 0.7);
 }
 </style>
