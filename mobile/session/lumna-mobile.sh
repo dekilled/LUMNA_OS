@@ -41,6 +41,11 @@ fi
 sudo install -Dm644 "$ROOT/mobile/session/50-lumna-stop.conf" /etc/systemd/system.conf.d/50-lumna-stop.conf
 sudo install -Dm644 "$ROOT/mobile/session/50-lumna-stop.conf" /etc/systemd/user.conf.d/50-lumna-stop.conf
 
+# o rmtfs (EFS do modem) travava o desligar: o modem é desligado antes dele parar
+sudo install -Dm755 "$ROOT/mobile/session/rmtfs/modem-stop.sh" /usr/local/lib/lumna/modem-stop.sh
+sudo install -Dm644 "$ROOT/mobile/session/rmtfs/50-lumna.conf" /etc/systemd/system/rmtfs.service.d/50-lumna.conf
+sudo systemctl daemon-reload
+
 # o bootloader A/B precisa ouvir "liguei direitinho" a cada boot (senão desiste do slot)
 [ -x /usr/local/bin/qbootctl ] || sh "$ROOT/mobile/session/boot-ok.sh"
 
