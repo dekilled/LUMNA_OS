@@ -221,6 +221,8 @@ async function scrollDown() {
 let movedOn = false;
 
 function onEvent(event: EmmaEvent) {
+  // o popup do celular tem a conversa dele
+  if (event.channel && event.channel !== "app") return;
   switch (event.type) {
     case "delta":
       assistant().text += event.content;

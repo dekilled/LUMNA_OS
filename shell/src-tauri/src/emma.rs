@@ -34,6 +34,87 @@ struct Inner {
     access: Option<(String, Instant)>,
     /// Uma conversa por vez.
     busy: bool,
+    /// A conversa que está respondendo agora (para as confirmações irem pra ela).
+    current: Option<String>,
+    /// Última vez que o assistente (popup) conversou: depois de um tempo parado, começa outra.
+    assist_used: Option<Instant>,
+}
+
+/// De onde vem a mensagem: cada um tem a sua conversa no backend, e os eventos levam o nome
+/// (o app e o popup ouvem o mesmo `lumna://emma` e cada um fica com os seus).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    /// O app da Emma (e o painel do PC): a conversa longa, com histórico.
+    App,
+    /// O popup do assistente, por cima de qualquer tela.
+    Assist,
+    /// O popup com a tela bloqueada: conversa nova a cada vez, sem histórico, só ações seguras.
+    Lock,
+}
+
+impl Channel {
+    pub fn parse(name: Option<&str>) -> Channel {
+        match name {
+            Some("assist") => Channel::Assist,
+            Some("lock") => Channel::Lock,
+            _ => Channel::App,
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Channel::App => "app",
+            Channel::Assist => "assist",
+            Channel::Lock => "lock",
+        }
+    }
+    /// Chave da conversa no `emma.json`.
+    fn key(self) -> &'static str {
+        match self {
+            Channel::App => "session_id",
+            Channel::Assist => "assist_session_id",
+            Channel::Lock => "lock_session_id",
+        }
+    }
+}
+
+/// O popup volta pra uma conversa nova depois de 10 min sem uso (como o assistente do Android).
+const ASSIST_IDLE: Duration = Duration::from_secs(10 * 60);
+
+/// Ações que a Emma pode fazer com a tela bloqueada: nada que leia dados da pessoa ou mexa no
+/// que está aberto (quem fala pode não ser o dono do celular).
+pub const LOCK_SAFE: [&str; 6] = ["audio.volume", "audio.outputs", "audio.output", "media.control", "media.now_playing", "wifi.status"];
+
+/// Diretrizes da conversa do popup (vão no `system_prompt` da sessão): resposta curta e os
+/// botões de próximo passo, que o popup desenha (cartão principal, links e sugestões).
+const ASSIST_RULES: &str = "MODO ASSISTENTE (popup do LUMNA, por cima do que o usuário está fazendo): responda curto e direto, \
+em 1 a 3 frases, sem títulos nem listas longas. Se dá para resolver agora com uma ferramenta, use a ferramenta.\n\
+Quando houver próximos passos úteis, termine a resposta com linhas neste formato exato, cada uma na sua linha:\n\
+[acao: Adicionar layout]  -> o próximo passo principal (no máximo 1), curto como um botão\n\
+[link: Ver layouts instalados]  -> outra ação útil (no máximo 2)\n\
+[sugestao: Qual layout escolher?]  -> uma pergunta que o usuário pode querer fazer depois (no máximo 2)\n\
+Cada item vira um botão: ao tocar, o texto dele chega para você como a próxima mensagem do usuário. \
+Não use esse formato para mais nada e não ofereça botões quando a resposta já resolve tudo.";
+
+const LOCK_RULES: &str = "A TELA DO CELULAR ESTÁ BLOQUEADA: quem fala pode não ser o dono do aparelho. Não revele dados pessoais \
+(mensagens, contatos, arquivos, agenda, memórias, histórico de conversas) e não faça nada além das ferramentas disponíveis \
+agora (volume, mídia, Wi-Fi). Para o resto, peça para desbloquear o celular.";
+
+/// O que a pessoa está vendo, numa linha curta ("Ajustes • Teclado e entrada").
+fn context_line(context: &str) -> String {
+    context.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(160).collect()
+}
+
+fn session_prompt(channel: Channel, context: &str) -> String {
+    let mut prompt = ASSIST_RULES.to_string();
+    if channel == Channel::Lock {
+        prompt.push_str("\n\n");
+        prompt.push_str(LOCK_RULES);
+    }
+    let context = context_line(context);
+    if !context.is_empty() {
+        prompt.push_str(&format!("\n\nO usuário está vendo agora: {context}. Use isso quando a pergunta depender da tela (\"isso\", \"aqui\")."));
+    }
+    prompt
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,7 +172,7 @@ fn update_config(changes: &[(&str, Value)]) -> Result<(), String> {
     std::fs::rename(&tmp, config_path()).map_err(|e| e.to_string())
 }
 
-fn base_url() -> String {
+pub(crate) fn base_url() -> String {
     read_config().get("url").and_then(Value::as_str).unwrap_or(DEFAULT_URL).trim_end_matches('/').to_string()
 }
 
@@ -146,7 +227,7 @@ pub fn curl_config(method: &str, url: &str, token: Option<&str>, body: Option<&V
     config
 }
 
-fn curl(config: &str, extra: &[&str]) -> Result<std::process::Child, String> {
+pub(crate) fn curl(config: &str, extra: &[&str]) -> Result<std::process::Child, String> {
     let mut child = Command::new("curl")
         .args(["-sS", "--max-time", "900", "-K", "-"])
         .args(extra)
@@ -173,7 +254,7 @@ fn request(method: &str, path: &str, token: Option<&str>, body: Option<&Value>) 
     Ok((code, serde_json::from_str(body).unwrap_or(Value::Null)))
 }
 
-fn detail(body: &Value) -> String {
+pub(crate) fn detail(body: &Value) -> String {
     match &body["detail"] {
         Value::String(s) => s.clone(),
         Value::Null => String::new(),
@@ -183,7 +264,7 @@ fn detail(body: &Value) -> String {
 
 impl Emma {
     /// Token de acesso válido: o guardado, renovado pelo refresh token, ou um login com a conta local.
-    fn access_token(&self) -> Result<String, String> {
+    pub(crate) fn access_token(&self) -> Result<String, String> {
         if let Some((token, at)) = &self.0.lock().unwrap().access {
             if at.elapsed() < ACCESS_TTL {
                 return Ok(token.clone());
@@ -217,16 +298,27 @@ impl Emma {
         Ok(access)
     }
 
-    fn session(&self, token: &str) -> Result<String, String> {
-        if let Some(sid) = read_config().get("session_id").and_then(Value::as_str) {
+    fn session(&self, token: &str, channel: Channel) -> Result<String, String> {
+        let stale = channel == Channel::Assist && {
+            let mut inner = self.0.lock().unwrap();
+            let stale = inner.assist_used.is_some_and(|at| at.elapsed() > ASSIST_IDLE);
+            inner.assist_used = Some(Instant::now());
+            stale
+        };
+        if let Some(sid) = read_config().get(channel.key()).and_then(Value::as_str).filter(|_| !stale) {
             let (code, _) = request("GET", &format!("/api/sessions/{sid}/messages"), Some(token), None)?;
             if code == 200 {
                 return Ok(sid.to_string());
             }
         }
-        let (code, body) = request("POST", "/api/sessions", Some(token), Some(&json!({ "title": "LUMNA" })))?;
+        // as do popup ficam fora da lista de conversas do NewHarnessV2 até alguém responder nelas
+        let body = match channel {
+            Channel::App => json!({ "title": "LUMNA" }),
+            _ => json!({ "title": "LUMNA Assistente", "assist_log": true }),
+        };
+        let (code, body) = request("POST", "/api/sessions", Some(token), Some(&body))?;
         let sid = body["id"].as_str().filter(|_| code == 200).ok_or_else(|| format!("não deu para abrir a conversa ({code})"))?;
-        update_config(&[("session_id", json!(sid))])?;
+        update_config(&[(channel.key(), json!(sid))])?;
         Ok(sid.to_string())
     }
 }
@@ -241,8 +333,16 @@ fn now_local() -> String {
     Command::new("date").arg("+%Y-%m-%d %H:%M (%A) %z").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
 }
 
-fn emit(app: &AppHandle, event: &Value) {
-    let _ = app.emit("lumna://emma", event);
+fn emit(app: &AppHandle, channel: Channel, event: &Value) {
+    let mut event = event.clone();
+    if let Some(map) = event.as_object_mut() {
+        map.insert("channel".into(), json!(channel.name()));
+    }
+    let _ = app.emit("lumna://emma", &event);
+    // com a tela bloqueada ninguém confirma nada (nem pelo PC)
+    if channel == Channel::Lock {
+        return;
+    }
     // a Emma quer confirmar uma ação: os celulares do Connect também podem responder
     if event["type"] == "tool_confirm" {
         crate::remote::broadcast(json!({
@@ -254,18 +354,43 @@ fn emit(app: &AppHandle, event: &Value) {
     }
 }
 
+/// A tela do celular está bloqueada (no PC, nunca).
+fn locked() -> bool {
+    crate::mobilelock::is_locked()
+}
+
+/// O catálogo que vai pro backend: com a tela bloqueada, só as ações seguras.
+fn tools_for(lock: bool) -> Vec<Value> {
+    let tools = crate::actions::tool_defs();
+    if !lock {
+        return tools;
+    }
+    let safe: Vec<String> = LOCK_SAFE.iter().map(|n| crate::actions::tool_name(n)).collect();
+    tools.into_iter().filter(|t| t["name"].as_str().is_some_and(|n| safe.iter().any(|s| s == n))).collect()
+}
+
 /// Conversa uma mensagem inteira: manda, repassa os eventos ao painel e executa as ações.
 /// Devolve a resposta final da Emma.
-fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<String, String> {
+fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context: &str) -> Result<String, String> {
+    // tela bloqueada: vale o modo bloqueado, venha de onde vier
+    let channel = if locked() && channel != Channel::App { Channel::Lock } else { channel };
     let emma = app.state::<Emma>();
     let token = emma.access_token()?;
-    let sid = emma.session(&token)?;
+    let sid = emma.session(&token, channel)?;
+    emma.0.lock().unwrap().current = Some(sid.clone());
+    if channel != Channel::App {
+        // as regras do popup e a tela de agora (muda a cada mensagem)
+        let prompt = json!({ "system_prompt": session_prompt(channel, context) });
+        if let Err(err) = request("PATCH", &format!("/api/sessions/{sid}"), Some(&token), Some(&prompt)) {
+            eprintln!("lumna-shell: emma prompt do assistente: {err}");
+        }
+    }
     let body = json!({
         "content": text,
         "mode": "chat",
         "voice": voice,
         "client_now": now_local(),
-        "lumna_tools": crate::actions::tool_defs(),
+        "lumna_tools": tools_for(channel == Channel::Lock || locked()),
     });
     let url = format!("{}/api/sessions/{sid}/chat", base_url());
     let mut child = curl(&curl_config("POST", &url, Some(&token), Some(&body)), &["-N", "--fail-with-body"])?;
@@ -282,7 +407,12 @@ fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<String, String> 
             continue;
         };
         got_any = true;
-        emit(app, &event);
+        emit(app, channel, &event);
+        // bloqueado: o que pede confirmação (as ferramentas do próprio backend) é negado na hora
+        if event["type"] == "tool_confirm" && (channel == Channel::Lock || locked()) {
+            let decision = json!({ "call_id": event["tool"]["id"], "allow": false });
+            let _ = request("POST", &format!("/api/sessions/{sid}/tool-decision"), Some(&token), Some(&decision));
+        }
         if event["type"] == "done" {
             answer = event["message"]["content"].as_str().unwrap_or_default().to_string();
         }
@@ -291,9 +421,13 @@ fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<String, String> 
             let call_id = tool["id"].as_str().unwrap_or_default().to_string();
             let name = tool["name"].as_str().unwrap_or_default().to_string();
             let args = tool["args"].clone();
-            let outcome =
-                tauri::async_runtime::block_on(crate::actions::actions_run_tool(app.clone(), name, if args.is_null() { json!({}) } else { args }));
-            emit(app, &json!({ "type": "tool_ran", "id": call_id, "ok": outcome.ok, "summary": outcome.summary }));
+            let safe = crate::actions::from_tool_name(&name).is_some_and(|n| LOCK_SAFE.contains(&n));
+            let outcome = if locked() && !safe {
+                crate::actions::Outcome::fail("o celular está bloqueado: desbloqueie para a Emma fazer isso".to_string())
+            } else {
+                tauri::async_runtime::block_on(crate::actions::actions_run_tool(app.clone(), name, if args.is_null() { json!({}) } else { args }))
+            };
+            emit(app, channel, &json!({ "type": "tool_ran", "id": call_id, "ok": outcome.ok, "summary": outcome.summary }));
             let content: String = outcome.content.chars().take(4000).collect();
             let summary: String = outcome.summary.chars().take(300).collect();
             let result = json!({ "call_id": call_id, "ok": outcome.ok, "summary": summary, "content": content });
@@ -316,6 +450,7 @@ fn converse(app: &AppHandle, text: &str, voice: bool) -> Result<String, String> 
             format!("A Emma não respondeu em {}.", base_url())
         });
     }
+    emma.0.lock().unwrap().current = None;
     Ok(answer)
 }
 
@@ -336,7 +471,7 @@ fn exclusive<T>(app: &AppHandle, f: impl FnOnce() -> Result<T, String>) -> Resul
 
 /// Pede algo à Emma por fora do painel (passo "emma" de uma macro). Bloqueia até ela responder.
 pub fn ask(app: &AppHandle, text: &str) -> Result<String, String> {
-    exclusive(app, || converse(app, text, false))
+    exclusive(app, || converse(app, text, false, Channel::App, ""))
 }
 
 // ---- comandos do painel ----
@@ -377,20 +512,25 @@ pub async fn emma_logout(app: AppHandle) -> Result<(), String> {
     update_config(&[("refresh_token", Value::Null), ("session_id", Value::Null)])
 }
 
-/// Manda uma mensagem. A resposta chega aos poucos pelo evento `lumna://emma`.
+/// Manda uma mensagem. A resposta chega aos poucos pelo evento `lumna://emma` (com o `channel`).
+/// `channel`: "app" (padrão), "assist" (o popup); `context`: o que está na tela, pro popup.
 #[tauri::command]
-pub async fn emma_send(app: AppHandle, text: String, voice: bool) -> Result<(), String> {
+pub async fn emma_send(app: AppHandle, text: String, voice: bool, channel: Option<String>, context: Option<String>) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Ok(());
     }
+    let channel = Channel::parse(channel.as_deref());
+    let context = context.unwrap_or_default();
     let worker = app.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || exclusive(&worker, || converse(&worker, &text, voice).map(|_| ())))
-        .await
-        .map_err(|e| e.to_string())
-        .and_then(|r| r);
+    let result =
+        tauri::async_runtime::spawn_blocking(move || exclusive(&worker, || converse(&worker, &text, voice, channel, &context).map(|_| ())))
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|r| r);
     if let Err(err) = &result {
-        emit(&app, &json!({ "type": "error", "message": err }));
+        let channel = if locked() && channel != Channel::App { Channel::Lock } else { channel };
+        emit(&app, channel, &json!({ "type": "error", "message": err }));
     }
     result
 }
@@ -399,8 +539,13 @@ pub async fn emma_send(app: AppHandle, text: String, voice: bool) -> Result<(), 
 #[tauri::command]
 pub async fn emma_decide(app: AppHandle, call_id: String, allow: bool) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let token = app.state::<Emma>().access_token()?;
-        let sid = read_config().get("session_id").and_then(Value::as_str).ok_or("sem conversa aberta")?.to_string();
+        if locked() && allow {
+            return Err("desbloqueie o celular para permitir".into());
+        }
+        let emma = app.state::<Emma>();
+        let token = emma.access_token()?;
+        let current = emma.0.lock().unwrap().current.clone();
+        let sid = current.or_else(|| read_config().get("session_id").and_then(Value::as_str).map(str::to_string)).ok_or("sem conversa aberta")?;
         let (code, body) = request("POST", &format!("/api/sessions/{sid}/tool-decision"), Some(&token), Some(&json!({ "call_id": call_id, "allow": allow })))?;
         if code == 200 {
             Ok(())
@@ -414,15 +559,19 @@ pub async fn emma_decide(app: AppHandle, call_id: String, allow: bool) -> Result
 
 /// Começa uma conversa nova (a próxima mensagem abre outra sessão no backend).
 #[tauri::command]
-pub fn emma_new_conversation() -> Result<(), String> {
-    update_config(&[("session_id", Value::Null)])
+pub fn emma_new_conversation(channel: Option<String>) -> Result<(), String> {
+    update_config(&[(Channel::parse(channel.as_deref()).key(), Value::Null)])
 }
 
-/// Mensagens da conversa atual, para o painel abrir onde parou.
+/// Mensagens da conversa atual, para o painel abrir onde parou (bloqueado: nada).
 #[tauri::command]
-pub async fn emma_history(app: AppHandle) -> Vec<Value> {
+pub async fn emma_history(app: AppHandle, channel: Option<String>) -> Vec<Value> {
+    let channel = Channel::parse(channel.as_deref());
+    if channel == Channel::Lock || (locked() && channel == Channel::Assist) {
+        return Vec::new();
+    }
     tauri::async_runtime::spawn_blocking(move || {
-        let sid = read_config().get("session_id").and_then(Value::as_str)?.to_string();
+        let sid = read_config().get(channel.key()).and_then(Value::as_str)?.to_string();
         let token = app.state::<Emma>().access_token().ok()?;
         let (code, body) = request("GET", &format!("/api/sessions/{sid}/messages"), Some(&token), None).ok()?;
         let messages = body.as_array().filter(|_| code == 200)?;
@@ -489,6 +638,76 @@ pub async fn emma_set_provider(app: AppHandle, name: String, base_url: String, a
     .map_err(|e| e.to_string())?
 }
 
+/// Persona e voz (o Perfil do app da Emma): o `/api/settings` do backend, só com o que o app
+/// mostra. As chaves nunca voltam (o backend manda só `has_key`).
+#[tauri::command]
+pub async fn emma_settings(app: AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = app.state::<Emma>().access_token()?;
+        let (code, settings) = request("GET", "/api/settings", Some(&token), None)?;
+        if code != 200 {
+            return Err(detail(&settings));
+        }
+        let (_, local) = request("GET", "/api/local-voice", Some(&token), None).unwrap_or((0, Value::Null));
+        Ok(json!({
+            "personality": settings["personality"],
+            "system_prompt": settings["system_prompt"],
+            "voice": settings["voice"],
+            "local_voice": local,
+        }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Salva a persona e/ou a voz. `voice` vai como está (o backend junta com o que já tinha); só
+/// os campos conhecidos passam.
+#[tauri::command]
+pub async fn emma_save_settings(app: AppHandle, personality: Option<String>, system_prompt: Option<String>, voice: Option<Value>) -> Result<(), String> {
+    const VOICE_KEYS: [&str; 7] = ["api_key", "tts_engine", "stt_engine", "whisper_model", "local_voice", "voice_id", "auto_read"];
+    let mut body = Map::new();
+    if let Some(p) = personality {
+        body.insert("personality".into(), json!(p.chars().take(8000).collect::<String>()));
+    }
+    if let Some(p) = system_prompt {
+        body.insert("system_prompt".into(), json!(p.chars().take(8000).collect::<String>()));
+    }
+    if let Some(Value::Object(v)) = voice {
+        let v: Map<String, Value> = v.into_iter().filter(|(k, _)| VOICE_KEYS.contains(&k.as_str())).collect();
+        body.insert("voice".into(), Value::Object(v));
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = app.state::<Emma>().access_token()?;
+        let (code, reply) = request("PUT", "/api/settings", Some(&token), Some(&Value::Object(body)))?;
+        if code == 200 {
+            Ok(())
+        } else {
+            Err(detail(&reply))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Instala a voz local do backend (só no PC): "stt" (Whisper) ou "tts" (Pocket TTS).
+#[tauri::command]
+pub async fn emma_install_voice(app: AppHandle, what: String) -> Result<(), String> {
+    if !["stt", "tts"].contains(&what.as_str()) {
+        return Err("escolha stt ou tts".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let token = app.state::<Emma>().access_token()?;
+        let (code, reply) = request("POST", "/api/local-voice/install", Some(&token), Some(&json!({ "what": what })))?;
+        if code == 200 {
+            Ok(())
+        } else {
+            Err(detail(&reply))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Permissões das ações, para o Painel → Emma.
 #[derive(Debug, Clone, Serialize)]
 pub struct ActionPermission {
@@ -537,6 +756,17 @@ mod tests {
         // O JSON ({"content":"diz \"oi\"\\ agora"}) com cada \ e " escapados de novo para o curl.
         assert!(config.contains(r#"data-binary = "{\"content\":\"diz \\\"oi\\\"\\\\ agora\"}""#), "{config}");
         assert_eq!(curl_quote("a\nb"), "\"a\\nb\"");
+    }
+
+    #[test]
+    fn assist_prompt() {
+        let p = session_prompt(Channel::Assist, "Ajustes •\n Teclado   e entrada");
+        assert!(p.contains("[acao: "));
+        assert!(p.contains("O usuário está vendo agora: Ajustes • Teclado e entrada."));
+        assert!(!p.contains("BLOQUEADA"));
+        assert!(session_prompt(Channel::Lock, "").contains("BLOQUEADA"));
+        assert_eq!(Channel::parse(Some("assist")), Channel::Assist);
+        assert_eq!(Channel::parse(None), Channel::App);
     }
 
     #[test]

@@ -6,7 +6,7 @@ import {
   emmaPermissions,
   emmaSetPermission,
   emmaStatus,
-  toggleEmma,
+  emmaAppOpen,
   type ActionInfo,
   type ActionPermission,
   type EmmaStatus,
@@ -40,7 +40,7 @@ onMounted(async () => {
 <template>
   <div class="ms-scroll">
     <div class="ms-card">
-      <button class="ms-row" @click="toggleEmma()">
+      <button class="ms-row" @click="emmaAppOpen()">
         <span class="ico violet"><Icon name="mic" :size="26" /></span>
         <span class="txt">
           <strong>Emma</strong>

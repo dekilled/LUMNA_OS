@@ -40,6 +40,7 @@ mod system_info;
 mod tray;
 mod tv;
 mod vdf;
+mod voice;
 mod wallpaper;
 mod wifi;
 mod winmax;
@@ -612,6 +613,7 @@ pub fn launcher(app: &AppHandle, action: LauncherAction) -> Result<(), String> {
 /// Abre ou fecha o painel da Emma no monitor em foco (`Super + A`, botão do dock).
 pub fn emma_panel(app: &AppHandle, action: LauncherAction) -> Result<(), String> {
     let focused = app.state::<SharedCompositor>().monitors()?.into_iter().find(|m| m.focused);
+    let context = screen_context(app, focused.as_ref());
     let handle = app.clone();
     app.run_on_main_thread(move || {
         let open = match action {
@@ -624,12 +626,42 @@ pub fn emma_panel(app: &AppHandle, action: LauncherAction) -> Result<(), String>
                 layer::move_to_monitor_at("emma", monitor.x, monitor.y);
             }
             layer::set_visible("emma", true);
-            let _ = handle.emit_to("emma", "lumna://emma-opened", ());
+            let opened = serde_json::json!({ "context": context, "locked": mobilelock::is_locked() });
+            let _ = handle.emit_to("emma", "lumna://emma-opened", opened);
         } else {
             layer::set_visible("emma", false);
         }
     })
     .map_err(|e| e.to_string())
+}
+
+/// O que a pessoa está vendo, pro assistente ("Ajustes • Teclado e entrada", "Início").
+/// As janelas do LUMNA já têm o título nesse formato; as de fora viram "App • título".
+fn screen_context(app: &AppHandle, focused: Option<&Monitor>) -> String {
+    if mobilelock::is_locked() {
+        return "Tela bloqueada".into();
+    }
+    let compositor = app.state::<SharedCompositor>();
+    let window = compositor.active_window().ok().flatten().filter(|w| {
+        !w.workspace_name.starts_with("special:") && focused.is_none_or(|m| m.active_workspace == w.workspace)
+    });
+    let Some(w) = window else {
+        return if MOBILE.load(std::sync::atomic::Ordering::Relaxed) { "Início".into() } else { "Área de trabalho".into() };
+    };
+    let ours = w.pid == i64::from(std::process::id());
+    let title = w.title.trim();
+    let mut name = w.class.rsplit('.').next().unwrap_or(&w.class).replace(['-', '_'], " ");
+    if let Some(first) = name.get(..1) {
+        name = first.to_uppercase() + &name[1..];
+    }
+    let line = if ours || title.is_empty() || title.eq_ignore_ascii_case(&name) {
+        if title.is_empty() { name } else { title.to_string() }
+    } else {
+        // "Página — Mozilla Firefox": o nome do app já vem na frente
+        let title = title.rsplit_once(" — ").or_else(|| title.rsplit_once(" - ")).map_or(title, |(t, _)| t);
+        format!("{name} • {title}")
+    };
+    line.chars().take(120).collect()
 }
 
 #[tauri::command]
@@ -791,6 +823,37 @@ pub fn auth_layer(app: &AppHandle, request: Option<polkit::Request>) {
             }
         }
     });
+}
+
+/// Abre o app da Emma (conversa, ferramentas, provedores e perfil), na aba pedida.
+pub fn open_emma_app(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("emma-app") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(tab) = tab {
+            let _ = window.emit_to("emma-app", "lumna://emma-app-tab", tab);
+        }
+        return Ok(());
+    }
+    let url = format!("index.html#{}", tab.unwrap_or_default());
+    WebviewWindowBuilder::new(app, "emma-app", WebviewUrl::App(url.into()))
+        .initialization_script(&app_splash("Emma", "sparkle"))
+        .title("Emma")
+        .inner_size(app_size(app, (980.0, 720.0), false).0, app_size(app, (980.0, 720.0), false).1)
+        .background_color(tauri::window::Color(8, 6, 15, 255))
+        .min_inner_size(min_side(640.0), min_side(480.0))
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn emma_app_open(app: AppHandle, tab: Option<String>) -> Result<(), String> {
+    // o popup sai da frente (o app continua a conversa por lá)
+    let _ = emma_panel(&app, LauncherAction::Close);
+    open_emma_app(&app, tab)
 }
 
 /// Abre a Loja (janela comum), na aba pedida.
@@ -1422,7 +1485,10 @@ fn relayout_monitors(app: &AppHandle) {
 fn create_layer(app: &AppHandle, label: &str, monitor: &gtk::gdk::Monitor, spec: &LayerSpec) -> tauri::Result<()> {
     let geometry = monitor.geometry();
     app.state::<MonitorPositions>().0.lock().unwrap().insert(label.to_string(), (geometry.x(), geometry.y()));
+    // as peças do celular sabem que estão no celular antes da página carregar (o popup da Emma é outro)
+    let mobile = MOBILE.load(std::sync::atomic::Ordering::Relaxed);
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+        .initialization_script(if mobile { "window.__LUMNA_MOBILE = true;" } else { "" })
         .title(format!("LUMNA {label}"))
         .visible(false)
         .decorations(false)
@@ -1699,6 +1765,14 @@ fn main() {
             emma::emma_set_permission,
             emma::emma_providers,
             emma::emma_set_provider,
+            emma::emma_settings,
+            emma::emma_save_settings,
+            emma::emma_install_voice,
+            voice::emma_listen,
+            voice::emma_listen_stop,
+            voice::emma_speak,
+            voice::emma_speak_stop,
+            emma_app_open,
             automation::automation_overview,
             automation::automation_set_enabled,
             automation::automation_run_macro,
@@ -1718,12 +1792,13 @@ fn main() {
                 create_layer(app.handle(), "mobile-nav", &primary, &MOBILE_NAV)?;
                 create_layer(app.handle(), "mobile-edge-left", &primary, &MOBILE_EDGE_LEFT)?;
                 create_layer(app.handle(), "mobile-edge-right", &primary, &MOBILE_EDGE_RIGHT)?;
-                create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
                 create_layer(app.handle(), "notifications", &primary, &MOBILE_NOTIFICATIONS)?;
                 create_layer(app.handle(), "mobile-center", &primary, &MOBILE_CENTER)?;
                 create_layer(app.handle(), "mobile-recents", &primary, &MOBILE_RECENTS)?;
                 create_layer(app.handle(), "mobile-ask", &primary, &MOBILE_ASK)?;
                 create_layer(app.handle(), "mobile-lock", &primary, &MOBILE_LOCK)?;
+                // o assistente abre em qualquer lugar, até por cima do bloqueio (lá, só o seguro)
+                create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
                 // por último: fica por cima da Emma (as duas são Overlay)

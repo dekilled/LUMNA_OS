@@ -4,6 +4,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
 import {
+  toggleEmma,
   artUrl,
   lockUnlock,
   on,
@@ -156,6 +157,8 @@ onUnmounted(() => {
         <div class="time">{{ time }}</div>
         <div class="date">{{ date }}</div>
       </div>
+      <!-- a Emma atende bloqueada, só com o que é seguro (volume, mídia...) -->
+      <button class="ask" @click="toggleEmma()"><span class="gem small" /> Pergunte à Emma</button>
       <div class="bottom">
         <button class="round" :class="{ on: torch }" :disabled="torch == null" aria-label="Lanterna" @click="toggleTorch()">
           <Icon name="flashlight" :size="26" />
@@ -289,6 +292,27 @@ onUnmounted(() => {
   margin-top: 8px;
   color: #cfc6ee;
   font-size: 19px;
+}
+.ask {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: auto 0 22px;
+  padding: 11px 20px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  border-radius: 999px;
+  background: rgba(20, 16, 34, 0.7);
+  color: var(--lumna-text);
+  font-size: 15px;
+}
+.gem.small {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+.ask + .bottom {
+  margin-top: 0;
 }
 .bottom {
   margin-top: auto;

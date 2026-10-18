@@ -493,8 +493,12 @@ export interface EmmaTool {
   summary: string;
 }
 
+/** De onde vem a conversa: o app (e o painel do PC), o popup do assistente, ou o popup com a
+ * tela bloqueada. Cada um tem a sua conversa no backend. */
+export type EmmaChannel = "app" | "assist" | "lock";
+
 /** Eventos da conversa (`lumna://emma`): os do SSE do backend e `tool_ran` (a ação rodou aqui). */
-export type EmmaEvent =
+export type EmmaEvent = { channel?: EmmaChannel } & (
   | { type: "meta" }
   | { type: "delta"; content: string }
   | { type: "rewrite"; content: string }
@@ -504,7 +508,8 @@ export type EmmaEvent =
   | { type: "tool_ran"; id: string; ok: boolean; summary: string }
   | { type: "tool_end"; tool: EmmaTool }
   | { type: "done"; message: { content: string } }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+);
 
 export interface EmmaMessage {
   role: "user" | "assistant";
@@ -528,10 +533,60 @@ export const emmaStatus = () => invoke<EmmaStatus>("emma_status");
 export const emmaLogin = (url: string, email: string, password: string) =>
   invoke<void>("emma_login", { url, email, password });
 export const emmaLogout = () => invoke<void>("emma_logout");
-export const emmaSend = (text: string, voice = false) => invoke<void>("emma_send", { text, voice });
+export const emmaSend = (text: string, voice = false, channel: EmmaChannel = "app", context = "") =>
+  invoke<void>("emma_send", { text, voice, channel, context });
 export const emmaDecide = (callId: string, allow: boolean) => invoke<void>("emma_decide", { callId, allow });
-export const emmaNewConversation = () => invoke<void>("emma_new_conversation");
-export const emmaHistory = () => invoke<EmmaMessage[]>("emma_history");
+export const emmaNewConversation = (channel: EmmaChannel = "app") => invoke<void>("emma_new_conversation", { channel });
+export const emmaHistory = (channel: EmmaChannel = "app") => invoke<EmmaMessage[]>("emma_history", { channel });
+/** O app da Emma (conversa, ferramentas, provedores, perfil). */
+export const emmaAppOpen = (tab?: string) => invoke<void>("emma_app_open", { tab });
+
+/** `lumna://emma-opened`: o que estava na tela quando o assistente abriu. */
+export interface EmmaOpened {
+  context: string;
+  locked: boolean;
+}
+
+/** `lumna://emma-voice`: o microfone e a fala da Emma. */
+export type EmmaVoice =
+  | { state: "listening"; level: number; speech: boolean }
+  | { state: "transcribing" }
+  | { state: "heard"; text: string }
+  | { state: "idle" }
+  | { state: "speaking" }
+  | { state: "spoken" }
+  | { state: "error"; message: string };
+
+export const emmaListen = () => invoke<void>("emma_listen");
+export const emmaListenStop = (cancel = false) => invoke<void>("emma_listen_stop", { cancel });
+export const emmaSpeak = (text: string) => invoke<void>("emma_speak", { text });
+export const emmaSpeakStop = () => invoke<void>("emma_speak_stop");
+
+export interface EmmaVoiceSettings {
+  tts_engine: string;
+  stt_engine: string;
+  whisper_model: string;
+  local_voice: string;
+  voice_id: string;
+  auto_read: boolean;
+  has_key: boolean;
+  api_key_masked: string;
+  server_tts: boolean;
+  server_stt: boolean;
+}
+
+export interface EmmaSettings {
+  personality: string;
+  system_prompt: string;
+  voice: EmmaVoiceSettings;
+  /** `GET /api/local-voice` (só no PC): `available`, `stt.installed`, `tts.installed`, `job`... */
+  local_voice: { available?: boolean; stt?: { installed: boolean }; tts?: { installed: boolean }; job?: unknown } | null;
+}
+
+export const emmaSettings = () => invoke<EmmaSettings>("emma_settings");
+export const emmaSaveSettings = (changes: { personality?: string; systemPrompt?: string; voice?: Record<string, unknown> }) =>
+  invoke<void>("emma_save_settings", changes);
+export const emmaInstallVoice = (what: "stt" | "tts") => invoke<void>("emma_install_voice", { what });
 export interface ProviderPreset {
   preset: string;
   name: string;

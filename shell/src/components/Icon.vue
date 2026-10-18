@@ -90,6 +90,8 @@ const paths: Record<string, string> = {
   waves: "M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4",
   "arrow-left": "M19 12H5M11 6l-6 6 6 6",
   "arrow-right": "M5 12h14M13 6l6 6-6 6",
+  chat: "M4 5h16v11H10l-5 4v-4H4z",
+  "plus-circle": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v8M8 12h8",
   "arrow-up": "M12 19V5M6 11l6-6 6 6",
   "arrow-down": "M12 5v14M6 13l6 6 6-6",
   shift: "M12 4l8 8h-4v7H8v-7H4z",

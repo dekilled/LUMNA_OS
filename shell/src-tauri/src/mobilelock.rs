@@ -104,7 +104,8 @@ pub fn lock(app: &AppHandle) {
     LOCKED.store(true, Ordering::SeqCst);
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        for panel in ["mobile-center", "mobile-recents", "mobile-power"] {
+        // a Emma também sai: a conversa de antes do bloqueio não fica à mostra
+        for panel in ["mobile-center", "mobile-recents", "mobile-power", "emma"] {
             layer::set_visible(panel, false);
         }
         if layer::is_visible("keyboard") {
@@ -148,6 +149,11 @@ fn password_ok(password: &str) -> bool {
         let _ = stdin.write_all(&[0]);
     }
     child.wait().is_ok_and(|s| s.success())
+}
+
+/// A tela de bloqueio está na frente (a Emma só faz o que é seguro).
+pub fn is_locked() -> bool {
+    LOCKED.load(Ordering::SeqCst)
 }
 
 #[derive(Debug, Clone, Serialize)]

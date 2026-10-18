@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Emma
+Comment=Conversa, ferramentas, provedores e o perfil da assistente
+Exec=lumna-ctl emma app
+Icon=/usr/share/lumna/icons/emma.svg
+Categories=Utility;
+Keywords=emma;assistente;ia;chat;conversa;voz;lumna;

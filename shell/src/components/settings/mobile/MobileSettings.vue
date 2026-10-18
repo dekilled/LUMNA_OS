@@ -2,6 +2,7 @@
 // Ajustes no celular: a tela do esboço (busca, modo do sistema, Conexões, Seu LUMNA) e uma
 // página própria pra cada item, com voltar. As páginas que já servem no celular (Som, Dados
 // móveis, Sistema) são as mesmas do PC, dentro do cabeçalho daqui.
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { computed, ref, watch, type Component } from "vue";
 import Icon from "../../Icon.vue";
 import AudioPage from "../AudioPage.vue";
@@ -107,6 +108,16 @@ function open(page: MPage, arg?: string) {
 function back() {
   if (stack.value.length > 1) stack.value = stack.value.slice(0, -1);
 }
+// o título da janela diz onde a pessoa está ("Ajustes • Teclado e entrada"): a Emma lê isso
+// quando o assistente abre por cima
+watch(
+  current,
+  ([page]) => {
+    const title = page === "home" ? "Ajustes" : `Ajustes • ${TITLES[page]}`;
+    getCurrentWindow().setTitle(title).catch(() => {});
+  },
+  { immediate: true },
+);
 watch(
   () => props.start,
   (p) => {

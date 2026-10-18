@@ -67,6 +67,8 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         ["emma"] | ["emma", "toggle"] => crate::emma_panel(app, LauncherAction::Toggle),
         ["emma", "open"] => crate::emma_panel(app, LauncherAction::Open),
         ["emma", "close"] => crate::emma_panel(app, LauncherAction::Close),
+        ["emma", "app"] => crate::open_emma_app(app, None),
+        ["emma", "app", tab] => crate::open_emma_app(app, Some(tab.to_string())),
         ["store"] => crate::open_store(app, None),
         ["store", tab] => crate::open_store(app, Some(tab.to_string())),
         ["phone"] => crate::open_phone(app, None),
