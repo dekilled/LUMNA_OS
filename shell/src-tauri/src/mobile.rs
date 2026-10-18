@@ -34,6 +34,57 @@ const PANELS: [&str; 2] = ["mobile-center", "mobile-recents"];
 
 /// Abre, fecha (ou alterna, sem `show`) a central ou os recentes. Um fecha o outro, e o teclado
 /// sai da frente. O painel recebe `lumna://mobile-panel` pra se atualizar ao abrir.
+/// Celular: um app por vez, com animação. Mover uma janela do esconderijo (minimizada) pra tela
+/// não tem animação no Hyprland; trocar de área de trabalho tem (a "Minimizar e áreas" do modo
+/// desenvolvedor). Então: o app vai, sem ninguém ver, pra uma área vazia, e o LUMNA troca pra ela;
+/// pra Início, troca pra uma área vazia. Só depois o que ficou pra trás é guardado, cada janela no
+/// seu esconderijo (nunca redimensiona). `address` vazio = Início.
+#[tauri::command]
+pub async fn mobile_show(compositor: tauri::State<'_, SharedCompositor>, address: Option<String>) -> Result<(), String> {
+    let compositor = compositor.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || show_app(compositor.as_ref(), address.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn show_app(compositor: &dyn lumna_core::Compositor, address: Option<&str>) -> Result<(), String> {
+    let monitors = compositor.monitors()?;
+    let current = monitors.iter().find(|m| m.focused).or(monitors.first()).ok_or("nenhum monitor")?.active_workspace;
+    let windows = compositor.windows()?;
+    let on_screen = |ws: i64| windows.iter().any(|w| !w.minimized() && w.workspace == ws);
+    // uma área sem janela nenhuma (nem a atual)
+    let empty = (1..=9).find(|id| *id != current && !windows.iter().any(|w| w.workspace == *id)).unwrap_or(9);
+    let shown = match address {
+        None => {
+            if !on_screen(current) {
+                None
+            } else {
+                compositor.focus_workspace(empty)?;
+                None
+            }
+        }
+        Some(address) => {
+            let w = windows.iter().find(|w| w.address == address).ok_or("a janela já fechou")?;
+            let alone = !w.minimized() && w.workspace == current && windows.iter().filter(|o| !o.minimized() && o.workspace == current).count() == 1;
+            if !alone {
+                compositor.move_window(address, &empty.to_string())?;
+                compositor.focus_workspace(empty)?;
+            }
+            compositor.focus_window(address)?;
+            Some(address.to_string())
+        }
+    };
+    // o resto vai pro esconderijo, depois que a animação da troca terminou (no meio dela, o app
+    // que está saindo sumiria de repente)
+    std::thread::sleep(std::time::Duration::from_millis(450));
+    for w in compositor.windows()? {
+        if !w.minimized() && Some(&w.address) != shown.as_ref() {
+            compositor.move_window(&w.address, &lumna_core::minimized_workspace(&w.address))?;
+        }
+    }
+    Ok(())
+}
+
 /// Mostra as faixas das bordas (o gesto de voltar pra Início) só enquanto um app está aberto.
 #[tauri::command]
 pub fn mobile_edges(app: AppHandle, show: bool) {

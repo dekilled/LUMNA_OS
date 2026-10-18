@@ -4,8 +4,8 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
+import { showApp } from "./apps";
 import { apps, artUrl, desktopWallpaper, launchApp, on, toggleEmma, type App } from "../../system";
-import { isMinimized, windowControl, windows } from "../../compositor";
 
 const tab = ref<"inicio" | "apps">("inicio");
 const wallpaper = ref<string | null>(null);
@@ -35,7 +35,7 @@ async function open(app: App) {
   // um app por vez: o que estiver aberto sai da frente
   // (sem foto pros recentes aqui: o grim trava o compositor um instante a cada troca de app; a
   // miniatura é tirada ao abrir os recentes)
-  for (const w of await windows().catch(() => [])) if (!isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
+  await showApp().catch(() => {});
   await launchApp(app.id);
 }
 

@@ -16,7 +16,8 @@ import {
   type App,
   type Recent,
 } from "../../system";
-import { isMinimized, onCompositorEvent, windowControl, windows } from "../../compositor";
+import { onCompositorEvent, windowControl } from "../../compositor";
+import { showApp } from "./apps";
 
 const list = ref<Recent[]>([]);
 const memory = ref({ total: 0, available: 0 });
@@ -104,11 +105,9 @@ const close = () => mobilePanel("mobile-recents", false);
 
 // Abre o app do cartão: o que estava na frente sai, ele vem.
 async function open(r: Recent) {
-  for (const w of await windows().catch(() => [])) {
-    if (w.address !== r.address && !isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
-  }
-  await windowControl("focus", r.address).catch(() => {});
+  // troca animada (a janela já está desenhada: desliza inteira, sem flick)
   await close();
+  await showApp(r.address).catch(() => {});
 }
 
 async function closeApp(r: Recent) {

@@ -7,8 +7,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import Icon from "../Icon.vue";
 import { filesWindow, haptic, keyboardToggle, layerResize, mobileEdges, mobilePanel, on, recentsSnapshot, settingsOpen, toggleEmma } from "../../system";
-import { isMinimized, windowControl, windows } from "../../compositor";
-import { appUp, showHome, watchApps } from "./apps";
+import { windows } from "../../compositor";
+import { appUp, showApp, showHome, watchApps } from "./apps";
 
 type Tab = "inicio" | "apps" | "arquivos" | "ajustes" | "emma";
 const active = ref<Tab>("inicio");
@@ -44,9 +44,12 @@ async function bringUp(title: string, open: () => Promise<void>) {
   // (sem foto pros recentes aqui: o grim trava o compositor um instante a cada troca de app; a
   // miniatura é tirada ao abrir os recentes)
   appUp.value = true;
-  for (const w of list) if (w !== found && !isMinimized(w)) await windowControl("minimize", w.address).catch(() => {});
-  if (found) await windowControl("focus", found.address);
-  else await open();
+  // já aberto: vem com a troca animada; senão abre numa área vazia (a Início sai animada antes)
+  if (found) await showApp(found.address).catch(() => {});
+  else {
+    await showApp().catch(() => {});
+    await open();
+  }
 }
 
 async function go(tab: Tab) {
