@@ -341,7 +341,7 @@ onUnmounted(() => stops.forEach((s) => s()));
 
 <style scoped>
 .mf {
-  height: 100vh;
+  height: var(--app-h, 100vh);
   display: flex;
   flex-direction: column;
   background: #08060f;

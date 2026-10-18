@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { on } from "./system";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import AuthDialog from "./components/AuthDialog.vue";
 import Desktop from "./components/Desktop.vue";
@@ -41,6 +42,16 @@ const label = getCurrentWebviewWindow().label;
 // janela estreita (celular): os apps com layout próprio de celular
 // (o compositor pode redimensionar a janela depois de abrir: acompanha)
 const narrow = ref(window.innerWidth < 600);
+// Celular: nos campos do LUMNA o teclado fica por cima da janela (sem redimensionar = sem flick);
+// a página encolhe por dentro (--app-h) e o campo em foco rola pra ficar visível.
+if (["settings", "phone", "remote", "store", "installer"].includes(label) || label.startsWith("files-")) {
+  on<{ shown: boolean; lumna: boolean; height: number }>("lumna://keyboard", (k) => {
+    // a janela já termina 26 px acima da borda (a faixa da barrinha)
+    const inset = k.shown && k.lumna ? Math.max(0, k.height - 26) : 0;
+    document.documentElement.style.setProperty("--app-h", inset ? `calc(100vh - ${inset}px)` : "100vh");
+    if (inset) requestAnimationFrame(() => (document.activeElement as HTMLElement | null)?.scrollIntoView?.({ block: "center" }));
+  });
+}
 window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600));
 </script>
 

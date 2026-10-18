@@ -250,12 +250,7 @@ fn app_size(app: &AppHandle, desktop: (f64, f64), full: bool) -> (f64, f64) {
     match monitor {
         Some(m) if full => (m.width as f64, m.height as f64),
         // 36 da barra de status, 26 da faixa da barrinha (o dock some com o app aberto)
-        Some(m) => {
-            // a navegação já encolhe pra faixa da barrinha antes do app aparecer (senão o app
-            // abre acima do dock e pula 66 px quando ele some)
-            let _ = app.emit_to("mobile-nav", "lumna://app-opening", ());
-            (m.width as f64, (m.height - 36 - 26).max(200) as f64)
-        }
+        Some(m) => (m.width as f64, (m.height - 36 - 26).max(200) as f64),
         None => desktop,
     }
 }

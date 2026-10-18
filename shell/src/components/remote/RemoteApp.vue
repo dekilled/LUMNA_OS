@@ -197,7 +197,7 @@ onUnmounted(() => stops.forEach((s) => s()));
 
 <style scoped>
 .remote {
-  height: 100vh;
+  height: var(--app-h, 100vh);
   box-sizing: border-box;
   padding: 18px 20px 28px;
   display: flex;

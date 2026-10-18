@@ -196,7 +196,17 @@ pub fn place(label: &str, anchors: &[Edge], margin: i32, exclusive: Exclusive) {
             Exclusive::Auto => layer.auto_exclusive_zone_enable(),
             Exclusive::Ignore => layer.set_exclusive_zone(-1),
             Exclusive::None => layer.set_exclusive_zone(0),
-        Exclusive::Fixed(size) => layer.set_exclusive_zone(size),
+            Exclusive::Fixed(size) => layer.set_exclusive_zone(size),
         }
+    });
+}
+
+/// Troca só a reserva de espaço da camada (sem mexer nas bordas).
+pub fn set_exclusive(label: &str, exclusive: Exclusive) {
+    with_layer(label, |layer| match exclusive {
+        Exclusive::Auto => layer.auto_exclusive_zone_enable(),
+        Exclusive::Ignore => layer.set_exclusive_zone(-1),
+        Exclusive::None => layer.set_exclusive_zone(0),
+        Exclusive::Fixed(size) => layer.set_exclusive_zone(size),
     });
 }

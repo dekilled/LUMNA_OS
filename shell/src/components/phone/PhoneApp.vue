@@ -390,7 +390,7 @@ onUnmounted(() => stops.forEach((s) => s()));
 
 <style scoped>
 .phone {
-  height: 100vh;
+  height: var(--app-h, 100vh);
   box-sizing: border-box;
   padding: 14px 16px 10px;
   display: flex;

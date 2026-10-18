@@ -987,7 +987,7 @@ onUnmounted(() => {
 
 <style scoped>
 .files {
-  height: 100vh;
+  height: var(--app-h, 100vh);
   display: flex;
   flex-direction: column;
   background: rgba(16, 12, 30, 0.95);

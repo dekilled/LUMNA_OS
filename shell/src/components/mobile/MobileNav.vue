@@ -30,8 +30,6 @@ watch(appUp, (up) => {
 });
 onMounted(async () => {
   watchApps();
-  // um app do LUMNA está abrindo: some o dock antes dele aparecer (o compositor confirma depois)
-  await on("lumna://app-opening", () => (appUp.value = true));
   await on<string>("lumna://mobile-tab", (t) => (active.value = t as Tab));
 });
 
@@ -43,7 +41,6 @@ async function bringUp(title: string, open: () => Promise<void>) {
   const found = list.find((w) => w.title === title || w.title.endsWith(` · ${title}`));
   // (sem foto pros recentes aqui: o grim trava o compositor um instante a cada troca de app; a
   // miniatura é tirada ao abrir os recentes)
-  appUp.value = true;
   // já aberto: vem com a troca animada; senão abre numa área vazia (a Início sai animada antes)
   if (found) await showApp(found.address).catch(() => {});
   else {

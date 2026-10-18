@@ -3,9 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <title>LUMNA</title>
+    <!-- Abertura das janelas de app (como no Android): fundo do LUMNA e o ícone no meio, enquanto
+         o WebKit carrega. O Vue substitui o #app ao montar. As camadas (barras, painéis) não usam. -->
+    <style>
+      .lumna-splash { position: fixed; inset: 0; display: grid; place-items: center; background: #08060f; }
+      .lumna-splash span { width: 88px; height: 88px; display: grid; place-items: center; border-radius: 26px;
+        background: rgba(139, 92, 246, 0.18); color: #b9a2fb; animation: lumna-in 0.35s ease-out both; }
+      @keyframes lumna-in { from { opacity: 0; transform: scale(0.85); } }
+    </style>
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      (function () {
+        var label = (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.metadata && window.__TAURI_INTERNALS__.metadata.currentWindow.label) || "";
+        var icons = {
+          settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
+          files: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+          phone: "M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2",
+          remote: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 8.5v7l5.5-3.5z",
+          store: "M12 4v11M7 10l5 5 5-5M5 20h14",
+          installer: "M12 4v11M7 10l5 5 5-5M5 20h14",
+        };
+        var path = icons[label.indexOf("files-") === 0 ? "files" : label];
+        if (!path) return;
+        document.documentElement.style.background = "#08060f";
+        document.getElementById("app").innerHTML =
+          '<div class="lumna-splash"><span><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + path + '"/></svg></span></div>';
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

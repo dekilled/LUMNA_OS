@@ -128,11 +128,20 @@ pub fn keyboard_show(app: AppHandle, show: bool) -> Result<(), String> {
         if layer::is_visible("keyboard") == show {
             return;
         }
-        layer::set_visible("keyboard", show);
-        layer::set_visible("mobile-nav", !show);
         // lumna = o teclado abriu num campo do LUMNA (senão é num app de fora: terminal, editor...)
         let lumna = TARGET.lock().unwrap().is_some();
-        let _ = handle.emit("lumna://keyboard", json!({ "shown": show, "lumna": lumna }));
+        // Nos campos do LUMNA o teclado fica por cima, sem reservar espaço: a janela não muda de
+        // tamanho (cada redimensionamento faz o WebKit redesenhar = flick) e a própria página
+        // encolhe por dentro (lumna://keyboard). Apps de fora não sabem fazer isso: pra eles o
+        // teclado reserva o espaço, como antes.
+        if show {
+            layer::set_exclusive("keyboard", if lumna { layer::Exclusive::None } else { layer::Exclusive::Auto });
+        }
+        layer::set_visible("keyboard", show);
+        if !lumna {
+            layer::set_visible("mobile-nav", !show);
+        }
+        let _ = handle.emit("lumna://keyboard", json!({ "shown": show, "lumna": lumna, "height": 392 }));
     })
     .map_err(|e| e.to_string())
 }
