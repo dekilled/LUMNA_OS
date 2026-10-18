@@ -95,10 +95,12 @@ sed "s|^CARCH=.*|CARCH=\"aarch64\"|; s|^CHOST=.*|CHOST=\"aarch64-unknown-linux-g
 (
     cd "$work"
     # o PKGBUILD pula a compilação e só empacota os binários que já estão prontos
-    LUMNA_PREBUILT="$ROOT/target/$TARGET/release" PKGDEST="$OUT" \
+    # PKGEXT fixo: o makepkg.conf de algumas distros (Manjaro, Big Linux...) usa outra compressão
+    LUMNA_PREBUILT="$ROOT/target/$TARGET/release" PKGDEST="$OUT" PKGEXT=.pkg.tar.zst \
         makepkg --config "$work/makepkg.conf" -f --nodeps --noextract --nocheck --skipinteg
 )
-pkg=$(ls -t "$OUT"/lumna-shell-*-aarch64.pkg.tar.zst | head -1)
+pkg=$(ls -t "$OUT"/lumna-shell-*-aarch64.pkg.tar.* 2>/dev/null | head -1)
+[ -n "$pkg" ] || { ls -la "$OUT" "$work" >&2; die "o makepkg não deixou o pacote em $OUT (veja as mensagens dele acima)"; }
 echo "ok: $pkg"
 
 # ---- 4. (opcional) manda e instala no celular ----
