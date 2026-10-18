@@ -6,6 +6,8 @@ hl.env("XCURSOR_SIZE", "24")
 -- depois vem o quadro certo. Minimizar e voltar repete isso. Escala 3 fixa desde o primeiro
 -- quadro (o layout continua com 432 de largura; o Hyprland só reduz 3 -> 2.5).
 hl.env("GDK_SCALE", "3")
+-- tema escuro do GTK: a janela nasce escura (o branco do Adwaita claro aparecia antes do app)
+hl.env("GTK_THEME", "Adwaita:dark")
 hl.env("GDK_BACKEND", "wayland")
 hl.env("QT_QPA_PLATFORM", "wayland")
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland:LUMNA")

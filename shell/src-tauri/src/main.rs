@@ -255,6 +255,12 @@ fn app_size(app: &AppHandle, desktop: (f64, f64), full: bool) -> (f64, f64) {
     }
 }
 
+/// Tela de abertura das janelas de app (index.html desenha): o nome e o ícone ficam no `window`
+/// antes da página carregar, no lugar do branco do WebKit.
+fn app_splash(name: &str, icon: &str) -> String {
+    format!("window.__LUMNA_APP = {};", serde_json::json!({ "name": name, "icon": icon }))
+}
+
 fn min_side(desktop: f64) -> f64 {
     if MOBILE.load(std::sync::atomic::Ordering::Relaxed) { 200.0 } else { desktop }
 }
@@ -669,6 +675,7 @@ pub fn open_settings(app: &AppHandle, page: Option<String>) -> Result<(), String
     }
     let url = format!("index.html#{}", page.unwrap_or_default());
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
+        .initialization_script(&app_splash("Ajustes", "settings"))
         .title("Configurações")
         .inner_size(app_size(app, (1000.0, 680.0), false).0, app_size(app, (1000.0, 680.0), false).1)
         .background_color(tauri::window::Color(8, 6, 15, 255))
@@ -692,6 +699,7 @@ pub fn open_phone(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     }
     let url = format!("index.html#{}", tab.unwrap_or_default());
     WebviewWindowBuilder::new(app, "phone", WebviewUrl::App(url.into()))
+        .initialization_script(&app_splash("Telefone", "phone"))
         .title("Telefone")
         .inner_size(app_size(app, (420.0, 820.0), false).0, app_size(app, (420.0, 820.0), false).1)
         .background_color(tauri::window::Color(8, 6, 15, 255))
@@ -715,6 +723,7 @@ pub fn open_remote(app: &AppHandle, pc: Option<String>) -> Result<(), String> {
     }
     let url = format!("index.html#{}", pc.unwrap_or_default());
     WebviewWindowBuilder::new(app, "remote", WebviewUrl::App(url.into()))
+        .initialization_script(&app_splash("LUMNA Controle", "remote"))
         .title("LUMNA Controle")
         .inner_size(app_size(app, (420.0, 820.0), true).0, app_size(app, (420.0, 820.0), true).1)
         .background_color(tauri::window::Color(8, 6, 15, 255))
@@ -796,6 +805,7 @@ pub fn open_store(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     }
     let url = format!("index.html#{}", tab.unwrap_or_default());
     WebviewWindowBuilder::new(app, "store", WebviewUrl::App(url.into()))
+        .initialization_script(&app_splash("Loja", "store"))
         .title("Loja")
         .inner_size(app_size(app, (1100.0, 720.0), false).0, app_size(app, (1100.0, 720.0), false).1)
         .background_color(tauri::window::Color(8, 6, 15, 255))
@@ -823,6 +833,7 @@ pub fn open_files(app: &AppHandle, path: Option<String>) -> Result<(), String> {
         .map(|b| if b.is_ascii_alphanumeric() || b"/-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
         .collect();
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html#{fragment}").into()))
+        .initialization_script(&app_splash("Arquivos", "files"))
         .title("Arquivos")
         .inner_size(app_size(app, (1100.0, 700.0), false).0, app_size(app, (1100.0, 700.0), false).1)
         .background_color(tauri::window::Color(8, 6, 15, 255))
@@ -847,6 +858,7 @@ pub fn open_installer(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
     WebviewWindowBuilder::new(app, "installer", WebviewUrl::App("index.html".into()))
+        .initialization_script(&app_splash("Instalador", "installer"))
         .title("Instalar LUMNA OS")
         .inner_size(app_size(app, (980.0, 660.0), false).0, app_size(app, (980.0, 660.0), false).1)
         .background_color(tauri::window::Color(8, 6, 15, 255))
