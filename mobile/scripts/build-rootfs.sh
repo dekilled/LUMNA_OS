@@ -98,6 +98,10 @@ RULE
 # o botão power é do LUMNA (tocar bloqueia, segurar abre o menu), não do logind
 mkdir -p /etc/systemd/logind.conf.d
 printf '[Login]\nHandlePowerKey=ignore\nHandlePowerKeyLongPress=ignore\n' > /etc/systemd/logind.conf.d/50-lumna-power.conf
+# desligar/reiniciar sem esperar serviço travado: 10 s no máximo (sistema e sessão)
+mkdir -p /etc/systemd/system.conf.d /etc/systemd/user.conf.d
+printf '[Manager]\nDefaultTimeoutStopSec=10s\n' > /etc/systemd/system.conf.d/50-lumna-stop.conf
+printf '[Manager]\nDefaultTimeoutStopSec=10s\n' > /etc/systemd/user.conf.d/50-lumna-stop.conf
 # Rede USB fixa: o PC conversa com o celular em 172.16.42.1
 cat > /etc/NetworkManager/system-connections/usb0.nmconnection <<NM
 [connection]

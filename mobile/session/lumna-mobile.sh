@@ -37,6 +37,10 @@ else
     makepkg -sfi --nocheck --noconfirm
 fi
 
+# desligar/reiniciar sem esperar serviço travado ("A stop job is running..."): 10 s no máximo
+sudo install -Dm644 "$ROOT/mobile/session/50-lumna-stop.conf" /etc/systemd/system.conf.d/50-lumna-stop.conf
+sudo install -Dm644 "$ROOT/mobile/session/50-lumna-stop.conf" /etc/systemd/user.conf.d/50-lumna-stop.conf
+
 # o bootloader A/B precisa ouvir "liguei direitinho" a cada boot (senão desiste do slot)
 [ -x /usr/local/bin/qbootctl ] || sh "$ROOT/mobile/session/boot-ok.sh"
 
