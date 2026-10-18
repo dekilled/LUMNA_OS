@@ -122,5 +122,11 @@ editável (IP/DNS/proxy), VPN WireGuard, wallpaper por modo e videopaper.
 6. **Canal de teste:** publicar o `[lumna-teste]` pelo GitHub Actions (proposto), ou testar só
    pelo ISO de teste.
 7. **Editor** no Início: Mousepad, ou um editor próprio mais para frente.
-8. **Ícones dos apps:** no celular os ladrilhos têm ícones de traço coloridos (Notas amarelo, Música
-   rosa); nos mockups do PC são brancos. Escolher um só estilo para os dois.
+## 7. Decididas
+
+- **Ícones coloridos nos dois:** os ícones de traço do LUMNA ganham uma cor por app (Notas amarelo,
+  Música rosa, Arquivos lilás, Navegador azul, Emma verde-água), como no celular. No PC também, para
+  dar distinção e manter os dois layouts perto um do outro. As cores entram nos tokens.
+- **Celular sem piscar ao abrir:** hoje a janela aparece em pedaço, preenche a tela, corta e
+  preenche de novo. A janela tem que nascer do tamanho da tela (o primeiro quadro já certo) e só
+  aparecer quando estiver no lugar. Entra na etapa 6, mas o conserto da janela pode ir antes.
