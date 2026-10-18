@@ -17,7 +17,7 @@ sudo pacman -S --needed --noconfirm git meson ninja gcc zlib pkgconf
 src=$(mktemp -d)
 trap 'rm -rf "$src"' EXIT
 git clone -q --depth 1 https://github.com/linux-msm/qbootctl "$src"
-meson setup -q "$src/build" "$src" --prefix=/usr/local
+meson setup "$src/build" "$src" --prefix=/usr/local
 meson compile -C "$src/build"
 sudo install -Dm755 "$src/build/qbootctl" /usr/local/bin/qbootctl
 
