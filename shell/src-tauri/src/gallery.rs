@@ -116,6 +116,28 @@ pub fn list() -> Vec<Photo> {
     photos
 }
 
+/// Toca um vídeo no mpv, na tela toda (o player do WebKit não dá conta: fica preto). Sem mpv,
+/// abre no programa padrão.
+#[tauri::command]
+pub fn gallery_play(path: String) -> Result<(), String> {
+    if !Path::new(&path).is_file() {
+        return Err("o vídeo não existe mais".into());
+    }
+    let mpv = Command::new("mpv")
+        // os controles do mpv (play/pausa, a barra do tempo) sempre à vista e grandes pro dedo
+        .args(["--fs", "--force-window=yes", "--keep-open=no", "--hwdec=auto-safe", "--osd-level=1"])
+        .arg("--script-opts=osc-visibility=always,osc-scalefullscreen=2,osc-layout=bottombar")
+        .arg(&path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    if mpv.is_ok() {
+        return Ok(());
+    }
+    Command::new("xdg-open").arg(&path).spawn().map(|_| ()).map_err(|_| "instale o mpv pra tocar vídeos (sudo pacman -S mpv)".into())
+}
+
 #[tauri::command]
 pub async fn gallery_list(app: AppHandle) -> Vec<Photo> {
     for (root, _) in roots() {

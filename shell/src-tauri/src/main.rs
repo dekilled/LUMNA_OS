@@ -1840,6 +1840,7 @@ fn main() {
             emma_app_open,
             gallery_open,
             gallery::gallery_list,
+            gallery::gallery_play,
             capture::capture_start,
             capture::capture_save,
             capture::capture_cancel,

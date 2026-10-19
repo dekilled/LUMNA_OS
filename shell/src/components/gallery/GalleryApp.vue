@@ -12,6 +12,7 @@ import {
   filesThumb,
   filesTrash,
   galleryList,
+  galleryPlay,
   haptic,
   on,
   type ConnectTarget,
@@ -165,7 +166,20 @@ function mid() {
   return local((a.x + b.x) / 2, (a.y + b.y) / 2);
 }
 
+// O WebKitGTK do celular manda cada toque duas vezes: como dedo (touch) e como mouse de
+// compatibilidade. Contado duas vezes, um toque virava toque duplo (zoom) e um deslize virava
+// pinça. Depois de um toque, os eventos de mouse são ignorados por um tempo.
+let lastTouch = 0;
+function ignored(e: PointerEvent) {
+  if (e.pointerType === "touch") {
+    lastTouch = Date.now();
+    return false;
+  }
+  return Date.now() - lastTouch < 1000;
+}
+
 function pdown(e: PointerEvent) {
+  if (ignored(e)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -180,6 +194,7 @@ function pdown(e: PointerEvent) {
 }
 
 function pmove(e: PointerEvent) {
+  if (ignored(e)) return;
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinch && pointers.size >= 2) {
@@ -203,6 +218,7 @@ function pmove(e: PointerEvent) {
 }
 
 function pup(e: PointerEvent) {
+  if (ignored(e)) return;
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   if (pinch) {
@@ -251,6 +267,14 @@ function wheel(e: WheelEvent) {
 const transform = computed(() => `translate(${tx.value + slide.value}px, ${ty.value}px) scale(${scale.value})`);
 
 // ---- ações ----
+
+async function play(path: string) {
+  try {
+    await galleryPlay(path);
+  } catch (e) {
+    flash(String(e));
+  }
+}
 
 function flash(text: string) {
   message.value = text;
@@ -407,8 +431,10 @@ onUnmounted(() => {
     <!-- a foto na tela toda -->
     <div v-if="photo" class="viewer">
       <!-- vídeo: o player do WebKit, sem zoom nem deslizar (os controles dele usam o toque) -->
-      <div v-if="photo.video" class="stage">
-        <video :key="photo.path" class="full" :src="artUrl(photo.path) ?? ''" controls autoplay playsinline />
+      <!-- vídeo: a capa com o ▶; tocar abre no mpv (decodifica por hardware, toca qualquer formato) -->
+      <div v-if="photo.video" class="stage video" @click="chrome = !chrome">
+        <img v-if="thumbs.get(photo.path)" class="full" :src="thumbs.get(photo.path)" alt="" draggable="false" />
+        <button class="big-play" aria-label="Tocar" @click.stop="play(photo.path)"><Icon name="play" :size="56" /></button>
       </div>
       <div
         v-else
@@ -610,6 +636,21 @@ onUnmounted(() => {
   object-fit: contain;
   user-select: none;
   will-change: transform;
+}
+.stage.video .full {
+  opacity: 0.55;
+}
+.big-play {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(139, 92, 246, 0.85);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 .full.animating {
   transition: transform 200ms cubic-bezier(0.2, 0.9, 0.3, 1);

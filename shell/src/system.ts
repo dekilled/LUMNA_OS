@@ -561,6 +561,8 @@ export interface Frozen {
 
 export const galleryList = () => invoke<Photo[]>("gallery_list");
 export const galleryOpen = (path?: string) => invoke<void>("gallery_open", { path });
+/** Toca um vídeo no mpv, na tela toda. */
+export const galleryPlay = (path: string) => invoke<void>("gallery_play", { path });
 export const captureStart = () => invoke<void>("capture_start");
 /** A área em frações da foto (0..1). Devolve o caminho salvo (vazio se só copiou). */
 export const captureSave = (area: { x: number; y: number; w: number; h: number }, save: boolean, copy: boolean) =>
