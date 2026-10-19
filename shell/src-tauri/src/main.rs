@@ -202,6 +202,18 @@ const CAPTURE: LayerSpec = LayerSpec {
 /// Celular: sem prender o teclado (o LUMNA Keyboard não deve abrir por cima).
 const MOBILE_CAPTURE: LayerSpec = LayerSpec { keyboard: KeyboardMode::None, ..CAPTURE };
 
+/// Gravando a tela: a pílula com o tempo e o parar, no topo, no meio.
+const RECORDING: LayerSpec = LayerSpec {
+    namespace: "lumna-recording",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top],
+    margins: &[(Edge::Top, 44)],
+    keyboard: KeyboardMode::None,
+    exclusive: Exclusive::None,
+    size: (190, 44),
+    visible: false,
+};
+
 /// Menu do Wi-Fi: a tela toda (abaixo da topbar) para fechar com um clique fora do painel.
 /// Recebe o teclado quando clicado, para digitar a senha.
 const WIFI: LayerSpec = LayerSpec {
@@ -1827,6 +1839,8 @@ fn main() {
             capture::capture_start,
             capture::capture_save,
             capture::capture_cancel,
+            capture::capture_record,
+            capture::capture_record_stop,
             automation::automation_overview,
             automation::automation_set_enabled,
             automation::automation_run_macro,
@@ -1856,6 +1870,7 @@ fn main() {
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
                 create_layer(app.handle(), "capture", &primary, &MOBILE_CAPTURE)?;
+                create_layer(app.handle(), "recording", &primary, &RECORDING)?;
                 // por último: fica por cima da Emma (as duas são Overlay)
                 create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
                 forward_events(app.handle().clone(), compositor.clone());
@@ -1888,6 +1903,7 @@ fn main() {
             create_layer(app.handle(), "auth", &primary, &AUTH)?;
             create_layer(app.handle(), "emma", &primary, &EMMA)?;
             create_layer(app.handle(), "capture", &primary, &CAPTURE)?;
+            create_layer(app.handle(), "recording", &primary, &RECORDING)?;
 
             forward_events(app.handle().clone(), compositor.clone());
             status::watch(app.handle().clone());

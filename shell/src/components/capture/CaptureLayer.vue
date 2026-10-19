@@ -5,7 +5,7 @@
 // A área vai pro Rust em frações da foto: vale igual no celular (escala 2,5) e no PC.
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
-import { artUrl, captureCancel, captureSave, haptic, on, type Frozen } from "../../system";
+import { artUrl, captureCancel, captureRecord, captureSave, haptic, on, type Frozen } from "../../system";
 
 interface Area {
   x: number;
@@ -128,6 +128,21 @@ async function finish(save: boolean, copy: boolean) {
   }
 }
 
+async function record() {
+  if (busy.value) return;
+  busy.value = true;
+  error.value = "";
+  haptic(25).catch(() => {});
+  try {
+    await captureRecord(area.value);
+    shot.value = null;
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    busy.value = false;
+  }
+}
+
 function cancel() {
   shot.value = null;
   captureCancel().catch(() => {});
@@ -176,8 +191,9 @@ const HANDLES: Mode[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
     <div class="bar" @pointerdown.stop>
       <button class="round" aria-label="Cancelar" @click="cancel()"><Icon name="close" :size="22" /></button>
-      <button class="pill" :disabled="full" @click="wholeScreen()"><Icon name="screens" :size="18" /> Tela toda</button>
+      <button class="pill" :disabled="full" @click="wholeScreen()"><Icon name="screens" :size="18" /><span class="wide">Tela toda</span></button>
       <button class="pill" :disabled="busy" @click="finish(false, true)"><Icon name="copy" :size="18" /> Copiar</button>
+      <button class="pill rec" :disabled="busy" @click="record()"><span class="dot" /> Gravar</button>
       <button class="pill primary" :disabled="busy" @click="finish(true, false)"><Icon name="check" :size="18" /> Salvar</button>
     </div>
     <p v-if="error" class="error" @pointerdown.stop>{{ error }}</p>
@@ -282,8 +298,23 @@ const HANDLES: Mode[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 .round {
   width: 44px;
 }
+/* celular: os botões cabem sem o texto do "Tela toda" */
+@media (max-width: 480px) {
+  .wide {
+    display: none;
+  }
+  .pill {
+    padding: 0 12px;
+  }
+}
 .pill {
   padding: 0 14px;
+}
+.pill.rec .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ef4444;
 }
 .pill.primary {
   background: linear-gradient(135deg, #8b5cf6, #6d28d9);

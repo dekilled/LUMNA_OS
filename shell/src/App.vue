@@ -10,6 +10,7 @@ import EmmaAssist from "./components/emma/EmmaAssist.vue";
 import EmmaApp from "./components/emma/EmmaApp.vue";
 import GalleryApp from "./components/gallery/GalleryApp.vue";
 import CaptureLayer from "./components/capture/CaptureLayer.vue";
+import RecordingPill from "./components/capture/RecordingPill.vue";
 import FilesApp from "./components/files/FilesApp.vue";
 import MobileFiles from "./components/files/MobileFiles.vue";
 import GreeterApp from "./components/GreeterApp.vue";
@@ -81,6 +82,7 @@ window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600)
   <EmmaApp v-else-if="label === 'emma-app'" />
   <GalleryApp v-else-if="label === 'gallery'" />
   <CaptureLayer v-else-if="label === 'capture'" />
+  <RecordingPill v-else-if="label === 'recording'" />
   <SettingsApp v-else-if="label === 'settings'" />
   <StoreApp v-else-if="label === 'store'" />
   <AuthDialog v-else-if="label === 'auth'" />

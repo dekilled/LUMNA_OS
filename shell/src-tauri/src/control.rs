@@ -68,6 +68,7 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         ["emma", "open"] => crate::emma_panel(app, LauncherAction::Open),
         ["emma", "close"] => crate::emma_panel(app, LauncherAction::Close),
         ["capture"] | ["captura"] => crate::capture::start(app),
+        ["capture", "stop"] | ["captura", "parar"] => crate::capture::stop_recording(app).map(|_| ()),
         ["gallery"] | ["galeria"] => crate::open_gallery(app, None),
         ["gallery", path] | ["galeria", path] => crate::open_gallery(app, Some(path.to_string())),
         ["emma", "app"] => crate::open_emma_app(app, None),

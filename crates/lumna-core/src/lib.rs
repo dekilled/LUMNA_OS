@@ -14,7 +14,7 @@ pub struct Workspace {
     pub windows: u32,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
 pub struct Monitor {
     pub id: i64,
     pub name: String,

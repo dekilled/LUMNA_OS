@@ -9,6 +9,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 const EXTS: [&str; 6] = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
+const VIDEO_EXTS: [&str; 4] = ["mp4", "webm", "mkv", "mov"];
 /// Até onde descer nas pastas (Imagens/Viagem/2026 ainda entra).
 const DEPTH: usize = 3;
 const MAX: usize = 5000;
@@ -22,6 +23,12 @@ pub struct Photo {
     /// Segundos Unix (modificação).
     pub time: i64,
     pub size: u64,
+    /// Vídeo (as gravações de tela, os da câmera).
+    pub video: bool,
+}
+
+fn is_video(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| VIDEO_EXTS.contains(&e.to_ascii_lowercase().as_str()))
 }
 
 fn home() -> PathBuf {
@@ -41,7 +48,7 @@ fn pictures() -> PathBuf {
 
 /// As pastas da galeria, com o nome do álbum de quem está direto nelas.
 pub fn roots() -> Vec<(PathBuf, &'static str)> {
-    let mut out = vec![(pictures(), "Imagens")];
+    let mut out = vec![(pictures(), "Imagens"), (crate::capture::records_dir(), "Gravações")];
     for dcim in [home().join("DCIM"), pictures().join("DCIM")] {
         if dcim.is_dir() && !out.iter().any(|(p, _)| *p == dcim) {
             out.push((dcim, "Câmera"));
@@ -76,7 +83,7 @@ fn walk(dir: &Path, depth: usize, found: &mut Vec<PathBuf>) {
             if depth > 0 {
                 walk(&path, depth - 1, found);
             }
-        } else if path.extension().and_then(|e| e.to_str()).is_some_and(|e| EXTS.contains(&e.to_ascii_lowercase().as_str())) {
+        } else if is_video(&path) || path.extension().and_then(|e| e.to_str()).is_some_and(|e| EXTS.contains(&e.to_ascii_lowercase().as_str())) {
             found.push(path);
         }
         if found.len() >= MAX * 2 {
@@ -99,6 +106,7 @@ pub fn list() -> Vec<Photo> {
                 path: path.to_string_lossy().into_owned(),
                 time,
                 size: meta.len(),
+                video: is_video(&path),
             });
         }
     }
@@ -133,14 +141,14 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("lumna-gal-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("Capturas")).unwrap();
         std::fs::create_dir_all(dir.join(".escondida")).unwrap();
-        for f in ["a.PNG", "b.txt", "Capturas/c.jpg", ".escondida/d.png"] {
+        for f in ["a.PNG", "b.txt", "Capturas/c.jpg", ".escondida/d.png", "e.mp4"] {
             std::fs::write(dir.join(f), b"x").unwrap();
         }
         let mut found = Vec::new();
         walk(&dir, DEPTH, &mut found);
         let mut names: Vec<_> = found.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
         names.sort();
-        assert_eq!(names, ["a.PNG", "c.jpg"]);
+        assert_eq!(names, ["a.PNG", "c.jpg", "e.mp4"]);
         std::fs::remove_dir_all(&dir).ok();
     }
 }

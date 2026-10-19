@@ -21,7 +21,8 @@ if [ "$livre" -lt 15 ]; then
 fi
 
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
-    hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils hypridle
+    hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils hypridle \
+    wf-recorder gst-plugins-good gst-libav
 
 # O perfil release do LUMNA usa LTO com 1 codegen unit: o último passo (o próprio lumna-shell) roda
 # num núcleo só e leva uns 30 min no 6T. Pra testar mudanças: LUMNA_RAPIDO=1 sh lumna-mobile.sh

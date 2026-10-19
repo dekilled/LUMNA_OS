@@ -549,6 +549,8 @@ export interface Photo {
   /** Segundos Unix. */
   time: number;
   size: number;
+  /** Vídeo (gravação de tela, câmera). */
+  video: boolean;
 }
 
 export interface Frozen {
@@ -564,6 +566,9 @@ export const captureStart = () => invoke<void>("capture_start");
 export const captureSave = (area: { x: number; y: number; w: number; h: number }, save: boolean, copy: boolean) =>
   invoke<string>("capture_save", { ...area, save, copy });
 export const captureCancel = () => invoke<void>("capture_cancel");
+/** Grava a área (frações) até parar; `lumna://recording` diz o tempo. */
+export const captureRecord = (area: { x: number; y: number; w: number; h: number }) => invoke<void>("capture_record", area);
+export const captureRecordStop = () => invoke<string>("capture_record_stop");
 
 export const emmaAppOpen = (tab?: string) => invoke<void>("emma_app_open", { tab });
 

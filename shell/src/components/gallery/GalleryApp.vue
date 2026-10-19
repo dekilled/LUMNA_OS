@@ -36,7 +36,7 @@ const natural = ref({ w: 0, h: 0 });
 const albums = computed(() => {
   const count = new Map<string, number>();
   for (const p of photos.value) count.set(p.album, (count.get(p.album) ?? 0) + 1);
-  const order = ["Câmera", "Capturas", "Imagens"];
+  const order = ["Câmera", "Capturas", "Gravações", "Imagens"];
   const names = [...count.keys()].sort((a, b) => {
     const ia = order.indexOf(a);
     const ib = order.indexOf(b);
@@ -80,7 +80,9 @@ async function loadThumb(path: string) {
   if (thumbs.value.has(path)) return;
   thumbs.value.set(path, "");
   const thumb = await filesThumb(path).catch(() => null);
-  thumbs.value.set(path, artUrl(thumb ?? path) ?? "");
+  // vídeo sem miniatura (sem ffmpeg): fica o quadrado com o ▶
+  const video = photos.value.find((p) => p.path === path)?.video;
+  thumbs.value.set(path, thumb ? (artUrl(thumb) ?? "") : video ? "" : (artUrl(path) ?? ""));
   thumbs.value = new Map(thumbs.value);
 }
 
@@ -382,7 +384,7 @@ onUnmounted(() => {
       <p v-if="loading" class="empty">Procurando fotos…</p>
       <div v-else-if="!shown.length" class="empty">
         <Icon name="image" :size="40" />
-        <p>Nenhuma foto ainda. As capturas de tela vão para Imagens/Capturas.</p>
+        <p>Nenhuma foto ainda. As capturas de tela vão para Imagens/Capturas e as gravações para Vídeos/Gravações.</p>
       </div>
       <section v-for="day in days" :key="day.label" class="day">
         <h2>{{ day.label }}</h2>
@@ -396,6 +398,7 @@ onUnmounted(() => {
             @click="open(item.index)"
           >
             <img v-if="thumbs.get(item.photo.path)" :src="thumbs.get(item.photo.path)" alt="" loading="lazy" draggable="false" />
+            <span v-if="item.photo.video" class="play"><Icon name="play" :size="22" /></span>
           </button>
         </div>
       </section>
@@ -403,7 +406,12 @@ onUnmounted(() => {
 
     <!-- a foto na tela toda -->
     <div v-if="photo" class="viewer">
+      <!-- vídeo: o player do WebKit, sem zoom nem deslizar (os controles dele usam o toque) -->
+      <div v-if="photo.video" class="stage">
+        <video :key="photo.path" class="full" :src="artUrl(photo.path) ?? ''" controls autoplay playsinline />
+      </div>
       <div
+        v-else
         ref="stage"
         class="stage"
         @pointerdown="pdown"
@@ -454,8 +462,8 @@ onUnmounted(() => {
         </button>
       </footer>
 
-      <button v-if="!narrow && chrome && (current ?? 0) > 0" class="nav prev" aria-label="Anterior" @click="go(-1)"><Icon name="back" :size="28" /></button>
-      <button v-if="!narrow && chrome && (current ?? 0) < shown.length - 1" class="nav next" aria-label="Próxima" @click="go(1)">
+      <button v-if="(!narrow || photo.video) && chrome && (current ?? 0) > 0" class="nav prev" aria-label="Anterior" @click="go(-1)"><Icon name="back" :size="28" /></button>
+      <button v-if="(!narrow || photo.video) && chrome && (current ?? 0) < shown.length - 1" class="nav next" aria-label="Próxima" @click="go(1)">
         <Icon name="forward" :size="28" />
       </button>
     </div>
@@ -553,6 +561,17 @@ onUnmounted(() => {
 }
 .narrow .cell {
   border-radius: 0;
+}
+.cell {
+  position: relative;
+}
+.play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
 }
 .cell img {
   width: 100%;
