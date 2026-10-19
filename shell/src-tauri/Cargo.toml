@@ -15,6 +15,7 @@ serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["protocol-asset"] }
 gtk = "0.18"
+webkit2gtk = "2.0"
 gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
 base64 = "0.22"
 png = "0.17"

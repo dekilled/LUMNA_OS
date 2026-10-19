@@ -1606,6 +1606,27 @@ fn create_layer(app: &AppHandle, label: &str, monitor: &gtk::gdk::Monitor, spec:
     })
 }
 
+/// O pisca das animações. O WebKitGTK (GTK3) desenha com a GPU só "sob demanda": a página vai sem
+/// aceleração e, quando uma animação começa (transform, opacity, will-change), ele troca pro modo
+/// acelerado, e troca de volta quando ela acaba. Cada troca refaz a superfície e mostra um quadro
+/// vazio ou velho. Sempre acelerado, não há troca. `LUMNA_ACELERACAO=sob-demanda` ou `nunca` volta
+/// atrás (pra testar uma GPU que se dê mal com isso).
+fn accelerate<R: tauri::Runtime>(webview: &tauri::Webview<R>) {
+    use webkit2gtk::{HardwareAccelerationPolicy as Policy, SettingsExt, WebViewExt};
+    let policy = match std::env::var("LUMNA_ACELERACAO").as_deref() {
+        Ok("sob-demanda") => Policy::OnDemand,
+        Ok("nunca") => Policy::Never,
+        _ => Policy::Always,
+    };
+    let _ = webview.with_webview(move |w| {
+        if let Some(settings) = WebViewExt::settings(&w.inner()) {
+            if settings.hardware_acceleration_policy() != policy {
+                settings.set_hardware_acceleration_policy(policy);
+            }
+        }
+    });
+}
+
 fn main() {
     let greeter_mode = std::env::args().any(|a| a == "--greeter");
     let mobile_mode = std::env::args().any(|a| a == "--mobile");
@@ -1619,6 +1640,7 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .on_page_load(|webview, _| accelerate(webview))
         .manage(compositor.clone())
         .manage(AppsCache::default())
         .manage(GamesCache::default())
