@@ -746,7 +746,8 @@ fn persona_keys(settings: &Value) -> (&'static str, &'static str) {
 /// os campos conhecidos passam.
 #[tauri::command]
 pub async fn emma_save_settings(app: AppHandle, personality: Option<String>, system_prompt: Option<String>, voice: Option<Value>) -> Result<(), String> {
-    const VOICE_KEYS: [&str; 7] = ["api_key", "tts_engine", "stt_engine", "whisper_model", "local_voice", "voice_id", "auto_read"];
+    const VOICE_KEYS: [&str; 10] =
+        ["api_key", "tts_engine", "stt_engine", "whisper_model", "local_voice", "voice_id", "tts_model", "asr_model", "language", "auto_read"];
     tauri::async_runtime::spawn_blocking(move || {
         let emma = app.state::<Emma>();
         // o perfil em uso decide em que campos a persona vai

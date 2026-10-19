@@ -376,6 +376,9 @@ const profile = ref({
   tts: "fish",
   stt: "fish",
   voiceId: "",
+  ttsModel: "",
+  asrModel: "",
+  language: "",
   apiKey: "",
   autoRead: false,
   busy: false,
@@ -395,6 +398,9 @@ async function loadProfile() {
       tts: s.voice?.tts_engine || "fish",
       stt: s.voice?.stt_engine || "fish",
       voiceId: s.voice?.voice_id ?? "",
+      ttsModel: s.voice?.tts_model ?? "",
+      asrModel: s.voice?.asr_model ?? "",
+      language: s.voice?.language ?? "",
       autoRead: !!s.voice?.auto_read,
       apiKey: "",
     });
@@ -410,7 +416,15 @@ async function saveProfile() {
   p.error = "";
   p.saved = false;
   try {
-    const voice: Record<string, unknown> = { tts_engine: p.tts, stt_engine: p.stt, voice_id: p.voiceId.trim(), auto_read: p.autoRead };
+    const voice: Record<string, unknown> = {
+      tts_engine: p.tts,
+      stt_engine: p.stt,
+      voice_id: p.voiceId.trim(),
+      tts_model: p.ttsModel.trim(),
+      asr_model: p.asrModel.trim(),
+      language: p.language.trim(),
+      auto_read: p.autoRead,
+    };
     if (p.apiKey.trim()) voice.api_key = p.apiKey.trim();
     await emmaSaveSettings({ personality: p.personality, systemPrompt: p.systemPrompt, voice });
     p.saved = true;
@@ -684,6 +698,15 @@ onUnmounted(() => {
             />
           </label>
           <label>Voz (reference id)<input v-model="profile.voiceId" spellcheck="false" placeholder="o id da voz no Fish Audio" /></label>
+          <label>
+            Modelo de voz (falar)
+            <input v-model="profile.ttsModel" spellcheck="false" placeholder="o modelo do Fish Audio, como está na sua conta" />
+          </label>
+          <label>
+            Modelo de transcrição (ouvir)
+            <input v-model="profile.asrModel" spellcheck="false" placeholder="vazio = o padrão do Fish Audio" />
+          </label>
+          <label>Idioma<input v-model="profile.language" spellcheck="false" placeholder="pt" /></label>
         </template>
         <div v-if="profile.tts === 'local' || profile.stt === 'local'" class="local">
           <p v-if="settings?.local_voice?.available === false" class="hint">

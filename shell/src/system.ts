@@ -570,6 +570,10 @@ export interface EmmaVoiceSettings {
   whisper_model: string;
   local_voice: string;
   voice_id: string;
+  /** Modelo do Fish Audio (vai no cabeçalho `model`): o de falar e o de ouvir. */
+  tts_model: string;
+  asr_model: string;
+  language: string;
   auto_read: boolean;
   has_key: boolean;
   api_key_masked: string;
