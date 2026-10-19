@@ -124,6 +124,9 @@ const output = ref<AudioNode | null>(null);
 const power = ref<PowerState | null>(null);
 const brightness = ref(50);
 const volume = ref(50);
+/** Os apps tocando som agora (volume de cada um: o WirePlumber lembra na próxima vez). */
+const apps = ref<AudioNode[]>([]);
+const appsOpen = ref(false);
 const editing = ref(false);
 const powerOpen = ref(false);
 const error = ref("");
@@ -266,6 +269,9 @@ async function refresh() {
   wifi.value = w;
   bt.value = b;
   output.value = a?.outputs.find((o) => o.default) ?? a?.outputs[0] ?? null;
+  // enquanto arrasta um, a lista não troca debaixo do dedo
+  if (!sliding) apps.value = a?.apps ?? [];
+  if (!apps.value.length) appsOpen.value = false;
   power.value = p;
   sys.value = s;
   if (q?.brightness != null && !sliding) brightness.value = q.brightness;
@@ -332,6 +338,24 @@ function setVolume() {
     if (output.value) audioSetVolume(output.value.id, volume.value).catch((e) => (error.value = String(e)));
     sliding = false;
   }, 40);
+}
+
+const appTimers = new Map<number, number>();
+function setAppVolume(app: AudioNode, value: number) {
+  app.volume = value;
+  sliding = true;
+  clearTimeout(appTimers.get(app.id));
+  appTimers.set(
+    app.id,
+    window.setTimeout(() => {
+      audioSetVolume(app.id, value).catch((e) => (error.value = String(e)));
+      sliding = false;
+    }, 40),
+  );
+}
+async function muteApp(app: AudioNode) {
+  app.muted = !app.muted;
+  await audioToggleMute(app.id).catch((e) => (error.value = String(e)));
 }
 
 async function openSettings(page?: SettingsPage) {
@@ -514,7 +538,28 @@ onUnmounted(() => {
             <small>Volume</small>
             <input v-model.number="volume" type="range" min="0" max="100" :disabled="!output" @input="setVolume" />
           </span>
+          <button
+            v-if="apps.length"
+            class="apps-toggle"
+            :class="{ on: appsOpen }"
+            :aria-label="appsOpen ? 'Esconder o volume dos apps' : 'Volume de cada app'"
+            @click.prevent="appsOpen = !appsOpen"
+          >
+            <Icon :name="appsOpen ? 'chevron-up' : 'chevron-down'" :size="20" />
+            <small>{{ apps.length }}</small>
+          </button>
         </label>
+        <div v-if="appsOpen" class="app-volumes">
+          <div v-for="a in apps" :key="a.id" class="app-volume">
+            <button class="mute" :class="{ muted: a.muted }" :aria-label="a.muted ? `Ligar o som de ${a.name}` : `Silenciar ${a.name}`" @click="muteApp(a)">
+              <Icon :name="a.muted ? 'mute' : 'volume'" :size="20" />
+            </button>
+            <span>
+              <small>{{ a.name }}</small>
+              <input type="range" min="0" max="100" :value="Math.min(100, a.volume)" @input="setAppVolume(a, +($event.target as HTMLInputElement).value)" />
+            </span>
+          </div>
+        </div>
 
         <button class="emma" @click="askEmma()">
           <span class="emma-icon"><Icon name="mic" :size="24" /></span>
@@ -824,6 +869,61 @@ onUnmounted(() => {
   gap: 14px;
   border-radius: 18px;
   background: rgba(24, 21, 32, 0.92);
+}
+.apps-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--lumna-violet-soft);
+}
+.apps-toggle small {
+  color: inherit;
+}
+.apps-toggle.on {
+  background: rgba(167, 139, 250, 0.24);
+}
+.app-volumes {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border-radius: 18px;
+  background: rgba(24, 21, 32, 0.92);
+}
+.app-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.app-volume > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-volume small {
+  overflow: hidden;
+  color: var(--lumna-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-volume .mute {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--lumna-text);
+}
+.app-volume .mute.muted {
+  color: #fca5a5;
 }
 .slider.off {
   opacity: 0.45;

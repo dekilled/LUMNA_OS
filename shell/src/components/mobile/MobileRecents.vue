@@ -1,12 +1,16 @@
 <script setup lang="ts">
 // Celular: apps recentes (o "RAM"). Abre deslizando a navegação pra cima.
 // Cada cartão é uma janela aberta, com a última foto dela e quanta memória o app está usando.
-// Toque abre; arrastar o cartão pra cima fecha o app; segurar abre o menu do app.
+// Toque abre; arrastar o cartão pra cima fecha o app; segurar (ou o ⋮) abre o menu do app: abrir,
+// fixar (o fixado fica no "Fechar todos"), o volume dele (se está tocando), fechar e forçar parada.
 // Toque fora dos cartões (ou na barrinha) volta pra onde estava.
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
 import {
   apps as listApps,
+  audioSetVolume,
+  audioState,
+  audioToggleMute,
   convertFileSrc,
   haptic,
   mobilePanel,
@@ -14,6 +18,7 @@ import {
   recents as loadRecents,
   recentsKill,
   type App,
+  type AudioNode,
   type Recent,
 } from "../../system";
 import { onCompositorEvent, windowControl } from "../../compositor";
@@ -26,6 +31,49 @@ const strip = ref<HTMLElement>();
 const current = ref(0);
 const menu = ref<Recent | null>(null);
 const error = ref("");
+// Fixados: o "Fechar todos" deixa eles (pela classe da janela, vale nas próximas vezes também).
+const PINNED = "lumna.recents.pinned";
+const pinned = ref(new Set<string>());
+try {
+  pinned.value = new Set(JSON.parse(localStorage.getItem(PINNED) ?? "[]"));
+} catch {}
+const isPinned = (r: Recent) => pinned.value.has(r.class);
+function togglePin(r: Recent) {
+  const next = new Set(pinned.value);
+  if (next.has(r.class)) next.delete(r.class);
+  else next.add(r.class);
+  pinned.value = next;
+  try {
+    localStorage.setItem(PINNED, JSON.stringify([...next]));
+  } catch {}
+  menu.value = null;
+}
+
+/** O som do app do menu (se ele está tocando): pelo processo, ou pelo nome. */
+const menuAudio = ref<AudioNode | null>(null);
+async function openMenu(r: Recent) {
+  menu.value = r;
+  menuAudio.value = null;
+  const state = await audioState().catch(() => null);
+  if (menu.value !== r) return;
+  const name = nameOf(r).toLowerCase();
+  menuAudio.value = state?.apps.find((a) => a.pid === r.pid) ?? state?.apps.find((a) => a.name.toLowerCase() === name) ?? null;
+}
+let volumeTimer = 0;
+function setMenuVolume(value: number) {
+  const a = menuAudio.value;
+  if (!a) return;
+  a.volume = value;
+  clearTimeout(volumeTimer);
+  volumeTimer = window.setTimeout(() => audioSetVolume(a.id, value).catch((e) => (error.value = String(e))), 40);
+}
+async function muteMenuApp() {
+  const a = menuAudio.value;
+  if (!a) return;
+  a.muted = !a.muted;
+  await audioToggleMute(a.id).catch((e) => (error.value = String(e)));
+}
+
 // cartões saindo (fechados)
 const leaving = ref(new Set<string>());
 
@@ -127,13 +175,16 @@ async function closeApp(r: Recent) {
 }
 
 async function closeAll() {
-  for (const r of list.value) leaving.value.add(r.address);
-  for (const r of list.value) await windowControl("close", r.address).catch(() => {});
+  const going = list.value.filter((r) => !isPinned(r));
+  for (const r of going) leaving.value.add(r.address);
+  for (const r of going) await windowControl("close", r.address).catch(() => {});
   window.setTimeout(() => {
-    list.value = [];
+    list.value = list.value.filter((r) => isPinned(r));
     leaving.value.clear();
+    current.value = 0;
     load();
-    close();
+    if (!list.value.length) close();
+    else nextTick(() => paintTrack(0, true));
   }, 300);
 }
 
@@ -270,7 +321,8 @@ function down(e: PointerEvent) {
     hold = window.setTimeout(() => {
       if (start && !moved) {
         haptic(30).catch(() => {});
-        menu.value = list.value[index] ?? null;
+        const r = list.value[index];
+        if (r) openMenu(r);
         start = null;
       }
     }, 550);
@@ -424,6 +476,10 @@ onUnmounted(() => {
             <img v-if="appFor(r)?.icon" :src="appFor(r)!.icon!" alt="" />
             <span v-else class="glyph"><Icon :name="glyphOf(r)" :size="20" /></span>
             <span class="name">{{ nameOf(r) }}</span>
+            <Icon v-if="isPinned(r)" class="pin" name="pin" :size="14" />
+            <button v-if="layout === 'grade' || i === current" class="x more" aria-label="Menu do app" @click.stop="openMenu(r)">
+              <Icon name="dots" :size="16" />
+            </button>
             <button v-if="layout === 'grade' || i === current" class="x" aria-label="Fechar app" @click.stop="closeApp(r)">
               <Icon name="close" :size="16" />
             </button>
@@ -466,7 +522,19 @@ onUnmounted(() => {
             <small>{{ menu.memory_kb == null ? "janela do LUMNA" : `${size(menu.memory_kb)} · processo ${menu.pid}` }}</small>
           </div>
         </div>
+        <div v-if="menuAudio" class="sheet-volume">
+          <button class="mute" :class="{ muted: menuAudio.muted }" :aria-label="menuAudio.muted ? 'Ligar o som' : 'Silenciar'" @click="muteMenuApp()">
+            <Icon :name="menuAudio.muted ? 'mute' : 'volume'" :size="20" />
+          </button>
+          <span>
+            <small>Volume deste app</small>
+            <input type="range" min="0" max="100" :value="Math.min(100, menuAudio.volume)" @input="setMenuVolume(+($event.target as HTMLInputElement).value)" />
+          </span>
+        </div>
         <button @click="open(menu); menu = null"><Icon name="forward" :size="20" /> Abrir</button>
+        <button @click="togglePin(menu)">
+          <Icon name="pin" :size="20" /> {{ isPinned(menu) ? "Desafixar" : "Fixar (fica no Fechar todos)" }}
+        </button>
         <button @click="closeApp(menu); menu = null"><Icon name="close" :size="20" /> Fechar</button>
         <button v-if="menu.memory_kb != null" class="danger" @click="forceStop(menu)">
           <Icon name="zap" :size="20" /> Forçar parada
@@ -803,6 +871,50 @@ header p {
   font: inherit;
   font-size: 15px;
   text-align: left;
+}
+.sheet-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 12px;
+  background: rgba(167, 139, 250, 0.08);
+}
+.sheet-volume > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sheet-volume small {
+  color: var(--lumna-muted);
+  font-size: 12px;
+}
+.sheet-volume input {
+  width: 100%;
+  height: 28px;
+  accent-color: var(--lumna-violet-soft);
+}
+.sheet .sheet-volume .mute {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+  background: none;
+}
+.sheet .sheet-volume .mute.muted {
+  color: #fca5a5;
+}
+.pin {
+  flex: none;
+  color: var(--lumna-violet-soft);
+}
+.x.more {
+  margin-left: auto;
+}
+.x.more + .x {
+  margin-left: 0;
 }
 .sheet button.danger {
   color: #fca5a5;

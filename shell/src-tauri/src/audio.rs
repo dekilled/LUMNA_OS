@@ -16,6 +16,9 @@ pub struct Node {
     pub muted: bool,
     /// Saída/entrada padrão (para os apps, sempre falso).
     pub default: bool,
+    /// O processo do app que toca (só nos apps; o menu dos recentes acha o volume do app por ele).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
@@ -81,6 +84,7 @@ pub fn parse_dump(json: &str) -> AudioState {
                 volume,
                 muted,
                 default: default_sink.as_deref() == Some(node_name),
+                pid: None,
             }),
             "Audio/Source" => state.inputs.push(Node {
                 id,
@@ -88,6 +92,7 @@ pub fn parse_dump(json: &str) -> AudioState {
                 volume,
                 muted,
                 default: default_source.as_deref() == Some(node_name),
+                pid: None,
             }),
             "Stream/Output/Audio" => state.apps.push(Node {
                 id,
@@ -95,6 +100,10 @@ pub fn parse_dump(json: &str) -> AudioState {
                 volume,
                 muted,
                 default: false,
+                pid: props["application.process.id"]
+                    .as_u64()
+                    .map(|p| p as u32)
+                    .or_else(|| props["application.process.id"].as_str().and_then(|p| p.parse().ok())),
             }),
             _ => {}
         }
@@ -164,9 +173,9 @@ mod tests {
         ]"#;
         let state = parse_dump(dump);
         assert_eq!(state.outputs.len(), 2);
-        assert_eq!(state.outputs[0], Node { id: 42, name: "HDMI".into(), volume: 100, muted: true, default: true });
+        assert_eq!(state.outputs[0], Node { id: 42, name: "HDMI".into(), volume: 100, muted: true, default: true, pid: None });
         assert_eq!(state.outputs[1].volume, 50);
-        assert_eq!(state.inputs[0], Node { id: 50, name: "Microfone".into(), volume: 70, muted: false, default: true });
+        assert_eq!(state.inputs[0], Node { id: 50, name: "Microfone".into(), volume: 70, muted: false, default: true, pid: None });
         assert_eq!(state.apps[0].name, "Firefox");
         assert_eq!(state.apps[0].volume, 90);
         assert_eq!(parse_dump("lixo"), AudioState::default());
