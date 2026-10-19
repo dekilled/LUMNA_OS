@@ -1078,7 +1078,13 @@ export interface LockState {
   locked: boolean;
   screen_on: boolean;
   config: LockConfig;
+  /** tamanho do PIN (null: só a senha do Linux) */
+  pin: number | null;
+  /** segundos até poder tentar de novo (errou demais) */
+  wait: number;
 }
+/** Cria ou troca o PIN (vazio: tira); pede a senha do Linux. Devolve o tamanho do PIN novo. */
+export const lockPinSet = (password: string, pin: string) => invoke<number | null>("lock_pin_set", { password, pin });
 export const lockState = () => invoke<LockState>("lock_state");
 export const lockUnlock = (password: string) => invoke<void>("lock_unlock", { password });
 export const lockNow = () => invoke<void>("lock_now");

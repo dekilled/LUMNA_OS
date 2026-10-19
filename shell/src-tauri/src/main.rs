@@ -1796,6 +1796,7 @@ fn main() {
             schedule::schedule_remove,
             mobilelock::lock_state,
             mobilelock::lock_unlock,
+            mobilelock::lock_pin_set,
             mobilelock::lock_now,
             mobilelock::lock_config_set,
             mobilelock::power_menu_close,

@@ -54,7 +54,7 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
   pelo Hyprland, abrindo o mpv por cima da Galeria).
 - **Teclado que abre sozinho nos apps de fora** (input-method-v2 do Wayland): hoje só abre sozinho
   nos campos do próprio LUMNA.
-- PIN numérico no bloqueio, volume por app, viva-voz nas ligações, app de gestos, barra de status
+- Volume por app, viva-voz nas ligações, app de gestos, barra de status
   da cor do app, menu nos apps recentes, refazer o modo Mídia.
 
 ## Interface

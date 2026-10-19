@@ -3,7 +3,9 @@
 //! O bloqueio é a camada `mobile-lock` (por cima dos apps, abaixo da ligação e do teclado). No PC
 //! o bloqueio é o hyprlock, pelo protocolo de bloqueio do Wayland; aqui ele não serve, porque
 //! esconde todas as outras camadas, inclusive o LUMNA Keyboard, e não teria como digitar a senha.
-//! A senha é a do Linux, conferida pelo `unix_chkpwd` (o ajudante do próprio PAM).
+//! A senha é a do Linux, conferida pelo `unix_chkpwd` (o ajudante do próprio PAM). Pode ter também
+//! um PIN de 4 a 8 números (só pro bloqueio): guardado como hash com sal em `mobile-pin` e só se
+//! cria ou tira com a senha do Linux. Errou 5 vezes: espera 30 s (e o dobro a cada nova rodada).
 //!
 //! O botão power é lido direto do kernel (`/dev/input/eventN` do `pm8941_pwrkey`, liberado pela
 //! regra udev): toque rápido apaga a tela e bloqueia (ou acende, se estava apagada); segurar abre
@@ -156,26 +158,141 @@ pub fn is_locked() -> bool {
     LOCKED.load(Ordering::SeqCst)
 }
 
+// ---- PIN ----
+
+/// O PIN guardado: `tamanho:sal:hash` (o tamanho deixa a tela conferir sozinha no último número).
+fn pin_path() -> PathBuf {
+    config_dir().join("mobile-pin")
+}
+
+const PIN_ROUNDS: u32 = 120_000;
+
+fn pin_hash(salt: &str, pin: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::digest(format!("{salt}:{pin}").as_bytes());
+    for _ in 0..PIN_ROUNDS {
+        h = Sha256::digest(h);
+    }
+    h.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn read_pin() -> Option<(usize, String, String)> {
+    let text = std::fs::read_to_string(pin_path()).ok()?;
+    let mut parts = text.trim().splitn(3, ':');
+    let len = parts.next()?.parse().ok()?;
+    Some((len, parts.next()?.to_string(), parts.next()?.to_string()))
+}
+
+fn pin_length() -> Option<usize> {
+    read_pin().map(|(len, _, _)| len)
+}
+
+fn pin_ok(pin: &str) -> bool {
+    read_pin().is_some_and(|(len, salt, hash)| pin.len() == len && pin_hash(&salt, pin) == hash)
+}
+
+fn valid_pin(pin: &str) -> bool {
+    (4..=8).contains(&pin.len()) && pin.bytes().all(|b| b.is_ascii_digit())
+}
+
+fn write_pin(pin: &str) -> Result<(), String> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut salt = [0u8; 16];
+    std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut salt)).map_err(|e| e.to_string())?;
+    let salt: String = salt.iter().map(|b| format!("{b:02x}")).collect();
+    std::fs::create_dir_all(config_dir()).map_err(|e| e.to_string())?;
+    let mut file = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(pin_path()).map_err(|e| e.to_string())?;
+    file.write_all(format!("{}:{salt}:{}\n", pin.len(), pin_hash(&salt, pin)).as_bytes()).map_err(|e| e.to_string())
+}
+
+/// Tentativas erradas seguidas e até quando esperar (segundos Unix).
+static FAILS: AtomicU64 = AtomicU64::new(0);
+static WAIT_UNTIL: AtomicU64 = AtomicU64::new(0);
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+}
+
+/// Segundos que ainda faltam pra poder tentar de novo.
+fn wait_left() -> u64 {
+    WAIT_UNTIL.load(Ordering::SeqCst).saturating_sub(unix_now())
+}
+
+/// Mais um erro: a cada 5, espera (30 s, 60 s, 120 s... até 10 min).
+fn failed() -> String {
+    let fails = FAILS.fetch_add(1, Ordering::SeqCst) + 1;
+    if fails % 5 == 0 {
+        let wait = (30u64 << ((fails / 5 - 1).min(5))).min(600);
+        WAIT_UNTIL.store(unix_now() + wait, Ordering::SeqCst);
+        return format!("Muitas tentativas. Espere {wait} s");
+    }
+    "Incorreto".into()
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct LockState {
     pub locked: bool,
     pub screen_on: bool,
     pub config: LockConfig,
+    /// Tamanho do PIN (nenhum: só a senha).
+    pub pin: Option<usize>,
+    /// Segundos até poder tentar de novo (errou demais).
+    pub wait: u64,
 }
 
 #[tauri::command]
 pub fn lock_state() -> LockState {
-    LockState { locked: LOCKED.load(Ordering::SeqCst), screen_on: SCREEN_ON.load(Ordering::SeqCst), config: load() }
+    LockState {
+        locked: LOCKED.load(Ordering::SeqCst),
+        screen_on: SCREEN_ON.load(Ordering::SeqCst),
+        config: load(),
+        pin: pin_length(),
+        wait: wait_left(),
+    }
 }
 
+/// Desbloqueia com o PIN (só números, do tamanho dele) ou com a senha do Linux.
 #[tauri::command]
 pub async fn lock_unlock(app: AppHandle, password: String) -> Result<(), String> {
-    let ok = tauri::async_runtime::spawn_blocking(move || password_ok(&password)).await.unwrap_or(false);
-    if !ok {
-        return Err("Senha incorreta".into());
+    let left = wait_left();
+    if left > 0 {
+        return Err(format!("Espere {left} s"));
     }
+    let ok = tauri::async_runtime::spawn_blocking(move || {
+        (pin_length() == Some(password.len()) && password.bytes().all(|b| b.is_ascii_digit()) && pin_ok(&password)) || password_ok(&password)
+    })
+    .await
+    .unwrap_or(false);
+    if !ok {
+        return Err(failed());
+    }
+    FAILS.store(0, Ordering::SeqCst);
     unlock(&app);
     Ok(())
+}
+
+/// Cria ou troca o PIN (`pin` vazio: tira). Pede a senha do Linux.
+#[tauri::command]
+pub async fn lock_pin_set(password: String, pin: String) -> Result<Option<usize>, String> {
+    if !pin.is_empty() && !valid_pin(&pin) {
+        return Err("O PIN tem de 4 a 8 números".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if !password_ok(&password) {
+            return Err("Senha do Linux incorreta".to_string());
+        }
+        if pin.is_empty() {
+            match std::fs::remove_file(pin_path()) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.to_string()),
+                _ => {}
+            }
+        } else {
+            write_pin(&pin)?;
+        }
+        Ok(pin_length())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -340,6 +457,19 @@ pub fn start(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pin_guardado_com_sal() {
+        let dir = std::env::temp_dir().join(format!("lumna-pin-{}", std::process::id()));
+        std::env::set_var("XDG_CONFIG_HOME", &dir);
+        assert!(valid_pin("1234") && valid_pin("12345678") && !valid_pin("123") && !valid_pin("12a4"));
+        write_pin("2580").unwrap();
+        assert_eq!(pin_length(), Some(4));
+        assert!(pin_ok("2580") && !pin_ok("0852") && !pin_ok("25800"));
+        let text = std::fs::read_to_string(pin_path()).unwrap();
+        assert!(!text.contains("2580"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn tecla_power_no_bitmap() {

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 // Celular: a tela de bloqueio, como nos esboços. Capa (relógio, lanterna, emergência) e, deslizando
-// pra cima, a senha (com o LUMNA Keyboard). A senha é a do Linux; quem confere é o shell.
+// pra cima, a senha (com o LUMNA Keyboard). A senha é a do Linux; quem confere é o shell. Com PIN
+// (Ajustes → Tela), deslizar mostra o teclado numérico; a senha continua valendo ("Usar a senha").
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
 import {
   toggleEmma,
   artUrl,
+  lockState,
   lockUnlock,
   on,
   phoneCall,
@@ -30,6 +32,14 @@ const error = ref("");
 const shake = ref(false);
 const screenOn = ref(true);
 const input = ref<HTMLInputElement>();
+/** Tamanho do PIN (null: não tem PIN, só a senha). */
+const pinLen = ref<number | null>(null);
+/** Na tela da senha, o teclado numérico do PIN (e não o campo da senha). */
+const pinMode = ref(true);
+const pin = ref("");
+/** Errou demais: segundos até poder tentar de novo. */
+const wait = ref(0);
+let waitTimer = 0;
 const root = ref<HTMLElement>();
 
 const time = computed(() => now.value.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
@@ -47,30 +57,71 @@ const EMERGENCY = [
 function reset() {
   view.value = "capa";
   password.value = "";
+  pin.value = "";
+  pinMode.value = true;
   error.value = "";
   show.value = false;
   input.value?.blur();
 }
+const usingPin = computed(() => pinLen.value != null && pinMode.value);
+
 async function askPassword() {
   view.value = "senha";
   error.value = "";
+  if (usingPin.value) return;
   await nextTick();
   input.value?.focus();
 }
-async function submit() {
-  if (!password.value || busy.value) return;
+async function usePassword(on: boolean) {
+  pinMode.value = !on;
+  pin.value = "";
+  error.value = "";
+  if (on) {
+    await nextTick();
+    input.value?.focus();
+  } else {
+    input.value?.blur();
+  }
+}
+function countdown(seconds: number) {
+  window.clearInterval(waitTimer);
+  wait.value = seconds;
+  if (seconds <= 0) return;
+  waitTimer = window.setInterval(() => {
+    wait.value = Math.max(0, wait.value - 1);
+    if (!wait.value) {
+      window.clearInterval(waitTimer);
+      error.value = "";
+    }
+  }, 1000);
+}
+async function submit(secret = password.value) {
+  if (!secret || busy.value || wait.value) return;
   busy.value = true;
   error.value = "";
   try {
-    await lockUnlock(password.value);
+    await lockUnlock(secret);
     reset();
   } catch (e) {
     error.value = String(e).replace(/^Error: /, "");
     password.value = "";
+    pin.value = "";
     shake.value = true;
     window.setTimeout(() => (shake.value = false), 400);
+    const st = await lockState().catch(() => null);
+    if (st?.wait) countdown(st.wait);
   }
   busy.value = false;
+}
+function digit(d: string) {
+  if (busy.value || wait.value || !pinLen.value || pin.value.length >= pinLen.value) return;
+  error.value = "";
+  pin.value += d;
+  // o último número confere sozinho, como no Android
+  if (pin.value.length === pinLen.value) submit(pin.value);
+}
+function backspace() {
+  pin.value = pin.value.slice(0, -1);
 }
 async function toggleTorch() {
   if (torch.value == null) return;
@@ -86,6 +137,9 @@ async function load() {
   const w = await wallpaperList().catch(() => null);
   wallpaper.value = w ? w.lock ?? w.current : null;
   torch.value = (await quickState().catch(() => null))?.flashlight ?? null;
+  const st = await lockState().catch(() => null);
+  pinLen.value = st?.pin ?? null;
+  if (st?.wait) countdown(st.wait);
 }
 
 let clock = 0;
@@ -105,7 +159,7 @@ onMounted(async () => {
   // fechou o teclado na tela da senha: volta pro descanso (relógio grande), como no Android
   stops.push(
     await on<{ shown: boolean }>("lumna://keyboard", (k) => {
-      if (!k.shown && view.value === "senha" && !busy.value) reset();
+      if (!k.shown && view.value === "senha" && !usingPin.value && !busy.value) reset();
     }),
   );
   stops.push(
@@ -130,6 +184,7 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   clearInterval(clock);
+  clearInterval(waitTimer);
   stops.forEach((s) => s());
 });
 </script>
@@ -178,7 +233,21 @@ onUnmounted(() => {
         <div class="time small">{{ time }}</div>
         <div class="date">{{ date }}</div>
         <div class="brand center"><span class="gem" /> LUMNA</div>
-        <p class="title">Desbloquear LUMNA</p>
+        <p class="title">{{ usingPin ? "Digite o PIN" : "Desbloquear LUMNA" }}</p>
+        <template v-if="usingPin">
+          <div class="dots" :class="{ shake }" :aria-label="`${pin.length} de ${pinLen} números`">
+            <span v-for="i in pinLen ?? 0" :key="i" :class="{ on: i <= pin.length }" />
+          </div>
+          <p v-if="error" class="error">{{ wait ? `Muitas tentativas. Espere ${wait} s` : error }}</p>
+          <div class="keypad" :class="{ off: wait > 0 || busy }">
+            <button v-for="d in ['1', '2', '3', '4', '5', '6', '7', '8', '9']" :key="d" @click="digit(d)">{{ d }}</button>
+            <button class="small" @click="usePassword(true)">Senha</button>
+            <button @click="digit('0')">0</button>
+            <button class="small" aria-label="Apagar" :disabled="!pin" @click="backspace()"><Icon name="backspace" :size="26" /></button>
+          </div>
+          <button class="link" @click="view = 'emergencia'">Emergência</button>
+        </template>
+        <template v-else>
         <form class="pill" :class="{ shake }" @submit.prevent="submit()">
           <Icon name="lock" :size="22" />
           <input
@@ -192,8 +261,10 @@ onUnmounted(() => {
           <button type="button" class="eye" aria-label="Mostrar senha" @click="show = !show"><Icon name="eye" :size="22" /></button>
           <button type="submit" class="go" :disabled="!password || busy" aria-label="Desbloquear"><Icon name="arrow-right" :size="24" /></button>
         </form>
-        <p v-if="error" class="error">{{ error }}</p>
+        <p v-if="error" class="error">{{ wait ? `Muitas tentativas. Espere ${wait} s` : error }}</p>
+        <button v-if="pinLen" class="link" @click="usePassword(false)">Usar o PIN</button>
         <button class="link" @click="view = 'emergencia'">Emergência</button>
+        </template>
       </div>
     </template>
 
@@ -431,6 +502,56 @@ onUnmounted(() => {
   80% {
     transform: translateX(10px);
   }
+}
+.dots {
+  display: flex;
+  gap: 16px;
+  height: 20px;
+  margin: 4px 0 6px;
+}
+.dots span {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(185, 162, 251, 0.75);
+  border-radius: 50%;
+  transition: background 0.12s;
+}
+.dots span.on {
+  background: #b9a2fb;
+}
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 76px);
+  gap: 14px 28px;
+  margin-top: 22px;
+}
+.keypad.off {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.keypad button {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--lumna-text);
+  font: inherit;
+  font-size: 30px;
+  font-weight: 300;
+}
+.keypad button:active {
+  background: rgba(185, 162, 251, 0.3);
+}
+.keypad button.small {
+  background: none;
+  color: var(--lumna-violet-soft);
+  font-size: 15px;
+}
+.keypad button:disabled {
+  opacity: 0.3;
 }
 .error {
   margin: 10px 0 0;

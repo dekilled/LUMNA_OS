@@ -6,6 +6,7 @@ import MGallery from "./MGallery.vue";
 import {
   convertFileSrc,
   lockConfigSet,
+  lockPinSet,
   lockState,
   type LockConfig,
   quickBrightness,
@@ -26,6 +27,34 @@ const target = ref<"inicio" | "bloqueio" | "ambos">("ambos");
 const gallery = ref(false);
 const error = ref("");
 const lock = ref<LockConfig | null>(null);
+/** Tamanho do PIN (null: sem PIN). */
+const pinLen = ref<number | null>(null);
+/** A folha do PIN: criar/trocar (`set`) ou tirar (`clear`). */
+const pinSheet = ref<"set" | "clear" | null>(null);
+const pinForm = ref({ password: "", pin: "", again: "", busy: false, error: "" });
+const pinReady = computed(() => {
+  const f = pinForm.value;
+  if (!f.password) return false;
+  return pinSheet.value === "clear" || (/^\d{4,8}$/.test(f.pin) && f.pin === f.again);
+});
+function openPin(kind: "set" | "clear") {
+  pinForm.value = { password: "", pin: "", again: "", busy: false, error: "" };
+  pinSheet.value = kind;
+}
+async function savePin() {
+  const f = pinForm.value;
+  if (!pinReady.value || f.busy) return;
+  f.busy = true;
+  f.error = "";
+  try {
+    pinLen.value = await lockPinSet(f.password, pinSheet.value === "clear" ? "" : f.pin);
+    pinSheet.value = null;
+  } catch (e) {
+    f.error = String(e).replace(/^Error: /, "");
+  } finally {
+    f.busy = false;
+  }
+}
 const TIMES = [
   { s: 15, label: "15 segundos" },
   { s: 30, label: "30 segundos" },
@@ -82,7 +111,9 @@ async function fromGallery(path: string) {
 }
 onMounted(async () => {
   brightness.value = (await quickState().catch(() => null))?.brightness ?? null;
-  lock.value = (await lockState().catch(() => null))?.config ?? null;
+  const st = await lockState().catch(() => null);
+  lock.value = st?.config ?? null;
+  pinLen.value = st?.pin ?? null;
   load();
 });
 </script>
@@ -112,6 +143,17 @@ onMounted(async () => {
         <span class="txt"><strong>Pedir a senha</strong><small>Ao acender a tela (a senha do Linux)</small></span>
         <button class="ms-switch" :class="{ on: lock?.enabled }" :disabled="!lock" aria-label="Pedir senha" @click="saveLock({ enabled: !lock?.enabled })" />
       </div>
+      <button v-if="lock?.enabled" class="ms-row" @click="openPin('set')">
+        <span class="txt">
+          <strong>{{ pinLen ? "Trocar o PIN" : "Criar um PIN" }}</strong>
+          <small>{{ pinLen ? `PIN de ${pinLen} números; a senha também desbloqueia` : "Números no lugar da senha pra desbloquear" }}</small>
+        </span>
+        <Icon class="chev" name="forward" :size="20" />
+      </button>
+      <button v-if="lock?.enabled && pinLen" class="ms-row" @click="openPin('clear')">
+        <span class="txt"><strong>Tirar o PIN</strong><small>Volta a desbloquear só com a senha</small></span>
+        <Icon class="chev" name="forward" :size="20" />
+      </button>
       <div class="ms-row">
         <span class="txt"><strong>Apagar a tela após</strong><small>Parado esse tempo, apaga e bloqueia</small></span>
         <select class="time" :value="lock?.screen_off_after" :disabled="!lock" @change="saveLock({ screen_off_after: +($event.target as HTMLSelectElement).value })">
@@ -144,10 +186,44 @@ onMounted(async () => {
     </div>
     <p v-if="error" class="ms-error">{{ error }}</p>
     <MGallery v-if="gallery" @pick="fromGallery" @close="gallery = false" />
+    <div v-if="pinSheet" class="ms-sheet-veil" @click.self="pinSheet = null">
+      <form class="ms-sheet" @submit.prevent="savePin()">
+        <h2>{{ pinSheet === "clear" ? "Tirar o PIN" : pinLen ? "Trocar o PIN" : "Criar um PIN" }}</h2>
+        <p class="ms-note">
+          {{ pinSheet === "clear" ? "Confirme com a senha do Linux." : "De 4 a 8 números. Pra mudar o bloqueio, confirme com a senha do Linux." }}
+        </p>
+        <label class="ms-field">
+          <small>Senha do Linux</small>
+          <input v-model="pinForm.password" type="password" autocomplete="current-password" />
+        </label>
+        <template v-if="pinSheet === 'set'">
+          <label class="ms-field">
+            <small>PIN novo</small>
+            <input v-model="pinForm.pin" class="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" />
+          </label>
+          <label class="ms-field">
+            <small>Repita o PIN</small>
+            <input v-model="pinForm.again" class="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" />
+          </label>
+          <p v-if="pinForm.pin && !/^\d{4,8}$/.test(pinForm.pin)" class="ms-error">Só números, de 4 a 8.</p>
+          <p v-else-if="pinForm.again && pinForm.again !== pinForm.pin" class="ms-error">Os dois PINs não batem.</p>
+        </template>
+        <p v-if="pinForm.error" class="ms-error">{{ pinForm.error }}</p>
+        <div class="ms-actions">
+          <button type="button" class="ms-btn" @click="pinSheet = null">Cancelar</button>
+          <button class="ms-btn" :class="pinSheet === 'clear' ? 'danger' : 'primary'" :disabled="!pinReady || pinForm.busy">
+            {{ pinForm.busy ? "Conferindo…" : pinSheet === "clear" ? "Tirar" : "Salvar" }}
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.pin {
+  letter-spacing: 0.4em;
+}
 .time {
   max-width: 45%;
   padding: 8px 10px;
