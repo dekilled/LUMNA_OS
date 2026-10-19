@@ -707,6 +707,25 @@ pub async fn emma_continue_in_app(app: AppHandle) -> Result<(), String> {
     emma_open_conversation(app, id).await
 }
 
+/// Muda o nome de uma conversa.
+#[tauri::command]
+pub async fn emma_rename_conversation(app: AppHandle, id: String, title: String) -> Result<(), String> {
+    let title: String = title.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(80).collect();
+    if title.is_empty() {
+        return Err("o nome não pode ficar vazio".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let (code, body) = app.state::<Emma>().call("PATCH", &format!("/api/sessions/{id}"), Some(&json!({ "title": title })))?;
+        if code == 200 {
+            Ok(())
+        } else {
+            Err(detail(&body))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Apaga uma conversa (no backend também).
 #[tauri::command]
 pub async fn emma_delete_conversation(app: AppHandle, id: String) -> Result<(), String> {

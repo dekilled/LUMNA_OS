@@ -18,6 +18,7 @@ import {
   emmaLogout,
   emmaNewConversation,
   emmaOpenConversation,
+  emmaRenameConversation,
   emmaPermissions,
   emmaProviders,
   emmaSaveSettings,
@@ -260,6 +261,31 @@ async function openConversation(c: EmmaConversation) {
   error.value = "";
   listOpen.value = false;
   await loadHistory();
+}
+
+/** Renomear: o título vira um campo; Enter (ou sair do campo) salva, Esc desiste. */
+const renaming = ref("");
+const newTitle = ref("");
+async function startRename(c: EmmaConversation) {
+  confirmDelete.value = "";
+  renaming.value = c.id;
+  newTitle.value = c.title;
+  await nextTick();
+  (document.querySelector(".conversations .rename") as HTMLInputElement | null)?.select();
+}
+async function finishRename(c: EmmaConversation, save: boolean) {
+  if (renaming.value !== c.id) return;
+  renaming.value = "";
+  const title = newTitle.value.trim();
+  if (!save || !title || title === c.title) return;
+  const old = c.title;
+  c.title = title;
+  try {
+    await emmaRenameConversation(c.id, title);
+  } catch (e) {
+    c.title = old;
+    error.value = String(e);
+  }
 }
 
 /** Apagar pede um segundo toque (o botão vira "Apagar?"). */
@@ -657,10 +683,20 @@ onUnmounted(() => {
           <p v-else-if="!conversations.length" class="empty">Nenhuma conversa ainda.</p>
           <ul v-else>
             <li v-for="c in conversations" :key="c.id" :class="{ current: c.current }">
-              <button class="open" @click="openConversation(c)">
+              <input
+                v-if="renaming === c.id"
+                v-model="newTitle"
+                class="rename"
+                maxlength="80"
+                @keydown.enter.prevent="finishRename(c, true)"
+                @keydown.esc.prevent="finishRename(c, false)"
+                @blur="finishRename(c, true)"
+              />
+              <button v-else class="open" @click="openConversation(c)">
                 <span class="title">{{ c.title || "Conversa" }}</span>
                 <small>{{ c.current ? "Aberta agora" : when(c.updated_at) }}</small>
               </button>
+              <button v-if="renaming !== c.id" class="del edit" title="Renomear" @click="startRename(c)"><Icon name="edit" :size="18" /></button>
               <button class="del" :class="{ sure: confirmDelete === c.id }" :title="confirmDelete === c.id ? 'Tocar de novo apaga' : 'Apagar'" @click="removeConversation(c)">
                 <span v-if="confirmDelete === c.id">Apagar?</span>
                 <Icon v-else name="trash" :size="18" />
@@ -1248,6 +1284,19 @@ button:disabled {
 .conversations small {
   color: var(--lumna-muted);
   font-size: 12px;
+}
+.conversations .rename {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  margin: 6px 4px 6px 6px;
+  padding: 0 12px;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  border-radius: 12px;
+  background: var(--input);
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
 }
 .conversations .del {
   flex: none;

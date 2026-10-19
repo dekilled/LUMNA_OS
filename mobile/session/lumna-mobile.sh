@@ -55,6 +55,16 @@ sudo install -Dm755 "$ROOT/mobile/session/rmtfs/modem-stop.sh" /usr/local/lib/lu
 sudo install -Dm644 "$ROOT/mobile/session/rmtfs/50-lumna.conf" /etc/systemd/system/rmtfs.service.d/50-lumna.conf
 sudo systemctl daemon-reload
 
+# a hora certa já no boot, sem internet (o RTC do Snapdragon não guarda a hora: ligava em 1970)
+sudo install -Dm755 "$ROOT/mobile/session/relogio/relogio.sh" /usr/local/lib/lumna/relogio.sh
+for u in lumna-relogio.service lumna-relogio-guarda.service lumna-relogio-guarda.timer lumna-relogio-guarda.path; do
+    sudo install -Dm644 "$ROOT/mobile/session/relogio/$u" "/etc/systemd/system/$u"
+done
+sudo systemctl daemon-reload
+sudo systemctl enable lumna-relogio.service lumna-relogio-guarda.timer lumna-relogio-guarda.path || true
+sudo systemctl start lumna-relogio-guarda.timer lumna-relogio-guarda.path || true
+sudo /usr/local/lib/lumna/relogio.sh guarda || true
+
 # o bootloader A/B precisa ouvir "liguei direitinho" a cada boot (senão desiste do slot)
 [ -x /usr/local/bin/qbootctl ] || sh "$ROOT/mobile/session/boot-ok.sh"
 

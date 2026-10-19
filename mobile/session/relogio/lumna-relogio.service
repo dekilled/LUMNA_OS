@@ -1,0 +1,18 @@
+# A hora certa já no boot, sem esperar a internet (ver relogio.sh)
+[Unit]
+Description=LUMNA: hora do celular sem internet
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target time-set.target systemd-timesyncd.service
+Wants=time-set.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lumna/relogio.sh restaura
+# ao desligar guarda de novo (o RTC continua contando com o celular desligado)
+ExecStop=/usr/local/lib/lumna/relogio.sh guarda
+
+[Install]
+WantedBy=sysinit.target

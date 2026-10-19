@@ -1828,6 +1828,7 @@ fn main() {
             emma::emma_open_conversation,
             emma::emma_continue_in_app,
             emma::emma_delete_conversation,
+            emma::emma_rename_conversation,
             emma::emma_history,
             emma::emma_permissions,
             emma::emma_set_permission,

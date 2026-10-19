@@ -1,0 +1,10 @@
+# a hora acabou de ser acertada pela internet (o timesyncd cria esse arquivo): guarda na hora
+[Unit]
+Description=LUMNA: guarda a hora quando a internet acertar
+
+[Path]
+PathExists=/run/systemd/timesync/synchronized
+Unit=lumna-relogio-guarda.service
+
+[Install]
+WantedBy=paths.target

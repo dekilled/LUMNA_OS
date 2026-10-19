@@ -549,6 +549,7 @@ export interface EmmaConversation {
 export const emmaConversations = () => invoke<EmmaConversation[]>("emma_conversations");
 export const emmaOpenConversation = (id: string) => invoke<void>("emma_open_conversation", { id });
 export const emmaDeleteConversation = (id: string) => invoke<void>("emma_delete_conversation", { id });
+export const emmaRenameConversation = (id: string, title: string) => invoke<void>("emma_rename_conversation", { id, title });
 /** A conversa do popup passa pro app. */
 export const emmaContinueInApp = () => invoke<void>("emma_continue_in_app");
 /** O app da Emma (conversa, ferramentas, provedores, perfil). */

@@ -1,0 +1,10 @@
+# guarda a hora de tempos em tempos (se a bateria acabar, não dá tempo de guardar ao desligar)
+[Unit]
+Description=LUMNA: guarda a hora do celular de 15 em 15 minutos
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target
