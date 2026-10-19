@@ -609,7 +609,7 @@ fn run_blocking(app: &AppHandle, name: &str, args: &Value) -> Outcome {
     let compositor = app.state::<SharedCompositor>().inner().clone();
     let result: Result<Outcome, String> = match name {
         "apps.list" => Ok(apps_list(arg(args, "query"))),
-        "apps.open" => apps_open(&compositor, arg(args, "name")),
+        "apps.open" => apps_open(app, &compositor, arg(args, "name")),
         "apps.close" => with_window(&compositor, arg(args, "name"), |w| compositor.close_window(&w.address))
             .map(|w| Outcome::done(format!("{} fechado", w.class))),
         "apps.focus" => with_window(&compositor, arg(args, "name"), |w| compositor.focus_window(&w.address))
@@ -771,7 +771,47 @@ fn apps_list(query: &str) -> Outcome {
     Outcome::data(format!("{} programas", shown.len()), shown.join("\n"))
 }
 
-fn apps_open(compositor: &SharedCompositor, name: &str) -> Result<Outcome, String> {
+/// Palavras que vêm junto do pedido e não são o nome ("abre as configurações pra mim, Emma").
+const FILLER: [&str; 22] = [
+    "o", "a", "os", "as", "app", "aplicativo", "programa", "pra", "para", "mim", "me", "por", "favor", "pfv", "emma", "ai", "agora",
+    "rapidinho", "ja", "ae", "aqui", "voce",
+];
+
+/// O nome do programa sem o que é conversa em volta.
+fn app_name(name: &str) -> String {
+    let words: Vec<&str> = name.split(' ').collect();
+    let norm = normalize(name);
+    let mut kept: Vec<&str> = norm.split(' ').collect();
+    // de trás pra frente: "configurações pra mim emma" → "configurações"
+    while kept.len() > 1 && FILLER.contains(kept.last().unwrap()) {
+        kept.pop();
+    }
+    while kept.len() > 1 && FILLER.contains(&kept[0]) {
+        kept.remove(0);
+    }
+    let cleaned = kept.join(" ");
+    if cleaned.is_empty() || words.is_empty() {
+        name.to_string()
+    } else {
+        cleaned
+    }
+}
+
+/// "configurações", "ajustes do wi-fi": a tela de Ajustes do LUMNA (e a página, se veio).
+fn settings_page(name: &str) -> Option<String> {
+    let (first, rest) = name.split_once(' ').unwrap_or((name, ""));
+    if !["configuracoes", "configuracao", "config", "ajustes", "ajuste", "definicoes", "preferencias"].contains(&first) {
+        return None;
+    }
+    let rest = rest.trim_start_matches("do ").trim_start_matches("da ").trim_start_matches("de ").trim();
+    Some(rest.to_string())
+}
+
+fn apps_open(app: &AppHandle, compositor: &SharedCompositor, name: &str) -> Result<Outcome, String> {
+    let name = &app_name(name);
+    if let Some(page) = settings_page(name) {
+        return panel_open(app, "configuracoes", &page);
+    }
     let list = apps::list_plain();
     let app = best(&list, name, app_keys).ok_or_else(|| {
         format!("nenhum programa instalado parecido com \"{name}\" (dá para procurar na Loja com store.search)")
@@ -1295,6 +1335,16 @@ pub async fn actions_run_tool(app: AppHandle, tool: String, args: Value) -> Outc
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn app_name_without_the_talk() {
+        assert_eq!(app_name("configurações pra mim Emma"), "configuracoes");
+        assert_eq!(app_name("o Spotify por favor"), "spotify");
+        assert_eq!(app_name("editor de texto"), "editor de texto");
+        assert_eq!(settings_page(&app_name("as configurações do wi-fi pra mim")).as_deref(), Some("wi fi"));
+        assert_eq!(settings_page("ajustes").as_deref(), Some(""));
+        assert_eq!(settings_page("spotify"), None);
+    }
 
     #[test]
     fn catalog_is_valid() {

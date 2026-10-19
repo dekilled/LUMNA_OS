@@ -476,6 +476,22 @@ async function loadProfile() {
   }
 }
 
+// O modelo de voz do Fish Audio: vazio é o gratuito (o padrão do Fish sem modelo é o pago)
+const FREE_TTS = "s2.1-pro-free";
+const PAID_TTS = "s2.1-pro";
+const ttsOther = ref(false);
+const ttsChoice = computed(() => {
+  const m = profile.value.ttsModel.trim();
+  if (ttsOther.value) return "other";
+  return !m || m === FREE_TTS ? "free" : m === PAID_TTS ? "paid" : "other";
+});
+/** `null`: "Outro" (o campo pro nome aparece). */
+function pickTts(model: string | null) {
+  ttsOther.value = model === null;
+  if (model !== null) profile.value.ttsModel = model;
+  else if ([FREE_TTS, PAID_TTS, ""].includes(profile.value.ttsModel.trim())) profile.value.ttsModel = "";
+}
+
 async function saveProfile() {
   const p = profile.value;
   p.busy = true;
@@ -486,7 +502,7 @@ async function saveProfile() {
       tts_engine: p.tts,
       stt_engine: p.stt,
       voice_id: p.voiceId.trim(),
-      tts_model: p.ttsModel.trim(),
+      tts_model: p.ttsModel.trim() || FREE_TTS,
       asr_model: p.asrModel.trim(),
       language: p.language.trim(),
       auto_read: p.autoRead,
@@ -792,10 +808,19 @@ onUnmounted(() => {
             />
           </label>
           <label>Voz (reference id)<input v-model="profile.voiceId" spellcheck="false" placeholder="o id da voz no Fish Audio" /></label>
-          <label>
-            Modelo de voz (falar)
-            <input v-model="profile.ttsModel" spellcheck="false" placeholder="s2.1-pro-free (o gratuito) ou s2.1-pro" />
+          <div class="field">
+            <span>Modelo de voz (falar)</span>
+            <div class="segmented">
+              <button type="button" :class="{ on: ttsChoice === 'free' }" @click="pickTts(FREE_TTS)">Gratuito</button>
+              <button type="button" :class="{ on: ttsChoice === 'paid' }" @click="pickTts(PAID_TTS)">Pago</button>
+              <button type="button" :class="{ on: ttsChoice === 'other' }" @click="pickTts(null)">Outro</button>
+            </div>
+          </div>
+          <label v-if="ttsChoice === 'other'">
+            Nome do modelo
+            <input v-model="profile.ttsModel" spellcheck="false" placeholder="o id do modelo no Fish Audio" />
           </label>
+          <p v-else class="hint">{{ ttsChoice === "free" ? `${FREE_TTS}: o de testes, sem custo.` : `${PAID_TTS}: cobra por uso na conta do Fish Audio.` }}</p>
           <label>
             Modelo de transcrição (ouvir)
             <input v-model="profile.asrModel" spellcheck="false" placeholder="vazio = o padrão do Fish Audio" />

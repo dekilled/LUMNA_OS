@@ -52,6 +52,23 @@ const MOBILE_PAGE: Partial<Record<string, MPage>> = {
   teclado: "teclado",
   energia: "energia",
   sistema: "sistema",
+  // o que a Emma manda do pedido falado ("abre os ajustes do wi-fi")
+  wifi: "wifi",
+  "wi fi": "wifi",
+  "wi-fi": "wifi",
+  internet: "wifi",
+  dados: "dados",
+  "dados moveis": "dados",
+  tela: "tela",
+  brilho: "tela",
+  "papel de parede": "tela",
+  audio: "som",
+  volume: "som",
+  bateria: "energia",
+  vibracao: "vibracao",
+  gestos: "vibracao",
+  emma: "emma",
+  sobre: "sistema",
 };
 const mobileStart = ref<MPage>(MOBILE_PAGE[location.hash.slice(1)] ?? "home");
 const current = () => PAGES.find((p) => p.id === page.value)!;

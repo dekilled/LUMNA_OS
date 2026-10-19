@@ -196,12 +196,30 @@ function settle(turn: Turn) {
   const ran = turn.tools.filter((t) => t.state === "ok" && t.name.startsWith("lumna_"));
   if (!ran.length || locked.value) return;
   if (ran.some((t) => OPENERS.includes(t.name))) {
-    // abriu algo: dá um instante pra ver o "pronto" e sai da frente (a fala continua)
     fresh = true;
-    window.setTimeout(() => visible.value && current.value === turn && close(false), 900);
+    closeLater(turn);
   } else if (turns.value.length === 1) {
     fresh = true;
   }
+}
+
+/** Abriu algo: o popup sai da frente depois de dar tempo de ler a resposta (e de ela terminar de
+ * falar). Tocar no cartão segura ele aberto. */
+let autoClose = 0;
+function closeLater(turn: Turn) {
+  const read = Math.min(7000, Math.max(2500, 1800 + parseReply(turn.text).body.length * 55));
+  const start = Date.now();
+  window.clearInterval(autoClose);
+  autoClose = window.setInterval(() => {
+    if (!visible.value || current.value !== turn) return holdOpen();
+    if (Date.now() - start < read || speaking.value) return;
+    holdOpen();
+    close(false);
+  }, 250);
+}
+function holdOpen() {
+  window.clearInterval(autoClose);
+  autoClose = 0;
 }
 
 async function reset() {
@@ -408,6 +426,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
   <div class="assist" :class="{ open: visible }" @pointerdown.self="close()">
     <section
       class="card"
+      @pointerdown="holdOpen()"
       :style="{ transform: visible ? `translateY(${drag}px)` : undefined, marginBottom: `${inset}px` }"
       role="dialog"
       aria-label="Emma"
