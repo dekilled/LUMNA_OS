@@ -102,6 +102,9 @@ printf '[Login]\nHandlePowerKey=ignore\nHandlePowerKeyLongPress=ignore\n' > /etc
 mkdir -p /etc/systemd/system.conf.d /etc/systemd/user.conf.d
 printf '[Manager]\nDefaultTimeoutStopSec=10s\n' > /etc/systemd/system.conf.d/50-lumna-stop.conf
 printf '[Manager]\nDefaultTimeoutStopSec=10s\n' > /etc/systemd/user.conf.d/50-lumna-stop.conf
+# Wi-Fi sem economia de energia (o firmware do WCN3990 cai com ela; mobile/session/50-lumna-wifi.conf)
+mkdir -p /etc/NetworkManager/conf.d
+printf '[connection]\nwifi.powersave = 2\n\n[device]\nwifi.scan-rand-mac-address = no\n' > /etc/NetworkManager/conf.d/50-lumna-wifi.conf
 # Rede USB fixa: o PC conversa com o celular em 172.16.42.1
 cat > /etc/NetworkManager/system-connections/usb0.nmconnection <<NM
 [connection]
