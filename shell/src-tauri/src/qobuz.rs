@@ -342,8 +342,32 @@ pub async fn qobuz_login(app: AppHandle) -> Result<(), String> {
             false
         })
         .build()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // O web player recusa tela com menos de 1024 px de largura (o celular tem uns 432): com zoom
+    // pra trás a página enxerga a janela mais larga, como num PC. Recalcula se a janela mudar.
+    if let Some(window) = app.get_webview_window("qobuz-login") {
+        fit_width(&window);
+        let w = window.clone();
+        window.on_window_event(move |e| {
+            if matches!(e, tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. }) {
+                fit_width(&w);
+            }
+        });
+    }
+    Ok(())
+}
+
+/// A largura que o web player quer ver (com folga sobre os 1024).
+const PLAYER_WIDTH: f64 = 1100.0;
+
+/// O zoom que faz a janela parecer ter `PLAYER_WIDTH` de largura (1 se já tem).
+fn zoom_for(logical_width: f64) -> f64 {
+    if logical_width <= 0.0 { 1.0 } else { (logical_width / PLAYER_WIDTH).clamp(0.3, 1.0) }
+}
+
+fn fit_width(window: &tauri::WebviewWindow) {
+    let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor()) else { return };
+    let _ = window.set_zoom(zoom_for(size.width as f64 / scale));
 }
 
 #[cfg(test)]
@@ -364,6 +388,14 @@ mod tests {
         assert_eq!((t.artist.as_str(), t.album.as_str(), t.track, t.year), ("Coldplay", "Parachutes", 5, 2000));
         assert_eq!(t.cover.as_deref(), Some("https://l/x.jpg"));
         assert!(to_track(&json!({ "title": "sem id" })).is_none());
+    }
+
+    #[test]
+    fn zoom_da_janela_de_login() {
+        assert_eq!(zoom_for(1400.0), 1.0);
+        assert!((zoom_for(432.0) - 432.0 / 1100.0).abs() < 1e-9);
+        assert_eq!(zoom_for(200.0), 0.3);
+        assert_eq!(zoom_for(0.0), 1.0);
     }
 
     #[test]
