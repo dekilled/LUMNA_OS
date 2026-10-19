@@ -23,9 +23,9 @@ if [ ! -f "$EMMA_SRC/backend/server.py" ]; then
 Não achei o código da Emma em $EMMA_SRC (o NewHarnessV2 é privado).
 Copie do PC pela USB, rodando NO PC, de dentro da pasta que contém o NewHarnessV2:
   tar -czf - NewHarnessV2/backend | ssh alarm@172.16.42.1 'tar -C ~ -xzf -'
-ou clone aqui com a sua conta do GitHub (o branch lumna-emma: as ações do LUMNA, os perfis
-SFW/NSFW e os Modos v2; a main voltou pro estável v71, que não tem as ações):
-  git clone --depth 1 -b lumna-emma https://github.com/dekilled/NewHarnessV2 ~/NewHarnessV2
+ou clone aqui com a sua conta do GitHub (a main tem as ações do LUMNA, os perfis SFW/NSFW e os
+Modos v2):
+  git clone --depth 1 https://github.com/dekilled/NewHarnessV2 ~/NewHarnessV2
 MSG
     exit 1
 fi
