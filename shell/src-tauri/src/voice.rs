@@ -159,6 +159,16 @@ fn wav(pcm: &[u8]) -> Vec<u8> {
 
 /// Uma chamada ao backend com o token, pelo curl: devolve (status, corpo).
 fn call(app: &AppHandle, path: &str, body: Option<&Value>, extra: &[&str]) -> Result<(u16, Vec<u8>), String> {
+    let first = call_once(app, path, body, extra)?;
+    if first.0 != 401 {
+        return Ok(first);
+    }
+    // o token venceu antes da hora (o relógio do celular pula de 1970 pra data certa no boot)
+    app.state::<Emma>().forget();
+    call_once(app, path, body, extra)
+}
+
+fn call_once(app: &AppHandle, path: &str, body: Option<&Value>, extra: &[&str]) -> Result<(u16, Vec<u8>), String> {
     let token = app.state::<Emma>().access_token()?;
     let url = format!("{}{path}", emma::base_url());
     let config = emma::curl_config("POST", &url, Some(&token), body);

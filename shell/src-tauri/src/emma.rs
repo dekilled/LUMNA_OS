@@ -288,6 +288,25 @@ impl Emma {
         Err("Entre na sua conta da Emma (Painel → Emma).".into())
     }
 
+    /// Esquece o token de acesso (o próximo pedido entra de novo).
+    pub(crate) fn forget(&self) {
+        self.0.lock().unwrap().access = None;
+    }
+
+    /// Uma chamada com o token. Se o backend responde 401, entra de novo e tenta mais uma vez: o
+    /// token pode ter vencido antes da hora. No celular o relógio liga em 1970 e só depois pula
+    /// pra data certa; um token emitido antes do pulo já nasce vencido depois dele.
+    pub(crate) fn call(&self, method: &str, path: &str, body: Option<&Value>) -> Result<(u16, Value), String> {
+        let token = self.access_token()?;
+        let (code, reply) = request(method, path, Some(&token), body)?;
+        if code != 401 {
+            return Ok((code, reply));
+        }
+        self.forget();
+        let token = self.access_token()?;
+        request(method, path, Some(&token), body)
+    }
+
     fn login(&self, email: &str, password: &str) -> Result<String, String> {
         let (code, body) = request("POST", "/api/auth/login", None, Some(&json!({ "email": email, "password": password, "remember": true })))?;
         if code != 200 {
@@ -300,7 +319,7 @@ impl Emma {
         Ok(access)
     }
 
-    fn session(&self, token: &str, channel: Channel) -> Result<String, String> {
+    fn session(&self, channel: Channel) -> Result<String, String> {
         let stale = channel == Channel::Assist && {
             let mut inner = self.0.lock().unwrap();
             let stale = inner.assist_used.is_some_and(|at| at.elapsed() > ASSIST_IDLE);
@@ -308,7 +327,7 @@ impl Emma {
             stale
         };
         if let Some(sid) = read_config().get(channel.key()).and_then(Value::as_str).filter(|_| !stale) {
-            let (code, _) = request("GET", &format!("/api/sessions/{sid}/messages"), Some(token), None)?;
+            let (code, _) = self.call("GET", &format!("/api/sessions/{sid}/messages"), None)?;
             if code == 200 {
                 return Ok(sid.to_string());
             }
@@ -318,7 +337,7 @@ impl Emma {
             Channel::App => json!({ "title": "LUMNA" }),
             _ => json!({ "title": "LUMNA Assistente", "assist_log": true }),
         };
-        let (code, body) = request("POST", "/api/sessions", Some(token), Some(&body))?;
+        let (code, body) = self.call("POST", "/api/sessions", Some(&body))?;
         let sid = body["id"].as_str().filter(|_| code == 200).ok_or_else(|| format!("não deu para abrir a conversa ({code})"))?;
         update_config(&[(channel.key(), json!(sid))])?;
         Ok(sid.to_string())
@@ -376,19 +395,34 @@ fn tools_for(lock: bool) -> Vec<Value> {
     tools.into_iter().filter(|t| t["name"].as_str().is_some_and(|n| safe.iter().any(|s| s == n))).collect()
 }
 
+/// O backend recusou o token na conversa (marca interna: entra de novo e tenta mais uma vez).
+const AUTH_AGAIN: &str = "\u{0}401";
+
 /// Conversa uma mensagem inteira: manda, repassa os eventos ao painel e executa as ações.
 /// Devolve a resposta final da Emma.
 fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context: &str) -> Result<String, String> {
+    match converse_once(app, text, voice, channel, context) {
+        Err(e) if e == AUTH_AGAIN => {
+            app.state::<Emma>().forget();
+            converse_once(app, text, voice, channel, context)
+                .map_err(|e| if e == AUTH_AGAIN { "A Emma recusou o login: entre de novo no app da Emma.".into() } else { e })
+        }
+        other => other,
+    }
+}
+
+fn converse_once(app: &AppHandle, text: &str, voice: bool, channel: Channel, context: &str) -> Result<String, String> {
     // tela bloqueada: vale o modo bloqueado, venha de onde vier
     let channel = if locked() && channel != Channel::App { Channel::Lock } else { channel };
     let emma = app.state::<Emma>();
+    // a sessão primeiro: ela já renova o token se ele tiver vencido
+    let sid = emma.session(channel)?;
     let token = emma.access_token()?;
-    let sid = emma.session(&token, channel)?;
     emma.0.lock().unwrap().current = Some(sid.clone());
     if channel != Channel::App {
         // as regras do popup e a tela de agora (muda a cada mensagem)
         let prompt = json!({ "system_prompt": session_prompt(channel, context) });
-        if let Err(err) = request("PATCH", &format!("/api/sessions/{sid}"), Some(&token), Some(&prompt)) {
+        if let Err(err) = emma.call("PATCH", &format!("/api/sessions/{sid}"), Some(&prompt)) {
             eprintln!("lumna-shell: emma prompt do assistente: {err}");
         }
     }
@@ -419,7 +453,7 @@ fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context:
         // bloqueado: o que pede confirmação (as ferramentas do próprio backend) é negado na hora
         if event["type"] == "tool_confirm" && (channel == Channel::Lock || locked()) {
             let decision = json!({ "call_id": event["tool"]["id"], "allow": false });
-            let _ = request("POST", &format!("/api/sessions/{sid}/tool-decision"), Some(&token), Some(&decision));
+            let _ = emma.call("POST", &format!("/api/sessions/{sid}/tool-decision"), Some(&decision));
         }
         if event["type"] == "done" {
             answer = event["message"]["content"].as_str().unwrap_or_default().to_string();
@@ -439,7 +473,7 @@ fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context:
             let content: String = outcome.content.chars().take(4000).collect();
             let summary: String = outcome.summary.chars().take(300).collect();
             let result = json!({ "call_id": call_id, "ok": outcome.ok, "summary": summary, "content": content });
-            if let Err(err) = request("POST", &format!("/api/sessions/{sid}/tool-result"), Some(&token), Some(&result)) {
+            if let Err(err) = emma.call("POST", &format!("/api/sessions/{sid}/tool-result"), Some(&result)) {
                 eprintln!("lumna-shell: emma tool-result: {err}");
             }
         }
@@ -453,9 +487,11 @@ fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context:
         return Ok(answer);
     }
     if !out.status.success() && !got_any {
-        // 401: o token caiu (senha trocada, servidor reiniciado); a próxima tenta de novo do zero.
-        emma.0.lock().unwrap().access = None;
         let err = String::from_utf8_lossy(&out.stderr);
+        // 401: o token caiu (relógio que pulou, senha trocada); entra de novo e tenta mais uma vez
+        if err.contains("401") {
+            return Err(AUTH_AGAIN.into());
+        }
         let why = serde_json::from_str::<Value>(&other).map(|body| detail(&body)).unwrap_or_default();
         return Err(if err.contains("401") || err.contains("403") {
             "A Emma pediu login de novo (Painel → Emma).".into()
@@ -571,10 +607,9 @@ pub async fn emma_decide(app: AppHandle, call_id: String, allow: bool) -> Result
             return Err("desbloqueie o celular para permitir".into());
         }
         let emma = app.state::<Emma>();
-        let token = emma.access_token()?;
         let current = emma.0.lock().unwrap().current.clone();
         let sid = current.or_else(|| read_config().get("session_id").and_then(Value::as_str).map(str::to_string)).ok_or("sem conversa aberta")?;
-        let (code, body) = request("POST", &format!("/api/sessions/{sid}/tool-decision"), Some(&token), Some(&json!({ "call_id": call_id, "allow": allow })))?;
+        let (code, body) = emma.call("POST", &format!("/api/sessions/{sid}/tool-decision"), Some(&json!({ "call_id": call_id, "allow": allow })))?;
         if code == 200 {
             Ok(())
         } else {
@@ -600,8 +635,7 @@ pub async fn emma_history(app: AppHandle, channel: Option<String>) -> Vec<Value>
     }
     tauri::async_runtime::spawn_blocking(move || {
         let sid = read_config().get(channel.key()).and_then(Value::as_str)?.to_string();
-        let token = app.state::<Emma>().access_token().ok()?;
-        let (code, body) = request("GET", &format!("/api/sessions/{sid}/messages"), Some(&token), None).ok()?;
+        let (code, body) = app.state::<Emma>().call("GET", &format!("/api/sessions/{sid}/messages"), None).ok()?;
         let messages = body.as_array().filter(|_| code == 200)?;
         Some(
             messages
@@ -623,10 +657,13 @@ pub async fn emma_history(app: AppHandle, channel: Option<String>) -> Vec<Value>
 #[tauri::command]
 pub async fn emma_providers(app: AppHandle) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let token = app.state::<Emma>().access_token()?;
-        let (_, presets) = request("GET", "/api/providers/presets", Some(&token), None)?;
-        let (_, settings) = request("GET", "/api/settings", Some(&token), None)?;
-        let (_, providers) = request("GET", "/api/providers", Some(&token), None)?;
+        let emma = app.state::<Emma>();
+        let (code, presets) = emma.call("GET", "/api/providers/presets", None)?;
+        if code != 200 {
+            return Err(format!("o servidor da Emma recusou ({code}): {}", detail(&presets)));
+        }
+        let (_, settings) = emma.call("GET", "/api/settings", None)?;
+        let (_, providers) = emma.call("GET", "/api/providers", None)?;
         let chat = &settings["routing"]["chat"];
         let current = providers
             .as_array()
@@ -647,15 +684,15 @@ pub async fn emma_set_provider(app: AppHandle, name: String, base_url: String, a
         return Err("Escolha o modelo.".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let token = app.state::<Emma>().access_token()?;
+        let emma = app.state::<Emma>();
         let body = json!({ "name": name.trim(), "base_url": base_url.trim(), "api_key": api_key.trim(), "models": [model.trim()] });
-        let (code, provider) = request("POST", "/api/providers", Some(&token), Some(&body))?;
+        let (code, provider) = emma.call("POST", "/api/providers", Some(&body))?;
         let id = provider["id"].as_str().filter(|_| code == 200).ok_or_else(|| {
             let why = detail(&provider);
             if why.is_empty() { format!("O servidor recusou o provedor ({code}).") } else { why }
         })?;
         let routing = json!({ "routing": { "chat": { "provider_id": id, "model": model.trim() } } });
-        let (code, body) = request("PUT", "/api/settings", Some(&token), Some(&routing))?;
+        let (code, body) = emma.call("PUT", "/api/settings", Some(&routing))?;
         if code == 200 {
             Ok(())
         } else {
@@ -671,12 +708,12 @@ pub async fn emma_set_provider(app: AppHandle, name: String, base_url: String, a
 #[tauri::command]
 pub async fn emma_settings(app: AppHandle) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let token = app.state::<Emma>().access_token()?;
-        let (code, settings) = request("GET", "/api/settings", Some(&token), None)?;
+        let emma = app.state::<Emma>();
+        let (code, settings) = emma.call("GET", "/api/settings", None)?;
         if code != 200 {
             return Err(detail(&settings));
         }
-        let (_, local) = request("GET", "/api/local-voice", Some(&token), None).unwrap_or((0, Value::Null));
+        let (_, local) = emma.call("GET", "/api/local-voice", None).unwrap_or((0, Value::Null));
         let (personality, prompt) = persona_keys(&settings);
         Ok(json!({
             "personality": settings[personality],
@@ -708,9 +745,9 @@ fn persona_keys(settings: &Value) -> (&'static str, &'static str) {
 pub async fn emma_save_settings(app: AppHandle, personality: Option<String>, system_prompt: Option<String>, voice: Option<Value>) -> Result<(), String> {
     const VOICE_KEYS: [&str; 7] = ["api_key", "tts_engine", "stt_engine", "whisper_model", "local_voice", "voice_id", "auto_read"];
     tauri::async_runtime::spawn_blocking(move || {
-        let token = app.state::<Emma>().access_token()?;
+        let emma = app.state::<Emma>();
         // o perfil em uso decide em que campos a persona vai
-        let (code, settings) = request("GET", "/api/settings", Some(&token), None)?;
+        let (code, settings) = emma.call("GET", "/api/settings", None)?;
         if code != 200 {
             return Err(detail(&settings));
         }
@@ -726,7 +763,7 @@ pub async fn emma_save_settings(app: AppHandle, personality: Option<String>, sys
             let v: Map<String, Value> = v.into_iter().filter(|(k, _)| VOICE_KEYS.contains(&k.as_str())).collect();
             body.insert("voice".into(), Value::Object(v));
         }
-        let (code, reply) = request("PUT", "/api/settings", Some(&token), Some(&Value::Object(body)))?;
+        let (code, reply) = emma.call("PUT", "/api/settings", Some(&Value::Object(body)))?;
         match code {
             200 => Ok(()),
             _ => Err(format!("o servidor recusou ({code}): {}", detail(&reply))),
@@ -743,8 +780,7 @@ pub async fn emma_install_voice(app: AppHandle, what: String) -> Result<(), Stri
         return Err("escolha stt ou tts".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let token = app.state::<Emma>().access_token()?;
-        let (code, reply) = request("POST", "/api/local-voice/install", Some(&token), Some(&json!({ "what": what })))?;
+        let (code, reply) = app.state::<Emma>().call("POST", "/api/local-voice/install", Some(&json!({ "what": what })))?;
         if code == 200 {
             Ok(())
         } else {
