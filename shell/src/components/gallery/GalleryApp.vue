@@ -392,20 +392,33 @@ const neighbor = (step: number) => {
 const prevPhoto = computed(() => neighbor(-1));
 const nextPhoto = computed(() => neighbor(1));
 
-/** As três fotos (anterior, atual, próxima), sempre os mesmos <img> por foto: ao trocar, a
- * vizinha que entrou vira a atual sem recarregar (era o que piscava). */
-const slots = computed(() => {
-  if (!photo.value) return [];
-  const list: { photo: Photo; off: number }[] = [{ photo: photo.value, off: 0 }];
-  if (scale.value === 1 || switching) {
-    if (prevPhoto.value) list.unshift({ photo: prevPhoto.value, off: -1 });
-    if (nextPhoto.value) list.push({ photo: nextPhoto.value, off: 1 });
-  }
-  return list;
-});
+/** Três <img> fixos que nunca saem da página, cada um com uma foto. Ao trocar, a vizinha que
+ * entrou continua no mesmo <img> e só o que saiu de cena recebe a próxima foto. Criar e apagar
+ * <img> (mesmo fora da tela) fazia o WebKit refazer as camadas da página: piscava a cada troca. */
+const pool = ref<(string | null)[]>([null, null, null]);
+watch(
+  () => (photo.value ? [prevPhoto.value?.path, photo.value.path, nextPhoto.value?.path].filter((p): p is string => !!p) : []),
+  (want) => {
+    if (!want.length) return;
+    const next = [...pool.value];
+    const free = next.map((p, i) => (p && want.includes(p) ? -1 : i)).filter((i) => i >= 0);
+    for (const path of want) if (!next.includes(path)) next[free.shift()!] = path;
+    pool.value = next;
+  },
+  { immediate: true },
+);
+/** Onde a foto do <img> está: -1 anterior, 0 atual, 1 próxima; null = fora de cena. */
+function offOf(path: string | null) {
+  if (!path || !photo.value) return null;
+  if (path === photo.value.path) return 0;
+  if (path === prevPhoto.value?.path) return -1;
+  if (path === nextPhoto.value?.path) return 1;
+  return null;
+}
 // a mesma forma de transform pra todas: trocar de forma (translateX → translate + scale) fazia o
 // WebKit refazer a camada da foto, e ela piscava ao virar a atual
-function slotStyle(path: string, off: number) {
+function slotStyle(path: string, off: number | null) {
+  if (off == null) return { transform: `translate3d(${3 * (width() + GAP)}px, 0, 0) scale(1)`, backgroundImage: "none" };
   const s = off === 0 ? scale.value * (1 - Math.min(drop.value, 400) / 1600) : 1;
   const x = off === 0 ? tx.value + slide.value : off * (width() + GAP) + slide.value;
   const y = off === 0 ? ty.value + drop.value : 0;
@@ -607,18 +620,18 @@ onUnmounted(() => {
         @wheel="wheel"
         @transitionend="transitionEnd"
       >
-        <img
-          v-for="slot in slots"
-          :key="slot.photo.path"
-          class="full"
-          :ref="(el) => prepare(el, slot.photo.path)"
-          :class="{ animating, current: slot.off === 0 }"
-          :src="artUrl(slot.photo.path) ?? ''"
-          :style="slotStyle(slot.photo.path, slot.off)"
-          alt=""
-          draggable="false"
-          @load="(e) => sizes.set(slot.photo.path, { w: (e.target as HTMLImageElement).naturalWidth, h: (e.target as HTMLImageElement).naturalHeight })"
-        />
+        <template v-for="(path, i) in pool" :key="i">
+          <img
+            class="full"
+            :ref="(el) => path && prepare(el, path)"
+            :class="{ animating: animating && offOf(path) != null, current: offOf(path) === 0 }"
+            :src="(path && artUrl(path)) || undefined"
+            :style="slotStyle(path ?? '', offOf(path))"
+            alt=""
+            draggable="false"
+            @load="(e) => path && sizes.set(path, { w: (e.target as HTMLImageElement).naturalWidth, h: (e.target as HTMLImageElement).naturalHeight })"
+          />
+        </template>
       </div>
 
       <header v-show="chrome" class="vbar">
