@@ -561,6 +561,8 @@ export const emmaListen = () => invoke<void>("emma_listen");
 export const emmaListenStop = (cancel = false) => invoke<void>("emma_listen_stop", { cancel });
 export const emmaSpeak = (text: string) => invoke<void>("emma_speak", { text });
 export const emmaSpeakStop = () => invoke<void>("emma_speak_stop");
+/** Parar tudo: a fala, o microfone e a resposta que está chegando. */
+export const emmaStop = () => invoke<void>("emma_stop");
 
 export interface EmmaVoiceSettings {
   tts_engine: string;
@@ -578,6 +580,8 @@ export interface EmmaVoiceSettings {
 export interface EmmaSettings {
   personality: string;
   system_prompt: string;
+  /** O perfil do backend em uso (a persona é de cada um); null = backend sem perfis. */
+  profile: "sfw" | "nsfw" | null;
   voice: EmmaVoiceSettings;
   /** `GET /api/local-voice` (só no PC): `available`, `stt.installed`, `tts.installed`, `job`... */
   local_voice: { available?: boolean; stt?: { installed: boolean }; tts?: { installed: boolean }; job?: unknown } | null;

@@ -16,6 +16,7 @@ import {
   emmaSend,
   emmaSpeak,
   emmaSpeakStop,
+  emmaStop,
   haptic,
   layerHide,
   on,
@@ -177,6 +178,19 @@ async function send(text: string, voice = false) {
 function submit() {
   send(draft.value);
 }
+
+/** Parar: ela cala, o microfone fecha e a resposta que estava chegando para onde está. */
+function stop() {
+  emmaStop().catch(() => {});
+  speaking.value = false;
+  if (mic.value !== "idle") {
+    mic.value = "idle";
+    mine = false;
+  }
+}
+
+/** O botão da direita vira "parar" enquanto ela responde ou fala (e o campo está vazio). */
+const canStop = computed(() => !draft.value.trim() && (busy.value || speaking.value));
 
 async function decide(tool: ToolView, allow: boolean) {
   tool.state = allow ? "running" : "denied";
@@ -344,7 +358,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
           <path d="M12 1.5 15.5 12 12 22.5 8.5 12zM2.5 12h19" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="0.8" />
         </svg>
         <span class="name">Emma</span>
-        <span class="state" v-if="speaking">falando…</span>
+        <button v-if="speaking" class="state" @click="stop()"><Icon name="stop" :size="14" /> Parar de falar</button>
         <button class="x" aria-label="Fechar" @click="close()"><Icon name="close" :size="22" /></button>
       </header>
       <p v-if="contextLine" class="context">{{ contextLine }}</p>
@@ -428,7 +442,10 @@ onUnmounted(() => stops.forEach((stop) => stop()));
           enterkeyhint="send"
           autocomplete="off"
         />
-        <button type="submit" class="go" :disabled="!draft.trim() || busy" aria-label="Enviar">
+        <button v-if="canStop" type="button" class="go stop" aria-label="Parar" @click="stop()">
+          <Icon name="stop" :size="18" />
+        </button>
+        <button v-else type="submit" class="go" :disabled="!draft.trim() || busy" aria-label="Enviar">
           <Icon name="arrow-right" :size="22" />
         </button>
       </form>
@@ -499,8 +516,15 @@ header {
   letter-spacing: 0.2em;
 }
 .state {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
   color: var(--lumna-violet-soft);
+  font-size: 13px;
 }
 .x {
   margin-left: auto;
@@ -700,6 +724,10 @@ button:disabled {
   color: #fff;
   box-shadow: 0 0 0 calc(var(--level, 0) * 14px + 3px) rgba(139, 92, 246, 0.28);
   transition: box-shadow 90ms linear;
+}
+.go.stop {
+  background: rgba(139, 92, 246, 0.25);
+  color: var(--lumna-text);
 }
 .go:not(:disabled) {
   background: var(--lumna-violet);

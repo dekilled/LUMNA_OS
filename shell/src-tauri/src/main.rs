@@ -1772,6 +1772,7 @@ fn main() {
             voice::emma_listen_stop,
             voice::emma_speak,
             voice::emma_speak_stop,
+            emma::emma_stop,
             emma_app_open,
             automation::automation_overview,
             automation::automation_set_enabled,

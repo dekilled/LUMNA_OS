@@ -147,6 +147,22 @@ fn icon_data_url(icon: &str) -> Option<String> {
     Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
+/// O app da Emma (a conversa longa, as ferramentas, os provedores e o perfil): vem com o shell,
+/// no PC e no celular. Um `lumna-emma.desktop` do usuário ganha deste (mesmo id).
+fn builtin(icons: bool) -> Vec<App> {
+    const EMMA_ICON: &str = include_str!("../../../mobile/session/apps/emma.svg");
+    vec![App {
+        id: "lumna-emma".into(),
+        name: "Emma".into(),
+        comment: "Conversa, ferramentas, provedores e o perfil da assistente".into(),
+        icon: icons.then(|| format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(EMMA_ICON))),
+        wm_class: None,
+        exec: "lumna-ctl emma app".into(),
+        keywords: "assistente ia chat conversa voz lumna".into(),
+        terminal: false,
+    }]
+}
+
 /// Todos os apps visíveis, em ordem alfabética. Só na thread principal (resolve ícones pelo GTK).
 pub fn list() -> Vec<App> {
     scan(true)
@@ -195,6 +211,10 @@ fn scan(icons: bool) -> Vec<App> {
                 }),
             );
         }
+    }
+    // os apps do próprio LUMNA que não dependem de um .desktop instalado à parte
+    for app in builtin(icons) {
+        apps.entry(app.id.clone()).or_insert(Some(app));
     }
     let mut list: Vec<App> = apps.into_values().flatten().collect();
     list.sort_by_key(|a| a.name.to_lowercase());

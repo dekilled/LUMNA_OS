@@ -24,6 +24,7 @@ import {
   emmaSettings,
   emmaSpeak,
   emmaSpeakStop,
+  emmaStop,
   emmaStatus,
   on,
   type ActionInfo,
@@ -78,7 +79,17 @@ const mic = ref<"idle" | "listening" | "transcribing">("idle");
 const level = ref(0);
 /** Ler as respostas em voz alta (também as escritas). */
 const readAloud = ref(false);
+const speaking = ref(false);
 let mine = false;
+
+/** Parar: ela cala, o microfone fecha e a resposta que estava chegando para onde está. */
+function stop() {
+  emmaStop().catch(() => {});
+  speaking.value = false;
+  mic.value = "idle";
+  mine = false;
+}
+const canStop = computed(() => !draft.value.trim() && (busy.value || speaking.value));
 
 const actions = ref<ActionInfo[]>([]);
 const labels = computed(() => new Map(actions.value.map((a) => [`lumna_${a.name.replace(/\./g, "_")}`, a.label])));
@@ -226,7 +237,12 @@ async function toggleMic() {
 }
 
 function onVoice(v: EmmaVoice) {
+  if (v.state === "speaking" || v.state === "spoken") {
+    speaking.value = v.state === "speaking";
+    return;
+  }
   if (v.state === "error") {
+    speaking.value = false;
     if (mine || mic.value !== "idle" || tab.value === "perfil") error.value = v.message;
     if (mine) profile.value.voiceError = v.message;
     mine = false;
@@ -536,7 +552,8 @@ onUnmounted(() => {
             :disabled="mic !== 'idle'"
             @keydown="onKeydown"
           />
-          <button class="send" :disabled="busy || !draft.trim()" title="Enviar"><Icon name="send" :size="18" /></button>
+          <button v-if="canStop" type="button" class="send stop" title="Parar" @click="stop()"><Icon name="stop" :size="16" /></button>
+          <button v-else class="send" :disabled="busy || !draft.trim()" title="Enviar"><Icon name="send" :size="18" /></button>
         </form>
       </section>
 
@@ -595,6 +612,10 @@ onUnmounted(() => {
       <!-- Perfil: persona e voz -->
       <form v-else class="page form" @submit.prevent="saveProfile()">
         <h1>Perfil</h1>
+        <p v-if="settings?.profile" class="hint">
+          Editando a Emma do perfil <strong>{{ settings.profile === "sfw" ? "SFW (modo visita)" : "NSFW" }}</strong>, o que está
+          em uso no servidor agora. Cada perfil guarda a sua personalidade e as suas diretrizes.
+        </p>
         <h2>Personalidade</h2>
         <p class="hint">Como a Emma fala com você (o jeito, o humor, o tratamento).</p>
         <textarea v-model="profile.personality" rows="4" placeholder="Ex.: descontraída, carinhosa, me chama de parceiro…" />
@@ -1109,6 +1130,10 @@ button:disabled {
   background: var(--lumna-violet);
   color: #fff;
   box-shadow: 0 0 0 calc(var(--level, 0) * 12px + 2px) rgba(139, 92, 246, 0.28);
+}
+.send.stop {
+  background: rgba(139, 92, 246, 0.25);
+  color: var(--lumna-text);
 }
 .send:not(:disabled) {
   background: var(--lumna-violet);

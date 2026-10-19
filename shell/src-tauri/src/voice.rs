@@ -162,7 +162,8 @@ fn call(app: &AppHandle, path: &str, body: Option<&Value>, extra: &[&str]) -> Re
     let token = app.state::<Emma>().access_token()?;
     let url = format!("{}{path}", emma::base_url());
     let config = emma::curl_config("POST", &url, Some(&token), body);
-    let mut args = vec!["--connect-timeout", "4", "-w", "\n%{http_code}"];
+    // uma frase ou uma fala nunca demoram isso; sem limite, um servidor engasgado prendia a fila
+    let mut args = vec!["--connect-timeout", "4", "--max-time", "60", "-w", "\n%{http_code}"];
     args.extend_from_slice(extra);
     let out = emma::curl(&config, &args)?.wait_with_output().map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -314,15 +315,34 @@ fn synthesize(app: &AppHandle, text: &str, index: u64) -> Result<PathBuf, String
     Ok(path)
 }
 
+/// Quanto o áudio dura, no máximo: o WAV diz no cabeçalho; o MP3 é estimado pelo tamanho na
+/// menor taxa que o Fish usa (32 kbit/s), então sobra tempo.
+fn max_duration(path: &PathBuf) -> Duration {
+    let Ok(bytes) = std::fs::read(path) else { return Duration::from_secs(5) };
+    let secs = if bytes.starts_with(b"RIFF") && bytes.len() > 44 {
+        let rate = u32::from_le_bytes([bytes[28], bytes[29], bytes[30], bytes[31]]).max(1);
+        bytes.len() as f64 / f64::from(rate)
+    } else {
+        bytes.len() as f64 / 4_000.0
+    };
+    Duration::from_secs_f64(secs + 3.0)
+}
+
 fn play(path: &PathBuf, generation: u64) {
     let Some(bin) = find_bin(&["pw-play", "paplay"]) else { return };
+    let limit = max_duration(path);
     let Ok(child) = Command::new(bin).arg(path).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn() else { return };
     *PLAYER.lock().unwrap() = Some(child);
+    let started = std::time::Instant::now();
     loop {
         std::thread::sleep(Duration::from_millis(40));
         let mut player = PLAYER.lock().unwrap();
         let Some(child) = player.as_mut() else { return };
-        if !current(generation) {
+        // parado pela pessoa, ou o tocador não saiu sozinho no fim do áudio (o resto da fila esperava)
+        if !current(generation) || started.elapsed() > limit {
+            if current(generation) {
+                eprintln!("lumna-shell: emma voz: {bin} não terminou; parado");
+            }
             let _ = child.kill();
         }
         if child.try_wait().map_or(true, |s| s.is_some()) {
@@ -399,6 +419,14 @@ pub fn emma_speak(app: AppHandle, text: String) -> Result<(), String> {
 #[tauri::command]
 pub fn emma_speak_stop() {
     stop_speaking();
+}
+
+/// Para tudo o que é voz: a fala e o microfone (sem transcrever).
+pub fn stop_all() {
+    stop_speaking();
+    if LISTENING.load(Ordering::SeqCst) {
+        CANCEL.store(true, Ordering::SeqCst);
+    }
 }
 
 #[cfg(test)]

@@ -91,6 +91,7 @@ const paths: Record<string, string> = {
   "arrow-left": "M19 12H5M11 6l-6 6 6 6",
   "arrow-right": "M5 12h14M13 6l6 6-6 6",
   chat: "M4 5h16v11H10l-5 4v-4H4z",
+  stop: "M7 7h10v10H7z",
   "plus-circle": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v8M8 12h8",
   "arrow-up": "M12 19V5M6 11l6-6 6 6",
   "arrow-down": "M12 5v14M6 13l6 6 6-6",

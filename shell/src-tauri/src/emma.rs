@@ -38,6 +38,8 @@ struct Inner {
     current: Option<String>,
     /// Última vez que o assistente (popup) conversou: depois de um tempo parado, começa outra.
     assist_used: Option<Instant>,
+    /// O curl da resposta que está chegando (o "parar" fecha ele: o backend guarda o que veio).
+    stream: Option<u32>,
 }
 
 /// De onde vem a mensagem: cada um tem a sua conversa no backend, e os eventos levam o nome
@@ -337,6 +339,11 @@ fn emit(app: &AppHandle, channel: Channel, event: &Value) {
     let mut event = event.clone();
     if let Some(map) = event.as_object_mut() {
         map.insert("channel".into(), json!(channel.name()));
+        // o backend manda o erro do provedor em "error"; as telas leem "message"
+        if map.get("type").is_some_and(|t| t == "error") && !map.contains_key("message") {
+            let why = map.get("error").and_then(Value::as_str).unwrap_or("a Emma não conseguiu responder").to_string();
+            map.insert("message".into(), json!(why));
+        }
     }
     let _ = app.emit("lumna://emma", &event);
     // com a tela bloqueada ninguém confirma nada (nem pelo PC)
@@ -394,6 +401,7 @@ fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context:
     });
     let url = format!("{}/api/sessions/{sid}/chat", base_url());
     let mut child = curl(&curl_config("POST", &url, Some(&token), Some(&body)), &["-N", "--fail-with-body"])?;
+    emma.0.lock().unwrap().stream = Some(child.id());
     let stdout = child.stdout.take().ok_or("curl sem saída")?;
     let mut got_any = false;
     let mut answer = String::new();
@@ -436,7 +444,14 @@ fn converse(app: &AppHandle, text: &str, voice: bool, channel: Channel, context:
             }
         }
     }
-    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    let out = child.wait_with_output().map_err(|e| e.to_string());
+    let stopped = emma.0.lock().unwrap().stream.take().is_none();
+    let out = out?;
+    if stopped {
+        // a pessoa tocou em parar: fica o que já tinha chegado
+        emma.0.lock().unwrap().current = None;
+        return Ok(answer);
+    }
     if !out.status.success() && !got_any {
         // 401: o token caiu (senha trocada, servidor reiniciado); a próxima tenta de novo do zero.
         emma.0.lock().unwrap().access = None;
@@ -533,6 +548,19 @@ pub async fn emma_send(app: AppHandle, text: String, voice: bool, channel: Optio
         emit(&app, channel, &json!({ "type": "error", "message": err }));
     }
     result
+}
+
+/// Parar: a Emma para de falar, o microfone fecha e a resposta que está chegando é cortada (o
+/// backend guarda o pedaço que veio, marcado como interrompido).
+#[tauri::command]
+pub fn emma_stop(app: AppHandle) {
+    crate::voice::stop_all();
+    if let Some(pid) = app.state::<Emma>().0.lock().unwrap().stream.take() {
+        // SAFETY: só manda um sinal pro curl que este processo abriu
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+    }
 }
 
 /// A pessoa respondeu a uma confirmação (`tool_confirm`).
@@ -649,9 +677,12 @@ pub async fn emma_settings(app: AppHandle) -> Result<Value, String> {
             return Err(detail(&settings));
         }
         let (_, local) = request("GET", "/api/local-voice", Some(&token), None).unwrap_or((0, Value::Null));
+        let (personality, prompt) = persona_keys(&settings);
         Ok(json!({
-            "personality": settings["personality"],
-            "system_prompt": settings["system_prompt"],
+            "personality": settings[personality],
+            "system_prompt": settings[prompt],
+            // "sfw" (modo visita), "nsfw" ou null (backend sem perfis)
+            "profile": match settings["profile_nsfw"].as_bool() { Some(true) => json!("nsfw"), Some(false) => json!("sfw"), None => Value::Null },
             "voice": settings["voice"],
             "local_voice": local,
         }))
@@ -660,29 +691,45 @@ pub async fn emma_settings(app: AppHandle) -> Result<Value, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Onde fica a persona do perfil em uso. Os backends com perfis (SFW/NSFW) guardam a do SFW em
+/// `personality_sfw`/`system_prompt_sfw` e escondem a do outro perfil no GET; sem perfis, é a
+/// `personality` de sempre.
+fn persona_keys(settings: &Value) -> (&'static str, &'static str) {
+    if settings["profile_nsfw"] == json!(false) {
+        ("personality_sfw", "system_prompt_sfw")
+    } else {
+        ("personality", "system_prompt")
+    }
+}
+
 /// Salva a persona e/ou a voz. `voice` vai como está (o backend junta com o que já tinha); só
 /// os campos conhecidos passam.
 #[tauri::command]
 pub async fn emma_save_settings(app: AppHandle, personality: Option<String>, system_prompt: Option<String>, voice: Option<Value>) -> Result<(), String> {
     const VOICE_KEYS: [&str; 7] = ["api_key", "tts_engine", "stt_engine", "whisper_model", "local_voice", "voice_id", "auto_read"];
-    let mut body = Map::new();
-    if let Some(p) = personality {
-        body.insert("personality".into(), json!(p.chars().take(8000).collect::<String>()));
-    }
-    if let Some(p) = system_prompt {
-        body.insert("system_prompt".into(), json!(p.chars().take(8000).collect::<String>()));
-    }
-    if let Some(Value::Object(v)) = voice {
-        let v: Map<String, Value> = v.into_iter().filter(|(k, _)| VOICE_KEYS.contains(&k.as_str())).collect();
-        body.insert("voice".into(), Value::Object(v));
-    }
     tauri::async_runtime::spawn_blocking(move || {
         let token = app.state::<Emma>().access_token()?;
+        // o perfil em uso decide em que campos a persona vai
+        let (code, settings) = request("GET", "/api/settings", Some(&token), None)?;
+        if code != 200 {
+            return Err(detail(&settings));
+        }
+        let (personality_key, prompt_key) = persona_keys(&settings);
+        let mut body = Map::new();
+        if let Some(p) = personality {
+            body.insert(personality_key.into(), json!(p.chars().take(8000).collect::<String>()));
+        }
+        if let Some(p) = system_prompt {
+            body.insert(prompt_key.into(), json!(p.chars().take(8000).collect::<String>()));
+        }
+        if let Some(Value::Object(v)) = voice {
+            let v: Map<String, Value> = v.into_iter().filter(|(k, _)| VOICE_KEYS.contains(&k.as_str())).collect();
+            body.insert("voice".into(), Value::Object(v));
+        }
         let (code, reply) = request("PUT", "/api/settings", Some(&token), Some(&Value::Object(body)))?;
-        if code == 200 {
-            Ok(())
-        } else {
-            Err(detail(&reply))
+        match code {
+            200 => Ok(()),
+            _ => Err(format!("o servidor recusou ({code}): {}", detail(&reply))),
         }
     })
     .await
@@ -767,6 +814,13 @@ mod tests {
         assert!(session_prompt(Channel::Lock, "").contains("BLOQUEADA"));
         assert_eq!(Channel::parse(Some("assist")), Channel::Assist);
         assert_eq!(Channel::parse(None), Channel::App);
+    }
+
+    #[test]
+    fn persona_of_the_current_profile() {
+        assert_eq!(persona_keys(&json!({ "profile_nsfw": false })), ("personality_sfw", "system_prompt_sfw"));
+        assert_eq!(persona_keys(&json!({ "profile_nsfw": true })), ("personality", "system_prompt"));
+        assert_eq!(persona_keys(&json!({ "personality": "x" })), ("personality", "system_prompt"));
     }
 
     #[test]
