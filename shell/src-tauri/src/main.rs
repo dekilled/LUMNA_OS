@@ -1834,6 +1834,7 @@ fn main() {
             mobilelock::lock_now,
             mobilelock::lock_config_set,
             mobilelock::power_menu_close,
+            mobilelock::power_menu_open,
             mobile::profile_get,
             mobile::profile_set_name,
             mobile::profile_set_photo,

@@ -1400,6 +1400,7 @@ mod tests {
             exec: id.into(),
             keywords: keywords.into(),
             terminal: false,
+            category: String::new(),
         };
         let list = vec![
             app("Firefox", "firefox", "Navegador Web internet"),

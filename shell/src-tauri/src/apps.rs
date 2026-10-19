@@ -24,6 +24,25 @@ pub struct App {
     pub keywords: String,
     #[serde(skip)]
     pub terminal: bool,
+    /// A gaveta de apps do celular: "trabalho", "midia", "jogos" (vazio: só em Todos).
+    pub category: String,
+}
+
+/// A categoria da gaveta pelo `Categories` do .desktop (o que o próprio app declara).
+pub fn category_of(categories: &str) -> &'static str {
+    let has = |c: &str| categories.split(';').any(|x| x.eq_ignore_ascii_case(c));
+    if has("Game") {
+        "jogos"
+    } else if ["AudioVideo", "Audio", "Video", "Player", "Music", "Graphics", "Photography"].iter().any(|c| has(c)) {
+        "midia"
+    } else if ["Office", "Development", "TextEditor", "WordProcessor", "Spreadsheet", "Presentation", "Calculator", "Finance", "ProjectManagement", "IDE", "Education", "Science", "Network", "WebBrowser", "Email", "Utility", "System"]
+        .iter()
+        .any(|c| has(c))
+    {
+        "trabalho"
+    } else {
+        ""
+    }
 }
 
 impl App {
@@ -154,7 +173,7 @@ fn builtin(icons: bool) -> Vec<App> {
     const GALLERY_ICON: &str = include_str!("../../../mobile/session/apps/gallery.svg");
     const MUSIC_ICON: &str = include_str!("../../../mobile/session/apps/music.svg");
     let svg = |s: &str| icons.then(|| format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(s)));
-    let app = |id: &str, name: &str, comment: &str, icon: &str, exec: &str, keywords: &str| App {
+    let app = |id: &str, name: &str, comment: &str, icon: &str, exec: &str, keywords: &str, category: &str| App {
         id: id.into(),
         name: name.into(),
         comment: comment.into(),
@@ -163,11 +182,12 @@ fn builtin(icons: bool) -> Vec<App> {
         exec: exec.into(),
         keywords: keywords.into(),
         terminal: false,
+        category: category.into(),
     };
     vec![
-        app("lumna-emma", "Emma", "Conversa, ferramentas, provedores e o perfil da assistente", EMMA_ICON, "lumna-ctl emma app", "assistente ia chat conversa voz lumna"),
-        app("lumna-gallery", "Galeria", "Fotos, capturas de tela e imagens", GALLERY_ICON, "lumna-ctl gallery", "fotos imagens capturas câmera viewer visualizador"),
-        app("lumna-music", "Música", "LUMNA Music: as músicas da pasta Músicas", MUSIC_ICON, "lumna-ctl music", "musica músicas player mp3 album artista tocar spotify"),
+        app("lumna-emma", "Emma", "Conversa, ferramentas, provedores e o perfil da assistente", EMMA_ICON, "lumna-ctl emma app", "assistente ia chat conversa voz lumna", "trabalho"),
+        app("lumna-gallery", "Galeria", "Fotos, capturas de tela e imagens", GALLERY_ICON, "lumna-ctl gallery", "fotos imagens capturas câmera viewer visualizador", "midia"),
+        app("lumna-music", "Música", "LUMNA Music: as músicas da pasta Músicas", MUSIC_ICON, "lumna-ctl music", "musica músicas player mp3 album artista tocar spotify", "midia"),
     ]
 }
 
@@ -216,6 +236,7 @@ fn scan(icons: bool) -> Vec<App> {
                     exec,
                     keywords: format!("{} {}", localized(&fields, "GenericName"), localized(&fields, "Keywords").replace(';', " ")),
                     terminal: fields.get("Terminal").is_some_and(|t| t == "true"),
+                    category: category_of(fields.get("Categories").map(String::as_str).unwrap_or_default()).into(),
                 }),
             );
         }
@@ -243,7 +264,17 @@ mod tests {
             exec: exec.into(),
             keywords: String::new(),
             terminal,
+            category: String::new(),
         }
+    }
+
+    #[test]
+    fn categorias_da_gaveta() {
+        assert_eq!(category_of("Game;ArcadeGame;"), "jogos");
+        assert_eq!(category_of("AudioVideo;Player;"), "midia");
+        assert_eq!(category_of("Office;WordProcessor;"), "trabalho");
+        assert_eq!(category_of("Network;WebBrowser;"), "trabalho");
+        assert_eq!(category_of(""), "");
     }
 
     #[test]

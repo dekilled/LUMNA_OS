@@ -724,6 +724,7 @@ mod tests {
             exec: id.into(),
             keywords: keywords.into(),
             terminal: false,
+            category: String::new(),
         };
         let apps = vec![app("Firefox", "firefox", None, "Navegador web"), app("Steam", "steam", Some("steam"), "Jogos")];
         assert!(app_matches("spotify", "Spotify", &apps));

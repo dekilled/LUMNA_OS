@@ -330,6 +330,12 @@ pub fn power_menu_close(app: AppHandle) {
     power_menu(&app, false);
 }
 
+/// O botão de energia da tela de apps (o mesmo menu de segurar o power).
+#[tauri::command]
+pub fn power_menu_open(app: AppHandle) {
+    power_menu(&app, true);
+}
+
 // ---- botão power ----
 
 fn short_press(app: &AppHandle) {

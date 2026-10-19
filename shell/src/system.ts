@@ -7,6 +7,8 @@ export interface App {
   comment: string;
   icon: string | null;
   wm_class: string | null;
+  /** a gaveta do celular: "trabalho", "midia", "jogos" ("": só em Todos) */
+  category?: string;
 }
 
 export interface Status {
@@ -1210,6 +1212,8 @@ export const lockUnlock = (password: string) => invoke<void>("lock_unlock", { pa
 export const lockNow = () => invoke<void>("lock_now");
 export const lockConfigSet = (config: LockConfig) => invoke<LockConfig>("lock_config_set", { config });
 export const powerMenuClose = () => invoke<void>("power_menu_close");
+/** Celular: abre o menu de energia (o de segurar o power). */
+export const powerMenuOpen = () => invoke<void>("power_menu_open");
 
 // ---- celular: Connect (o PC pelo celular) ----
 
