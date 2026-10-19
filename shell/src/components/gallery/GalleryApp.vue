@@ -31,7 +31,9 @@ const info = ref(false);
 const message = ref("");
 const targets = ref<ConnectTarget[] | null>(null);
 const confirmDelete = ref(false);
-const natural = ref({ w: 0, h: 0 });
+/** O tamanho de cada foto, de quando ela carregou (a vizinha carrega antes de virar a atual). */
+const sizes = ref(new Map<string, { w: number; h: number }>());
+const natural = computed(() => (photo.value && sizes.value.get(photo.value.path)) || { w: 0, h: 0 });
 
 // ---- lista ----
 
@@ -127,6 +129,8 @@ const scale = ref(1);
 const tx = ref(0);
 const ty = ref(0);
 const slide = ref(0);
+/** Puxando a foto pra baixo (pra fechar). */
+const drop = ref(0);
 const animating = ref(false);
 const stage = ref<HTMLElement>();
 
@@ -135,6 +139,7 @@ function resetZoom() {
   tx.value = 0;
   ty.value = 0;
   slide.value = 0;
+  drop.value = 0;
 }
 
 /** Ponto da tela relativo ao centro do palco. */
@@ -153,60 +158,48 @@ function zoomAt(next: number, at: { x: number; y: number }, from = { s: scale.va
   ty.value = s === 1 ? 0 : at.y - s * py;
 }
 
-const pointers = new Map<number, { x: number; y: number }>();
-let pinch: { dist: number; mid: { x: number; y: number }; s: number; x: number; y: number } | null = null;
-let pan: { x: number; y: number; tx: number; ty: number; moved: boolean } | null = null;
+// Gestos. No celular vêm pelos eventos de toque: a lista de dedos do WebKit é a certa. Os eventos
+// de ponteiro do WebKitGTK não servem lá: cada toque chega também como "mouse" de
+// compatibilidade, e às vezes o mesmo dedo vira dois ponteiros (pinça fantasma: deslizar pra
+// cima encolhia, pra baixo dava zoom). Os ponteiros ficam só pro mouse, no PC.
+type Pt = { x: number; y: number };
+const MOUSE = -1;
+const fingers = new Map<number, Pt>();
+let pinch: { dist: number; mid: Pt; s: number; x: number; y: number } | null = null;
+let pan: { x: number; y: number; tx: number; ty: number; moved: boolean; axis: "" | "x" | "y" } | null = null;
 let lastTap = 0;
+let lastTouch = 0;
+let track: { t: number; x: number }[] = [];
+let switching = false;
+const GAP = 16;
+const width = () => stage.value?.clientWidth ?? window.innerWidth;
 
 function dist() {
-  const [a, b] = [...pointers.values()];
+  const [a, b] = [...fingers.values()];
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 function mid() {
-  const [a, b] = [...pointers.values()];
+  const [a, b] = [...fingers.values()];
   return local((a.x + b.x) / 2, (a.y + b.y) / 2);
 }
 
-// O WebKitGTK do celular manda cada toque duas vezes: como dedo (touch) e como mouse de
-// compatibilidade. Contado duas vezes, um toque virava toque duplo (zoom) e um deslize virava
-// pinça. Depois de um toque, os eventos de mouse são ignorados por um tempo.
-// Além disso: um gesto só aceita eventos do mesmo tipo do que o começou, e numa tela de toque
-// estreita (o celular) o mouse de compatibilidade nunca conta.
-let lastTouch = 0;
-let kind = "";
-const touchPhone = navigator.maxTouchPoints > 0 && window.innerWidth < 640;
-function ignored(e: PointerEvent) {
-  if (pointers.size && kind && e.pointerType !== kind) return true;
-  if (e.pointerType === "touch") {
-    lastTouch = Date.now();
-    return false;
-  }
-  return touchPhone || Date.now() - lastTouch < 1000;
-}
-
-function pdown(e: PointerEvent) {
-  if (ignored(e)) return;
-  if (!pointers.size) kind = e.pointerType;
+function begin(id: number, x: number, y: number, t: number) {
   if (switching) return;
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  try {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  } catch {}
+  fingers.set(id, { x, y });
   animating.value = false;
-  track = [{ t: e.timeStamp, x: e.clientX }];
-  if (pointers.size === 2) {
+  if (fingers.size === 2) {
     pan = null;
-    pinch = { dist: dist(), mid: mid(), s: scale.value, x: tx.value, y: ty.value };
-  } else if (pointers.size === 1) {
-    pan = { x: e.clientX, y: e.clientY, tx: tx.value, ty: ty.value, moved: false };
+    pinch = { dist: Math.max(1, dist()), mid: mid(), s: scale.value, x: tx.value, y: ty.value };
+  } else if (fingers.size === 1) {
+    pan = { x, y, tx: tx.value, ty: ty.value, moved: false, axis: "" };
+    track = [{ t, x }];
   }
 }
 
-function pmove(e: PointerEvent) {
-  if (ignored(e)) return;
-  if (!pointers.has(e.pointerId)) return;
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinch && pointers.size >= 2) {
+function moveTo(id: number, x: number, y: number, t: number) {
+  if (!fingers.has(id)) return;
+  fingers.set(id, { x, y });
+  if (pinch && fingers.size >= 2) {
     const m = mid();
     zoomAt((pinch.s * dist()) / pinch.dist, pinch.mid, { s: pinch.s, x: pinch.x, y: pinch.y });
     // e anda junto com os dedos
@@ -215,30 +208,37 @@ function pmove(e: PointerEvent) {
     return;
   }
   if (!pan) return;
-  const dx = e.clientX - pan.x;
-  const dy = e.clientY - pan.y;
-  if (Math.abs(dx) + Math.abs(dy) > 6) pan.moved = true;
-  track.push({ t: e.timeStamp, x: e.clientX });
+  const dx = x - pan.x;
+  const dy = y - pan.y;
+  if (!pan.moved && Math.abs(dx) + Math.abs(dy) > 8) {
+    pan.moved = true;
+    // a direção decide o gesto: de lado troca a foto, de cima pra baixo fecha
+    pan.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+  }
+  track.push({ t, x });
   if (track.length > 6) track.shift();
   if (scale.value > 1) {
     tx.value = pan.tx + dx;
     ty.value = pan.ty + dy;
-  } else {
-    slide.value = dx;
+  } else if (pan.axis === "x") {
+    // na primeira e na última foto o deslize "resiste" (não tem pra onde ir)
+    const edge = (dx > 0 && !prevPhoto.value) || (dx < 0 && !nextPhoto.value);
+    slide.value = edge ? dx * 0.25 : dx;
+  } else if (pan.axis === "y") {
+    drop.value = Math.max(0, dy);
   }
 }
 
-function pup(e: PointerEvent) {
-  if (ignored(e)) return;
-  if (!pointers.has(e.pointerId)) return;
-  pointers.delete(e.pointerId);
+function finish(id: number, x: number, y: number) {
+  if (!fingers.has(id)) return;
+  fingers.delete(id);
   if (pinch) {
-    if (pointers.size < 2) {
+    if (fingers.size < 2) {
       pinch = null;
       if (scale.value <= 1.02) resetZoom();
       // o dedo que ficou continua arrastando dali
-      const rest = [...pointers.values()][0];
-      pan = rest ? { x: rest.x, y: rest.y, tx: tx.value, ty: ty.value, moved: true } : null;
+      const rest = [...fingers.values()][0];
+      pan = rest ? { x: rest.x, y: rest.y, tx: tx.value, ty: ty.value, moved: true, axis: "" } : null;
     }
     return;
   }
@@ -246,15 +246,20 @@ function pup(e: PointerEvent) {
   pan = null;
   if (!p) return;
   animating.value = true;
-  if (scale.value === 1 && p.moved) {
+  if (p.moved && scale.value === 1) {
+    if (p.axis === "y") {
+      // puxou pra baixo: fecha a foto (como no Android)
+      if (drop.value > 140) close();
+      drop.value = 0;
+      return;
+    }
     // passou de um quarto da tela, ou foi um peteleco rápido (mesmo curto): troca
     const first = track[0];
     const last = track[track.length - 1];
     const speed = first && last && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
     const w = width();
     const step = slide.value < -w / 4 || (speed < -0.35 && slide.value < -20) ? 1 : slide.value > w / 4 || (speed > 0.35 && slide.value > 20) ? -1 : 0;
-    const target = current.value == null ? -1 : current.value + step;
-    if (step && target >= 0 && target < shown.value.length) slideTo(step);
+    if ((step === 1 && nextPhoto.value) || (step === -1 && prevPhoto.value)) slideTo(step);
     else slide.value = 0;
     return;
   }
@@ -264,7 +269,7 @@ function pup(e: PointerEvent) {
   if (now - lastTap < 300) {
     lastTap = 0;
     if (scale.value > 1) resetZoom();
-    else zoomAt(2.5, local(e.clientX, e.clientY));
+    else zoomAt(2.5, local(x, y));
     haptic(10).catch(() => {});
   } else {
     lastTap = now;
@@ -274,10 +279,40 @@ function pup(e: PointerEvent) {
   }
 }
 
-let track: { t: number; x: number }[] = [];
-let switching = false;
-const GAP = 16;
-const width = () => stage.value?.clientWidth ?? window.innerWidth;
+function tstart(e: TouchEvent) {
+  lastTouch = Date.now();
+  // um "mouse" que tenha começado antes do toque é o fantasma: sai
+  if (fingers.has(MOUSE)) {
+    fingers.delete(MOUSE);
+    pan = null;
+  }
+  for (const t of Array.from(e.changedTouches)) begin(t.identifier, t.clientX, t.clientY, e.timeStamp);
+}
+function tmove(e: TouchEvent) {
+  lastTouch = Date.now();
+  if (e.cancelable) e.preventDefault();
+  for (const t of Array.from(e.changedTouches)) moveTo(t.identifier, t.clientX, t.clientY, e.timeStamp);
+}
+function tend(e: TouchEvent) {
+  lastTouch = Date.now();
+  for (const t of Array.from(e.changedTouches)) finish(t.identifier, t.clientX, t.clientY);
+}
+
+// só o mouse de verdade (nada logo depois de um toque)
+const isMouse = (e: PointerEvent) => e.pointerType === "mouse" && Date.now() - lastTouch > 1000;
+function pdown(e: PointerEvent) {
+  if (!isMouse(e) || e.button !== 0) return;
+  try {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  } catch {}
+  begin(MOUSE, e.clientX, e.clientY, e.timeStamp);
+}
+function pmove(e: PointerEvent) {
+  if (isMouse(e)) moveTo(MOUSE, e.clientX, e.clientY, e.timeStamp);
+}
+function pup(e: PointerEvent) {
+  if (isMouse(e)) finish(MOUSE, e.clientX, e.clientY);
+}
 
 /** A foto sai pro lado junto com a vizinha entrando; no fim, a vizinha vira a atual. */
 function slideTo(step: number) {
@@ -299,13 +334,28 @@ const neighbor = (step: number) => {
 const prevPhoto = computed(() => neighbor(-1));
 const nextPhoto = computed(() => neighbor(1));
 
+/** As três fotos (anterior, atual, próxima), sempre os mesmos <img> por foto: ao trocar, a
+ * vizinha que entrou vira a atual sem recarregar (era o que piscava). */
+const slots = computed(() => {
+  if (!photo.value) return [];
+  const list: { photo: Photo; off: number }[] = [{ photo: photo.value, off: 0 }];
+  if (scale.value === 1 || switching) {
+    if (prevPhoto.value) list.unshift({ photo: prevPhoto.value, off: -1 });
+    if (nextPhoto.value) list.push({ photo: nextPhoto.value, off: 1 });
+  }
+  return list;
+});
+function slotStyle(off: number) {
+  if (off === 0) return { transform: `translate(${tx.value + slide.value}px, ${ty.value + drop.value}px) scale(${scale.value * (1 - Math.min(drop.value, 400) / 1600)})` };
+  return { transform: `translateX(${off * (width() + GAP) + slide.value}px)` };
+}
+
 function wheel(e: WheelEvent) {
   e.preventDefault();
   animating.value = false;
   zoomAt(scale.value * Math.exp(-e.deltaY * 0.0025), local(e.clientX, e.clientY));
 }
 
-const transform = computed(() => `translate(${tx.value + slide.value}px, ${ty.value}px) scale(${scale.value})`);
 
 // ---- ações ----
 
@@ -483,42 +533,26 @@ onUnmounted(() => {
         v-else
         ref="stage"
         class="stage"
+        @touchstart="tstart"
+        @touchmove="tmove"
+        @touchend="tend"
+        @touchcancel="tend"
         @pointerdown="pdown"
         @pointermove="pmove"
         @pointerup="pup"
         @pointercancel="pup"
         @wheel="wheel"
       >
-        <!-- as vizinhas, do lado, entram junto com o dedo -->
         <img
-          v-if="prevPhoto && scale === 1"
-          :key="'prev' + prevPhoto.path"
-          class="full side"
-          :class="{ animating }"
-          :src="artUrl(prevPhoto.path) ?? ''"
-          :style="{ transform: `translateX(${slide - width() - GAP}px)` }"
-          alt=""
-          draggable="false"
-        />
-        <img
-          v-if="nextPhoto && scale === 1"
-          :key="'next' + nextPhoto.path"
-          class="full side"
-          :class="{ animating }"
-          :src="artUrl(nextPhoto.path) ?? ''"
-          :style="{ transform: `translateX(${slide + width() + GAP}px)` }"
-          alt=""
-          draggable="false"
-        />
-        <img
-          :key="photo.path"
+          v-for="slot in slots"
+          :key="slot.photo.path"
           class="full"
-          :class="{ animating }"
-          :src="artUrl(photo.path) ?? ''"
-          :style="{ transform }"
+          :class="{ animating, side: slot.off !== 0 }"
+          :src="artUrl(slot.photo.path) ?? ''"
+          :style="slotStyle(slot.off)"
           alt=""
           draggable="false"
-          @load="(e) => (natural = { w: (e.target as HTMLImageElement).naturalWidth, h: (e.target as HTMLImageElement).naturalHeight })"
+          @load="(e) => sizes.set(slot.photo.path, { w: (e.target as HTMLImageElement).naturalWidth, h: (e.target as HTMLImageElement).naturalHeight })"
         />
       </div>
 
@@ -701,7 +735,7 @@ onUnmounted(() => {
   user-select: none;
   will-change: transform;
 }
-.full.side {
+.full {
   position: absolute;
   inset: 0;
 }
