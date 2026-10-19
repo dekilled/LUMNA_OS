@@ -5,6 +5,8 @@
 # A compilação leva uns 30-60 min na primeira vez (Rust + WebKit no Snapdragon 845).
 # Mais leve: compile no PC (mobile/scripts/build-pc.sh), traga o pacote e rode
 #   LUMNA_PACOTE=lumna-shell-0.0.1-1-aarch64.pkg.tar.zst sh mobile/session/lumna-mobile.sh
+# Só reaplicar as configurações, sem mexer no lumna-shell instalado: LUMNA_PACOTE=manter
+# (o mobile/scripts/atualizar.sh, no PC, faz tudo isso sozinho)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 [ "$(id -u)" != 0 ] || { echo "rode como alarm, sem sudo (o makepkg não roda como root)"; exit 1; }
@@ -28,7 +30,9 @@ if [ -n "${LUMNA_RAPIDO:-}" ]; then
     export CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
 fi
 
-if [ -n "${LUMNA_PACOTE:-}" ]; then
+if [ "${LUMNA_PACOTE:-}" = manter ]; then
+    pacman -Q lumna-shell >/dev/null || { echo "o lumna-shell não está instalado: rode sem LUMNA_PACOTE=manter"; exit 1; }
+elif [ -n "${LUMNA_PACOTE:-}" ]; then
     # compilado no PC: só instala
     sudo pacman -U --noconfirm "$(realpath "$LUMNA_PACOTE")"
 else

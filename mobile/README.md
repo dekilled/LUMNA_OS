@@ -160,6 +160,16 @@ Se faltar alguma coisa, o script avisa todos os comandos que faltam de uma vez e
 
 ### Compilar e testar
 
+**O jeito fácil: um comando só, no PC, com o celular no cabo USB:**
+```
+sh mobile/scripts/atualizar.sh            # baixa as novidades, compila e instala só o que mudou
+sh mobile/scripts/atualizar.sh --ver      # só mostra o que mudou
+```
+Ele faz o `git pull` do LUMNA_OS e do NewHarnessV2 (o servidor da Emma, ao lado do LUMNA_OS ou em
+`~/NewHarnessV2`), compara com o que está no celular, compila a interface no PC se ela mudou, manda
+tudo pelo ssh, roda o `emma.sh` e o `lumna-mobile.sh` lá, reinicia a sessão e pergunta antes de
+reiniciar o celular quando o boot mudou. O celular não precisa de git nem de login no GitHub.
+
 **Compilar no PC (recomendado: no celular a RAM fica no limite):**
 ```
 sh mobile/scripts/build-pc.sh                      # gera out/lumna-shell-*-aarch64.pkg.tar.zst
