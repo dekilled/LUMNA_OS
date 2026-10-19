@@ -120,6 +120,8 @@ export interface AudioNode {
   volume: number;
   muted: boolean;
   default: boolean;
+  /** processo do app que toca (só nos apps) */
+  pid?: number;
 }
 export interface AudioState {
   outputs: AudioNode[];
@@ -605,8 +607,38 @@ export interface MusicState {
   duration: number;
   shuffle: boolean;
   repeat: Repeat;
-  /** as próximas da fila (até 50) */
+  /** volume do player, 0 a 100 */
+  volume: number;
+  /** as próximas da fila (até 50); a primeira é a posição index + 1 */
   next: Track[];
+}
+export interface Playlist {
+  id: string;
+  name: string;
+  icon: string;
+  tracks: string[];
+}
+export interface MusicLists {
+  favorites: string[];
+  playlists: Playlist[];
+}
+export interface LyricLine {
+  time: number;
+  text: string;
+}
+export interface Lyrics {
+  synced: LyricLine[];
+  plain: string;
+}
+export interface TrackDetails {
+  format: string;
+  bitrate: number;
+  sample_rate: number;
+  channels: number;
+  bit_depth: number;
+  size: number;
+  genre: string;
+  folder: string;
 }
 export type MusicAction = "play" | "pause" | "toggle" | "next" | "previous" | "stop";
 export const musicOpen = () => invoke<void>("music_open");
@@ -617,6 +649,19 @@ export const musicSeek = (position: number) => invoke<void>("music_seek", { posi
 export const musicMode = (mode: { shuffle?: boolean; repeat?: Repeat }) => invoke<void>("music_mode", mode);
 export const musicJump = (index: number) => invoke<void>("music_jump", { index });
 export const musicState = () => invoke<MusicState>("music_state");
+export const musicVolume = (volume: number) => invoke<void>("music_volume", { volume });
+/** Na fila: logo depois da atual (next) ou no fim. */
+export const musicQueueAdd = (tracks: Track[], next: boolean) => invoke<void>("music_queue_add", { tracks, next });
+export const musicQueueMove = (from: number, to: number) => invoke<void>("music_queue_move", { from, to });
+export const musicQueueRemove = (index: number) => invoke<void>("music_queue_remove", { index });
+export const musicLists = () => invoke<MusicLists>("music_lists");
+export const musicFavorite = (path: string, on: boolean) => invoke<MusicLists>("music_favorite", { path, on });
+export const musicPlaylistSave = (name: string, id?: string, icon?: string) => invoke<MusicLists>("music_playlist_save", { id: id ?? null, name, icon: icon ?? null });
+export const musicPlaylistDelete = (id: string) => invoke<MusicLists>("music_playlist_delete", { id });
+export const musicPlaylistTracks = (id: string, paths: string[], remove = false) => invoke<MusicLists>("music_playlist_tracks", { id, paths, remove });
+export const musicLyrics = (path: string) => invoke<Lyrics>("music_lyrics", { path });
+export const musicDetails = (path: string) => invoke<TrackDetails>("music_details", { path });
+export const musicFolder = () => invoke<string>("music_folder");
 export const captureStart = () => invoke<void>("capture_start");
 /** A área em frações da foto (0..1). Devolve o caminho salvo (vazio se só copiou). */
 export const captureSave = (area: { x: number; y: number; w: number; h: number }, save: boolean, copy: boolean) =>

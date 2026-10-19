@@ -242,6 +242,8 @@ pub struct MusicState {
     pub duration: f64,
     pub shuffle: bool,
     pub repeat: Repeat,
+    /// Volume do player, 0 a 100 (None: 100). O do sistema fica no mixer.
+    pub volume: Option<u8>,
 }
 
 impl MusicState {
@@ -290,8 +292,11 @@ fn ensure_engine(app: &AppHandle) -> Result<(), String> {
     // um mpv que ficou de um shell anterior (reiniciado) para de tocar sozinho por aí
     let _ = Command::new("pkill").args(["-f", &format!("input-ipc-server={}", path.display())]).status();
     let _ = std::fs::remove_file(&path);
+    let volume = music.state.lock().unwrap().volume.unwrap_or(100);
     let child = Command::new("mpv")
         .args(["--idle=yes", "--no-video", "--no-terminal", "--audio-display=no", "--keep-open=no", "--gapless-audio=weak"])
+        // o nome no mixer de áudio (senão aparece "mpv")
+        .args(["--audio-client-name=LUMNA Music", &format!("--volume={volume}")])
         .arg(format!("--input-ipc-server={}", path.display()))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -387,7 +392,8 @@ pub struct PublicState {
     pub duration: f64,
     pub shuffle: bool,
     pub repeat: Repeat,
-    /// As próximas (até 50).
+    pub volume: u8,
+    /// As próximas (até 50); a primeira é a posição `index + 1` da fila.
     pub next: Vec<Track>,
 }
 
@@ -405,6 +411,7 @@ fn public_state(s: &MusicState) -> PublicState {
         duration: s.duration,
         shuffle: s.shuffle,
         repeat: s.repeat,
+        volume: s.volume.unwrap_or(100),
         next,
     }
 }
@@ -667,6 +674,313 @@ pub async fn music_jump(app: AppHandle, index: usize) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || load(&app, index)).await.map_err(|e| e.to_string())?
 }
 
+/// Volume do player (0 a 100).
+#[tauri::command]
+pub fn music_volume(app: AppHandle, volume: u8) -> Result<(), String> {
+    let volume = volume.min(100);
+    let music = app.state::<SharedMusic>();
+    music.state.lock().unwrap().volume = Some(volume);
+    if let Some(engine) = music.engine.lock().unwrap().as_mut() {
+        send(engine, json!(["set_property", "volume", volume]))?;
+    }
+    emit(&app, true);
+    Ok(())
+}
+
+// ---- a fila ----
+
+/// Põe na fila: logo depois da atual (`next`) ou no fim. Sem nada tocando, começa a tocar.
+#[tauri::command]
+pub async fn music_queue_add(app: AppHandle, tracks: Vec<Track>, next: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let music = app.state::<SharedMusic>();
+        let idle = music.state.lock().unwrap().index.is_none();
+        if idle {
+            return play_list(&app, tracks, 0);
+        }
+        {
+            let mut s = music.state.lock().unwrap();
+            let at = if next { s.index.map_or(s.queue.len(), |i| i + 1) } else { s.queue.len() };
+            let at = at.min(s.queue.len());
+            s.queue.splice(at..at, tracks);
+        }
+        if let Some(engine) = music.engine.lock().unwrap().as_mut() {
+            engine.order.clear();
+        }
+        emit(&app, true);
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Muda uma música de lugar na fila (posições da fila inteira; a atual continua a mesma).
+#[tauri::command]
+pub fn music_queue_move(app: AppHandle, from: usize, to: usize) -> Result<(), String> {
+    let music = app.state::<SharedMusic>();
+    {
+        let mut s = music.state.lock().unwrap();
+        let len = s.queue.len();
+        if from >= len || to >= len {
+            return Err("fora da fila".into());
+        }
+        let track = s.queue.remove(from);
+        s.queue.insert(to, track);
+        if let Some(i) = s.index {
+            s.index = Some(if i == from {
+                to
+            } else if from < i && to >= i {
+                i - 1
+            } else if from > i && to <= i {
+                i + 1
+            } else {
+                i
+            });
+        }
+    }
+    if let Some(engine) = music.engine.lock().unwrap().as_mut() {
+        engine.order.clear();
+    }
+    emit(&app, true);
+    Ok(())
+}
+
+/// Tira uma música da fila (a que está tocando não sai).
+#[tauri::command]
+pub fn music_queue_remove(app: AppHandle, index: usize) -> Result<(), String> {
+    let music = app.state::<SharedMusic>();
+    {
+        let mut s = music.state.lock().unwrap();
+        if Some(index) == s.index {
+            return Err("essa está tocando".into());
+        }
+        if index >= s.queue.len() {
+            return Err("fora da fila".into());
+        }
+        s.queue.remove(index);
+        if let Some(i) = s.index {
+            if index < i {
+                s.index = Some(i - 1);
+            }
+        }
+    }
+    if let Some(engine) = music.engine.lock().unwrap().as_mut() {
+        engine.order.clear();
+    }
+    emit(&app, true);
+    Ok(())
+}
+
+// ---- favoritas e playlists (~/.config/lumna/music.json) ----
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Playlist {
+    pub id: String,
+    pub name: String,
+    /// Ícone do LUMNA (o nome no Icon.vue).
+    pub icon: String,
+    /// Caminhos das músicas, na ordem.
+    pub tracks: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct Lists {
+    pub favorites: Vec<String>,
+    pub playlists: Vec<Playlist>,
+}
+
+fn lists_path() -> PathBuf {
+    std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".config")).join("lumna").join("music.json")
+}
+
+fn read_lists() -> Lists {
+    std::fs::read(lists_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn write_lists(lists: &Lists) -> Result<(), String> {
+    let path = lists_path();
+    std::fs::create_dir_all(path.parent().unwrap_or(Path::new("/"))).map_err(|e| e.to_string())?;
+    std::fs::write(&path, serde_json::to_vec_pretty(lists).unwrap_or_default()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn music_lists() -> Lists {
+    read_lists()
+}
+
+#[tauri::command]
+pub fn music_favorite(path: String, on: bool) -> Result<Lists, String> {
+    let mut lists = read_lists();
+    lists.favorites.retain(|p| p != &path);
+    if on {
+        lists.favorites.insert(0, path);
+    }
+    write_lists(&lists)?;
+    Ok(lists)
+}
+
+/// Cria (sem `id`) ou renomeia uma playlist.
+#[tauri::command]
+pub fn music_playlist_save(id: Option<String>, name: String, icon: Option<String>) -> Result<Lists, String> {
+    let name: String = name.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(60).collect();
+    if name.is_empty() {
+        return Err("dê um nome pra playlist".into());
+    }
+    let mut lists = read_lists();
+    match id.and_then(|id| lists.playlists.iter_mut().find(|p| p.id == id)) {
+        Some(p) => {
+            p.name = name;
+            if let Some(icon) = icon {
+                p.icon = icon;
+            }
+        }
+        None => {
+            let id = format!("{:x}", md5::compute(format!("{name}{:?}", std::time::SystemTime::now())));
+            lists.playlists.push(Playlist { id: id[..12].to_string(), name, icon: icon.unwrap_or_else(|| "music".into()), tracks: Vec::new() });
+        }
+    }
+    write_lists(&lists)?;
+    Ok(lists)
+}
+
+#[tauri::command]
+pub fn music_playlist_delete(id: String) -> Result<Lists, String> {
+    let mut lists = read_lists();
+    lists.playlists.retain(|p| p.id != id);
+    write_lists(&lists)?;
+    Ok(lists)
+}
+
+/// Põe músicas numa playlist (as que já estão lá não repetem) ou tira (`remove`).
+#[tauri::command]
+pub fn music_playlist_tracks(id: String, paths: Vec<String>, remove: bool) -> Result<Lists, String> {
+    let mut lists = read_lists();
+    let p = lists.playlists.iter_mut().find(|p| p.id == id).ok_or("a playlist não existe mais")?;
+    if remove {
+        p.tracks.retain(|t| !paths.contains(t));
+    } else {
+        for path in paths {
+            if !p.tracks.contains(&path) {
+                p.tracks.push(path);
+            }
+        }
+    }
+    write_lists(&lists)?;
+    Ok(lists)
+}
+
+// ---- letras e detalhes ----
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct LyricLine {
+    /// Segundos (letra sincronizada, do .lrc).
+    pub time: f64,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Lyrics {
+    /// Sincronizada (o .lrc do lado da música, ou a da tag no formato LRC).
+    pub synced: Vec<LyricLine>,
+    /// Sem tempo (a da tag).
+    pub plain: String,
+}
+
+/// `[01:23.45]linha` (mais de um tempo na mesma linha vale pra todos).
+pub fn parse_lrc(text: &str) -> Vec<LyricLine> {
+    let mut lines = Vec::new();
+    for raw in text.lines() {
+        let mut rest = raw.trim();
+        let mut times = Vec::new();
+        while let Some(stripped) = rest.strip_prefix('[') {
+            let Some(end) = stripped.find(']') else { break };
+            let stamp = &stripped[..end];
+            let Some((m, s)) = stamp.split_once(':') else { break };
+            match (m.trim().parse::<f64>(), s.trim().parse::<f64>()) {
+                (Ok(m), Ok(s)) => times.push(m * 60.0 + s),
+                _ => break,
+            }
+            rest = stripped[end + 1..].trim_start();
+        }
+        for t in times {
+            lines.push(LyricLine { time: t, text: rest.to_string() });
+        }
+    }
+    lines.sort_by(|a, b| a.time.total_cmp(&b.time));
+    lines
+}
+
+#[tauri::command]
+pub async fn music_lyrics(path: String) -> Lyrics {
+    tauri::async_runtime::spawn_blocking(move || {
+        use lofty::prelude::*;
+        let file = Path::new(&path);
+        if let Some(text) = ["lrc", "LRC"].iter().find_map(|e| std::fs::read_to_string(file.with_extension(e)).ok()) {
+            let synced = parse_lrc(&text);
+            if !synced.is_empty() {
+                return Lyrics { synced, plain: String::new() };
+            }
+        }
+        let tag_text = lofty::probe::Probe::open(file)
+            .and_then(|p| p.read())
+            .ok()
+            .and_then(|f| f.primary_tag().or_else(|| f.first_tag()).and_then(|t| t.get_string(&lofty::tag::ItemKey::Lyrics).map(str::to_string)))
+            .unwrap_or_default();
+        let synced = parse_lrc(&tag_text);
+        if synced.is_empty() { Lyrics { synced, plain: tag_text.trim().to_string() } } else { Lyrics { synced, plain: String::new() } }
+    })
+    .await
+    .unwrap_or_default()
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Details {
+    pub format: String,
+    /// kbps
+    pub bitrate: u32,
+    /// Hz
+    pub sample_rate: u32,
+    pub channels: u8,
+    pub bit_depth: u8,
+    pub size: u64,
+    pub genre: String,
+    pub folder: String,
+}
+
+#[tauri::command]
+pub async fn music_details(path: String) -> Details {
+    tauri::async_runtime::spawn_blocking(move || {
+        use lofty::prelude::*;
+        let file = Path::new(&path);
+        let mut d = Details {
+            format: file.extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default(),
+            size: std::fs::metadata(file).map(|m| m.len()).unwrap_or(0),
+            folder: file.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
+            ..Details::default()
+        };
+        if let Ok(f) = lofty::probe::Probe::open(file).and_then(|p| p.read()) {
+            let props = f.properties();
+            d.bitrate = props.audio_bitrate().unwrap_or(0);
+            d.sample_rate = props.sample_rate().unwrap_or(0);
+            d.channels = props.channels().unwrap_or(0);
+            d.bit_depth = props.bit_depth().unwrap_or(0);
+            if let Some(tag) = f.primary_tag().or_else(|| f.first_tag()) {
+                d.genre = tag.genre().map(|g| g.to_string()).unwrap_or_default();
+            }
+        }
+        d
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// A pasta Músicas (pro "Adicionar músicas": abre ela no Arquivos).
+#[tauri::command]
+pub fn music_folder() -> String {
+    roots().into_iter().next().unwrap_or_else(|| home().join("Músicas")).to_string_lossy().into_owned()
+}
+
 #[tauri::command]
 pub fn music_state(app: AppHandle) -> PublicState {
     public_state(&app.state::<SharedMusic>().state.lock().unwrap())
@@ -683,6 +997,16 @@ mod tests {
         for t in library() {
             println!("{} | {} | {} | faixa {} | {:.1}s | capa {:?}", t.title, t.artist, t.album, t.track, t.duration, t.cover);
         }
+    }
+
+    #[test]
+    fn letra_sincronizada() {
+        let l = parse_lrc("[ar:Coldplay]\n[00:12.50]Look at the stars\n[01:02.00][00:30.00]Yellow\nsem tempo");
+        assert_eq!(l, vec![
+            LyricLine { time: 12.5, text: "Look at the stars".into() },
+            LyricLine { time: 30.0, text: "Yellow".into() },
+            LyricLine { time: 62.0, text: "Yellow".into() },
+        ]);
     }
 
     #[test]
