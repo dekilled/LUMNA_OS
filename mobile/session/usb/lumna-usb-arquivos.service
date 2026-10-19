@@ -1,0 +1,11 @@
+# Arquivos pelo cabo USB (MTP). O shell liga quando a pessoa permite no aviso do cabo e desliga
+# quando o cabo sai (ver usb-arquivos.sh).
+[Unit]
+Description=LUMNA: arquivos pelo cabo USB (MTP)
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/lib/lumna/usb-arquivos.sh preparar
+ExecStart=/usr/local/bin/umtprd
+ExecStartPost=/usr/local/lib/lumna/usb-arquivos.sh ligar
+ExecStopPost=/usr/local/lib/lumna/usb-arquivos.sh desligar

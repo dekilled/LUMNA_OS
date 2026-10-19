@@ -22,7 +22,7 @@ fi
 
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
     hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils hypridle \
-    wf-recorder gst-plugins-good gst-libav mpv playerctl
+    wf-recorder gst-plugins-good gst-libav mpv playerctl git
 
 # O perfil release do LUMNA usa LTO com 1 codegen unit: o último passo (o próprio lumna-shell) roda
 # num núcleo só e leva uns 30 min no 6T. Pra testar mudanças: LUMNA_RAPIDO=1 sh lumna-mobile.sh
@@ -64,6 +64,27 @@ sudo systemctl daemon-reload
 sudo systemctl enable lumna-relogio.service lumna-relogio-guarda.timer lumna-relogio-guarda.path || true
 sudo systemctl start lumna-relogio-guarda.timer lumna-relogio-guarda.path || true
 sudo /usr/local/lib/lumna/relogio.sh guarda || true
+
+# arquivos pelo cabo USB (MTP): o uMTP-Responder (versão fixa) e o serviço que o shell liga quando
+# a pessoa permite no aviso do cabo
+UMTP_REF=b174b03a3c2641a578b9299e540994a35b2f03a9
+if [ "$(cat /usr/local/share/lumna/umtprd.ref 2>/dev/null)" != "$UMTP_REF" ]; then
+    tmp=$(mktemp -d)
+    git clone -q https://github.com/viveris/uMTP-Responder "$tmp/umtp" &&
+        git -C "$tmp/umtp" checkout -q "$UMTP_REF" &&
+        make -s -C "$tmp/umtp" &&
+        sudo install -Dm755 "$tmp/umtp/umtprd" /usr/local/bin/umtprd &&
+        echo "$UMTP_REF" | sudo install -Dm644 /dev/stdin /usr/local/share/lumna/umtprd.ref ||
+        echo "aviso: não deu pra compilar o umtprd (arquivos pelo cabo fica sem funcionar)"
+    rm -rf "$tmp"
+fi
+sudo install -Dm755 "$ROOT/mobile/session/usb/usb-arquivos.sh" /usr/local/lib/lumna/usb-arquivos.sh
+sudo install -Dm644 "$ROOT/mobile/session/usb/lumna-usb-arquivos.service" /etc/systemd/system/lumna-usb-arquivos.service
+sudo install -Dm644 "$ROOT/mobile/session/usb/50-lumna-usb-arquivos.rules" /etc/polkit-1/rules.d/50-lumna-usb-arquivos.rules
+serial=$(head -c 16 /etc/machine-id 2>/dev/null || echo LUMNA0001)
+sed -e "s|@HOME@|$HOME|" -e "s|@UID@|$(id -u)|" -e "s|@GID@|$(id -g)|" -e "s|@SERIAL@|$serial|" \
+    "$ROOT/mobile/session/usb/umtprd.conf.in" | sudo install -Dm644 /dev/stdin /etc/umtprd/umtprd.conf
+sudo systemctl daemon-reload
 
 # o bootloader A/B precisa ouvir "liguei direitinho" a cada boot (senão desiste do slot)
 [ -x /usr/local/bin/qbootctl ] || sh "$ROOT/mobile/session/boot-ok.sh"

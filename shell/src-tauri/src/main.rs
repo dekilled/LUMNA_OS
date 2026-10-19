@@ -15,6 +15,7 @@ mod gallery;
 mod mpris;
 mod music;
 mod qobuz;
+mod usb;
 mod games;
 mod greeter;
 mod haptics;
@@ -1900,6 +1901,8 @@ fn main() {
             music::music_lyrics,
             music::music_details,
             music::music_folder,
+            usb::usb_state,
+            usb::usb_files,
             qobuz::qobuz_status,
             qobuz::qobuz_login,
             qobuz::qobuz_logout,
@@ -1957,6 +1960,7 @@ fn main() {
                 polkit::start(app.handle().clone());
                 connect::start(app.handle().clone());
                 mpris::start(app.handle().clone());
+                usb::watch(app.handle().clone());
                 mobile::track_data_usage();
                 return Ok(());
             }

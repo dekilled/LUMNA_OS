@@ -1,0 +1,17 @@
+# Gerado pelo lumna-mobile.sh: o armazenamento do celular pelo cabo USB (MTP).
+loop_on_disconnect 1
+# a pasta da pessoa, sem os arquivos ocultos (configurações, chaves); o que o PC cria é dela
+storage "@HOME@" "Armazenamento interno" "rw,uid=@UID@,gid=@GID@"
+show_hidden_files 0
+manufacturer "OnePlus"
+product "OnePlus 6T (LUMNA)"
+serial "@SERIAL@"
+firmware_version "LUMNA OS"
+mtp_extensions "microsoft.com: 1.0; android.com: 1.0;"
+interface "MTP"
+usb_functionfs_mode 0x1
+usb_dev_path   "/dev/ffs-mtp/ep0"
+usb_epin_path  "/dev/ffs-mtp/ep1"
+usb_epout_path "/dev/ffs-mtp/ep2"
+usb_epint_path "/dev/ffs-mtp/ep3"
+usb_max_packet_size 0x200

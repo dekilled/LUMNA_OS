@@ -164,15 +164,50 @@ pub fn local_open(app: &AppHandle, app_name: &str, summary: &str, body: &str, ur
     id
 }
 
+/// O que fazer quando tocam num botão de um aviso do próprio shell (pelo id do aviso).
+type Handler = Box<dyn Fn(&str) + Send + 'static>;
+static HANDLERS: std::sync::Mutex<Option<std::collections::HashMap<u32, Handler>>> = std::sync::Mutex::new(None);
+
+/// Um aviso do shell com botões (`(chave, texto)`); `handler` recebe a chave do botão tocado.
+/// Fica na tela até alguém responder.
+pub fn local_ask(app: &AppHandle, app_name: &str, summary: &str, body: &str, actions: &[(&str, &str)], handler: impl Fn(&str) + Send + 'static) -> u32 {
+    static NEXT: AtomicU32 = AtomicU32::new(2_000_000);
+    let id = NEXT.fetch_add(1, Ordering::Relaxed);
+    HANDLERS.lock().unwrap().get_or_insert_with(Default::default).insert(id, Box::new(handler));
+    let notification = Notification {
+        id,
+        app_name: app_name.to_string(),
+        summary: summary.to_string(),
+        body: body.to_string(),
+        actions: actions.iter().map(|(k, l)| (k.to_string(), l.to_string())).collect(),
+        timeout: 0,
+        urgent: true,
+        quiet: false,
+        open: None,
+    };
+    let _ = app.emit("lumna://notification", notification);
+    crate::show_notifications(app);
+    id
+}
+
 /// Tira um aviso do shell da tela e da central.
 pub fn local_close(app: &AppHandle, id: u32) {
     let _ = app.emit("lumna://notification-close", id);
 }
 
 pub fn closed(id: u32, reason: u32) {
+    if let Some(map) = HANDLERS.lock().unwrap().as_mut() {
+        map.remove(&id);
+    }
     emit_signal("NotificationClosed", (id, reason));
 }
 
 pub fn action(id: u32, key: String) {
+    // um aviso do próprio shell: quem criou trata (e o D-Bus não fica sabendo)
+    let handler = HANDLERS.lock().unwrap().as_mut().and_then(|m| m.remove(&id));
+    if let Some(handler) = handler {
+        handler(&key);
+        return;
+    }
     emit_signal("ActionInvoked", (id, key));
 }

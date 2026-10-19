@@ -1,0 +1,9 @@
+// A pessoa sentada no celular liga e desliga os arquivos pelo cabo sem senha (só esse serviço).
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "lumna-usb-arquivos.service" &&
+        (action.lookup("verb") == "start" || action.lookup("verb") == "stop") &&
+        subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

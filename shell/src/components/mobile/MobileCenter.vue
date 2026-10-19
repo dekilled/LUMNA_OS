@@ -13,6 +13,9 @@ import {
   haptic,
   mobilePanel,
   mobileVolume,
+  usbFiles,
+  usbState,
+  type UsbState,
   notificationAction,
   notificationOpen,
   notificationClosed,
@@ -128,6 +131,7 @@ const brightness = ref(50);
 const volume = ref(50);
 /** Os apps tocando som agora (volume de cada um: o WirePlumber lembra na próxima vez). */
 const apps = ref<AudioNode[]>([]);
+const usb = ref<UsbState | null>(null);
 const editing = ref(false);
 const powerOpen = ref(false);
 const error = ref("");
@@ -244,6 +248,19 @@ const tiles = computed<Tile[]>(() => {
       // gravando, o mesmo atalho para (a captura::start sabe)
       toggle: () => captureStart(),
     },
+    // só com o cabo num computador: liberar (ou fechar) os arquivos do celular pra ele
+    ...(usb.value?.connected
+      ? [
+          {
+            id: "usb",
+            label: "Arquivos USB",
+            icon: "usb",
+            on: usb.value.files,
+            sub: usb.value.files ? "O computador vê os arquivos" : "Só carregando",
+            toggle: () => usbFiles(!usb.value?.files),
+          } as Tile,
+        ]
+      : []),
     {
       id: "economia",
       label: "Economia",
@@ -377,6 +394,10 @@ onMounted(async () => {
   );
   stops.push(await on<number>("lumna://notification-close", (id) => (items.value = items.value.filter((x) => x.id !== id))));
   stops.push(await on<Status>("lumna://status", (s) => (sys.value = s)));
+  usbState()
+    .then((u) => (usb.value = u))
+    .catch(() => {});
+  stops.push(await on<UsbState>("lumna://usb", (u) => (usb.value = u)));
   stops.push(await on<{ recording: boolean }>("lumna://recording", (r) => (recording.value = r.recording)));
   stops.push(
     await on<boolean>("lumna://mobile-panel", (shown) => {

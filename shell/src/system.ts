@@ -1007,6 +1007,13 @@ export const animationsReset = () => invoke<Animations>("animations_reset");
 export type MobilePanel = "mobile-center" | "mobile-recents";
 /** Sem `show`, alterna. */
 export const mobilePanel = (name: MobilePanel, show?: boolean) => invoke<void>("mobile_panel", { name, show: show ?? null });
+/** O cabo USB num computador e os arquivos liberados (MTP). */
+export interface UsbState {
+  connected: boolean;
+  files: boolean;
+}
+export const usbState = () => invoke<UsbState>("usb_state");
+export const usbFiles = (on: boolean) => invoke<void>("usb_files", { on });
 /** O painel de volume do celular: a barra do lado (osd) ou o mixer dos apps. */
 export const mobileVolume = (mode: "osd" | "mixer") => invoke<void>("mobile_volume", { mode });
 
