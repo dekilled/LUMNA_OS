@@ -5,6 +5,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import Icon from "../Icon.vue";
+import { showApp } from "../mobile/apps";
 import {
   artUrl,
   connectShare,
@@ -169,22 +170,30 @@ function mid() {
 // O WebKitGTK do celular manda cada toque duas vezes: como dedo (touch) e como mouse de
 // compatibilidade. Contado duas vezes, um toque virava toque duplo (zoom) e um deslize virava
 // pinça. Depois de um toque, os eventos de mouse são ignorados por um tempo.
+// Além disso: um gesto só aceita eventos do mesmo tipo do que o começou, e numa tela de toque
+// estreita (o celular) o mouse de compatibilidade nunca conta.
 let lastTouch = 0;
+let kind = "";
+const touchPhone = navigator.maxTouchPoints > 0 && window.innerWidth < 640;
 function ignored(e: PointerEvent) {
+  if (pointers.size && kind && e.pointerType !== kind) return true;
   if (e.pointerType === "touch") {
     lastTouch = Date.now();
     return false;
   }
-  return Date.now() - lastTouch < 1000;
+  return touchPhone || Date.now() - lastTouch < 1000;
 }
 
 function pdown(e: PointerEvent) {
   if (ignored(e)) return;
+  if (!pointers.size) kind = e.pointerType;
+  if (switching) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   } catch {}
   animating.value = false;
+  track = [{ t: e.timeStamp, x: e.clientX }];
   if (pointers.size === 2) {
     pan = null;
     pinch = { dist: dist(), mid: mid(), s: scale.value, x: tx.value, y: ty.value };
@@ -209,6 +218,8 @@ function pmove(e: PointerEvent) {
   const dx = e.clientX - pan.x;
   const dy = e.clientY - pan.y;
   if (Math.abs(dx) + Math.abs(dy) > 6) pan.moved = true;
+  track.push({ t: e.timeStamp, x: e.clientX });
+  if (track.length > 6) track.shift();
   if (scale.value > 1) {
     tx.value = pan.tx + dx;
     ty.value = pan.ty + dy;
@@ -236,9 +247,14 @@ function pup(e: PointerEvent) {
   if (!p) return;
   animating.value = true;
   if (scale.value === 1 && p.moved) {
-    const w = stage.value?.clientWidth ?? window.innerWidth;
-    if (slide.value < -Math.min(90, w / 5)) go(1);
-    else if (slide.value > Math.min(90, w / 5)) go(-1);
+    // passou de um quarto da tela, ou foi um peteleco rápido (mesmo curto): troca
+    const first = track[0];
+    const last = track[track.length - 1];
+    const speed = first && last && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
+    const w = width();
+    const step = slide.value < -w / 4 || (speed < -0.35 && slide.value < -20) ? 1 : slide.value > w / 4 || (speed > 0.35 && slide.value > 20) ? -1 : 0;
+    const target = current.value == null ? -1 : current.value + step;
+    if (step && target >= 0 && target < shown.value.length) slideTo(step);
     else slide.value = 0;
     return;
   }
@@ -258,6 +274,31 @@ function pup(e: PointerEvent) {
   }
 }
 
+let track: { t: number; x: number }[] = [];
+let switching = false;
+const GAP = 16;
+const width = () => stage.value?.clientWidth ?? window.innerWidth;
+
+/** A foto sai pro lado junto com a vizinha entrando; no fim, a vizinha vira a atual. */
+function slideTo(step: number) {
+  switching = true;
+  animating.value = true;
+  slide.value = -step * (width() + GAP);
+  window.setTimeout(() => {
+    animating.value = false;
+    go(step);
+    switching = false;
+  }, 220);
+}
+
+const neighbor = (step: number) => {
+  if (current.value == null) return null;
+  const p = shown.value[current.value + step];
+  return p && !p.video ? p : null;
+};
+const prevPhoto = computed(() => neighbor(-1));
+const nextPhoto = computed(() => neighbor(1));
+
 function wheel(e: WheelEvent) {
   e.preventDefault();
   animating.value = false;
@@ -270,6 +311,8 @@ const transform = computed(() => `translate(${tx.value + slide.value}px, ${ty.va
 
 async function play(path: string) {
   try {
+    // celular: um app por vez (senão o Hyprland divide a tela entre a Galeria e o mpv)
+    if (narrow.value) await showApp().catch(() => {});
     await galleryPlay(path);
   } catch (e) {
     flash(String(e));
@@ -446,6 +489,27 @@ onUnmounted(() => {
         @pointercancel="pup"
         @wheel="wheel"
       >
+        <!-- as vizinhas, do lado, entram junto com o dedo -->
+        <img
+          v-if="prevPhoto && scale === 1"
+          :key="'prev' + prevPhoto.path"
+          class="full side"
+          :class="{ animating }"
+          :src="artUrl(prevPhoto.path) ?? ''"
+          :style="{ transform: `translateX(${slide - width() - GAP}px)` }"
+          alt=""
+          draggable="false"
+        />
+        <img
+          v-if="nextPhoto && scale === 1"
+          :key="'next' + nextPhoto.path"
+          class="full side"
+          :class="{ animating }"
+          :src="artUrl(nextPhoto.path) ?? ''"
+          :style="{ transform: `translateX(${slide + width() + GAP}px)` }"
+          alt=""
+          draggable="false"
+        />
         <img
           :key="photo.path"
           class="full"
@@ -636,6 +700,10 @@ onUnmounted(() => {
   object-fit: contain;
   user-select: none;
   will-change: transform;
+}
+.full.side {
+  position: absolute;
+  inset: 0;
 }
 .stage.video .full {
   opacity: 0.55;

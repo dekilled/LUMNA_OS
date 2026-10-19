@@ -270,7 +270,11 @@ pub async fn capture_record(app: AppHandle, x: f64, y: f64, w: f64, h: f64) -> R
         *RECORDING.lock().unwrap() = Some(Recording { child, path, since: Instant::now() });
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || {
-            layer::set_visible("recording", true);
+            // no celular a pílula ia parar no vídeo: lá o aviso é o ponto vermelho na barra de
+            // status (pequeno, como no Android) e o parar fica nele e na central
+            if !crate::MOBILE.load(std::sync::atomic::Ordering::Relaxed) {
+                layer::set_visible("recording", true);
+            }
             rec_state(&handle);
         });
         // o tempo na pílula, a cada segundo; e se o wf-recorder morrer sozinho, a pílula some

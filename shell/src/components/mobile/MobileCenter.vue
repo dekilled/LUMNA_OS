@@ -117,6 +117,7 @@ async function act(n: Item, key: string) {
 
 // ---- atalhos ----
 const quick = ref<Quick | null>(null);
+const recording = ref(false);
 const wifi = ref<WifiState | null>(null);
 const bt = ref<BluetoothState | null>(null);
 const output = ref<AudioNode | null>(null);
@@ -232,10 +233,11 @@ const tiles = computed<Tile[]>(() => {
     },
     {
       id: "captura",
-      label: "Captura",
-      icon: "crop",
-      on: false,
-      sub: "Escolher a área",
+      label: recording.value ? "Parar gravação" : "Captura",
+      icon: recording.value ? "stop" : "crop",
+      on: recording.value,
+      sub: recording.value ? "Gravando a tela" : "Escolher a área",
+      // gravando, o mesmo atalho para (a captura::start sabe)
       toggle: () => captureStart(),
     },
     {
@@ -369,6 +371,7 @@ onMounted(async () => {
   );
   stops.push(await on<number>("lumna://notification-close", (id) => (items.value = items.value.filter((x) => x.id !== id))));
   stops.push(await on<Status>("lumna://status", (s) => (sys.value = s)));
+  stops.push(await on<{ recording: boolean }>("lumna://recording", (r) => (recording.value = r.recording)));
   stops.push(
     await on<boolean>("lumna://mobile-panel", (shown) => {
       clearInterval(poll);

@@ -4,11 +4,15 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import Icon from "../Icon.vue";
-import { mobilePanel, on, status, type Status } from "../../system";
+import { captureRecordStop, mobilePanel, on, status, type Status } from "../../system";
 import { swipe } from "../../swipe";
 import { appUp, watchApps } from "./apps";
 
 const sys = ref<Status | null>(null);
+/** Gravando a tela: segundos (null = não está gravando). */
+const rec = ref<number | null>(null);
+let stopRec: UnlistenFn | null = null;
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const time = ref("");
 let timer = 0;
 let stop: UnlistenFn | null = null;
@@ -23,11 +27,13 @@ onMounted(async () => {
   timer = window.setInterval(tick, 5000);
   sys.value = await status().catch(() => null);
   stop = await on<Status>("lumna://status", (s) => (sys.value = s));
+  stopRec = await on<{ recording: boolean; elapsed: number }>("lumna://recording", (r) => (rec.value = r.recording ? r.elapsed : null));
   if (bar.value) stopSwipe = swipe(bar.value, { on: { down: () => mobilePanel("mobile-center", true) }, threshold: 18 });
 });
 onUnmounted(() => {
   clearInterval(timer);
   stop?.();
+  stopRec?.();
   stopSwipe?.();
 });
 </script>
@@ -35,6 +41,9 @@ onUnmounted(() => {
 <template>
   <div ref="bar" class="status" :class="{ solid: appUp }">
     <span class="time">{{ time }}</span>
+    <button v-if="rec != null" class="rec" aria-label="Parar a gravação" @pointerdown.stop @click.stop="captureRecordStop()">
+      <span class="dot" />{{ clock(rec) }}
+    </button>
     <span class="icons">
       <Icon :name="sys?.network === 'wifi' ? 'wifi' : sys?.network === 'ethernet' ? 'ethernet' : 'offline'" :size="15" />
       <span v-if="sys?.battery != null" class="battery">
@@ -57,6 +66,26 @@ onUnmounted(() => {
   font-weight: 500;
   background: linear-gradient(rgba(5, 3, 14, 0.85), rgba(5, 3, 14, 0));
   touch-action: none;
+}
+.rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+  margin-left: 10px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.rec .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
 }
 /* com um app aberto: grafite (sem transparência por cima do app) */
 .status.solid {

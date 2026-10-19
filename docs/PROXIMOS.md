@@ -52,6 +52,10 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
 
 ## Celular
 
+- **Tela dividida (dois apps)**: um em cima e outro embaixo (ex.: o vídeo no mpv e a Galeria),
+  com a divisória arrastável pra mudar a proporção, trocar de lugar e voltar pra um só. Entrar
+  pelos recentes ("dividir com…") ou por gesto. Planejar o desenho antes (apareceu sem querer,
+  pelo Hyprland, abrindo o mpv por cima da Galeria).
 - **Teclado que abre sozinho nos apps de fora** (input-method-v2 do Wayland): hoje só abre sozinho
   nos campos do próprio LUMNA.
 - A hora do celular liga em 1970 até a internet acertar (o timesyncd não está segurando).
