@@ -42,7 +42,9 @@ export function clock(seconds: number): string {
   return h ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
 }
 
-export const coverUrl = (t: Track | null | undefined) => (t?.cover ? artUrl(t.cover) : null);
+/** A capa: arquivo do celular (pelo protocolo asset) ou endereço da internet (Qobuz). */
+export const coverUrl = (t: Track | null | undefined) => (t?.cover ? (/^https?:/.test(t.cover) ? t.cover : artUrl(t.cover)) : null);
+export const isQobuz = (t: Track) => t.path.startsWith("qobuz:");
 
 /** "Coldplay" (ou o artista do álbum; sem tag: "Artista desconhecido"). */
 export const artistOf = (t: Track) => t.album_artist || t.artist || "Artista desconhecido";

@@ -14,8 +14,10 @@ import {
   haptic,
   musicControl,
   musicFolder,
+  on,
   profileGet,
   settingsOpen,
+  type QobuzStatus,
   type Track,
 } from "../../system";
 import DetailsView from "./DetailsView.vue";
@@ -53,6 +55,14 @@ import {
   toggleFavorite,
   tracks,
   view,
+  qobuz,
+  qPlaylists,
+  qTracks,
+  qLoading,
+  loadQobuz,
+  loadQobuzTracks,
+  connectQobuz,
+  disconnectQobuz,
   type Album,
   type View,
 } from "./store";
@@ -94,6 +104,7 @@ const MOBILE_NAV: { kind: View["kind"]; label: string }[] = [
   { kind: "artistas", label: "Artistas" },
   { kind: "playlists", label: "Playlists" },
   { kind: "pastas", label: "Pastas" },
+  { kind: "qobuz", label: "Qobuz" },
 ];
 const top = computed(() => history.value[0].kind);
 const navTo = (kind: View["kind"]) => go({ kind } as View, true);
@@ -125,9 +136,28 @@ const title = computed(() => {
       return v.name;
     case "pasta":
       return folderView.value?.name ?? "Pasta";
+    case "qobuz":
+      return "Qobuz";
+    case "qplaylist":
+      return qPlaylist.value?.name ?? "Playlist do Qobuz";
+    case "qfavoritas":
+      return "Favoritas do Qobuz";
   }
   return "Música";
 });
+
+// ---- Qobuz ----
+
+const qPlaylist = computed(() => (view.value.kind === "qplaylist" ? qPlaylists.value?.find((p) => p.id === (view.value as { id: string }).id) ?? null : null));
+/** Uma tela do Qobuz (não depende da pasta Músicas). */
+const isQ = computed(() => ["qobuz", "qplaylist", "qfavoritas"].includes(view.value.kind));
+const qKey = computed(() => (view.value.kind === "qfavoritas" ? "fav" : view.value.kind === "qplaylist" ? (view.value as { id: string }).id : ""));
+const qList = computed<Track[]>(() => (qKey.value ? qTracks.value.get(qKey.value) ?? [] : []));
+watch(qKey, (k) => k && loadQobuzTracks(k), { immediate: true });
+const hours = (seconds: number) => {
+  const m = Math.round(seconds / 60);
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+};
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const minutes = (list: Track[]) => {
@@ -215,6 +245,19 @@ onMounted(async () => {
   musicFolder()
     .then((f) => (folder.value = f))
     .catch(() => {});
+  loadQobuz();
+  // o login do Qobuz terminou (na janelinha dele)
+  stops.push(
+    await on<QobuzStatus>("lumna://qobuz", (st) => {
+      qobuz.value = { connected: st.connected, name: st.name };
+      if (st.error) flash(`Qobuz: ${st.error}`);
+      else if (st.connected) {
+        flash(`Qobuz conectado: ${st.name}`);
+        loadQobuz();
+        go({ kind: "qobuz" }, true);
+      }
+    }),
+  );
   await load();
   // voltou pro app: pode ter música nova (copiada pelo Connect)
   stops.push(await getCurrentWindow().onFocusChanged(({ payload }) => payload && !loading.value && load()));
@@ -244,6 +287,15 @@ onUnmounted(() => stops.forEach((s) => s()));
           <button v-for="p in lists.playlists" :key="p.id" :class="{ on: isList('playlist', p.id) }" @click="go({ kind: 'playlist', id: p.id }, true)">
             <Icon :name="p.icon" :size="22" /> {{ p.name }}
           </button>
+        </nav>
+        <div class="sep" />
+        <div class="lists-head"><span>Qobuz</span></div>
+        <nav class="lists">
+          <template v-if="qobuz.connected">
+            <button :class="{ on: isNav('qobuz') || view.kind === 'qplaylist' }" @click="navTo('qobuz')"><Icon name="list" :size="22" /> Minhas playlists</button>
+            <button :class="{ on: isList('qfavoritas') }" @click="go({ kind: 'qfavoritas' }, true)"><Icon name="heart" :size="22" /> Favoritas</button>
+          </template>
+          <button v-else @click="connectQobuz()"><Icon name="link" :size="22" /> Conectar Qobuz</button>
         </nav>
         <div class="grow" />
         <nav>
@@ -275,8 +327,8 @@ onUnmounted(() => stops.forEach((s) => s()));
         </nav>
 
         <div class="scroll">
-          <p v-if="loading && !tracks.length" class="empty">Procurando músicas…</p>
-          <div v-else-if="!tracks.length" class="empty">
+          <p v-if="loading && !tracks.length && !isQ" class="empty">Procurando músicas…</p>
+          <div v-else-if="!tracks.length && !isQ" class="empty">
             <Icon name="music" :size="46" />
             <p>Nenhuma música ainda. Coloque os arquivos (MP3, FLAC, OGG, M4A…) na pasta <b>Músicas</b>, ou mande do PC pelo Connect.</p>
             <button class="pill primary" @click="addMusic()"><Icon name="folder-plus" :size="18" /> Abrir a pasta Músicas</button>
@@ -440,6 +492,57 @@ onUnmounted(() => stops.forEach((s) => s()));
             <TrackTable :tracks="artist.tracks" :narrow="narrow" :current="current?.path" :playing="playing" />
           </template>
 
+          <!-- Qobuz: as playlists da conta -->
+          <template v-else-if="view.kind === 'qobuz'">
+            <h1 v-if="!narrow" class="h1">Qobuz</h1>
+            <div v-if="!qobuz.connected" class="empty">
+              <Icon name="music" :size="46" />
+              <p>Conecte a sua conta do Qobuz: você entra no site deles numa janelinha e as suas playlists aparecem aqui.</p>
+              <button class="pill primary" @click="connectQobuz()"><Icon name="link" :size="18" /> Conectar Qobuz</button>
+            </div>
+            <template v-else>
+              <p class="meta qmeta">Conectado como <b>{{ qobuz.name }}</b></p>
+              <p v-if="qLoading && !qPlaylists" class="empty small">Buscando as suas playlists…</p>
+              <div class="grid">
+                <button class="album-card" @click="go({ kind: 'qfavoritas' })">
+                  <div class="cover fav"><Icon name="heart" :size="44" /></div>
+                  <strong>Favoritas</strong><small>As músicas que você curtiu</small>
+                </button>
+                <button v-for="p in qPlaylists ?? []" :key="p.id" class="album-card" @click="go({ kind: 'qplaylist', id: p.id })">
+                  <div class="cover"><img v-if="p.cover" :src="p.cover" alt="" loading="lazy" draggable="false" /><Icon v-else name="list" :size="40" /></div>
+                  <strong>{{ p.name }}</strong><small>{{ count(p.count, "música", "músicas") }}</small>
+                </button>
+              </div>
+              <p v-if="qPlaylists && !qPlaylists.length" class="empty small">Nenhuma playlist na sua conta ainda.</p>
+            </template>
+          </template>
+
+          <!-- Qobuz: uma playlist ou as favoritas -->
+          <template v-else-if="view.kind === 'qplaylist' || view.kind === 'qfavoritas'">
+            <section class="hero">
+              <div class="cover big" :class="{ fav: view.kind === 'qfavoritas' }">
+                <img v-if="qPlaylist?.cover" :src="qPlaylist.cover" alt="" draggable="false" />
+                <Icon v-else :name="view.kind === 'qfavoritas' ? 'heart' : 'list'" :size="64" />
+              </div>
+              <div class="hero-info">
+                <span class="kicker">Qobuz</span>
+                <strong>{{ title }}</strong>
+                <span v-if="qPlaylist?.description" class="album">{{ qPlaylist.description }}</span>
+                <span class="album">
+                  {{ count(qList.length || qPlaylist?.count || 0, "música", "músicas") }}{{ qPlaylist?.duration ? ` · ${hours(qPlaylist.duration)}` : "" }}
+                </span>
+                <div class="hero-actions">
+                  <button class="pill primary" :disabled="!qList.length" @click="play(qList)"><Icon name="media-play" :size="18" /> Tocar</button>
+                  <button class="pill" :disabled="!qList.length" @click="play(qList, 0, true)"><Icon name="shuffle" :size="18" /> Aleatório</button>
+                  <button class="circle" aria-label="Atualizar" :disabled="qLoading" @click="loadQobuzTracks(qKey, true)"><Icon name="refresh" :size="20" /></button>
+                </div>
+              </div>
+            </section>
+            <p v-if="qLoading && !qList.length" class="empty small">Buscando as músicas…</p>
+            <TrackTable v-else-if="qList.length" :tracks="qList" :narrow="narrow" :current="current?.path" :playing="playing" />
+            <p v-else class="empty small">Nenhuma música aqui.</p>
+          </template>
+
           <!-- favoritas, uma playlist, uma pasta -->
           <template v-else-if="['favoritas', 'playlist', 'pasta'].includes(view.kind)">
             <section class="hero">
@@ -546,6 +649,13 @@ onUnmounted(() => stops.forEach((s) => s()));
         <p class="meta">As músicas vêm da pasta:</p>
         <p class="path">{{ folder || "~/Músicas" }}</p>
         <p class="meta">{{ count(tracks.length, "música", "músicas") }} · {{ count(albums.length, "álbum", "álbuns") }} · {{ count(artists.length, "artista", "artistas") }}</p>
+        <h2 class="sub-h">Qobuz</h2>
+        <p class="meta">{{ qobuz.connected ? `Conectado como ${qobuz.name}. O login fica guardado só neste aparelho.` : "Não conectado. Você entra no site do Qobuz e as suas playlists aparecem no Music." }}</p>
+        <div class="dialog-actions">
+          <button v-if="qobuz.connected" class="pill" @click="disconnectQobuz()"><Icon name="close" :size="18" /> Desconectar</button>
+          <button v-else class="pill primary" @click="connectQobuz(); settingsSheet = false"><Icon name="link" :size="18" /> Conectar Qobuz</button>
+        </div>
+        <h2 class="sub-h">Biblioteca</h2>
         <div class="dialog-actions">
           <button class="pill" @click="filesWindow(folder || undefined).catch(() => {})"><Icon name="folder" :size="18" /> Abrir a pasta</button>
           <button class="pill primary" :disabled="loading" @click="load()"><Icon name="refresh" :size="18" /> {{ loading ? "Lendo…" : "Reler a biblioteca" }}</button>
@@ -1244,6 +1354,16 @@ onUnmounted(() => stops.forEach((s) => s()));
   background: #1c1828;
   font-size: 14px;
   overflow-wrap: anywhere;
+}
+.sub-h {
+  margin: 10px 0 -4px !important;
+  font-size: 16px !important;
+}
+.qmeta {
+  margin: -8px 0 16px;
+}
+.narrow .qmeta {
+  margin: 0 8px 12px;
 }
 .close-x {
   position: absolute;

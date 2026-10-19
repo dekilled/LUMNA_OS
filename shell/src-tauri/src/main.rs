@@ -14,6 +14,7 @@ mod files;
 mod gallery;
 mod mpris;
 mod music;
+mod qobuz;
 mod games;
 mod greeter;
 mod haptics;
@@ -1899,6 +1900,12 @@ fn main() {
             music::music_lyrics,
             music::music_details,
             music::music_folder,
+            qobuz::qobuz_status,
+            qobuz::qobuz_login,
+            qobuz::qobuz_logout,
+            qobuz::qobuz_playlists,
+            qobuz::qobuz_playlist_tracks,
+            qobuz::qobuz_favorites,
             capture::capture_start,
             capture::capture_save,
             capture::capture_cancel,

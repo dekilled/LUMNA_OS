@@ -3,7 +3,7 @@
 // ir pro álbum/artista e ver os detalhes. No PC abre onde clicou; no celular é uma folha embaixo.
 import { computed, ref, watch } from "vue";
 import Icon from "../Icon.vue";
-import { artistOf, coverUrl } from "./music";
+import { artistOf, coverUrl, isQobuz } from "./music";
 import {
   addToPlaylist,
   addToQueue,
@@ -78,6 +78,7 @@ function showDetails() {
       <template v-if="sub === ''">
         <button @click="act(() => playNext([menu!.track]))"><Icon name="skip-forward" :size="19" /> Tocar a seguir</button>
         <button @click="act(() => addToQueue([menu!.track]))"><Icon name="list" :size="19" /> Adicionar à fila</button>
+        <template v-if="!isQobuz(menu.track)">
         <button @click="act(() => toggleFavorite(menu!.track))">
           <Icon name="heart" :size="19" /> {{ favorites.has(menu.track.path) ? "Tirar das favoritas" : "Favoritar" }}
         </button>
@@ -93,6 +94,8 @@ function showDetails() {
         </button>
         <button @click="act(() => go({ kind: 'artista', name: artistOf(menu!.track) }))"><Icon name="user" :size="19" /> Ir para o artista</button>
         <button @click="showDetails()"><Icon name="info" :size="19" /> Detalhes</button>
+        </template>
+        <p v-else class="note">Do Qobuz: favoritar, playlists e detalhes chegam junto com o tocar.</p>
       </template>
 
       <template v-else-if="sub === 'playlists'">
@@ -207,6 +210,12 @@ function showDetails() {
 }
 .back {
   color: var(--lumna-muted) !important;
+}
+.note {
+  margin: 4px 12px 8px;
+  color: var(--lumna-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 .sep {
   height: 1px;

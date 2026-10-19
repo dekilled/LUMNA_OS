@@ -662,6 +662,32 @@ export const musicPlaylistTracks = (id: string, paths: string[], remove = false)
 export const musicLyrics = (path: string) => invoke<Lyrics>("music_lyrics", { path });
 export const musicDetails = (path: string) => invoke<TrackDetails>("music_details", { path });
 export const musicFolder = () => invoke<string>("music_folder");
+
+// ---- Qobuz (no LUMNA Music) ----
+
+export interface QobuzStatus {
+  connected: boolean;
+  name: string;
+  /** só no evento lumna://qobuz, quando o login deu errado */
+  error?: string;
+}
+export interface QobuzPlaylist {
+  id: string;
+  name: string;
+  description: string;
+  count: number;
+  /** segundos */
+  duration: number;
+  cover: string | null;
+  owner: string;
+}
+export const qobuzStatus = () => invoke<QobuzStatus>("qobuz_status");
+/** Abre a janela de login do Qobuz; o resultado chega pelo evento lumna://qobuz. */
+export const qobuzLogin = () => invoke<void>("qobuz_login");
+export const qobuzLogout = () => invoke<void>("qobuz_logout");
+export const qobuzPlaylists = () => invoke<QobuzPlaylist[]>("qobuz_playlists");
+export const qobuzPlaylistTracks = (id: string) => invoke<Track[]>("qobuz_playlist_tracks", { id });
+export const qobuzFavorites = () => invoke<Track[]>("qobuz_favorites");
 export const captureStart = () => invoke<void>("capture_start");
 /** A área em frações da foto (0..1). Devolve o caminho salvo (vazio se só copiou). */
 export const captureSave = (area: { x: number; y: number; w: number; h: number }, save: boolean, copy: boolean) =>

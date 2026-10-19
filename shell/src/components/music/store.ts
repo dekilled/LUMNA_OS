@@ -14,11 +14,19 @@ import {
   musicPlaylistSave,
   musicPlaylistTracks,
   musicQueueAdd,
+  qobuzFavorites,
+  qobuzLogin,
+  qobuzLogout,
+  qobuzPlaylists,
+  qobuzPlaylistTracks,
+  qobuzStatus,
   type AudioNode,
   type MusicLists,
+  type QobuzPlaylist,
+  type QobuzStatus,
   type Track,
 } from "../../system";
-import { albumOf, artistOf } from "./music";
+import { albumOf, artistOf, isQobuz } from "./music";
 
 export interface Album {
   key: string;
@@ -50,7 +58,10 @@ export type View =
   | { kind: "playlist"; id: string }
   | { kind: "album"; key: string }
   | { kind: "artista"; name: string }
-  | { kind: "pasta"; path: string };
+  | { kind: "pasta"; path: string }
+  | { kind: "qobuz" }
+  | { kind: "qplaylist"; id: string }
+  | { kind: "qfavoritas" };
 
 export const tracks = ref<Track[]>([]);
 export const loading = ref(true);
@@ -147,16 +158,23 @@ async function run(f: () => Promise<unknown>) {
   }
 }
 
+/** Tocar do Qobuz vem na próxima etapa (agora: login e playlists). */
+function notYet(list: Track[]) {
+  if (!list.some(isQobuz)) return false;
+  error.value = "Tocar do Qobuz chega na próxima atualização: por enquanto dá pra ver as suas playlists e favoritas.";
+  return true;
+}
+
 export function play(list: Track[], index = 0, shuffle = false) {
-  if (!list.length) return;
+  if (!list.length || notYet(list)) return;
   haptic(10).catch(() => {});
   return run(async () => {
     await musicMode({ shuffle });
     await musicPlay(list, shuffle ? Math.floor(Math.random() * list.length) : index);
   });
 }
-export const playNext = (t: Track[]) => run(() => musicQueueAdd(t, true));
-export const addToQueue = (t: Track[]) => run(() => musicQueueAdd(t, false));
+export const playNext = (t: Track[]) => !notYet(t) && run(() => musicQueueAdd(t, true));
+export const addToQueue = (t: Track[]) => !notYet(t) && run(() => musicQueueAdd(t, false));
 export const toggleFavorite = (t: Track) =>
   run(async () => {
     haptic(10).catch(() => {});
@@ -207,3 +225,45 @@ export function outputLabel(o: AudioNode | undefined, phone: boolean): string {
   if (/speaker|alto.?falante|built.?in|interno|analog/i.test(o.name)) return phone ? "Neste celular" : "Neste computador";
   return o.name;
 }
+
+// ---- Qobuz ----
+
+export const qobuz = ref<QobuzStatus>({ connected: false, name: "" });
+export const qPlaylists = ref<QobuzPlaylist[] | null>(null);
+/** As músicas de cada playlist do Qobuz já abertas ("fav" = as favoritas). */
+export const qTracks = ref(new Map<string, Track[]>());
+export const qLoading = ref(false);
+
+export async function loadQobuz() {
+  qobuz.value = await qobuzStatus().catch(() => qobuz.value);
+  if (!qobuz.value.connected) {
+    qPlaylists.value = null;
+    return;
+  }
+  qLoading.value = true;
+  await run(async () => {
+    qPlaylists.value = await qobuzPlaylists();
+  });
+  qLoading.value = false;
+}
+
+/** As músicas de uma playlist do Qobuz (ou "fav"), buscando na primeira vez. */
+export async function loadQobuzTracks(id: string, again = false) {
+  if (qTracks.value.has(id) && !again) return;
+  qLoading.value = true;
+  await run(async () => {
+    const list = id === "fav" ? await qobuzFavorites() : await qobuzPlaylistTracks(id);
+    qTracks.value = new Map(qTracks.value).set(id, list);
+  });
+  qLoading.value = false;
+}
+
+export const connectQobuz = () => run(() => qobuzLogin());
+export const disconnectQobuz = () =>
+  run(async () => {
+    await qobuzLogout();
+    qobuz.value = { connected: false, name: "" };
+    qPlaylists.value = null;
+    qTracks.value = new Map();
+    if (["qobuz", "qplaylist", "qfavoritas"].includes(view.value.kind)) go({ kind: "ouvir" }, true);
+  });
