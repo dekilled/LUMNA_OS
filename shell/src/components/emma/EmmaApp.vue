@@ -7,7 +7,9 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
 import { parseReply, plainText, sentenceEnd, speakable } from "./assist";
 import {
+  emmaConversations,
   emmaDecide,
+  emmaDeleteConversation,
   emmaHistory,
   emmaInstallVoice,
   emmaListen,
@@ -15,6 +17,7 @@ import {
   emmaLogin,
   emmaLogout,
   emmaNewConversation,
+  emmaOpenConversation,
   emmaPermissions,
   emmaProviders,
   emmaSaveSettings,
@@ -29,6 +32,7 @@ import {
   on,
   type ActionInfo,
   type ActionPermission,
+  type EmmaConversation,
   type EmmaEvent,
   type EmmaSettings,
   type EmmaStatus,
@@ -222,6 +226,68 @@ async function newConversation() {
   await emmaNewConversation("app");
   bubbles.value = [];
   error.value = "";
+  listOpen.value = false;
+}
+
+// ---- conversas anteriores ----
+
+const listOpen = ref(false);
+const conversations = ref<EmmaConversation[] | null>(null);
+const confirmDelete = ref("");
+
+async function toggleList() {
+  listOpen.value = !listOpen.value;
+  confirmDelete.value = "";
+  if (!listOpen.value) return;
+  conversations.value = null;
+  try {
+    conversations.value = await emmaConversations();
+  } catch (e) {
+    conversations.value = [];
+    error.value = String(e);
+  }
+}
+
+async function openConversation(c: EmmaConversation) {
+  if (busy.value) return;
+  emmaSpeakStop().catch(() => {});
+  try {
+    await emmaOpenConversation(c.id);
+  } catch (e) {
+    error.value = String(e);
+    return;
+  }
+  error.value = "";
+  listOpen.value = false;
+  await loadHistory();
+}
+
+/** Apagar pede um segundo toque (o botão vira "Apagar?"). */
+async function removeConversation(c: EmmaConversation) {
+  if (confirmDelete.value !== c.id) {
+    confirmDelete.value = c.id;
+    return;
+  }
+  confirmDelete.value = "";
+  try {
+    await emmaDeleteConversation(c.id);
+  } catch (e) {
+    error.value = String(e);
+    return;
+  }
+  conversations.value = conversations.value?.filter((x) => x.id !== c.id) ?? null;
+  if (c.current) bubbles.value = [];
+}
+
+function when(iso: string) {
+  const d = new Date(iso.endsWith("Z") || /[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z");
+  if (Number.isNaN(d.getTime())) return "";
+  const today = new Date();
+  const yesterday = new Date(Date.now() - 86_400_000);
+  const hour = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === today.toDateString()) return `Hoje, ${hour}`;
+  if (d.toDateString() === yesterday.toDateString()) return `Ontem, ${hour}`;
+  return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
 
 async function toggleMic() {
@@ -486,7 +552,17 @@ onMounted(async () => {
   stops.push(() => window.removeEventListener("resize", onResize));
   stops.push(await on<EmmaEvent>("lumna://emma", onEvent));
   stops.push(await on<EmmaVoice>("lumna://emma-voice", onVoice));
-  stops.push(await on<string>("lumna://emma-app-tab", (t) => TABS.some((x) => x.tab === t) && openTab(t as Tab)));
+  stops.push(
+    await on<string>("lumna://emma-app-tab", (t) => {
+      if (!TABS.some((x) => x.tab === t)) return;
+      openTab(t as Tab);
+      // pode ter chegado uma conversa do popup ("Continuar no app")
+      if (t === "conversa" && !busy.value) {
+        listOpen.value = false;
+        loadHistory();
+      }
+    }),
+  );
   actions.value = await emmaPermissions().catch(() => []);
   await refreshStatus().catch(() => {});
   if (status.value?.configured) {
@@ -556,8 +632,26 @@ onUnmounted(() => {
           <button class="icon" :class="{ on: readAloud }" title="Ler as respostas em voz alta" @click="readAloud = !readAloud">
             <Icon :name="readAloud ? 'volume' : 'mute'" :size="20" />
           </button>
+          <button class="icon" :class="{ on: listOpen }" title="Conversas anteriores" @click="toggleList()"><Icon name="list" :size="20" /></button>
           <button class="icon" title="Nova conversa" @click="newConversation()"><Icon name="plus" :size="20" /></button>
         </header>
+        <div v-if="listOpen" class="conversations">
+          <button class="new" @click="newConversation()"><Icon name="plus" :size="18" /> Nova conversa</button>
+          <p v-if="conversations === null" class="empty">Carregando…</p>
+          <p v-else-if="!conversations.length" class="empty">Nenhuma conversa ainda.</p>
+          <ul v-else>
+            <li v-for="c in conversations" :key="c.id" :class="{ current: c.current }">
+              <button class="open" @click="openConversation(c)">
+                <span class="title">{{ c.title || "Conversa" }}</span>
+                <small>{{ c.current ? "Aberta agora" : when(c.updated_at) }}</small>
+              </button>
+              <button class="del" :class="{ sure: confirmDelete === c.id }" :title="confirmDelete === c.id ? 'Tocar de novo apaga' : 'Apagar'" @click="removeConversation(c)">
+                <span v-if="confirmDelete === c.id">Apagar?</span>
+                <Icon v-else name="trash" :size="18" />
+              </button>
+            </li>
+          </ul>
+        </div>
         <div ref="scroller" class="messages">
           <p v-if="bubbles.length === 0" class="empty">
             Peça qualquer coisa: <em>“abre o Spotify”</em>, <em>“volume 30”</em>, <em>“acha o PDF do contrato”</em>. Segure a
@@ -1063,10 +1157,89 @@ button:disabled {
 }
 /* conversa */
 .chat {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+/* as conversas anteriores: por cima da conversa, abaixo da barra */
+.conversations {
+  position: absolute;
+  inset: 62px 0 0;
+  z-index: 2;
+  overflow-y: auto;
+  padding: 6px 14px 20px;
+  background: var(--bg);
+}
+.conversations .new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 48px;
+  margin-bottom: 8px;
+  padding: 0 14px;
+  border: 1px dashed rgba(167, 139, 250, 0.35);
+  border-radius: 14px;
+  background: none;
+  color: var(--lumna-violet-soft);
+  font-size: 15px;
+}
+.conversations ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conversations li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 14px;
+}
+.conversations li.current {
+  background: rgba(167, 139, 250, 0.1);
+}
+.conversations .open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 11px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+.conversations .title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conversations small {
+  color: var(--lumna-muted);
+  font-size: 12px;
+}
+.conversations .del {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--lumna-muted);
+  font-size: 13px;
+}
+.conversations .del.sure {
+  padding: 0 10px;
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
 }
 .bar {
   flex: none;

@@ -29,10 +29,7 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
 
 - **"Oi, Emma"**: ela ouve e abre o assistente em qualquer tela (base: a palavra de ativação do
   NewHarnessV2, `backend/wake.py` com Vosk e o `WakeWord.kt` do Android). Liga/desliga no app.
-- **Histórico de conversas** no app: hoje a conversa anterior some ao começar outra. Lista,
-  reabrir, renomear, apagar.
-- **Assistente inteligente**: pedido rápido (abrir app, volume) faz, reseta e fecha; quando vira
-  conversa, mantém o histórico e acumula.
+- Histórico de conversas: falta **renomear** (lista, reabrir e apagar já estão no app).
 - Gatilho de automação "computador parado há N minutos".
 
 ## Apps

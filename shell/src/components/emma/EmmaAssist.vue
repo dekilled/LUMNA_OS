@@ -4,11 +4,15 @@
 // no bloqueio. Escreve ou fala (o microfone grava aqui e o backend transcreve); quando a pergunta
 // veio falada, a Emma responde falando, frase por frase, enquanto a resposta chega.
 // Com a tela bloqueada: conversa nova a cada vez, sem histórico, e só as ações seguras (emma.rs).
+// Pedido rápido x conversa: uma ação que leva pra outro lugar ("abre o Spotify") fecha o popup e a
+// próxima vez começa do zero; uma ação no lugar ("volume 30") também zera na próxima. Pergunta e
+// resposta é conversa: continua ao abrir de novo, vai pro histórico do app e dá pra seguir lá.
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
 import { actionIcon, parseReply, plainText, sentenceEnd, speakable } from "./assist";
 import {
   emmaAppOpen,
+  emmaContinueInApp,
   emmaDecide,
   emmaListen,
   emmaListenStop,
@@ -31,6 +35,7 @@ import {
 
 interface ToolView {
   id: string;
+  name: string;
   label: string;
   state: "running" | "confirm" | "ok" | "error" | "denied";
   summary: string;
@@ -63,6 +68,13 @@ const scroller = ref<HTMLElement>();
 const input = ref<HTMLInputElement>();
 const labels = ref(new Map<string, string>());
 let lastUse = 0;
+/** O último pedido foi uma ação rápida: a próxima abertura começa do zero. */
+let fresh = false;
+
+/** Ações que levam a pessoa pra outro lugar: feitas, o popup sai da frente. */
+const OPENERS = ["apps.open", "apps.focus", "panel.open", "media.open_service", "media.play_video", "games.launch", "files.open"].map(
+  (n) => `lumna_${n.replace(/\./g, "_")}`,
+);
 /** O microfone foi aberto aqui (o app da Emma também ouve pelo mesmo evento). */
 let mine = false;
 
@@ -84,7 +96,7 @@ const placeholder = computed(() =>
 );
 
 function toolView(tool: EmmaTool): ToolView {
-  return { id: tool.id, label: labels.value.get(tool.name) ?? tool.name.replace(/^lumna_/, "").replace(/_/g, " "), state: "running", summary: "" };
+  return { id: tool.id, name: tool.name, label: labels.value.get(tool.name) ?? tool.name.replace(/^lumna_/, "").replace(/_/g, " "), state: "running", summary: "" };
 }
 
 function findTool(id: string): ToolView | undefined {
@@ -174,7 +186,44 @@ async function send(text: string, voice = false) {
       turn.done = true;
       speakNew(turn);
     }
+    if (turn) settle(turn);
   }
+}
+
+/** Depois da resposta: pedido rápido ou conversa? */
+function settle(turn: Turn) {
+  // só as ações no LUMNA contam (uma busca na internet ainda é conversa)
+  const ran = turn.tools.filter((t) => t.state === "ok" && t.name.startsWith("lumna_"));
+  if (!ran.length || locked.value) return;
+  if (ran.some((t) => OPENERS.includes(t.name))) {
+    // abriu algo: dá um instante pra ver o "pronto" e sai da frente (a fala continua)
+    fresh = true;
+    window.setTimeout(() => visible.value && current.value === turn && close(false), 900);
+  } else if (turns.value.length === 1) {
+    fresh = true;
+  }
+}
+
+async function reset() {
+  turns.value = [];
+  fresh = false;
+  await emmaNewConversation("assist").catch(() => {});
+}
+
+/** É conversa (tem pergunta e resposta sem ação): dá pra continuar no app. */
+const conversation = computed(() => !locked.value && turns.value.some((t) => t.done && t.text && !t.tools.some((x) => x.name.startsWith("lumna_"))));
+
+async function continueInApp() {
+  try {
+    await emmaContinueInApp();
+  } catch (e) {
+    error.value = String(e);
+    return;
+  }
+  turns.value = [];
+  fresh = false;
+  close();
+  emmaAppOpen("conversa").catch(() => {});
 }
 
 function submit() {
@@ -273,9 +322,13 @@ async function opened(info: EmmaOpened) {
   drag.value = 0;
   // bloqueado: começa do zero (nada do que foi dito antes aparece); desbloqueado, a conversa do
   // popup vale por 10 min parada, como no backend
-  if (locked.value || wasLocked || Date.now() - lastUse > 10 * 60 * 1000) {
-    turns.value = [];
-    if (locked.value) await emmaNewConversation("lock").catch(() => {});
+  if (locked.value || wasLocked || fresh || Date.now() - lastUse > 10 * 60 * 1000) {
+    if (locked.value) {
+      turns.value = [];
+      await emmaNewConversation("lock").catch(() => {});
+    } else {
+      await reset();
+    }
   }
   visible.value = true;
   // o servidor fora do ar aparece já ao abrir (não só depois de perguntar)
@@ -293,11 +346,11 @@ async function opened(info: EmmaOpened) {
   scrollDown();
 }
 
-function close() {
+function close(quiet = true) {
   if (!visible.value) return;
   visible.value = false;
   if (mic.value !== "idle") emmaListenStop(true).catch(() => {});
-  emmaSpeakStop().catch(() => {});
+  if (quiet) emmaSpeakStop().catch(() => {});
   input.value?.blur();
   window.setTimeout(() => !visible.value && layerHide(), 200);
 }
@@ -376,6 +429,9 @@ onUnmounted(() => stops.forEach((stop) => stop()));
         </svg>
         <span class="name">Emma</span>
         <button v-if="speaking" class="state" @click="stop()"><Icon name="stop" :size="14" /> Parar de falar</button>
+        <button v-if="conversation" class="state expand" title="Continuar no app da Emma" @click="continueInApp()">
+          <Icon name="chat" :size="14" /> Continuar no app
+        </button>
         <button class="x" aria-label="Fechar" @click="close()"><Icon name="close" :size="22" /></button>
       </header>
       <p v-if="contextLine" class="context">{{ contextLine }}</p>
@@ -547,6 +603,12 @@ header {
   background: rgba(139, 92, 246, 0.18);
   color: var(--lumna-violet-soft);
   font-size: 13px;
+}
+.expand {
+  margin-left: auto;
+}
+.expand + .x {
+  margin-left: 0;
 }
 .x {
   margin-left: auto;

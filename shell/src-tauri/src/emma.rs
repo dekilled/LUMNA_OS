@@ -337,7 +337,8 @@ impl Emma {
         }
         // as do popup ficam fora da lista de conversas do NewHarnessV2 até alguém responder nelas
         let body = match channel {
-            Channel::App => json!({ "title": "LUMNA" }),
+            // o backend dá o nome pela primeira mensagem (é o que aparece no histórico)
+            Channel::App => json!({ "title": "Nova sessão" }),
             _ => json!({ "title": "LUMNA Assistente", "assist_log": true }),
         };
         let (code, body) = self.call("POST", "/api/sessions", Some(&body))?;
@@ -441,6 +442,7 @@ fn converse_once(app: &AppHandle, text: &str, voice: bool, channel: Channel, con
     emma.0.lock().unwrap().stream = Some(child.id());
     let stdout = child.stdout.take().ok_or("curl sem saída")?;
     let mut got_any = false;
+    let mut used_tools = false;
     let mut answer = String::new();
     // O que não é SSE (o corpo de um erro, com --fail-with-body).
     let mut other = String::new();
@@ -452,6 +454,12 @@ fn converse_once(app: &AppHandle, text: &str, voice: bool, channel: Channel, con
             continue;
         };
         got_any = true;
+        // ação no LUMNA (buscar na internet e afins ainda é conversa)
+        if matches!(event["type"].as_str(), Some("tool_start" | "tool_confirm" | "tool_client"))
+            && event["tool"]["name"].as_str().is_some_and(|n| n.starts_with("lumna_"))
+        {
+            used_tools = true;
+        }
         emit(app, channel, &event);
         // bloqueado: o que pede confirmação (as ferramentas do próprio backend) é negado na hora
         if event["type"] == "tool_confirm" && (channel == Channel::Lock || locked()) {
@@ -505,6 +513,13 @@ fn converse_once(app: &AppHandle, text: &str, voice: bool, channel: Channel, con
         });
     }
     emma.0.lock().unwrap().current = None;
+    // no popup, pergunta e resposta sem ação é conversa: vai pro histórico do app (o backend só
+    // passa sozinho a partir da segunda mensagem); pedido com ação fica no registro de comandos
+    if channel == Channel::Assist && !used_tools && !answer.is_empty() {
+        if let Err(err) = emma.call("POST", &format!("/api/commands/{sid}/promote"), None) {
+            eprintln!("lumna-shell: emma histórico do popup: {err}");
+        }
+    }
     Ok(answer)
 }
 
@@ -627,6 +642,92 @@ pub async fn emma_decide(app: AppHandle, call_id: String, allow: bool) -> Result
 #[tauri::command]
 pub fn emma_new_conversation(channel: Option<String>) -> Result<(), String> {
     update_config(&[(Channel::parse(channel.as_deref()).key(), Value::Null)])
+}
+
+/// As conversas (do app, as que vieram do popup e as do NewHarnessV2 no PC), da mais recente pra
+/// mais antiga. Bloqueado: nenhuma.
+#[tauri::command]
+pub async fn emma_conversations(app: AppHandle) -> Result<Vec<Value>, String> {
+    if locked() {
+        return Ok(Vec::new());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let (code, body) = app.state::<Emma>().call("GET", "/api/sessions", None)?;
+        let list = body.as_array().filter(|_| code == 200).ok_or_else(|| detail(&body))?;
+        let current = read_config().get("session_id").and_then(Value::as_str).map(str::to_string);
+        Ok(list
+            .iter()
+            .map(|s| {
+                json!({
+                    "id": s["id"],
+                    "title": s["title"],
+                    "updated_at": s["updated_at"],
+                    "current": current.as_deref() == s["id"].as_str(),
+                })
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Abre uma conversa no app (a próxima mensagem continua nela). A que veio do popup perde as regras
+/// dele (resposta curta, botões) e sai do popup.
+#[tauri::command]
+pub async fn emma_open_conversation(app: AppHandle, id: String) -> Result<(), String> {
+    if locked() {
+        return Err("desbloqueie o celular para ver as conversas".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let emma = app.state::<Emma>();
+        let (code, body) = emma.call("GET", &format!("/api/sessions/{id}/messages"), None)?;
+        if code != 200 {
+            return Err(detail(&body));
+        }
+        let config = read_config();
+        if config.get(Channel::Assist.key()).and_then(Value::as_str) == Some(id.as_str()) {
+            emma.call("PATCH", &format!("/api/sessions/{id}"), Some(&json!({ "system_prompt": "" })))?;
+            update_config(&[(Channel::Assist.key(), Value::Null)])?;
+        }
+        update_config(&[(Channel::App.key(), json!(id))])
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// A conversa do popup continua no app.
+#[tauri::command]
+pub async fn emma_continue_in_app(app: AppHandle) -> Result<(), String> {
+    let id = read_config().get(Channel::Assist.key()).and_then(Value::as_str).map(str::to_string).ok_or("sem conversa no assistente")?;
+    let worker = app.clone();
+    let sid = id.clone();
+    tauri::async_runtime::spawn_blocking(move || worker.state::<Emma>().call("POST", &format!("/api/commands/{sid}/promote"), None))
+        .await
+        .map_err(|e| e.to_string())??;
+    emma_open_conversation(app, id).await
+}
+
+/// Apaga uma conversa (no backend também).
+#[tauri::command]
+pub async fn emma_delete_conversation(app: AppHandle, id: String) -> Result<(), String> {
+    if locked() {
+        return Err("desbloqueie o celular para apagar conversas".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let (code, body) = app.state::<Emma>().call("DELETE", &format!("/api/sessions/{id}"), None)?;
+        if code != 200 && code != 404 {
+            return Err(detail(&body));
+        }
+        let config = read_config();
+        let gone: Vec<(&str, Value)> = [Channel::App, Channel::Assist, Channel::Lock]
+            .iter()
+            .filter(|c| config.get(c.key()).and_then(Value::as_str) == Some(id.as_str()))
+            .map(|c| (c.key(), Value::Null))
+            .collect();
+        update_config(&gone)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Mensagens da conversa atual, para o painel abrir onde parou (bloqueado: nada).

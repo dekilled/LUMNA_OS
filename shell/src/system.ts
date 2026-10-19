@@ -538,6 +538,19 @@ export const emmaSend = (text: string, voice = false, channel: EmmaChannel = "ap
 export const emmaDecide = (callId: string, allow: boolean) => invoke<void>("emma_decide", { callId, allow });
 export const emmaNewConversation = (channel: EmmaChannel = "app") => invoke<void>("emma_new_conversation", { channel });
 export const emmaHistory = (channel: EmmaChannel = "app") => invoke<EmmaMessage[]>("emma_history", { channel });
+export interface EmmaConversation {
+  id: string;
+  title: string;
+  /** ISO, do backend. */
+  updated_at: string;
+  /** A que o app está usando. */
+  current: boolean;
+}
+export const emmaConversations = () => invoke<EmmaConversation[]>("emma_conversations");
+export const emmaOpenConversation = (id: string) => invoke<void>("emma_open_conversation", { id });
+export const emmaDeleteConversation = (id: string) => invoke<void>("emma_delete_conversation", { id });
+/** A conversa do popup passa pro app. */
+export const emmaContinueInApp = () => invoke<void>("emma_continue_in_app");
 /** O app da Emma (conversa, ferramentas, provedores, perfil). */
 // ---- Galeria e captura de tela ----
 
