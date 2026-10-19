@@ -83,7 +83,12 @@ pub fn clear_target() {
 
 /// Entrega à janela do LUMNA em foco, se houver. `true` = entregue.
 fn to_lumna(app: &AppHandle, payload: serde_json::Value) -> bool {
-    let target = TARGET.lock().unwrap().clone();
+    let mut target = TARGET.lock().unwrap().clone();
+    // Bloqueado: o que se digita é a senha. Só vai pra tela de bloqueio (ou pro popup da Emma, que
+    // abre por cima dela), nunca pro campo que tinha ficado ativo atrás (a busca dos Apps).
+    if crate::mobilelock::is_locked() && !matches!(target.as_deref(), Some("mobile-lock") | Some("emma")) {
+        target = Some("mobile-lock".into());
+    }
     match target {
         Some(label) => app.emit_to(label.as_str(), "lumna://keyboard-input", payload).is_ok(),
         None => false,

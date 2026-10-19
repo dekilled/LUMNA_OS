@@ -3,6 +3,7 @@
 // pra cima, a senha (com o LUMNA Keyboard). A senha é a do Linux; quem confere é o shell. Com PIN
 // (Ajustes → Tela), deslizar mostra o teclado numérico; a senha continua valendo ("Usar a senha").
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import Icon from "../Icon.vue";
 import MusicCard from "../music/MusicCard.vue";
 import {
@@ -72,6 +73,8 @@ async function askPassword() {
   if (usingPin.value) return;
   await nextTick();
   input.value?.focus();
+  // o foco numa camada que ainda não tem o teclado pode não avisar: diz direto que as teclas são daqui
+  invoke("keyboard_target", { label: "mobile-lock", focused: true }).catch(() => {});
 }
 async function usePassword(on: boolean) {
   pinMode.value = !on;
@@ -80,6 +83,7 @@ async function usePassword(on: boolean) {
   if (on) {
     await nextTick();
     input.value?.focus();
+    invoke("keyboard_target", { label: "mobile-lock", focused: true }).catch(() => {});
   } else {
     input.value?.blur();
   }
