@@ -13,6 +13,7 @@ import {
   filesTrash,
   galleryList,
   galleryPlay,
+  galleryPreview,
   haptic,
   on,
   type ConnectTarget,
@@ -375,11 +376,27 @@ function transitionEnd(e: TransitionEvent) {
 // Decodifica antes, e a miniatura fica por baixo enquanto isso.
 const decoded = new Set<string>();
 function prepare(el: unknown, path: string) {
+  loadPreview(path);
   if (!(el instanceof HTMLImageElement) || decoded.has(path)) return;
   decoded.add(path);
   loadThumb(path);
   el.decode?.().catch(() => decoded.delete(path));
 }
+
+// A foto no tamanho da tela: a da câmera inteira (12 MP) faz o WebKit pintar milhões de pixels a
+// cada quadro do deslize (pedaços pretos, fantasmas). A original só entra no zoom, por cima.
+const previews = ref(new Map<string, string>());
+async function loadPreview(path: string) {
+  if (previews.value.has(path)) return;
+  previews.value.set(path, "");
+  const p = await galleryPreview(path).catch(() => path);
+  previews.value = new Map(previews.value).set(path, artUrl(p ?? path) ?? "");
+}
+const srcOf = (path: string | null) => (path && previews.value.get(path)) || undefined;
+/** Com zoom, a original por cima da atual (aparece quando terminou de carregar). */
+const hires = computed(() => (photo.value && !photo.value.video && scale.value > 1.3 ? photo.value.path : null));
+const hiresReady = ref(false);
+watch(hires, () => (hiresReady.value = false));
 function placeholder(path: string) {
   const t = thumbs.value.get(path);
   return t ? `url("${t}")` : "none";
@@ -626,13 +643,24 @@ onUnmounted(() => {
             class="full"
             :ref="(el) => path && prepare(el, path)"
             :class="{ animating: animating && offOf(path) != null, current: offOf(path) === 0 }"
-            :src="(path && artUrl(path)) || undefined"
+            :src="srcOf(path)"
             :style="slotStyle(path ?? '', offOf(path))"
             alt=""
             draggable="false"
             @load="(e) => path && sizes.set(path, { w: (e.target as HTMLImageElement).naturalWidth, h: (e.target as HTMLImageElement).naturalHeight })"
           />
         </template>
+        <img
+          v-if="hires"
+          :key="`hi-${hires}`"
+          class="full hires"
+          :class="{ ready: hiresReady, animating }"
+          :src="artUrl(hires) ?? ''"
+          :style="{ ...slotStyle(hires, 0), backgroundImage: 'none' }"
+          alt=""
+          draggable="false"
+          @load="hiresReady = true"
+        />
       </div>
 
       <header v-show="chrome" class="vbar">
@@ -834,6 +862,13 @@ onUnmounted(() => {
   background: rgba(139, 92, 246, 0.85);
   color: #fff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.full.hires {
+  opacity: 0;
+  pointer-events: none;
+}
+.full.hires.ready {
+  opacity: 1;
 }
 .full.animating {
   transition: transform 200ms cubic-bezier(0.2, 0.9, 0.3, 1);

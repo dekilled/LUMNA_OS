@@ -581,6 +581,8 @@ export const galleryList = () => invoke<Photo[]>("gallery_list");
 export const galleryOpen = (path?: string) => invoke<void>("gallery_open", { path });
 /** Toca um vídeo no mpv, na tela toda. */
 export const galleryPlay = (path: string) => invoke<void>("gallery_play", { path });
+/** A foto no tamanho da tela (a original quando já é pequena). */
+export const galleryPreview = (path: string) => invoke<string | null>("gallery_preview", { path });
 
 // ---- LUMNA Music ----
 

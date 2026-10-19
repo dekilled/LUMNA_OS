@@ -162,6 +162,52 @@ pub fn gallery_play(compositor: tauri::State<'_, crate::SharedCompositor>, path:
     Ok(())
 }
 
+/// A foto no tamanho da tela (cache, `~/.cache/lumna/previews`). Deslizar uma foto de câmera de
+/// 12 MP inteira faz o WebKit pintar milhões de pixels a cada quadro: aparecem pedaços pretos e a
+/// troca engasga. A tela usa esta versão e só carrega a original no zoom. Foto pequena: a própria.
+#[tauri::command]
+pub async fn gallery_preview(app: AppHandle, path: String) -> Option<String> {
+    static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+    let src = PathBuf::from(&path);
+    let meta = std::fs::metadata(&src).ok()?;
+    if meta.len() < 700_000 {
+        return Some(path);
+    }
+    let modified = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+    let key = format!("{:x}", md5::compute(format!("{path}:{}:{modified}", meta.len())));
+    let dir = crate::media::thumbs_dir().join("previews");
+    let out = dir.join(format!("{key}.jpg"));
+    if !out.exists() {
+        let _slot = SLOTS.acquire().await.ok()?;
+        let target = out.clone();
+        let ok = tauri::async_runtime::spawn_blocking(move || {
+            std::fs::create_dir_all(&dir).ok()?;
+            let part = target.with_extension("part.jpg");
+            let done = Command::new("ffmpeg")
+                .args(["-y", "-loglevel", "error", "-i"])
+                .arg(&src)
+                // cabe em 1440 × 2560 (a tela do celular com folga), sem aumentar foto menor
+                .args(["-vf", "scale=w='min(1440,iw)':h='min(2560,ih)':force_original_aspect_ratio=decrease", "-frames:v", "1", "-q:v", "3"])
+                .arg(&part)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success());
+            (done && std::fs::rename(&part, &target).is_ok()).then_some(())
+        })
+        .await
+        .ok()
+        .flatten();
+        if ok.is_none() {
+            // sem ffmpeg (ou foto que ele não lê): a original mesmo
+            return Some(path);
+        }
+    }
+    let _ = app.asset_protocol_scope().allow_file(&out);
+    Some(out.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub async fn gallery_list(app: AppHandle) -> Vec<Photo> {
     for (root, _) in roots() {

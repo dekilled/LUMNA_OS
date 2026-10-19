@@ -1904,6 +1904,7 @@ fn main() {
             gallery_open,
             gallery::gallery_list,
             gallery::gallery_play,
+            gallery::gallery_preview,
             music_open,
             music::music_library,
             music::music_play,
