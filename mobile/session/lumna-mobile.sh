@@ -69,13 +69,15 @@ sudo /usr/local/lib/lumna/relogio.sh guarda || true
 # a pessoa permite no aviso do cabo
 UMTP_REF=b174b03a3c2641a578b9299e540994a35b2f03a9
 if [ "$(cat /usr/local/share/lumna/umtprd.ref 2>/dev/null)" != "$UMTP_REF" ]; then
+    echo "--- arquivos pelo cabo: baixando e compilando o uMTP-Responder (só na primeira vez, ~1 min)"
     tmp=$(mktemp -d)
-    git clone -q https://github.com/viveris/uMTP-Responder "$tmp/umtp" &&
+    # sem internet (ou lenta demais) não fica esperando: segue sem, e tenta de novo na próxima
+    timeout 180 git clone --progress https://github.com/viveris/uMTP-Responder "$tmp/umtp" &&
         git -C "$tmp/umtp" checkout -q "$UMTP_REF" &&
-        make -s -C "$tmp/umtp" &&
+        timeout 300 make -C "$tmp/umtp" &&
         sudo install -Dm755 "$tmp/umtp/umtprd" /usr/local/bin/umtprd &&
         echo "$UMTP_REF" | sudo install -Dm644 /dev/stdin /usr/local/share/lumna/umtprd.ref ||
-        echo "aviso: não deu pra compilar o umtprd (arquivos pelo cabo fica sem funcionar)"
+        echo "aviso: não deu pra baixar/compilar o umtprd (sem internet?). Arquivos pelo cabo fica pra próxima atualização."
     rm -rf "$tmp"
 fi
 sudo install -Dm755 "$ROOT/mobile/session/usb/usb-arquivos.sh" /usr/local/lib/lumna/usb-arquivos.sh
