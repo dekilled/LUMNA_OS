@@ -700,7 +700,7 @@ onUnmounted(() => {
           <label>Voz (reference id)<input v-model="profile.voiceId" spellcheck="false" placeholder="o id da voz no Fish Audio" /></label>
           <label>
             Modelo de voz (falar)
-            <input v-model="profile.ttsModel" spellcheck="false" placeholder="o modelo do Fish Audio, como está na sua conta" />
+            <input v-model="profile.ttsModel" spellcheck="false" placeholder="s2.1-pro-free (o gratuito) ou s2.1-pro" />
           </label>
           <label>
             Modelo de transcrição (ouvir)
