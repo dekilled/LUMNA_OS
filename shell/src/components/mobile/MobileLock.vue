@@ -294,7 +294,11 @@ onUnmounted(() => {
 
 <style scoped>
 .lock {
-  height: 100vh;
+  /* presa na tela: o teclado e o PIN não criam rolagem nem deixam a tela "andar" com o dedo */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   box-sizing: border-box;
   padding: 10px 22px 40px;
   display: flex;
@@ -604,5 +608,14 @@ onUnmounted(() => {
 .sos span {
   color: #fca5a5;
   font-size: 13px;
+}
+</style>
+
+<style>
+/* a camada do bloqueio é só esta tela: a página em volta nunca rola */
+html:has(.lock),
+html:has(.lock) body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 </style>
