@@ -141,5 +141,15 @@ export function setupKeyboardInput() {
       keyboardShow(false).catch(() => {});
     }, 200);
   });
+  // Tocou em outra janela (um app de fora, a janela de login do Qobuz): o campo daqui continua
+  // "ativo" dentro da página, mas as teclas são da outra. Solta (sem fechar o teclado: a outra
+  // janela vai usar) e pega de volta quando esta janela voltar com o campo ainda ativo.
+  window.addEventListener("blur", () => {
+    clearTimeout(hide);
+    invoke("keyboard_target", { label, focused: false }).catch(() => {});
+  });
+  window.addEventListener("focus", () => {
+    if (editable(document.activeElement)) invoke("keyboard_target", { label, focused: true }).catch(() => {});
+  });
   on<Input>("lumna://keyboard-input", (input) => apply(input).catch((e) => console.error(e)));
 }

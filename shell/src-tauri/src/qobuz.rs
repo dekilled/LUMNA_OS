@@ -335,6 +335,8 @@ pub async fn qobuz_login(app: AppHandle) -> Result<(), String> {
                     std::thread::spawn(move || finish_login(&h, token, app_id, user));
                 }
                 "/teclado" => {
+                    // as teclas vêm pra esta janela, não pro último campo do LUMNA
+                    crate::touchkeys::clear_target();
                     let _ = crate::touchkeys::keyboard_show(handle.clone(), true);
                 }
                 _ => {}

@@ -76,6 +76,11 @@ pub fn keyboard_target(label: String, focused: bool) {
     }
 }
 
+/// Uma janela que não é do LUMNA (a do login do Qobuz) pegou o campo: as teclas vão pra ela.
+pub fn clear_target() {
+    *TARGET.lock().unwrap() = None;
+}
+
 /// Entrega à janela do LUMNA em foco, se houver. `true` = entregue.
 fn to_lumna(app: &AppHandle, payload: serde_json::Value) -> bool {
     let target = TARGET.lock().unwrap().clone();
