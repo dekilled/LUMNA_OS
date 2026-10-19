@@ -27,8 +27,36 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
 
 ## Emma
 
-- Voz ("Oi, Emma").
+- **"Oi, Emma"**: ela ouve e abre o assistente em qualquer tela (base: a palavra de ativação do
+  NewHarnessV2, `backend/wake.py` com Vosk e o `WakeWord.kt` do Android). Liga/desliga no app.
+- **Histórico de conversas** no app: hoje a conversa anterior some ao começar outra. Lista,
+  reabrir, renomear, apagar.
+- **Assistente inteligente**: pedido rápido (abrir app, volume) faz, reseta e fecha; quando vira
+  conversa, mantém o histórico e acumula.
 - Gatilho de automação "computador parado há N minutos".
+
+## Apps
+
+- **LUMNA Browser** (esboços: `esbocos/browser-pc.png` e `esbocos/browser-celular.png`): em cima
+  do WebKitGTK que o shell já usa. Abas (no PC em cima; no celular o contador embaixo), barra de
+  endereço (no celular embaixo, com microfone), página inicial "Seu espaço na web" com favoritos e
+  "Continuar de onde parou" com miniaturas, e a **Emma** do lado (PC) ou por cima (celular):
+  resumir a página, encontrar nela, comparar abas, perguntar sobre a página. Enviar a aba pro PC
+  pelo Connect. Enquanto não sai: testar o Epiphany.
+- **LUMNA Music**: player de música offline (pasta Músicas, capas, fila, cartão na central e no
+  bloqueio, botões do fone, Emma) e online (a definir).
+- **Player de vídeo**: o mpv por baixo (hardware, formatos, legendas) com os controles do LUMNA.
+- **LUMNA Connect gerenciando o aparelho**: ao conectar o celular, mostra modelo/versão/slot;
+  backup e restauração; atualizar com progresso (o `atualizar.sh`); reinstalar/recuperar pelo
+  fastboot, só com o modelo confirmado e sempre no slot B.
+
+## Celular
+
+- **Teclado que abre sozinho nos apps de fora** (input-method-v2 do Wayland): hoje só abre sozinho
+  nos campos do próprio LUMNA.
+- A hora do celular liga em 1970 até a internet acertar (o timesyncd não está segurando).
+- PIN numérico no bloqueio, volume por app, viva-voz nas ligações, app de gestos, barra de status
+  da cor do app, menu nos apps recentes, refazer o modo Mídia.
 
 ## Interface
 
