@@ -32,7 +32,9 @@ guarda)
     [ "$agora" -ge "$MINIMO" ] || exit 0
     r=$(rtc)
     mkdir -p "${ARQ%/*}"
-    printf '%s %s\n' "$((agora - r))" "$agora" >"$ARQ.tmp" && mv "$ARQ.tmp" "$ARQ"
+    # um temporário por execução: o serviço e o lumna-mobile.sh podem guardar ao mesmo tempo
+    tmp="$ARQ.$$"
+    printf '%s %s\n' "$((agora - r))" "$agora" >"$tmp" && mv -f "$tmp" "$ARQ"
     ;;
 *)
     echo "uso: $0 restaura|guarda" >&2
