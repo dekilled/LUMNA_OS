@@ -89,7 +89,10 @@ pub const LOCK_SAFE: [&str; 6] = ["audio.volume", "audio.outputs", "audio.output
 /// Diretrizes da conversa do popup (vão no `system_prompt` da sessão): resposta curta e os
 /// botões de próximo passo, que o popup desenha (cartão principal, links e sugestões).
 const ASSIST_RULES: &str = "MODO ASSISTENTE (popup do LUMNA, por cima do que o usuário está fazendo): responda curto e direto, \
-em 1 a 3 frases, sem títulos nem listas longas. Se dá para resolver agora com uma ferramenta, use a ferramenta.\n\
+em 1 a 3 frases, sem títulos nem listas longas.\n\
+AGIR VEM PRIMEIRO: se o usuário pede para fazer algo (abrir, ajustar, tocar, mudar, ligar, desligar) e uma ferramenta \
+lumna_* faz isso, CHAME a ferramenta nesta resposta, sem perguntar e sem oferecer botão para isso. Nunca diga que fez sem \
+ter chamado. Os botões abaixo são só para o passo SEGUINTE, depois de agir.\n\
 Quando houver próximos passos úteis, termine a resposta com linhas neste formato exato, cada uma na sua linha:\n\
 [acao: Adicionar layout]  -> o próximo passo principal (no máximo 1), curto como um botão\n\
 [link: Ver layouts instalados]  -> outra ação útil (no máximo 2)\n\
