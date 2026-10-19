@@ -3,6 +3,7 @@
 // tocando na barrinha). Duas abas, como no esboço: Notificações e Atalhos (deslize pros lados).
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
+import MusicCard from "../music/MusicCard.vue";
 import {
   audioSetVolume,
   audioState,
@@ -451,6 +452,9 @@ onUnmounted(() => {
       <div class="date">{{ date }}</div>
     </div>
 
+    <!-- tocando no LUMNA Music (nas duas abas) -->
+    <MusicCard class="now-playing" openable @opened="close()" />
+
     <nav class="tabs">
       <button :class="{ on: tab === 'notificacoes' }" @click="tab = 'notificacoes'">Notificações</button>
       <button :class="{ on: tab === 'atalhos' }" @click="tab = 'atalhos'">Atalhos</button>
@@ -650,6 +654,9 @@ onUnmounted(() => {
   margin-top: 6px;
   color: var(--lumna-muted);
   font-size: 16px;
+}
+.now-playing {
+  margin: 0 0 10px;
 }
 .tabs {
   display: flex;

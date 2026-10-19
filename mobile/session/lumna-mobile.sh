@@ -22,7 +22,7 @@ fi
 
 sudo pacman -S --needed --noconfirm base-devel rust nodejs pnpm webkit2gtk-4.1 gtk3 gtk-layer-shell \
     hyprland wireplumber mesa foot ttf-dejavu inter-font noto-fonts-emoji wtype wl-clipboard grim ffmpeg bluez bluez-utils hypridle \
-    wf-recorder gst-plugins-good gst-libav mpv
+    wf-recorder gst-plugins-good gst-libav mpv playerctl
 
 # O perfil release do LUMNA usa LTO com 1 codegen unit: o último passo (o próprio lumna-shell) roda
 # num núcleo só e leva uns 30 min no 6T. Pra testar mudanças: LUMNA_RAPIDO=1 sh lumna-mobile.sh
@@ -70,6 +70,8 @@ sudo /usr/local/lib/lumna/relogio.sh guarda || true
 
 # Bluetooth (WCN3990 pelo hci_uart; o firmware já vem no rootfs)
 sudo systemctl enable --now bluetooth.service || true
+# os botões do fone Bluetooth (AVRCP) viram comandos de mídia (MPRIS): pausar, pular
+systemctl --user enable --now mpris-proxy.service 2>/dev/null || true
 
 # Telefone, Contatos, Controle e Emma na grade de apps (o lumna-ctl abre as janelas do shell)
 sudo install -Dm644 "$ROOT/mobile/session/apps/phone.svg" /usr/share/lumna/icons/phone.svg

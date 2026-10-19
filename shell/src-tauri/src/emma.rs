@@ -84,7 +84,7 @@ const ASSIST_IDLE: Duration = Duration::from_secs(10 * 60);
 
 /// Ações que a Emma pode fazer com a tela bloqueada: nada que leia dados da pessoa ou mexa no
 /// que está aberto (quem fala pode não ser o dono do celular).
-pub const LOCK_SAFE: [&str; 6] = ["audio.volume", "audio.outputs", "audio.output", "media.control", "media.now_playing", "wifi.status"];
+pub const LOCK_SAFE: [&str; 7] = ["audio.volume", "audio.outputs", "audio.output", "media.control", "media.now_playing", "music.play", "wifi.status"];
 
 /// Diretrizes da conversa do popup (vão no `system_prompt` da sessão): resposta curta e os
 /// botões de próximo passo, que o popup desenha (cartão principal, links e sugestões).

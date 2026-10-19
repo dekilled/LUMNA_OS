@@ -577,6 +577,46 @@ export const galleryList = () => invoke<Photo[]>("gallery_list");
 export const galleryOpen = (path?: string) => invoke<void>("gallery_open", { path });
 /** Toca um vídeo no mpv, na tela toda. */
 export const galleryPlay = (path: string) => invoke<void>("gallery_play", { path });
+
+// ---- LUMNA Music ----
+
+export interface Track {
+  path: string;
+  title: string;
+  artist: string;
+  album: string;
+  album_artist: string;
+  /** número da faixa no álbum (0: sem) */
+  track: number;
+  disc: number;
+  year: number;
+  /** segundos */
+  duration: number;
+  cover: string | null;
+  mtime: number;
+}
+export type Repeat = "off" | "all" | "one";
+export interface MusicState {
+  current: Track | null;
+  index: number | null;
+  length: number;
+  playing: boolean;
+  position: number;
+  duration: number;
+  shuffle: boolean;
+  repeat: Repeat;
+  /** as próximas da fila (até 50) */
+  next: Track[];
+}
+export type MusicAction = "play" | "pause" | "toggle" | "next" | "previous" | "stop";
+export const musicOpen = () => invoke<void>("music_open");
+export const musicLibrary = () => invoke<Track[]>("music_library");
+export const musicPlay = (tracks: Track[], index: number) => invoke<void>("music_play", { tracks, index });
+export const musicControl = (action: MusicAction) => invoke<void>("music_control", { action });
+export const musicSeek = (position: number) => invoke<void>("music_seek", { position });
+export const musicMode = (mode: { shuffle?: boolean; repeat?: Repeat }) => invoke<void>("music_mode", mode);
+export const musicJump = (index: number) => invoke<void>("music_jump", { index });
+export const musicState = () => invoke<MusicState>("music_state");
 export const captureStart = () => invoke<void>("capture_start");
 /** A área em frações da foto (0..1). Devolve o caminho salvo (vazio se só copiou). */
 export const captureSave = (area: { x: number; y: number; w: number; h: number }, save: boolean, copy: boolean) =>

@@ -12,6 +12,8 @@ mod dock;
 mod emma;
 mod files;
 mod gallery;
+mod mpris;
+mod music;
 mod games;
 mod greeter;
 mod haptics;
@@ -889,6 +891,31 @@ async fn gallery_open(app: AppHandle, path: Option<String>) -> Result<(), String
     open_gallery(&app, path)
 }
 
+/// O LUMNA Music (a música toca no shell: fechar a janela não para).
+pub fn open_music(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("music") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, "music", WebviewUrl::App("index.html".into()))
+        .initialization_script(&app_splash("Música", "music"))
+        .title("LUMNA Music")
+        .inner_size(app_size(app, (1000.0, 700.0), false).0, app_size(app, (1000.0, 700.0), false).1)
+        .background_color(tauri::window::Color(8, 6, 15, 255))
+        .min_inner_size(min_side(560.0), min_side(420.0))
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn music_open(app: AppHandle) -> Result<(), String> {
+    open_music(&app)
+}
+
 /// Abre o app da Emma (conversa, ferramentas, provedores e perfil), na aba pedida.
 pub fn open_emma_app(app: &AppHandle, tab: Option<String>) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("emma-app") {
@@ -1600,6 +1627,7 @@ fn main() {
         .manage(dock::Docks::default())
         .manage(tv::Tv::load())
         .manage(winmax::Maximized::default())
+        .manage(music::SharedMusic::default())
         .invoke_handler(tauri::generate_handler![
             workspaces,
             monitors,
@@ -1847,6 +1875,14 @@ fn main() {
             gallery_open,
             gallery::gallery_list,
             gallery::gallery_play,
+            music_open,
+            music::music_library,
+            music::music_play,
+            music::music_control,
+            music::music_seek,
+            music::music_mode,
+            music::music_jump,
+            music::music_state,
             capture::capture_start,
             capture::capture_save,
             capture::capture_cancel,
@@ -1896,6 +1932,7 @@ fn main() {
                 mobilelock::start(app.handle().clone());
                 polkit::start(app.handle().clone());
                 connect::start(app.handle().clone());
+                mpris::start(app.handle().clone());
                 mobile::track_data_usage();
                 return Ok(());
             }
@@ -1932,6 +1969,7 @@ fn main() {
             lock::start(app.handle().clone());
             tray::start(app.handle().clone());
             automation::start(app.handle().clone());
+            mpris::start(app.handle().clone());
             let handle = app.handle().clone();
             std::thread::spawn(move || dock::update(&handle, true));
             Ok(())

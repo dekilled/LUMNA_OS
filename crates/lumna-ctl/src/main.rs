@@ -31,6 +31,9 @@ comandos:
   emma [open|close]                  abre ou fecha o painel da Emma (Super + A)
   capture                            captura de tela: escolhe a área e salva em Imagens/Capturas (Print)
   gallery [ARQUIVO]                  abre a Galeria (já na foto, se disser qual)
+  music                              abre o LUMNA Music
+  music play [ARTISTA|ÁLBUM|MÚSICA]  toca (vazio: tudo, embaralhado)
+  music toggle|next|previous|stop    controla o que está tocando
   emma app [ABA]                     abre o app da Emma (conversa, ferramentas, provedores, perfil)
   actions                            lista as ações (o que a Emma e as macros podem fazer)
   action NOME [JSON]                 roda uma ação, ex.: action apps.open {\"name\":\"firefox\"}";

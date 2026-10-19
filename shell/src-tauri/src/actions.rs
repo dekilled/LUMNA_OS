@@ -201,6 +201,15 @@ pub const CATALOG: &[Def] = &[
         default: "auto",
     },
     Def {
+        name: "music.play",
+        label: "Tocar música",
+        description: "Toca as músicas do celular/PC (pasta Músicas) no LUMNA Music: um artista, um álbum ou uma música pelo nome aproximado; vazio toca tudo embaralhado. Pausar e pular é media.control.",
+        params: r#"{"query":{"type":"string","description":"Artista, álbum ou música (opcional)"}}"#,
+        required: &[],
+        risk: Risk::Act,
+        default: "auto",
+    },
+    Def {
         name: "games.list",
         label: "Listar jogos",
         description: "Lista os jogos instalados (Steam, Epic, GOG, Lutris...).",
@@ -639,6 +648,7 @@ fn run_blocking(app: &AppHandle, name: &str, args: &Value) -> Outcome {
         "media.now_playing" => Ok(now_playing()),
         "media.open_service" => crate::media_open(app, None, arg(args, "id"), None)
             .map(|()| Outcome::done(format!("{} aberto", arg(args, "id")))),
+        "music.play" => crate::music::play_query(app, arg(args, "query")).map(Outcome::done),
         "media.play_video" => {
             let videos = media::videos();
             match best(&videos, arg(args, "name"), |v| vec![v.title.clone()]) {

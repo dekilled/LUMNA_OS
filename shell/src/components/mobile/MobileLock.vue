@@ -4,6 +4,7 @@
 // (Ajustes → Tela), deslizar mostra o teclado numérico; a senha continua valendo ("Usar a senha").
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
+import MusicCard from "../music/MusicCard.vue";
 import {
   toggleEmma,
   artUrl,
@@ -212,6 +213,8 @@ onUnmounted(() => {
         <div class="time">{{ time }}</div>
         <div class="date">{{ date }}</div>
       </div>
+      <!-- a música que está tocando: dá pra pausar e pular sem desbloquear -->
+      <MusicCard class="now-playing" />
       <!-- a Emma atende bloqueada, só com o que é seguro (volume, mídia...) -->
       <button class="ask" @click="toggleEmma()"><span class="gem small" /> Pergunte à Emma</button>
       <div class="bottom">
@@ -363,6 +366,12 @@ onUnmounted(() => {
   margin-top: 8px;
   color: #cfc6ee;
   font-size: 19px;
+}
+.now-playing {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 14px;
+  background: rgba(16, 13, 28, 0.78);
 }
 .ask {
   align-self: center;

@@ -152,6 +152,7 @@ fn icon_data_url(icon: &str) -> Option<String> {
 fn builtin(icons: bool) -> Vec<App> {
     const EMMA_ICON: &str = include_str!("../../../mobile/session/apps/emma.svg");
     const GALLERY_ICON: &str = include_str!("../../../mobile/session/apps/gallery.svg");
+    const MUSIC_ICON: &str = include_str!("../../../mobile/session/apps/music.svg");
     let svg = |s: &str| icons.then(|| format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(s)));
     let app = |id: &str, name: &str, comment: &str, icon: &str, exec: &str, keywords: &str| App {
         id: id.into(),
@@ -166,6 +167,7 @@ fn builtin(icons: bool) -> Vec<App> {
     vec![
         app("lumna-emma", "Emma", "Conversa, ferramentas, provedores e o perfil da assistente", EMMA_ICON, "lumna-ctl emma app", "assistente ia chat conversa voz lumna"),
         app("lumna-gallery", "Galeria", "Fotos, capturas de tela e imagens", GALLERY_ICON, "lumna-ctl gallery", "fotos imagens capturas câmera viewer visualizador"),
+        app("lumna-music", "Música", "LUMNA Music: as músicas da pasta Músicas", MUSIC_ICON, "lumna-ctl music", "musica músicas player mp3 album artista tocar spotify"),
     ]
 }
 

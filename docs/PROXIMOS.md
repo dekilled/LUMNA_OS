@@ -39,8 +39,8 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
   "Continuar de onde parou" com miniaturas, e a **Emma** do lado (PC) ou por cima (celular):
   resumir a página, encontrar nela, comparar abas, perguntar sobre a página. Enviar a aba pro PC
   pelo Connect. Enquanto não sai: testar o Epiphany.
-- **LUMNA Music**: player de música offline (pasta Músicas, capas, fila, cartão na central e no
-  bloqueio, botões do fone, Emma) e online (a definir).
+- **LUMNA Music online** (a definir). O offline já existe: pasta Músicas, álbuns/artistas, fila,
+  cartão na central e no bloqueio, MPRIS (fone, Bluetooth, Emma).
 - **Player de vídeo**: o mpv por baixo (hardware, formatos, legendas) com os controles do LUMNA.
 - **LUMNA Connect gerenciando o aparelho**: ao conectar o celular, mostra modelo/versão/slot;
   backup e restauração; atualizar com progresso (o `atualizar.sh`); reinstalar/recuperar pelo
