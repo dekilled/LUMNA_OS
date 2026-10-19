@@ -54,7 +54,15 @@ puxa() {
         aviso "$2: não consegui baixar (sem internet ou sem login); sigo com o que tem aqui"
     fi
 }
+SELF="$ROOT/mobile/scripts/atualizar.sh"
+ANTES=$(md5sum "$SELF" | cut -d' ' -f1)
 puxa "$ROOT" "LUMNA_OS ($(git -C "$ROOT" branch --show-current))"
+# o próprio atualizar.sh veio novo no pull: recomeça com ele (a versão que já estava rodando não
+# sabe o que a nova sabe). Uma vez só.
+if [ -z "${LUMNA_ATUALIZAR_DE_NOVO:-}" ] && [ "$(md5sum "$SELF" | cut -d' ' -f1)" != "$ANTES" ]; then
+    ok "o atualizar.sh mudou: recomeçando com a versão nova"
+    LUMNA_ATUALIZAR_DE_NOVO=1 exec sh "$SELF" "$@"
+fi
 if [ -n "$EMMA" ]; then
     puxa "$EMMA" "NewHarnessV2"
 else
