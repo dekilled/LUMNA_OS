@@ -8,6 +8,8 @@ import Dock from "./components/Dock.vue";
 import EmmaPanel from "./components/EmmaPanel.vue";
 import EmmaAssist from "./components/emma/EmmaAssist.vue";
 import EmmaApp from "./components/emma/EmmaApp.vue";
+import GalleryApp from "./components/gallery/GalleryApp.vue";
+import CaptureLayer from "./components/capture/CaptureLayer.vue";
 import FilesApp from "./components/files/FilesApp.vue";
 import MobileFiles from "./components/files/MobileFiles.vue";
 import GreeterApp from "./components/GreeterApp.vue";
@@ -48,7 +50,7 @@ const mobile = (window as { __LUMNA_MOBILE?: boolean }).__LUMNA_MOBILE === true;
 const narrow = ref(window.innerWidth < 600);
 // Celular: nos campos do LUMNA o teclado fica por cima da janela (sem redimensionar = sem flick);
 // a página encolhe por dentro (--app-h) e o campo em foco rola pra ficar visível.
-if (["settings", "phone", "remote", "store", "installer", "emma-app"].includes(label) || label.startsWith("files-")) {
+if (["settings", "phone", "remote", "store", "installer", "emma-app", "gallery"].includes(label) || label.startsWith("files-")) {
   on<{ shown: boolean; lumna: boolean; height: number }>("lumna://keyboard", (k) => {
     // a janela já termina 26 px acima da borda (a faixa da barrinha)
     const inset = k.shown && k.lumna ? Math.max(0, k.height - 26) : 0;
@@ -77,6 +79,8 @@ window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600)
   <EmmaAssist v-else-if="label === 'emma' && mobile" />
   <EmmaPanel v-else-if="label === 'emma'" />
   <EmmaApp v-else-if="label === 'emma-app'" />
+  <GalleryApp v-else-if="label === 'gallery'" />
+  <CaptureLayer v-else-if="label === 'capture'" />
   <SettingsApp v-else-if="label === 'settings'" />
   <StoreApp v-else-if="label === 'store'" />
   <AuthDialog v-else-if="label === 'auth'" />

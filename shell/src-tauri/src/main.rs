@@ -4,12 +4,14 @@ mod apps;
 mod automation;
 mod audio;
 mod bluetooth;
+mod capture;
 mod connect;
 mod control;
 mod displays;
 mod dock;
 mod emma;
 mod files;
+mod gallery;
 mod games;
 mod greeter;
 mod haptics;
@@ -184,6 +186,21 @@ const EMMA: LayerSpec = LayerSpec {
     size: (-1, -1),
     visible: false,
 };
+
+/// Captura de tela: a foto congelada da tela e o retângulo de recorte, por cima de tudo, com o
+/// teclado (Esc cancela, Enter salva).
+const CAPTURE: LayerSpec = LayerSpec {
+    namespace: "lumna-capture",
+    layer: Layer::Overlay,
+    anchors: &[Edge::Top, Edge::Bottom, Edge::Left, Edge::Right],
+    margins: &[],
+    keyboard: KeyboardMode::Exclusive,
+    exclusive: Exclusive::Ignore,
+    size: (-1, -1),
+    visible: false,
+};
+/// Celular: sem prender o teclado (o LUMNA Keyboard não deve abrir por cima).
+const MOBILE_CAPTURE: LayerSpec = LayerSpec { keyboard: KeyboardMode::None, ..CAPTURE };
 
 /// Menu do Wi-Fi: a tela toda (abaixo da topbar) para fechar com um clique fora do painel.
 /// Recebe o teclado quando clicado, para digitar a senha.
@@ -776,6 +793,7 @@ async fn remote_open(app: AppHandle, pc: Option<String>) -> Result<(), String> {
 async fn notification_open(app: AppHandle, target: String) -> Result<(), String> {
     match target.split_once(':') {
         Some(("remote", pc)) => open_remote(&app, Some(pc.to_string()).filter(|p| !p.is_empty())),
+        Some(("gallery", path)) => open_gallery(&app, Some(path.to_string()).filter(|p| !p.is_empty())),
         _ => Err(format!("não sei abrir {target}")),
     }
 }
@@ -823,6 +841,36 @@ pub fn auth_layer(app: &AppHandle, request: Option<polkit::Request>) {
             }
         }
     });
+}
+
+/// Abre a Galeria (uma janela só); com `path`, já na foto.
+pub fn open_gallery(app: &AppHandle, path: Option<String>) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("gallery") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if let Some(path) = path {
+            let _ = window.emit_to("gallery", "lumna://gallery-open", path);
+        }
+        return Ok(());
+    }
+    // o caminho vai no hash, codificado (pode ter espaço e acento)
+    let hash: String = path.unwrap_or_default().bytes().map(|b| if b.is_ascii_alphanumeric() || b"/-_.".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
+    WebviewWindowBuilder::new(app, "gallery", WebviewUrl::App(format!("index.html#{hash}").into()))
+        .initialization_script(&app_splash("Galeria", "image"))
+        .title("Galeria")
+        .inner_size(app_size(app, (1000.0, 700.0), false).0, app_size(app, (1000.0, 700.0), false).1)
+        .background_color(tauri::window::Color(8, 6, 15, 255))
+        .min_inner_size(min_side(560.0), min_side(420.0))
+        .decorations(false)
+        .transparent(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn gallery_open(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    open_gallery(&app, path)
 }
 
 /// Abre o app da Emma (conversa, ferramentas, provedores e perfil), na aba pedida.
@@ -1774,6 +1822,11 @@ fn main() {
             voice::emma_speak_stop,
             emma::emma_stop,
             emma_app_open,
+            gallery_open,
+            gallery::gallery_list,
+            capture::capture_start,
+            capture::capture_save,
+            capture::capture_cancel,
             automation::automation_overview,
             automation::automation_set_enabled,
             automation::automation_run_macro,
@@ -1802,6 +1855,7 @@ fn main() {
                 create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
+                create_layer(app.handle(), "capture", &primary, &MOBILE_CAPTURE)?;
                 // por último: fica por cima da Emma (as duas são Overlay)
                 create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
                 forward_events(app.handle().clone(), compositor.clone());
@@ -1833,6 +1887,7 @@ fn main() {
             create_layer(app.handle(), "traymenu", &primary, &TRAY_MENU)?;
             create_layer(app.handle(), "auth", &primary, &AUTH)?;
             create_layer(app.handle(), "emma", &primary, &EMMA)?;
+            create_layer(app.handle(), "capture", &primary, &CAPTURE)?;
 
             forward_events(app.handle().clone(), compositor.clone());
             status::watch(app.handle().clone());

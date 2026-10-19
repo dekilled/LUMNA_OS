@@ -147,20 +147,26 @@ fn icon_data_url(icon: &str) -> Option<String> {
     Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
-/// O app da Emma (a conversa longa, as ferramentas, os provedores e o perfil): vem com o shell,
-/// no PC e no celular. Um `lumna-emma.desktop` do usuário ganha deste (mesmo id).
+/// Os apps que vêm com o shell, no PC e no celular: a Emma (a conversa longa, as ferramentas, os
+/// provedores e o perfil) e a Galeria. Um `.desktop` do usuário com o mesmo id ganha destes.
 fn builtin(icons: bool) -> Vec<App> {
     const EMMA_ICON: &str = include_str!("../../../mobile/session/apps/emma.svg");
-    vec![App {
-        id: "lumna-emma".into(),
-        name: "Emma".into(),
-        comment: "Conversa, ferramentas, provedores e o perfil da assistente".into(),
-        icon: icons.then(|| format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(EMMA_ICON))),
+    const GALLERY_ICON: &str = include_str!("../../../mobile/session/apps/gallery.svg");
+    let svg = |s: &str| icons.then(|| format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(s)));
+    let app = |id: &str, name: &str, comment: &str, icon: &str, exec: &str, keywords: &str| App {
+        id: id.into(),
+        name: name.into(),
+        comment: comment.into(),
+        icon: svg(icon),
         wm_class: None,
-        exec: "lumna-ctl emma app".into(),
-        keywords: "assistente ia chat conversa voz lumna".into(),
+        exec: exec.into(),
+        keywords: keywords.into(),
         terminal: false,
-    }]
+    };
+    vec![
+        app("lumna-emma", "Emma", "Conversa, ferramentas, provedores e o perfil da assistente", EMMA_ICON, "lumna-ctl emma app", "assistente ia chat conversa voz lumna"),
+        app("lumna-gallery", "Galeria", "Fotos, capturas de tela e imagens", GALLERY_ICON, "lumna-ctl gallery", "fotos imagens capturas câmera viewer visualizador"),
+    ]
 }
 
 /// Todos os apps visíveis, em ordem alfabética. Só na thread principal (resolve ícones pelo GTK).

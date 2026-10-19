@@ -539,6 +539,32 @@ export const emmaDecide = (callId: string, allow: boolean) => invoke<void>("emma
 export const emmaNewConversation = (channel: EmmaChannel = "app") => invoke<void>("emma_new_conversation", { channel });
 export const emmaHistory = (channel: EmmaChannel = "app") => invoke<EmmaMessage[]>("emma_history", { channel });
 /** O app da Emma (conversa, ferramentas, provedores, perfil). */
+// ---- Galeria e captura de tela ----
+
+export interface Photo {
+  path: string;
+  name: string;
+  /** "Capturas", "Câmera", "Imagens" ou o nome da subpasta. */
+  album: string;
+  /** Segundos Unix. */
+  time: number;
+  size: number;
+}
+
+export interface Frozen {
+  path: string;
+  width: number;
+  height: number;
+}
+
+export const galleryList = () => invoke<Photo[]>("gallery_list");
+export const galleryOpen = (path?: string) => invoke<void>("gallery_open", { path });
+export const captureStart = () => invoke<void>("capture_start");
+/** A área em frações da foto (0..1). Devolve o caminho salvo (vazio se só copiou). */
+export const captureSave = (area: { x: number; y: number; w: number; h: number }, save: boolean, copy: boolean) =>
+  invoke<string>("capture_save", { ...area, save, copy });
+export const captureCancel = () => invoke<void>("capture_cancel");
+
 export const emmaAppOpen = (tab?: string) => invoke<void>("emma_app_open", { tab });
 
 /** `lumna://emma-opened`: o que estava na tela quando o assistente abriu. */

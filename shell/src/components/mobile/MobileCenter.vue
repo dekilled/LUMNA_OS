@@ -19,6 +19,7 @@ import {
   powerSetProfile,
   powerState,
   quickAirplane,
+  captureStart,
   quickBrightness,
   quickFlashlight,
   quickMobileData,
@@ -228,6 +229,14 @@ const tiles = computed<Tile[]>(() => {
         await quickAirplane(next);
         if (next && bt.value?.powered) await bluetoothPower(false).catch(() => {});
       },
+    },
+    {
+      id: "captura",
+      label: "Captura",
+      icon: "crop",
+      on: false,
+      sub: "Escolher a área",
+      toggle: () => captureStart(),
     },
     {
       id: "economia",

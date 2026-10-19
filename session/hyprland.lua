@@ -273,6 +273,9 @@ hl.bind(mod .. " + B", hl.dsp.exec_cmd("firefox"))
 hl.bind(mod .. " + I", hl.dsp.exec_cmd("lumna-ctl settings"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("lumna-ctl store"))
 hl.bind(mod .. " + A", hl.dsp.exec_cmd("lumna-ctl emma"))
+-- captura de tela: escolhe a área e salva em Imagens/Capturas
+hl.bind("Print", hl.dsp.exec_cmd("lumna-ctl capture"))
+hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("lumna-ctl capture"))
 -- Na Mídia: barra de serviços por cima do streaming/vídeo (trocar de serviço, voltar ao Início).
 hl.bind(mod .. " + M", hl.dsp.exec_cmd("lumna-ctl media menu"))
 hl.bind(mod .. " + Escape", hl.dsp.exec_cmd("lumna-ctl media menu"))
