@@ -188,6 +188,8 @@ async function send(text = draft.value, voice = false) {
     await emmaSend(text, voice, "app");
   } catch (e) {
     error.value = String(e);
+    // sem resposta do servidor: o aviso de fora do ar aparece no topo
+    if (/não respondeu|login/.test(error.value)) refreshStatus();
     if (error.value.includes("Nenhum provider")) openTab("provedores");
   } finally {
     busy.value = false;
@@ -281,7 +283,8 @@ async function loadHistory() {
 const login = ref({ url: "http://127.0.0.1:8001", email: "", password: "", busy: false, error: "" });
 
 async function refreshStatus() {
-  status.value = await emmaStatus();
+  status.value = await emmaStatus().catch(() => status.value);
+  if (!status.value) return;
   if (status.value.url) login.value.url = status.value.url;
   if (status.value.email) login.value.email = status.value.email;
 }
@@ -435,6 +438,22 @@ async function installVoice(what: "stt" | "tts") {
   }
 }
 
+/** A Emma voltou? Confere o servidor de novo e recarrega a aba aberta. */
+const retrying = ref(false);
+async function retry() {
+  retrying.value = true;
+  error.value = "";
+  try {
+    await refreshStatus();
+    if (status.value?.online && status.value.configured) {
+      if (tab.value === "conversa") await loadHistory();
+      else await openTab(tab.value);
+    }
+  } finally {
+    retrying.value = false;
+  }
+}
+
 // ---- abas ----
 
 async function openTab(t: Tab) {
@@ -490,6 +509,19 @@ onUnmounted(() => {
     </nav>
 
     <main>
+      <!-- o servidor da Emma não responde: diz onde e o que fazer (senão as telas só ficam vazias) -->
+      <div v-if="status && !status.online" class="offline">
+        <Icon name="offline" :size="22" />
+        <div>
+          <strong>A Emma não está respondendo</strong>
+          <small>
+            Nada em {{ status.url }}. O serviço dela pode ter parado; no terminal do celular:
+            <code>systemctl --user restart lumna-emma</code>
+          </small>
+        </div>
+        <button class="ghost" :disabled="retrying" @click="retry()">{{ retrying ? "…" : "Tentar de novo" }}</button>
+      </div>
+
       <!-- Entrar (sem conta ainda) -->
       <form v-if="status && !status.configured" class="page form" @submit.prevent="submitLogin()">
         <h1>Conectar à Emma</h1>
@@ -604,7 +636,10 @@ onUnmounted(() => {
           </button>
         </div>
         <label>Chave da API<input v-model="provider.apiKey" type="password" autocomplete="off" placeholder="(a que já está salva continua)" /></label>
-        <p v-if="provider.error" class="error">{{ provider.error }}</p>
+        <div v-if="provider.error" class="problem">
+          <p class="error">{{ provider.error }}</p>
+          <button type="button" class="ghost" @click="loadProviders()">Tentar de novo</button>
+        </div>
         <p v-if="provider.saved" class="ok">Pronto: a Emma já está usando esse.</p>
         <button class="primary" :disabled="provider.busy || !provider.model">{{ provider.busy ? "Salvando…" : "Usar este" }}</button>
       </form>
@@ -968,6 +1003,40 @@ button:disabled {
 .desc {
   color: var(--lumna-muted);
   font-size: 13px;
+}
+.offline {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 14px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(252, 165, 165, 0.3);
+  border-radius: 16px;
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+}
+.offline div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.offline small {
+  color: var(--lumna-muted);
+  line-height: 1.4;
+}
+.offline .ghost {
+  flex: none;
+  align-self: center;
+}
+.problem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(252, 165, 165, 0.25);
+  border-radius: 14px;
 }
 /* conversa */
 .chat {

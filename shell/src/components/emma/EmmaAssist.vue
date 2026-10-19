@@ -8,6 +8,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import Icon from "../Icon.vue";
 import { actionIcon, parseReply, plainText, sentenceEnd, speakable } from "./assist";
 import {
+  emmaAppOpen,
   emmaDecide,
   emmaListen,
   emmaListenStop,
@@ -16,6 +17,7 @@ import {
   emmaSend,
   emmaSpeak,
   emmaSpeakStop,
+  emmaStatus,
   emmaStop,
   haptic,
   layerHide,
@@ -189,6 +191,14 @@ function stop() {
   }
 }
 
+/** Erro que se resolve no app da Emma (sem provedor, sem login, servidor fora): vira um botão. */
+const fix = computed(() => {
+  const e = error.value;
+  if (/provider|provedor|modelo/i.test(e)) return { label: "Escolher o provedor", tab: "provedores" };
+  if (/login|conta|entrar|não respondeu|fora do ar/i.test(e)) return { label: "Abrir o app da Emma", tab: "conversa" };
+  return null;
+});
+
 /** O botão da direita vira "parar" enquanto ela responde ou fala (e o campo está vazio). */
 const canStop = computed(() => !draft.value.trim() && (busy.value || speaking.value));
 
@@ -268,6 +278,13 @@ async function opened(info: EmmaOpened) {
     if (locked.value) await emmaNewConversation("lock").catch(() => {});
   }
   visible.value = true;
+  // o servidor fora do ar aparece já ao abrir (não só depois de perguntar)
+  emmaStatus()
+    .then((st) => {
+      if (!st.online) error.value = `A Emma não respondeu em ${st.url}: o serviço dela (lumna-emma) está rodando?`;
+      else if (!st.configured) error.value = "Falta entrar na conta da Emma.";
+    })
+    .catch(() => {});
   if (!labels.value.size) {
     emmaPermissions()
       .then((list) => (labels.value = new Map(list.map((a) => [`lumna_${a.name.replace(/\./g, "_")}`, a.label]))))
@@ -421,6 +438,11 @@ onUnmounted(() => stops.forEach((stop) => stop()));
         </template>
 
         <p v-if="error" class="error">{{ error }}</p>
+        <button v-if="fix && !locked" class="primary" @click="emmaAppOpen(fix.tab)">
+          <Icon name="settings" :size="22" />
+          <span>{{ fix.label }}</span>
+          <Icon name="arrow-right" :size="22" />
+        </button>
       </div>
 
       <form class="pill" :class="{ listening: mic !== 'idle' }" @submit.prevent="submit()">
