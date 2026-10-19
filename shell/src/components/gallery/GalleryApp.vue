@@ -362,7 +362,8 @@ function slid() {
   window.clearTimeout(pending.timer);
   const { step } = pending;
   pending = null;
-  animating.value = false;
+  // a transição fica ligada: as posições finais são as mesmas, então nada anda. Desligá-la aqui
+  // cancelava a animação no WebKit, e a foto que saiu voltava pro meio por um quadro (o pisca)
   go(step);
   switching = false;
 }
