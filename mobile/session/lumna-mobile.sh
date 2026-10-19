@@ -71,9 +71,15 @@ UMTP_REF=b174b03a3c2641a578b9299e540994a35b2f03a9
 if [ "$(cat /usr/local/share/lumna/umtprd.ref 2>/dev/null)" != "$UMTP_REF" ]; then
     echo "--- arquivos pelo cabo: baixando e compilando o uMTP-Responder (só na primeira vez, ~1 min)"
     tmp=$(mktemp -d)
-    # sem internet (ou lenta demais) não fica esperando: segue sem, e tenta de novo na próxima
-    timeout 180 git clone --progress https://github.com/viveris/uMTP-Responder "$tmp/umtp" &&
-        git -C "$tmp/umtp" checkout -q "$UMTP_REF" &&
+    src="$ROOT/mobile/cache/umtp-$UMTP_REF.tar.gz"
+    if [ -s "$src" ]; then
+        # o atualizar.sh trouxe o código do PC: não precisa do GitHub
+        mkdir -p "$tmp/umtp" && tar -C "$tmp/umtp" --strip-components=1 -xzf "$src"
+    else
+        # sem internet (ou lenta demais) não fica esperando: segue sem, e tenta de novo na próxima
+        timeout 180 git clone --progress https://github.com/viveris/uMTP-Responder "$tmp/umtp" &&
+            git -C "$tmp/umtp" checkout -q "$UMTP_REF"
+    fi &&
         timeout 300 make -C "$tmp/umtp" &&
         sudo install -Dm755 "$tmp/umtp/umtprd" /usr/local/bin/umtprd &&
         echo "$UMTP_REF" | sudo install -Dm644 /dev/stdin /usr/local/share/lumna/umtprd.ref ||

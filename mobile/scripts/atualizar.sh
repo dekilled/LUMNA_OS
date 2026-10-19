@@ -118,6 +118,18 @@ DEST='.cache/lumna-implantar'
 s "$PHONE" "rm -rf ~/$DEST && mkdir -p ~/$DEST"
 # só o que os scripts do celular usam (a sessão e as receitas dos pacotes)
 tar -C "$ROOT" -czf - mobile/session packages | s "$PHONE" "tar -C ~/$DEST -xzf -"
+# o código do uMTP-Responder (arquivos pelo cabo) vai daqui: o celular nem sempre alcança o GitHub
+UMTP_REF=$(sed -n 's/^UMTP_REF=//p' "$ROOT/mobile/session/lumna-mobile.sh")
+UMTP_SRC="$ROOT/mobile/cache/umtp-$UMTP_REF.tar.gz"
+if [ -n "$UMTP_REF" ] && [ ! -s "$UMTP_SRC" ]; then
+    mkdir -p "$ROOT/mobile/cache"
+    umtp_tmp=$(mktemp -d)
+    timeout 180 git clone -q https://github.com/viveris/uMTP-Responder "$umtp_tmp" &&
+        git -C "$umtp_tmp" archive --format=tar.gz --prefix=umtp/ "$UMTP_REF" >"$UMTP_SRC.part" &&
+        mv "$UMTP_SRC.part" "$UMTP_SRC" || { rm -f "$UMTP_SRC.part"; echo "aviso: não baixei o uMTP-Responder (o celular tenta sozinho)"; }
+    rm -rf "$umtp_tmp"
+fi
+[ ! -s "$UMTP_SRC" ] || s "$PHONE" "mkdir -p ~/$DEST/mobile/cache && cat > ~/$DEST/mobile/cache/$(basename "$UMTP_SRC")" < "$UMTP_SRC"
 [ -z "$PKG" ] || s "$PHONE" "cat > ~/$DEST/$(basename "$PKG")" < "$PKG"
 if [ -n "$FAZ_EMMA" ]; then
     s "$PHONE" 'rm -rf ~/NewHarnessV2/backend && mkdir -p ~/NewHarnessV2'
