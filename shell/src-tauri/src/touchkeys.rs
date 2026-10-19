@@ -66,19 +66,33 @@ static TARGET: Mutex<Option<String>> = Mutex::new(None);
 /// O teclado aberto agora está por cima de um app do LUMNA (sem reservar espaço).
 static OVERLAY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// `secret`: o campo em foco é de senha (o teclado não aprende nem sugere).
 #[tauri::command]
-pub fn keyboard_target(label: String, focused: bool) {
-    let mut target = TARGET.lock().unwrap();
-    if focused {
-        *target = Some(label);
-    } else if target.as_deref() == Some(label.as_str()) {
-        *target = None;
+pub fn keyboard_target(app: AppHandle, label: String, focused: bool, secret: Option<bool>) {
+    {
+        let mut target = TARGET.lock().unwrap();
+        if focused {
+            *target = Some(label);
+        } else if target.as_deref() == Some(label.as_str()) {
+            *target = None;
+        } else {
+            return;
+        }
     }
+    field(&app, focused && secret.unwrap_or(false));
 }
 
 /// Uma janela que não é do LUMNA (a do login do Qobuz) pegou o campo: as teclas vão pra ela.
-pub fn clear_target() {
+pub fn clear_target(app: &AppHandle, secret: bool) {
     *TARGET.lock().unwrap() = None;
+    field(app, secret);
+}
+
+/// Avisa o teclado que o campo mudou: ele começa a palavra do zero e, se é senha (ou o celular
+/// está bloqueado), não aprende nem mostra sugestões.
+fn field(app: &AppHandle, secret: bool) {
+    let secret = secret || crate::mobilelock::is_locked();
+    let _ = app.emit_to("keyboard", "lumna://keyboard-field", json!({ "secret": secret }));
 }
 
 /// Entrega à janela do LUMNA em foco, se houver. `true` = entregue.

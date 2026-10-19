@@ -124,13 +124,17 @@ async function apply(input: Input) {
 
 // Campo do LUMNA ganhou foco: o teclado aparece e as teclas passam a vir para esta janela.
 // Perdeu (e nenhum outro pegou): as teclas voltam para os outros apps e o teclado sai.
+/** Campo de senha (ou de código): o teclado não aprende nem sugere o que se digita nele. */
+const secret = (el: EventTarget | Element | null) =>
+  el instanceof HTMLInputElement && (el.type === "password" || el.autocomplete === "one-time-code" || el.autocomplete === "current-password" || el.autocomplete === "new-password");
+
 export function setupKeyboardInput() {
   if (label === "keyboard") return;
   let hide = 0;
   document.addEventListener("focusin", (e) => {
     if (!editable(e.target)) return;
     clearTimeout(hide);
-    invoke("keyboard_target", { label, focused: true }).catch(() => {});
+    invoke("keyboard_target", { label, focused: true, secret: secret(e.target) }).catch(() => {});
     keyboardShow(true).catch(() => {});
   });
   document.addEventListener("focusout", (e) => {
@@ -149,7 +153,7 @@ export function setupKeyboardInput() {
     invoke("keyboard_target", { label, focused: false }).catch(() => {});
   });
   window.addEventListener("focus", () => {
-    if (editable(document.activeElement)) invoke("keyboard_target", { label, focused: true }).catch(() => {});
+    if (editable(document.activeElement)) invoke("keyboard_target", { label, focused: true, secret: secret(document.activeElement) }).catch(() => {});
   });
   on<Input>("lumna://keyboard-input", (input) => apply(input).catch((e) => console.error(e)));
 }

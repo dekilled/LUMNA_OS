@@ -123,7 +123,7 @@ pub fn lock(app: &AppHandle) {
 fn unlock(app: &AppHandle) {
     LOCKED.store(false, Ordering::SeqCst);
     // o campo da senha sai de cena: as teclas não ficam presas nele
-    crate::touchkeys::clear_target();
+    crate::touchkeys::clear_target(app, false);
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if layer::is_visible("keyboard") {

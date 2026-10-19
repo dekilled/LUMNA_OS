@@ -271,7 +271,7 @@ const LOGIN_SCRIPT: &str = r#"(() => {
   }, 700);
   document.addEventListener("focusin", (e) => {
     const t = e.target;
-    if (t && t.matches && t.matches("input:not([type=checkbox]):not([type=radio]), textarea")) location.href = "https://lumna.invalid/teclado";
+    if (t && t.matches && t.matches("input:not([type=checkbox]):not([type=radio]), textarea")) location.href = "https://lumna.invalid/teclado?secret=" + (t.type === "password" ? "1" : "0");
   }, true);
 })();"#;
 
@@ -336,7 +336,7 @@ pub async fn qobuz_login(app: AppHandle) -> Result<(), String> {
                 }
                 "/teclado" => {
                     // as teclas vêm pra esta janela, não pro último campo do LUMNA
-                    crate::touchkeys::clear_target();
+                    crate::touchkeys::clear_target(&handle, query(url, "secret") == "1");
                     let _ = crate::touchkeys::keyboard_show(handle.clone(), true);
                 }
                 _ => {}

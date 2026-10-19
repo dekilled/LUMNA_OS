@@ -76,7 +76,7 @@ async function type(ch: string) {
   if (shift.value === "once") shift.value = "off";
   // começou a digitar: as ferramentas dão lugar às sugestões (ou aos atalhos, no terminal)
   if (bar.value === "ferramentas") bar.value = contextBar();
-  word.value = /[\p{L}\p{N}]/u.test(out) ? word.value + out : "";
+  word.value = !secret.value && /[\p{L}\p{N}]/u.test(out) ? word.value + out : "";
   await keyboardType(out);
 }
 
@@ -192,6 +192,12 @@ porque onde quem fazer pode vou vamos depois antes ainda sempre nunca nada coisa
 const STORE = "lumna.keyboard.words";
 const learned = ref<Record<string, number>>({});
 try {
+  // até aqui o teclado aprendia também o que se digitava em senhas (e emendava pedaços): o que ele
+  // aprendeu antes disso é jogado fora, uma vez
+  if (!localStorage.getItem(`${STORE}.v2`)) {
+    localStorage.removeItem(STORE);
+    localStorage.setItem(`${STORE}.v2`, "1");
+  }
   learned.value = JSON.parse(localStorage.getItem(STORE) ?? "{}");
 } catch {}
 function saveLearned() {
@@ -199,14 +205,17 @@ function saveLearned() {
     localStorage.setItem(STORE, JSON.stringify(learned.value));
   } catch {}
 }
+/** O campo é de senha (ou o celular está bloqueado): nada é aprendido nem sugerido. */
+const secret = ref(false);
 function learn(w: string) {
+  if (secret.value) return;
   learned.value[w] = (learned.value[w] ?? 0) + 1;
   saveLearned();
 }
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const suggestions = computed(() => {
-  if (!settings.value.suggestions) return [];
+  if (!settings.value.suggestions || secret.value) return [];
   const all = [...Object.keys(learned.value).sort((a, b) => learned.value[b] - learned.value[a]), ...BASE];
   const unique = [...new Set(all)];
   if (!word.value) return unique.slice(0, 3);
@@ -320,6 +329,11 @@ function onStorage(e: StorageEvent) {
 }
 onMounted(async () => {
   window.addEventListener("storage", onStorage);
+  // outro campo (ou outra janela): a palavra começa do zero; campo de senha não aprende nada
+  on<{ secret: boolean }>("lumna://keyboard-field", (f) => {
+    secret.value = !!f?.secret;
+    word.value = "";
+  });
   stop = await on<{ shown: boolean; lumna: boolean }>("lumna://keyboard", async ({ shown, lumna }) => {
     if (!shown) {
       page.value = "letras";

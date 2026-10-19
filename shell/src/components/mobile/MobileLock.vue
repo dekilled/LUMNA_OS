@@ -74,7 +74,7 @@ async function askPassword() {
   await nextTick();
   input.value?.focus();
   // o foco numa camada que ainda não tem o teclado pode não avisar: diz direto que as teclas são daqui
-  invoke("keyboard_target", { label: "mobile-lock", focused: true }).catch(() => {});
+  invoke("keyboard_target", { label: "mobile-lock", focused: true, secret: true }).catch(() => {});
 }
 async function usePassword(on: boolean) {
   pinMode.value = !on;
@@ -83,7 +83,7 @@ async function usePassword(on: boolean) {
   if (on) {
     await nextTick();
     input.value?.focus();
-    invoke("keyboard_target", { label: "mobile-lock", focused: true }).catch(() => {});
+    invoke("keyboard_target", { label: "mobile-lock", focused: true, secret: true }).catch(() => {});
   } else {
     input.value?.blur();
   }
