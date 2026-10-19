@@ -5,7 +5,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import Icon from "../Icon.vue";
-import { showApp } from "../mobile/apps";
 import {
   artUrl,
   connectShare,
@@ -158,6 +157,34 @@ function zoomAt(next: number, at: { x: number; y: number }, from = { s: scale.va
   ty.value = s === 1 ? 0 : at.y - s * py;
 }
 
+/** Quanto a foto aproximada pode andar pra cada lado sem a borda dela entrar na tela. */
+function bounds(s = scale.value) {
+  const W = stage.value?.clientWidth ?? window.innerWidth;
+  const H = stage.value?.clientHeight ?? window.innerHeight;
+  const { w, h } = natural.value;
+  // o tamanho que a foto ocupa sem zoom (object-fit: contain)
+  const fit = w && h ? Math.min(W / w, H / h) : 1;
+  const fw = w && h ? w * fit : W;
+  const fh = w && h ? h * fit : H;
+  return { x: Math.max(0, (s * fw - W) / 2), y: Math.max(0, (s * fh - H) / 2) };
+}
+/** Fora do limite a foto anda só um pouco (elástico); `hard` prende de vez. */
+function limit(v: number, max: number, hard: boolean) {
+  if (Math.abs(v) <= max) return v;
+  const over = Math.abs(v) - max;
+  return Math.sign(v) * (max + (hard ? 0 : over * 0.3));
+}
+/** Solta a foto: volta pra dentro do limite, animando. */
+function settle() {
+  const b = bounds();
+  const x = limit(tx.value, b.x, true);
+  const y = limit(ty.value, b.y, true);
+  if (x === tx.value && y === ty.value) return;
+  animating.value = true;
+  tx.value = x;
+  ty.value = y;
+}
+
 // Gestos. No celular vêm pelos eventos de toque: a lista de dedos do WebKit é a certa. Os eventos
 // de ponteiro do WebKitGTK não servem lá: cada toque chega também como "mouse" de
 // compatibilidade, e às vezes o mesmo dedo vira dois ponteiros (pinça fantasma: deslizar pra
@@ -218,8 +245,9 @@ function moveTo(id: number, x: number, y: number, t: number) {
   track.push({ t, x });
   if (track.length > 6) track.shift();
   if (scale.value > 1) {
-    tx.value = pan.tx + dx;
-    ty.value = pan.ty + dy;
+    const b = bounds();
+    tx.value = limit(pan.tx + dx, b.x, false);
+    ty.value = limit(pan.ty + dy, b.y, false);
   } else if (pan.axis === "x") {
     // na primeira e na última foto o deslize "resiste" (não tem pra onde ir)
     const edge = (dx > 0 && !prevPhoto.value) || (dx < 0 && !nextPhoto.value);
@@ -235,7 +263,9 @@ function finish(id: number, x: number, y: number) {
   if (pinch) {
     if (fingers.size < 2) {
       pinch = null;
+      animating.value = true;
       if (scale.value <= 1.02) resetZoom();
+      else settle();
       // o dedo que ficou continua arrastando dali
       const rest = [...fingers.values()][0];
       pan = rest ? { x: rest.x, y: rest.y, tx: tx.value, ty: ty.value, moved: true, axis: "" } : null;
@@ -246,6 +276,7 @@ function finish(id: number, x: number, y: number) {
   pan = null;
   if (!p) return;
   animating.value = true;
+  if (scale.value > 1) settle();
   if (p.moved && scale.value === 1) {
     if (p.axis === "y") {
       // puxou pra baixo: fecha a foto (como no Android)
@@ -269,7 +300,10 @@ function finish(id: number, x: number, y: number) {
   if (now - lastTap < 300) {
     lastTap = 0;
     if (scale.value > 1) resetZoom();
-    else zoomAt(2.5, local(x, y));
+    else {
+      zoomAt(2.5, local(x, y));
+      settle();
+    }
     haptic(10).catch(() => {});
   } else {
     lastTap = now;
@@ -314,16 +348,40 @@ function pup(e: PointerEvent) {
   if (isMouse(e)) finish(MOUSE, e.clientX, e.clientY);
 }
 
-/** A foto sai pro lado junto com a vizinha entrando; no fim, a vizinha vira a atual. */
+/** A foto sai pro lado junto com a vizinha entrando; quando a animação acaba de verdade (no
+ * celular ela pode atrasar), a vizinha vira a atual. */
+let pending: { step: number; timer: number } | null = null;
 function slideTo(step: number) {
   switching = true;
   animating.value = true;
   slide.value = -step * (width() + GAP);
-  window.setTimeout(() => {
-    animating.value = false;
-    go(step);
-    switching = false;
-  }, 220);
+  pending = { step, timer: window.setTimeout(slid, 450) };
+}
+function slid() {
+  if (!pending) return;
+  window.clearTimeout(pending.timer);
+  const { step } = pending;
+  pending = null;
+  animating.value = false;
+  go(step);
+  switching = false;
+}
+function transitionEnd(e: TransitionEvent) {
+  if (pending && (e.target as HTMLElement).classList.contains("current")) slid();
+}
+
+// A foto grande o WebKit só decodifica quando ela aparece: a vizinha entrava preta e piscava.
+// Decodifica antes, e a miniatura fica por baixo enquanto isso.
+const decoded = new Set<string>();
+function prepare(el: unknown, path: string) {
+  if (!(el instanceof HTMLImageElement) || decoded.has(path)) return;
+  decoded.add(path);
+  loadThumb(path);
+  el.decode?.().catch(() => decoded.delete(path));
+}
+function placeholder(path: string) {
+  const t = thumbs.value.get(path);
+  return t ? `url("${t}")` : "none";
 }
 
 const neighbor = (step: number) => {
@@ -345,15 +403,22 @@ const slots = computed(() => {
   }
   return list;
 });
-function slotStyle(off: number) {
-  if (off === 0) return { transform: `translate(${tx.value + slide.value}px, ${ty.value + drop.value}px) scale(${scale.value * (1 - Math.min(drop.value, 400) / 1600)})` };
-  return { transform: `translateX(${off * (width() + GAP) + slide.value}px)` };
+// a mesma forma de transform pra todas: trocar de forma (translateX → translate + scale) fazia o
+// WebKit refazer a camada da foto, e ela piscava ao virar a atual
+function slotStyle(path: string, off: number) {
+  const s = off === 0 ? scale.value * (1 - Math.min(drop.value, 400) / 1600) : 1;
+  const x = off === 0 ? tx.value + slide.value : off * (width() + GAP) + slide.value;
+  const y = off === 0 ? ty.value + drop.value : 0;
+  return { transform: `translate3d(${x}px, ${y}px, 0) scale(${s})`, backgroundImage: placeholder(path) };
 }
 
 function wheel(e: WheelEvent) {
   e.preventDefault();
   animating.value = false;
   zoomAt(scale.value * Math.exp(-e.deltaY * 0.0025), local(e.clientX, e.clientY));
+  const b = bounds();
+  tx.value = limit(tx.value, b.x, true);
+  ty.value = limit(ty.value, b.y, true);
 }
 
 
@@ -361,8 +426,6 @@ function wheel(e: WheelEvent) {
 
 async function play(path: string) {
   try {
-    // celular: um app por vez (senão o Hyprland divide a tela entre a Galeria e o mpv)
-    if (narrow.value) await showApp().catch(() => {});
     await galleryPlay(path);
   } catch (e) {
     flash(String(e));
@@ -542,14 +605,16 @@ onUnmounted(() => {
         @pointerup="pup"
         @pointercancel="pup"
         @wheel="wheel"
+        @transitionend="transitionEnd"
       >
         <img
           v-for="slot in slots"
           :key="slot.photo.path"
           class="full"
-          :class="{ animating, side: slot.off !== 0 }"
+          :ref="(el) => prepare(el, slot.photo.path)"
+          :class="{ animating, current: slot.off === 0 }"
           :src="artUrl(slot.photo.path) ?? ''"
-          :style="slotStyle(slot.off)"
+          :style="slotStyle(slot.photo.path, slot.off)"
           alt=""
           draggable="false"
           @load="(e) => sizes.set(slot.photo.path, { w: (e.target as HTMLImageElement).naturalWidth, h: (e.target as HTMLImageElement).naturalHeight })"
@@ -734,6 +799,8 @@ onUnmounted(() => {
   object-fit: contain;
   user-select: none;
   will-change: transform;
+  backface-visibility: hidden;
+  background: center / contain no-repeat;
 }
 .full {
   position: absolute;

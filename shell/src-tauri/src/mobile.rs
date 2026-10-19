@@ -47,7 +47,7 @@ pub async fn mobile_show(compositor: tauri::State<'_, SharedCompositor>, address
         .map_err(|e| e.to_string())?
 }
 
-fn show_app(compositor: &dyn lumna_core::Compositor, address: Option<&str>) -> Result<(), String> {
+pub(crate) fn show_app(compositor: &dyn lumna_core::Compositor, address: Option<&str>) -> Result<(), String> {
     let monitors = compositor.monitors()?;
     let current = monitors.iter().find(|m| m.focused).or(monitors.first()).ok_or("nenhum monitor")?.active_workspace;
     let windows = compositor.windows()?;

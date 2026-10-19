@@ -117,9 +117,11 @@ pub fn list() -> Vec<Photo> {
 }
 
 /// Toca um vídeo no mpv, na tela toda (o player do WebKit não dá conta: fica preto). Sem mpv,
-/// abre no programa padrão.
+/// abre no programa padrão. No celular o mpv vai sozinho pra frente assim que a janela dele
+/// aparece (a Galeria só sai de cena depois, sem passar pela tela de apps) e, quando ele fecha, a
+/// Galeria volta.
 #[tauri::command]
-pub fn gallery_play(path: String) -> Result<(), String> {
+pub fn gallery_play(compositor: tauri::State<'_, crate::SharedCompositor>, path: String) -> Result<(), String> {
     if !Path::new(&path).is_file() {
         return Err("o vídeo não existe mais".into());
     }
@@ -132,10 +134,32 @@ pub fn gallery_play(path: String) -> Result<(), String> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
-    if mpv.is_ok() {
-        return Ok(());
-    }
-    Command::new("xdg-open").arg(&path).spawn().map(|_| ()).map_err(|_| "instale o mpv pra tocar vídeos (sudo pacman -S mpv)".into())
+    let Ok(mut child) = mpv else {
+        return Command::new("xdg-open").arg(&path).spawn().map(|_| ()).map_err(|_| "instale o mpv pra tocar vídeos (sudo pacman -S mpv)".into());
+    };
+    let compositor = compositor.inner().clone();
+    let mobile = crate::MOBILE.load(std::sync::atomic::Ordering::Relaxed);
+    let gallery = if mobile { compositor.active_window().ok().flatten().map(|w| w.address) } else { None };
+    std::thread::spawn(move || {
+        if mobile {
+            let pid = child.id() as i64;
+            for _ in 0..100 {
+                if let Some(w) = compositor.windows().ok().and_then(|ws| ws.into_iter().find(|w| w.pid == pid)) {
+                    let _ = crate::mobile::show_app(compositor.as_ref(), Some(&w.address));
+                    break;
+                }
+                if matches!(child.try_wait(), Ok(Some(_))) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+        let _ = child.wait();
+        if let Some(gallery) = gallery {
+            let _ = crate::mobile::show_app(compositor.as_ref(), Some(&gallery));
+        }
+    });
+    Ok(())
 }
 
 #[tauri::command]
