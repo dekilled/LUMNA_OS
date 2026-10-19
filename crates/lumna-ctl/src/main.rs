@@ -34,6 +34,7 @@ comandos:
   music                              abre o LUMNA Music
   music play [ARTISTA|ÁLBUM|MÚSICA]  toca (vazio: tudo, embaralhado)
   music toggle|next|previous|stop    controla o que está tocando
+  volume up|down|mute|mixer          celular: muda o volume e mostra o painel (ou o mixer)
   emma app [ABA]                     abre o app da Emma (conversa, ferramentas, provedores, perfil)
   actions                            lista as ações (o que a Emma e as macros podem fazer)
   action NOME [JSON]                 roda uma ação, ex.: action apps.open {\"name\":\"firefox\"}";

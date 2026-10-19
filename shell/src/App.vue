@@ -28,6 +28,7 @@ import MobileCall from "./components/mobile/MobileCall.vue";
 import MobileLock from "./components/mobile/MobileLock.vue";
 import MobileAsk from "./components/mobile/MobileAsk.vue";
 import MobilePower from "./components/mobile/MobilePower.vue";
+import MobileVolume from "./components/mobile/MobileVolume.vue";
 import PhoneApp from "./components/phone/PhoneApp.vue";
 import RemoteApp from "./components/remote/RemoteApp.vue";
 import MobileStatus from "./components/mobile/MobileStatus.vue";
@@ -103,6 +104,7 @@ window.addEventListener("resize", () => (narrow.value = window.innerWidth < 600)
   <MobileLock v-else-if="label === 'mobile-lock'" />
   <MobileAsk v-else-if="label === 'mobile-ask'" />
   <MobilePower v-else-if="label === 'mobile-power'" />
+  <MobileVolume v-else-if="label === 'mobile-volume'" />
   <PhoneApp v-else-if="label === 'phone'" />
   <RemoteApp v-else-if="label === 'remote'" />
   <MobileKeyboard v-else-if="label === 'keyboard'" />

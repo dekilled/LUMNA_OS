@@ -387,6 +387,9 @@ const MOBILE_LOCK: LayerSpec = LayerSpec { namespace: "lumna-mobile-lock", keybo
 /// Celular: o menu de energia (segurar o botão power).
 const MOBILE_POWER: LayerSpec = LayerSpec { namespace: "lumna-mobile-power", ..MOBILE_CENTER };
 
+/// Celular: o volume (a barra do lado ao apertar as teclas, e o mixer dos apps).
+const MOBILE_VOLUME: LayerSpec = LayerSpec { namespace: "lumna-mobile-volume", ..MOBILE_CENTER };
+
 /// Celular: os apps recentes (o "RAM"). Abre deslizando a navegação pra cima.
 const MOBILE_RECENTS: LayerSpec = LayerSpec { namespace: "lumna-mobile-recents", ..MOBILE_CENTER };
 
@@ -1780,6 +1783,7 @@ fn main() {
             touchkeys::keyboard_target,
             haptics::haptic,
             mobile::mobile_panel,
+            mobile::mobile_volume,
             mobile::recents,
             mobile::recents_snapshot,
             mobile::recents_kill,
@@ -1928,6 +1932,7 @@ fn main() {
                 create_layer(app.handle(), "emma", &primary, &MOBILE_EMMA)?;
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
+                create_layer(app.handle(), "mobile-volume", &primary, &MOBILE_VOLUME)?;
                 create_layer(app.handle(), "capture", &primary, &MOBILE_CAPTURE)?;
                 // a senha de administrador (instalar da Loja, o que pedir o polkit)
                 create_layer(app.handle(), "auth", &primary, &MOBILE_AUTH)?;

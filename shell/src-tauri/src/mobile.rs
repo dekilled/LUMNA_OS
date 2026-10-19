@@ -118,6 +118,46 @@ pub fn mobile_panel(app: AppHandle, name: String, show: Option<bool>) -> Result<
     .map_err(|e| e.to_string())
 }
 
+// ---- volume ----
+
+/// As teclas de volume (o Hyprland chama `lumna-ctl volume up|down|mute`): muda o volume da saída
+/// e mostra o painel do lado da tela, por cima de tudo (até do bloqueio).
+pub fn volume_key(app: &AppHandle, action: &str) -> Result<(), String> {
+    let sink = "@DEFAULT_AUDIO_SINK@";
+    match action {
+        "up" => {
+            crate::status::wpctl(&["set-volume", "-l", "1", sink, "5%+"])?;
+            crate::status::wpctl(&["set-mute", sink, "0"])?;
+        }
+        "down" => crate::status::wpctl(&["set-volume", sink, "5%-"])?,
+        "mute" => crate::status::wpctl(&["set-mute", sink, "toggle"])?,
+        "show" | "mixer" => {}
+        _ => return Err(format!("volume: {action}? (up, down, mute, mixer)")),
+    }
+    show_volume(app, if action == "mixer" { "mixer" } else { "osd" })
+}
+
+/// Mostra o painel de volume: `osd` (a barra do lado, some sozinha) ou `mixer` (os apps).
+fn show_volume(app: &AppHandle, mode: &'static str) -> Result<(), String> {
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        // o mixer é um painel como a central: tira os outros da frente
+        if mode == "mixer" {
+            for other in PANELS {
+                layer::set_visible(other, false);
+            }
+        }
+        layer::set_visible("mobile-volume", true);
+        let _ = handle.emit_to("mobile-volume", "lumna://volume-panel", mode);
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn mobile_volume(app: AppHandle, mode: String) -> Result<(), String> {
+    show_volume(&app, if mode == "mixer" { "mixer" } else { "osd" })
+}
+
 // ---- apps recentes ----
 
 #[derive(Debug, Clone, Serialize)]

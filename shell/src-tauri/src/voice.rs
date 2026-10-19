@@ -341,7 +341,18 @@ fn max_duration(path: &PathBuf) -> Duration {
 fn play(path: &PathBuf, generation: u64) {
     let Some(bin) = find_bin(&["pw-play", "paplay"]) else { return };
     let limit = max_duration(path);
-    let Ok(child) = Command::new(bin).arg(path).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn() else { return };
+    // "Emma" no mixer de áudio (o pw-play lê PIPEWIRE_PROPS; o paplay, PULSE_PROP)
+    let Ok(child) = Command::new(bin)
+        .arg(path)
+        .env("PIPEWIRE_PROPS", "{ application.name = \"Emma\" media.name = \"Emma\" }")
+        .env("PULSE_PROP", "application.name=Emma")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return;
+    };
     *PLAYER.lock().unwrap() = Some(child);
     let started = std::time::Instant::now();
     loop {

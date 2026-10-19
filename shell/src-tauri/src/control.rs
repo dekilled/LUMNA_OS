@@ -69,6 +69,7 @@ fn handle(app: &AppHandle, command: &str) -> Result<(), String> {
         ["emma", "close"] => crate::emma_panel(app, LauncherAction::Close),
         ["capture"] | ["captura"] => crate::capture::start(app),
         ["capture", "stop"] | ["captura", "parar"] => crate::capture::stop_recording(app).map(|_| ()),
+        ["volume", action] if crate::MOBILE.load(std::sync::atomic::Ordering::Relaxed) => crate::mobile::volume_key(app, action),
         ["music"] | ["musica"] => crate::open_music(app),
         ["music", "play", query @ ..] => crate::music::play_query(app, &query.join(" ")).map(|_| ()),
         ["music", action] => crate::music::control(app, action),
