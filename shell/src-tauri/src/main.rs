@@ -264,6 +264,10 @@ const AUTH: LayerSpec = LayerSpec {
     visible: false,
 };
 
+/// Celular: a senha de administrador pega o teclado quando o campo pede (o LUMNA Keyboard digita
+/// nela); fica por cima de tudo menos do teclado.
+const MOBILE_AUTH: LayerSpec = LayerSpec { keyboard: KeyboardMode::OnDemand, ..AUTH };
+
 /// Rodando no celular (`--mobile`): as janelas dos apps não têm tamanho mínimo de desktop.
 static MOBILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -1870,6 +1874,8 @@ fn main() {
                 create_layer(app.handle(), "mobile-call", &primary, &MOBILE_CALL)?;
                 create_layer(app.handle(), "mobile-power", &primary, &MOBILE_POWER)?;
                 create_layer(app.handle(), "capture", &primary, &MOBILE_CAPTURE)?;
+                // a senha de administrador (instalar da Loja, o que pedir o polkit)
+                create_layer(app.handle(), "auth", &primary, &MOBILE_AUTH)?;
                 create_layer(app.handle(), "recording", &primary, &RECORDING)?;
                 // por último: fica por cima da Emma (as duas são Overlay)
                 create_layer(app.handle(), "keyboard", &primary, &KEYBOARD)?;
@@ -1881,6 +1887,7 @@ fn main() {
                 control::listen(app.handle().clone());
                 phone::watch(app.handle().clone());
                 mobilelock::start(app.handle().clone());
+                polkit::start(app.handle().clone());
                 connect::start(app.handle().clone());
                 mobile::track_data_usage();
                 return Ok(());

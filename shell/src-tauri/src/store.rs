@@ -21,7 +21,10 @@ use tauri::{AppHandle, Emitter};
 const HELPER: &str = "/usr/lib/lumna/lumna-pkg";
 const FLATHUB: &str = "https://dl.flathub.org/repo/flathub.flatpakrepo";
 const AUR: &str = "https://aur.archlinux.org";
-const FLATHUB_ICONS: &str = "https://dl.flathub.org/repo/appstream/x86_64/icons/128x128";
+/// Os ícones dos apps do Flathub (o caminho tem a arquitetura: x86_64 no PC, aarch64 no celular).
+fn flathub_icons() -> String {
+    format!("https://dl.flathub.org/repo/appstream/{}/icons/128x128", std::env::consts::ARCH)
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Package {
@@ -204,7 +207,7 @@ fn flathub_package(id: &str, name: &str, summary: &str, version: &str, installed
         version: version.to_string(),
         repo: "flathub".into(),
         installed,
-        icon: Some(format!("{FLATHUB_ICONS}/{id}.png")),
+        icon: Some(format!("{}/{id}.png", flathub_icons())),
         essential: false,
     }
 }

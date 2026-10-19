@@ -10,6 +10,8 @@ const reveal = ref(false);
 const checking = ref(false);
 const input = ref<HTMLInputElement>();
 const shake = ref(false);
+// celular: o LUMNA Keyboard fica por cima da camada; o cartão sobe acima dele
+const inset = ref(0);
 
 async function show(r: AuthRequest) {
   const retry = request.value?.cookie === r.cookie && r.error;
@@ -48,6 +50,11 @@ onMounted(async () => {
   stops.push(() => window.removeEventListener("keydown", onKey));
   stops.push(await on<AuthRequest>("lumna://auth-request", show));
   stops.push(
+    await on<{ shown: boolean; lumna: boolean; height: number }>("lumna://keyboard", (k) => {
+      inset.value = k?.shown && k.lumna ? (k.height ?? 404) : 0;
+    }),
+  );
+  stops.push(
     await on("lumna://auth-done", () => {
       request.value = null;
       checking.value = false;
@@ -59,7 +66,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 </script>
 
 <template>
-  <div class="veil" :class="{ shown: request }">
+  <div class="veil" :class="{ shown: request }" :style="{ paddingBottom: `${inset}px` }">
     <form v-if="request" class="card" :class="{ shake }" @submit.prevent="submit()" @animationend="shake = false">
       <div class="lock"><Icon name="lock" :size="26" /></div>
       <h1>Permissão de administrador</h1>
@@ -106,7 +113,7 @@ onUnmounted(() => stops.forEach((stop) => stop()));
 }
 
 .card {
-  width: 400px;
+  width: min(400px, calc(100vw - 24px));
   box-sizing: border-box;
   padding: 28px 28px 16px;
   border-radius: 24px;
