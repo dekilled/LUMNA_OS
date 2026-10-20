@@ -256,7 +256,7 @@ const tiles = computed<Tile[]>(() => {
             label: "Arquivos USB",
             icon: "usb",
             on: usb.value.files,
-            sub: usb.value.files ? "O computador vê os arquivos" : "Só carregando",
+            sub: usb.value.files ? "Liberados pro PC" : "Só carregando",
             toggle: () => usbFiles(!usb.value?.files),
           } as Tile,
         ]
@@ -792,11 +792,13 @@ onUnmounted(() => {
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, …): um texto comprido num atalho não estica a coluna dele */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .tile {
   position: relative;
+  min-width: 0;
   min-height: 98px;
   padding: 12px;
   display: flex;
