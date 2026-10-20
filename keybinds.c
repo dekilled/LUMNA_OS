@@ -265,6 +265,18 @@ static bool parse_chord(const char *chord, uint32_t *mods, xkb_keysym_t *sym) {
 	return *sym != XKB_KEY_NoSymbol;
 }
 
+/* Uma acção pelo nome do orbit.ini (o orbit-msg usa: acao terminal, acao mestre_mais...). */
+bool orbit_action_named(struct orbit_server *server, const char *name) {
+	for (size_t i = 0; i < sizeof(action_names) / sizeof(action_names[0]); i++) {
+		if (strcasecmp(action_names[i].name, name) == 0) {
+			struct orbit_bind bind = { .action = action_names[i].action, .arg = action_names[i].arg };
+			run_action(server, &bind);
+			return true;
+		}
+	}
+	return false;
+}
+
 bool orbit_bind_set(struct orbit_server *server, const char *action, const char *chord) {
 	const struct orbit_action_name *found = NULL;
 	for (size_t i = 0; i < sizeof(action_names) / sizeof(action_names[0]); i++) {

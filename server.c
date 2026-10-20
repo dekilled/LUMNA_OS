@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <wlr/backend.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
@@ -137,7 +138,20 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao criar o seat0");
 	}
 	orbit_input_bind(&server);
+	orbit_touch_bind(&server);
+	/* ponteiro e teclado desde o início: no telemóvel não há teclado físico, e sem isto as
+	 * aplicações nem escutam o teclado virtual */
+	orbit_seat_capabilities(&server);
+	/* ORBIT_TOQUE_VIRTUAL=1: anuncia o toque sem ecrã táctil, para testar com o orbit-msg */
+	const char *virtual_touch = getenv("ORBIT_TOQUE_VIRTUAL");
+	if (virtual_touch && strcmp(virtual_touch, "1") == 0) {
+		server.virtual_touch = true;
+		orbit_seat_capabilities(&server);
+	}
 	orbit_xkb_prepare();
+	if (!orbit_im_bind(&server)) {
+		return fail(&server, "falha ao preparar a escrita (teclado virtual, método de entrada)");
+	}
 
 	const char *socket = wl_display_add_socket_auto(server.display);
 	if (!socket) {
@@ -147,6 +161,7 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao arrancar o backend");
 	}
 	setenv("WAYLAND_DISPLAY", socket, 1);
+	orbit_ipc_bind(&server, socket);
 	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala %.2f arranjo %s",
 		socket, server.gap, server.master_pct, server.phone_scale, layout_name(server.arrangement));
 	if (startup && fork() == 0) {
@@ -154,6 +169,7 @@ int main(int argc, char *argv[]) {
 		_exit(1);
 	}
 	wl_display_run(server.display);
+	orbit_ipc_finish();
 	wl_display_destroy_clients(server.display);
 	wl_display_destroy(server.display);
 	orbit_xkb_finish();

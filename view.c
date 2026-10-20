@@ -23,16 +23,20 @@ void orbit_focus(struct orbit_view *view) {
 		wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
 	}
 	wlr_xdg_toplevel_set_activated(view->toplevel, true);
+	/* o foco entra mesmo sem teclado nenhum ainda (o telemóvel só tem o virtual, que chega
+	 * depois): o wlroots aceita, e as teclas chegam assim que houver um */
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
-	if (keyboard && !server->exclusive_layer) {
+	if (!server->exclusive_layer) {
 		wlr_seat_keyboard_notify_enter(server->seat, view->toplevel->base->surface,
-			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
+			keyboard ? keyboard->keycodes : NULL, keyboard ? keyboard->num_keycodes : 0,
+			keyboard ? &keyboard->modifiers : NULL);
 	}
 	orbit_foreign_sync(view);
 	if (previous_view && previous_view != view && previous_view->mapped) {
 		orbit_foreign_sync(previous_view);
 	}
 	orbit_borders_sync(server);
+	orbit_ipc_sync(server);
 }
 
 void orbit_unfocus(struct orbit_server *server) {
@@ -49,6 +53,7 @@ void orbit_unfocus(struct orbit_server *server) {
 	}
 	orbit_foreign_sync(view);
 	orbit_borders_sync(server);
+	orbit_ipc_sync(server);
 }
 
 void focus_top(struct orbit_server *server, struct orbit_output *output) {
@@ -109,6 +114,7 @@ static void xdg_map(struct wl_listener *listener, void *data) {
 	view->h = box.height / 2;
 	wl_list_insert(view->server->views.prev, &view->link);
 	orbit_foreign_map(view);
+	orbit_ipc_view_event(view, "janela_aberta");
 	struct orbit_server *server = view->server;
 	struct orbit_view *prev = server->focused;
 	orbit_arrange(server);
@@ -129,6 +135,7 @@ static void xdg_unmap(struct wl_listener *listener, void *data) {
 	struct orbit_view *partner = view == server->split_top ? server->split_bottom
 		: view == server->split_bottom ? server->split_top : NULL;
 	orbit_split_release(server, view);
+	orbit_ipc_view_event(view, "janela_fechada");
 	view->mapped = false;
 	orbit_foreign_destroy(view);
 	if (view->server->grabbed == view) {
@@ -197,6 +204,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 		return;
 	}
 	view->server = server;
+	view->id = ++server->next_view_id;
 	view->toplevel = toplevel;
 	view->scene_tree = wlr_scene_xdg_surface_create(server->tile_tree, toplevel->base);
 	if (!view->scene_tree) {

@@ -48,32 +48,83 @@ void orbit_xkb_finish(void) {
 	}
 }
 
-static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
-	if (server->cursor_mode == ORBIT_CURSOR_GESTURE && server->gesture_output && !server->gesture_done) {
-		double dx = server->cursor->x - server->gesture_x;
-		double dy = server->cursor->y - server->gesture_y;
-		struct orbit_output *output = server->gesture_output;
-		if (server->gesture == 1 && dx > 72) {
-			server->gesture_done = true;
-			if (output->tag > 0) {
-				output->tag -= 1;
-				orbit_arrange(server);
-				focus_top(server, output);
-			}
-		} else if (server->gesture == 2 && dx < -72) {
-			server->gesture_done = true;
-			if (output->tag + 1 < ORBIT_TAGS) {
-				output->tag += 1;
-				orbit_arrange(server);
-				focus_top(server, output);
-			}
-		} else if (server->gesture == 3 && dy < -72) {
-			server->gesture_done = true;
-			server->phone_split = !server->phone_split;
-			server->split_top = NULL;
-			server->split_bottom = NULL;
+/*
+ * Gestos da borda do telemóvel, com o rato ou com o dedo: começam numa faixa de 28 px da
+ * borda. Da esquerda para a direita recua um espaço, da direita para a esquerda avança, e de
+ * baixo para cima liga ou desliga o par. O gesto não chega à aplicação.
+ */
+#define ORBIT_EDGE 28
+#define ORBIT_GESTURE_DIST 72
+
+bool orbit_gesture_begin(struct orbit_server *server, double lx, double ly) {
+	if (server->session_locked) {
+		return false;
+	}
+	struct orbit_output *phone = output_at(server, lx, ly);
+	if (!phone || !output_is_phone(phone->wlr)) {
+		return false;
+	}
+	struct wlr_box box;
+	wlr_output_layout_get_box(server->layout, phone->wlr, &box);
+	double x = lx - box.x;
+	double y = ly - box.y;
+	int edge = 0;
+	if (x >= 0 && x < ORBIT_EDGE) {
+		edge = 1;
+	} else if (box.width > ORBIT_EDGE && x > box.width - ORBIT_EDGE) {
+		edge = 2;
+	} else if (box.height > ORBIT_EDGE && y > box.height - ORBIT_EDGE) {
+		edge = 3;
+	}
+	if (!edge) {
+		return false;
+	}
+	server->gesture = edge;
+	server->gesture_done = false;
+	server->gesture_x = lx;
+	server->gesture_y = ly;
+	server->gesture_output = phone;
+	return true;
+}
+
+void orbit_gesture_motion(struct orbit_server *server, double lx, double ly) {
+	struct orbit_output *output = server->gesture_output;
+	if (!output || server->gesture_done) {
+		return;
+	}
+	double dx = lx - server->gesture_x;
+	double dy = ly - server->gesture_y;
+	if (server->gesture == 1 && dx > ORBIT_GESTURE_DIST) {
+		server->gesture_done = true;
+		if (output->tag > 0) {
+			output->tag -= 1;
 			orbit_arrange(server);
+			focus_top(server, output);
 		}
+	} else if (server->gesture == 2 && dx < -ORBIT_GESTURE_DIST) {
+		server->gesture_done = true;
+		if (output->tag + 1 < ORBIT_TAGS) {
+			output->tag += 1;
+			orbit_arrange(server);
+			focus_top(server, output);
+		}
+	} else if (server->gesture == 3 && dy < -ORBIT_GESTURE_DIST) {
+		server->gesture_done = true;
+		server->phone_split = !server->phone_split;
+		server->split_top = NULL;
+		server->split_bottom = NULL;
+		orbit_arrange(server);
+	}
+}
+
+void orbit_gesture_end(struct orbit_server *server) {
+	server->gesture = 0;
+	server->gesture_output = NULL;
+}
+
+static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
+	if (server->cursor_mode == ORBIT_CURSOR_GESTURE) {
+		orbit_gesture_motion(server, server->cursor->x, server->cursor->y);
 		return;
 	}
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && server->grabbed && server->grabbed->mapped) {
@@ -141,8 +192,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 
 	if (server->cursor_mode == ORBIT_CURSOR_GESTURE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
-		server->gesture = 0;
-		server->gesture_output = NULL;
+		orbit_gesture_end(server);
 		return;
 	}
 
@@ -152,29 +202,9 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 		struct orbit_view *view = view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
 		uint32_t mods = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
-		struct orbit_output *phone = output_at(server, server->cursor->x, server->cursor->y);
-		if (phone && output_is_phone(phone->wlr) && !(mods & WLR_MODIFIER_ALT)) {
-			struct wlr_box box;
-			wlr_output_layout_get_box(server->layout, phone->wlr, &box);
-			double lx = server->cursor->x - box.x;
-			double ly = server->cursor->y - box.y;
-			int edge = 0;
-			if (lx >= 0 && lx < 28) {
-				edge = 1;
-			} else if (box.width > 28 && lx > box.width - 28) {
-				edge = 2;
-			} else if (box.height > 28 && ly > box.height - 28) {
-				edge = 3;
-			}
-			if (edge) {
-				server->cursor_mode = ORBIT_CURSOR_GESTURE;
-				server->gesture = edge;
-				server->gesture_done = false;
-				server->gesture_x = server->cursor->x;
-				server->gesture_y = server->cursor->y;
-				server->gesture_output = phone;
-				return;
-			}
+		if (!(mods & WLR_MODIFIER_ALT) && orbit_gesture_begin(server, server->cursor->x, server->cursor->y)) {
+			server->cursor_mode = ORBIT_CURSOR_GESTURE;
+			return;
 		}
 		if (view && (mods & WLR_MODIFIER_ALT)) {
 			server->cursor_mode = ORBIT_CURSOR_MOVE;
@@ -226,6 +256,9 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 			handled = orbit_keybinding(server, syms[i], mods) || handled;
 		}
 	}
+	if (!handled && orbit_im_forward_key(server, keyboard->wlr_keyboard, event)) {
+		return;
+	}
 	if (!handled) {
 		struct orbit_view *focused = server->focused;
 		if (focused && focused->mapped && focused->output && focused->tag != focused->output->tag) {
@@ -239,6 +272,9 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 
 static void keyboard_modifiers(struct wl_listener *listener, void *data) {
 	struct orbit_keyboard *keyboard = wl_container_of(listener, keyboard, modifiers);
+	if (orbit_im_forward_modifiers(keyboard->server, keyboard->wlr_keyboard)) {
+		return;
+	}
 	wlr_seat_set_keyboard(keyboard->server->seat, keyboard->wlr_keyboard);
 	wlr_seat_keyboard_notify_modifiers(keyboard->server->seat, &keyboard->wlr_keyboard->modifiers);
 }
@@ -252,15 +288,22 @@ static void keyboard_destroy(struct wl_listener *listener, void *data) {
 	free(keyboard);
 }
 
+/* wl_touch só com um ecrã táctil (ou o toque de teste do orbit-msg, ver ipc.c). */
+void orbit_seat_capabilities(struct orbit_server *server) {
+	uint32_t caps = WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD;
+	if (!wl_list_empty(&server->touches) || server->virtual_touch) {
+		caps |= WL_SEAT_CAPABILITY_TOUCH;
+	}
+	wlr_seat_set_capabilities(server->seat, caps);
+}
+
 static void touch_destroy(struct wl_listener *listener, void *data) {
 	struct orbit_touch *touch = wl_container_of(listener, touch, destroy);
+	struct orbit_server *server = touch->server;
 	wl_list_remove(&touch->destroy.link);
 	wl_list_remove(&touch->link);
 	free(touch);
-}
-
-static void seat_capabilities(struct orbit_server *server) {
-	wlr_seat_set_capabilities(server->seat, WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD);
+	orbit_seat_capabilities(server);
 }
 
 struct orbit_switch {
@@ -286,31 +329,41 @@ static void switch_destroy(struct wl_listener *listener, void *data) {
 	free(sw);
 }
 
-static void server_new_input(struct wl_listener *listener, void *data) {
-	struct orbit_server *server = wl_container_of(listener, server, new_input);
-	struct wlr_input_device *device = data;
-	if (device->type == WLR_INPUT_DEVICE_KEYBOARD) {
-		struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
-		struct orbit_keyboard *keyboard = calloc(1, sizeof(*keyboard));
-		if (!keyboard) {
-			wlr_log(WLR_ERROR, "sem memória para o teclado");
-			return;
-		}
-		keyboard->server = server;
-		keyboard->wlr_keyboard = wlr_keyboard;
+/*
+ * Um teclado no seat. Os físicos usam o mapa partilhado; um teclado virtual (wtype, o teclado
+ * no ecrã) traz o mapa dele e fica com esse.
+ */
+void orbit_keyboard_add(struct orbit_server *server, struct wlr_keyboard *wlr_keyboard, bool shared) {
+	struct orbit_keyboard *keyboard = calloc(1, sizeof(*keyboard));
+	if (!keyboard) {
+		wlr_log(WLR_ERROR, "sem memória para o teclado");
+		return;
+	}
+	keyboard->server = server;
+	keyboard->wlr_keyboard = wlr_keyboard;
+	if (shared) {
 		orbit_xkb_prepare();
 		if (shared_keymap) {
 			wlr_keyboard_set_keymap(wlr_keyboard, shared_keymap);
 		}
 		wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
-		keyboard->modifiers.notify = keyboard_modifiers;
-		wl_signal_add(&wlr_keyboard->events.modifiers, &keyboard->modifiers);
-		keyboard->key.notify = keyboard_key;
-		wl_signal_add(&wlr_keyboard->events.key, &keyboard->key);
-		keyboard->destroy.notify = keyboard_destroy;
-		wl_signal_add(&device->events.destroy, &keyboard->destroy);
-		wlr_seat_set_keyboard(server->seat, wlr_keyboard);
-		wl_list_insert(&server->keyboards, &keyboard->link);
+	}
+	keyboard->modifiers.notify = keyboard_modifiers;
+	wl_signal_add(&wlr_keyboard->events.modifiers, &keyboard->modifiers);
+	keyboard->key.notify = keyboard_key;
+	wl_signal_add(&wlr_keyboard->events.key, &keyboard->key);
+	keyboard->destroy.notify = keyboard_destroy;
+	wl_signal_add(&wlr_keyboard->base.events.destroy, &keyboard->destroy);
+	wlr_seat_set_keyboard(server->seat, wlr_keyboard);
+	wl_list_insert(&server->keyboards, &keyboard->link);
+	orbit_seat_capabilities(server);
+}
+
+static void server_new_input(struct wl_listener *listener, void *data) {
+	struct orbit_server *server = wl_container_of(listener, server, new_input);
+	struct wlr_input_device *device = data;
+	if (device->type == WLR_INPUT_DEVICE_KEYBOARD) {
+		orbit_keyboard_add(server, wlr_keyboard_from_input_device(device), true);
 	} else if (device->type == WLR_INPUT_DEVICE_POINTER || device->type == WLR_INPUT_DEVICE_TOUCH ||
 		device->type == WLR_INPUT_DEVICE_TABLET) {
 		wlr_cursor_attach_input_device(server->cursor, device);
@@ -319,6 +372,7 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 			if (!touch) {
 				wlr_log(WLR_ERROR, "sem memória para o toque");
 			} else {
+				touch->server = server;
 				touch->device = device;
 				touch->destroy.notify = touch_destroy;
 				wl_signal_add(&device->events.destroy, &touch->destroy);
@@ -346,7 +400,7 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 			wl_signal_add(&device->events.destroy, &sw->destroy);
 		}
 	}
-	seat_capabilities(server);
+	orbit_seat_capabilities(server);
 }
 
 static void seat_request_cursor(struct wl_listener *listener, void *data) {

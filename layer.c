@@ -17,11 +17,12 @@
 
 static void layer_keyboard_enter(struct orbit_layer *layer) {
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(layer->server->seat);
-	if (!keyboard || !layer->surface->surface) {
+	if (!layer->surface->surface) {
 		return;
 	}
 	wlr_seat_keyboard_notify_enter(layer->server->seat, layer->surface->surface,
-		keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
+		keyboard ? keyboard->keycodes : NULL, keyboard ? keyboard->num_keycodes : 0,
+		keyboard ? &keyboard->modifiers : NULL);
 }
 
 static void layer_sync_keyboard(struct orbit_layer *layer) {

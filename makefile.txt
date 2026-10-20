@@ -3,12 +3,17 @@
 PKGS ?= wlroots-0.18 wayland-server xkbcommon
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
-SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c keybinds.c
+SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c
 # os cabeçalhos que os do wlroots incluem, gerados dos XML dos protocolos
 PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
 
+all: orbit orbit-msg
+
 orbit: $(SRCS) orbit.h $(PROTOS)
 	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS))
+
+orbit-msg: orbit-msg.c
+	$(CC) -g -Wall -Wextra -o $@ orbit-msg.c
 
 xdg-shell-protocol.h:
 	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -18,6 +23,6 @@ wlr-layer-shell-unstable-v1-protocol.h: protocolos/wlr-layer-shell-unstable-v1.x
 	$(WAYLAND_SCANNER) server-header $< $@
 
 clean:
-	rm -f orbit $(PROTOS)
+	rm -f orbit orbit-msg $(PROTOS)
 
-.PHONY: clean
+.PHONY: all clean

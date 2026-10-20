@@ -159,6 +159,11 @@ struct orbit_server {
 	struct wl_listener cursor_button;
 	struct wl_listener cursor_axis;
 	struct wl_listener cursor_frame;
+	struct wl_listener touch_down;
+	struct wl_listener touch_motion;
+	struct wl_listener touch_up;
+	struct wl_listener touch_cancel;
+	struct wl_listener touch_frame;
 
 	struct wlr_seat *seat;
 	struct wl_listener new_input;
@@ -196,6 +201,8 @@ struct orbit_server {
 	bool gesture_done;
 	double gesture_x, gesture_y;
 	struct orbit_output *gesture_output;
+	uint32_t next_view_id;
+	bool virtual_touch;
 };
 
 struct orbit_output {
@@ -213,6 +220,7 @@ struct orbit_output {
 
 struct orbit_view {
 	enum orbit_node_kind kind;
+	uint32_t id; /* o do orbit-msg, nunca reaproveitado */
 	struct wl_list link;
 	struct orbit_server *server;
 	struct orbit_output *output;
@@ -265,6 +273,7 @@ struct orbit_keyboard {
 
 struct orbit_touch {
 	struct wl_list link;
+	struct orbit_server *server;
 	struct wlr_input_device *device;
 	struct wl_listener destroy;
 };
@@ -297,6 +306,27 @@ void orbit_split_release(struct orbit_server *server, struct orbit_view *view);
 void phone_on_map(struct orbit_server *server, struct orbit_view *view, struct orbit_view *prev);
 
 void orbit_input_bind(struct orbit_server *server);
+void orbit_seat_capabilities(struct orbit_server *server);
+void orbit_keyboard_add(struct orbit_server *server, struct wlr_keyboard *keyboard, bool shared);
+bool orbit_gesture_begin(struct orbit_server *server, double lx, double ly);
+void orbit_gesture_motion(struct orbit_server *server, double lx, double ly);
+void orbit_gesture_end(struct orbit_server *server);
+
+void orbit_touch_bind(struct orbit_server *server);
+void orbit_touch_down(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly);
+void orbit_touch_motion(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly);
+void orbit_touch_up(struct orbit_server *server, uint32_t time, int32_t id);
+void orbit_touch_frame(struct orbit_server *server);
+
+bool orbit_im_bind(struct orbit_server *server);
+bool orbit_im_forward_key(struct orbit_server *server, struct wlr_keyboard *keyboard,
+	struct wlr_keyboard_key_event *event);
+bool orbit_im_forward_modifiers(struct orbit_server *server, struct wlr_keyboard *keyboard);
+
+bool orbit_ipc_bind(struct orbit_server *server, const char *wayland_display);
+void orbit_ipc_finish(void);
+void orbit_ipc_sync(struct orbit_server *server);
+void orbit_ipc_view_event(struct orbit_view *view, const char *event);
 void orbit_xkb_prepare(void);
 void orbit_xkb_finish(void);
 
@@ -322,6 +352,7 @@ void orbit_slide(struct orbit_view *view, int x, int y);
 void orbit_slide_stop(struct orbit_view *view);
 
 bool orbit_keybinding(struct orbit_server *server, xkb_keysym_t sym, uint32_t mods);
+bool orbit_action_named(struct orbit_server *server, const char *name);
 void orbit_binds_reset(struct orbit_server *server);
 bool orbit_bind_set(struct orbit_server *server, const char *action, const char *chord);
 

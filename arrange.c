@@ -409,6 +409,7 @@ void orbit_arrange(struct orbit_server *server) {
 	}
 	orbit_idle_update(server);
 	orbit_borders_sync(server);
+	orbit_ipc_sync(server);
 }
 
 void orbit_borders_sync(struct orbit_server *server) {

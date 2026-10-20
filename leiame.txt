@@ -47,8 +47,12 @@ Módulos
   lock.c      bloqueio de sessão e idle inhibit
   manage.c    gamma e posição das saídas
   anim.c      deslize curto até à posição nova
-  input.c     ponteiro, toque, tablet, tampa e teclado
+  input.c     ponteiro, gestos da borda, tablet, tampa e teclado
+  touch.c     toque: wl_touch de verdade, ou o dedo como rato
+  im.c        teclado virtual e método de entrada (escrever sem teclado físico)
+  ipc.c       o socket do orbit-msg
   keybinds.c  tabela de atalhos
+  orbit-msg.c o cliente do socket (make faz os dois)
 
   Os registos nossos são em português. Os do wlroots continuam em inglês.
 
@@ -93,14 +97,45 @@ Baixa prioridade
   para cima, liga ou desliga o par. Não passa o clique à aplicação.
   Há um seat. O traço da mesa digitalizadora segue o cursor. A tampa
   e o modo tablet só ficam no registo.
-  ./regressao.sh confirma o código e, se houver wlroots, arranca
-  dois segundos com WLR_BACKENDS=headless.
+  ./regressao.sh confirma o código e, se houver wlroots, compila, arranca
+  com WLR_BACKENDS=headless e pergunta pelo orbit-msg (saídas e um toque).
 
 Limites
   ORBIT_MAX_VIEWS é 64 (compilação). Ao chegar a 48 janelas em mosaico
   numa saída há um aviso; na 65.ª a janela deixa de entrar no mosaico
   e fica um erro no registo. O foco com Alt+J/K também corta nessa marca.
   Um valor fora da gama é recusado e fica o anterior, com erro no registo.
+
+Escrever sem teclado físico
+  O teclado virtual (zwp_virtual_keyboard_v1) é o que o wtype e um
+  teclado no ecrã usam para mandar teclas: entra como mais um teclado no
+  seat, com o mapa dele. O método de entrada (zwp_input_method_v2) e o
+  campo de texto das aplicações (zwp_text_input_v3) conversam pelo Orbit:
+  quando um campo ganha o foco, o método de entrada recebe activate, o
+  texto à volta e o tipo do campo (senha, número, terminal...), e o texto
+  que ele devolve chega ao campo. Um método de entrada de cada vez. Se
+  ele agarrar o teclado, as teclas físicas vão para ele primeiro. As
+  janelas de sugestões dele ainda não aparecem.
+
+orbit-msg
+  O Orbit atende num socket Unix: $ORBIT_SOCK (posto no ambiente de tudo
+  o que ele lança), por omissão $XDG_RUNTIME_DIR/orbit.$WAYLAND_DISPLAY.sock.
+  Um pedido por linha, uma resposta por linha, em JSON.
+    orbit-msg saidas               (ou -t get_outputs)
+    orbit-msg janelas              (ou -t get_tree): cada uma com um id
+    orbit-msg espacos              (ou -t get_workspaces)
+    orbit-msg foco ID | fechar [ID] | mover ID N | ecra [ID] | flutuar [ID]
+    orbit-msg espaco N [SAIDA] | dividir | exec COMANDO
+    orbit-msg acao NOME            qualquer acção do [atalho] (terminal,
+                                   captura, mestre_mais, espaco_2...)
+    orbit-msg subscrever           fica ligado e imprime os eventos:
+                                   janela_aberta, janela_fechada, foco, espaco
+  Para testar o toque sem ecrã táctil, em coordenadas do layout:
+    orbit-msg toque baixo 0 320 180
+    orbit-msg toque move 0 200 180
+    orbit-msg toque cima 0
+  O primeiro toque de teste (ou ORBIT_TOQUE_VIRTUAL=1 no arranque) faz o
+  seat anunciar wl_touch, para as aplicações o escutarem.
 
 Popup
   O unconstrain usa a geometria da janela (origem da superfície do
@@ -130,11 +165,10 @@ Telemóvel (PinePhone, Librem 5, postmarketOS)
   em baixo. O foco anda entre as duas sem as trocar de sítio. Fechar
   uma põe a janela seguinte no lugar que ficou vazio. A bancada arrasta
   uma costura fina por cima das duas; este binário divide a altura ao meio.
-  O toque é agarrado ao cursor (o dedo comporta-se como ponteiro) e, se
-  existir DSI, mapeado só para esse ecrã — na doca o dedo não salta para
-  o DP-1. Na bancada o dedo vira wl_pointer na superfície do cliente
-  (press/release em coordenadas da saída) e não atravessa para o outro
-  monitor. O teclado do telemóvel encolhe a janela em vez de a tapar.
+  O ecrã táctil fica mapeado só para o DSI — na doca o dedo não salta
+  para o DP-1. Uma aplicação que conhece o toque (GTK, WebKit, Qt, foot)
+  recebe wl_touch de verdade, com vários dedos; uma que não conhece recebe
+  o primeiro dedo como o botão esquerdo do rato. O cursor some ao tocar. O teclado do telemóvel encolhe a janela em vez de a tapar.
   Alt+1–4 muda o espaço desta saída. Se o espaço está vazio, o teclado
   sai do cliente que ficou no espaço anterior — não continua a escrever
   numa janela escondida. A vista geral lista janelas de todos os espaços;
@@ -157,8 +191,9 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Alt+Shift+1–4    mover a janela focada para esse espaço
   Alt+botão        arrastar; ao largar noutra saída, a janela muda de mãe
 
-seat0 anuncia pointer e keyboard. O toque entra pelo cursor de propósito:
-anunciar wl_touch sem entregar frames parte clientes. Todos os teclados
+seat0 anuncia pointer e keyboard desde o arranque (no telemóvel o único
+teclado é o virtual, e sem isto as aplicações nem o escutariam) e touch
+quando há um ecrã táctil. Todos os teclados
 partilham um contexto e um keymap. XKB_DEFAULT_RULES, XKB_DEFAULT_MODEL,
 XKB_DEFAULT_LAYOUT, XKB_DEFAULT_VARIANT e XKB_DEFAULT_OPTIONS escolhem
 o mapa; se faltarem, o xkbcommon usa o mapa por omissão.
