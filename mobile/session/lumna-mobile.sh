@@ -16,10 +16,23 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 [ "$(id -u)" != 0 ] || { echo "rode como alarm, sem sudo (o makepkg não roda como root)"; exit 1; }
 
 # ---- o repositório do LUMNA no pacman ----
-if ! grep -q '^\[lumna-celular\]' /etc/pacman.conf; then
-    echo "--- ligando o repositório [lumna-celular] no pacman"
-    printf '\n# Os pacotes do LUMNA para o celular (workflow "Celular" do LUMNA_OS)\n[lumna-celular]\nSigLevel = Optional TrustAll\nServer = https://github.com/dekilled/LUMNA_OS/releases/download/celular\n' \
-        | sudo tee -a /etc/pacman.conf >/dev/null
+# Só entra quando o GitHub já publicou (sem o banco, o pacman recusa qualquer instalação). O banco
+# vem direto, sem o -Sy: sincronizar só um lado do sistema quebraria as atualizações do Arch.
+REPO=https://github.com/dekilled/LUMNA_OS/releases/download/celular
+if curl -fsSL --max-time 60 -o /tmp/lumna-celular.db "$REPO/lumna-celular.db"; then
+    if ! grep -q '^\[lumna-celular\]' /etc/pacman.conf; then
+        echo "--- ligando o repositório [lumna-celular] no pacman"
+        printf '\n# Os pacotes do LUMNA para o celular (workflow "Celular" do LUMNA_OS)\n[lumna-celular]\nSigLevel = Optional TrustAll\nServer = %s\n' "$REPO" \
+            | sudo tee -a /etc/pacman.conf >/dev/null
+    fi
+    sudo install -Dm644 /tmp/lumna-celular.db /var/lib/pacman/sync/lumna-celular.db
+    rm -f /tmp/lumna-celular.db
+    REPO_OK=1
+else
+    REPO_OK=
+    echo "aviso: o repositório [lumna-celular] ainda não está no ar (o GitHub ainda não publicou ou sem internet): fica pra próxima"
+    # se já estava no pacman.conf sem o banco, sai de lá (volta na próxima vez que estiver no ar)
+    [ -f /var/lib/pacman/sync/lumna-celular.db ] || sudo sed -i '/^# Os pacotes do LUMNA para o celular/,/^Server = .*releases\/download\/celular$/d' /etc/pacman.conf
 fi
 
 # Antes dos pacotes, este script copiava os ícones dos apps à mão: saem do caminho do pacman
@@ -62,7 +75,8 @@ elif [ -n "${LUMNA_COMPILAR:-}" ]; then
     makepkg -sfi --nocheck --noconfirm
     mobile_local
 else
-    sudo pacman -Sy --noconfirm --needed lumna-shell lumna-mobile
+    [ -n "$REPO_OK" ] || { echo "sem o repositório não dá pra instalar: rode de novo depois que o workflow Celular terminar"; exit 1; }
+    sudo pacman -S --noconfirm --needed lumna-shell lumna-mobile
 fi
 
 # o bootloader A/B precisa ouvir "liguei direitinho" a cada boot (senão desiste do slot)

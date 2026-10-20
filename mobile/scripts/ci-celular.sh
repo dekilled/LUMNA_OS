@@ -67,7 +67,10 @@ if [ -n "$FAZ" ]; then
     sobe /dev /dev
     sobe /dev/pts /dev/pts
     mkdir -p "$CACHE/alarm"
-    cp -L /etc/resolv.conf "$CH/etc/resolv.conf"
+    # o resolv.conf do Arch ARM é um link pro systemd-resolved (que não roda aqui): vira um arquivo
+    # com os servidores de verdade do runner (o do Ubuntu aponta pro 127.0.0.53, que também serve)
+    rm -f "$CH/etc/resolv.conf"
+    if [ -s /run/systemd/resolve/resolv.conf ]; then cat /run/systemd/resolve/resolv.conf; else cat /etc/resolv.conf; fi >"$CH/etc/resolv.conf"
     dentro() { chroot "$CH" /usr/bin/env -i HOME=/root PATH=/usr/bin LANG=C.UTF-8 "$@"; }
 
     # o sandbox do pacman (landlock, usuário de download) não anda num chroot
