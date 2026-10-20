@@ -10,9 +10,9 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/lib/lumna/relogio.sh restaura
+ExecStart=/usr/lib/lumna/relogio.sh restaura
 # ao desligar guarda de novo (o RTC continua contando com o celular desligado)
-ExecStop=/usr/local/lib/lumna/relogio.sh guarda
+ExecStop=/usr/lib/lumna/relogio.sh guarda
 
 [Install]
 WantedBy=sysinit.target

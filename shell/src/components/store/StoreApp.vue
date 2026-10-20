@@ -143,8 +143,18 @@ async function loadUpdates() {
   updates.value = await storeUpdates();
 }
 
+/** O LUMNA foi atualizado e vai reiniciar (a Loja some junto). */
+const restarting = ref(false);
+
 async function upgrade(source: StoreSource) {
-  const ok = await runJob(`upgrade:${source}`, () => storeUpgrade(source));
+  let restart = false;
+  const ok = await runJob(`upgrade:${source}`, async () => {
+    restart = await storeUpgrade(source);
+  });
+  if (restart) {
+    restarting.value = true;
+    return;
+  }
   if (ok) {
     await loadUpdates();
     await refreshInstalled();
@@ -289,9 +299,10 @@ const upgradeLabel: Record<StoreSource, string> = {
             <Icon name="refresh" :size="14" /> Procurar de novo
           </button>
         </div>
-        <p v-if="updates === null" class="empty"><span class="spinner" /> Procurando atualizações…</p>
+        <p v-if="restarting" class="empty"><span class="spinner" /> Pronto! O LUMNA reinicia em instantes com a versão nova…</p>
+        <p v-else-if="updates === null" class="empty"><span class="spinner" /> Procurando atualizações…</p>
         <p v-else-if="!updates.length" class="empty">Tudo em dia. ✨</p>
-        <section v-for="(list, source) in updatesBySource" :key="source" class="group">
+        <section v-for="(list, source) in updatesBySource" v-show="!restarting" :key="source" class="group">
           <div class="group-head">
             <div>
               <h3>{{ upgradeLabel[source as StoreSource] }}</h3>

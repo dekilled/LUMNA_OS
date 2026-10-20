@@ -15,9 +15,25 @@ FFS=/dev/ffs-mtp
 
 udc() { ls /sys/class/udc 2>/dev/null | head -n1; }
 
+# a config do umtprd: o armazenamento é a pasta de quem está na tela (sem ninguém, o uid 1000)
+config() {
+    s=$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null)
+    uid=$([ -n "$s" ] && loginctl show-session "$s" -p User --value 2>/dev/null)
+    [ -n "$uid" ] || uid=1000
+    IFS=: read -r _ _ _ gid _ home _ <<EOF
+$(getent passwd "$uid")
+EOF
+    [ -n "$home" ] || { echo "sem a pasta do usuário $uid" >&2; exit 1; }
+    serial=$(head -c 16 /etc/machine-id 2>/dev/null || echo LUMNA0001)
+    mkdir -p /run/lumna
+    sed -e "s|@HOME@|$home|" -e "s|@UID@|$uid|" -e "s|@GID@|$gid|" -e "s|@SERIAL@|$serial|" \
+        /usr/share/lumna/umtprd.conf.in >/run/lumna/umtprd.conf
+}
+
 case "${1:-}" in
 preparar)
     [ -d "$G" ] || { echo "sem o gadget USB do LUMNA ($G)" >&2; exit 1; }
+    config
     modprobe usb_f_fs 2>/dev/null || true
     echo "" >"$G/UDC" 2>/dev/null || true
     mkdir -p "$G/functions/ffs.mtp" "$FFS"

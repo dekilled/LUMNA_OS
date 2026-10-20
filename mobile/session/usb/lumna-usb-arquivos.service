@@ -5,7 +5,7 @@ Description=LUMNA: arquivos pelo cabo USB (MTP)
 
 [Service]
 Type=simple
-ExecStartPre=/usr/local/lib/lumna/usb-arquivos.sh preparar
-ExecStart=/usr/local/bin/umtprd
-ExecStartPost=/usr/local/lib/lumna/usb-arquivos.sh ligar
-ExecStopPost=/usr/local/lib/lumna/usb-arquivos.sh desligar
+ExecStartPre=/usr/lib/lumna/usb-arquivos.sh preparar
+ExecStart=/usr/bin/umtprd -conf /run/lumna/umtprd.conf
+ExecStartPost=/usr/lib/lumna/usb-arquivos.sh ligar
+ExecStopPost=/usr/lib/lumna/usb-arquivos.sh desligar

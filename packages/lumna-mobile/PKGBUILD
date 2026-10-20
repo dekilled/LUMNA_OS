@@ -1,0 +1,78 @@
+# O LUMNA no celular (OnePlus 6T): tudo o que o mobile/session/lumna-mobile.sh instalava à mão,
+# num pacote, pra vir pelas atualizações da Loja junto com o lumna-shell. Hora sem internet,
+# desligar rápido, Wi-Fi e modem, arquivos pelo cabo USB (MTP, com o uMTP-Responder), vibração,
+# botão power, a config do Hyprland, os apps do celular e a Loja (lumna-pkg).
+pkgname=lumna-mobile
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="LUMNA OS no celular: serviços, regras e configuração da sessão"
+arch=(aarch64)
+url="https://github.com/dekilled/LUMNA_OS"
+license=(GPL-3.0-or-later)
+depends=(
+  lumna-shell hyprland wireplumber mesa polkit hypridle foot
+  ttf-dejavu inter-font noto-fonts-emoji
+  wtype wl-clipboard grim wf-recorder ffmpeg mpv playerctl gst-plugins-good gst-libav
+  bluez bluez-utils
+  # a Loja procura atualizações com o checkupdates
+  pacman-contrib fakeroot
+)
+makedepends=(git)
+conflicts=(lumna-session)
+options=(!debug)
+install=lumna-mobile.install
+
+# o uMTP-Responder numa versão fixa (a mesma de sempre)
+_umtp=b174b03a3c2641a578b9299e540994a35b2f03a9
+_root="$(realpath "$startdir/../..")"
+
+build() {
+  rm -rf "$srcdir/umtp"
+  # LUMNA_UMTP_SRC: o código já baixado (o atualizar.sh traz do PC; o celular nem sempre alcança
+  # o GitHub). Sem ele, baixa na versão fixa.
+  if [ -n "${LUMNA_UMTP_SRC:-}" ] && [ -s "$LUMNA_UMTP_SRC" ]; then
+    mkdir -p "$srcdir/umtp"
+    tar -C "$srcdir/umtp" --strip-components=1 -xzf "$LUMNA_UMTP_SRC"
+  else
+    timeout 180 git clone -q https://github.com/viveris/uMTP-Responder "$srcdir/umtp"
+    git -C "$srcdir/umtp" checkout -q "$_umtp"
+  fi
+  make -C "$srcdir/umtp" CC="${CC:-cc}"
+}
+
+package() {
+  local s="$_root/mobile/session"
+  install -Dm755 "$srcdir/umtp/umtprd" "$pkgdir/usr/bin/umtprd"
+
+  # desligar sem esperar serviço travado; Wi-Fi sem economia de energia; botão power do LUMNA
+  install -Dm644 "$s/50-lumna-stop.conf" "$pkgdir/usr/lib/systemd/system.conf.d/50-lumna-stop.conf"
+  install -Dm644 "$s/50-lumna-stop.conf" "$pkgdir/usr/lib/systemd/user.conf.d/50-lumna-stop.conf"
+  install -Dm644 "$s/50-lumna-wifi.conf" "$pkgdir/usr/lib/NetworkManager/conf.d/50-lumna-wifi.conf"
+  install -Dm644 "$s/50-lumna-power.conf" "$pkgdir/usr/lib/systemd/logind.conf.d/50-lumna-power.conf"
+  install -Dm644 "$s/70-lumna-vibra.rules" "$pkgdir/usr/lib/udev/rules.d/70-lumna-vibra.rules"
+
+  # o modem desliga antes do rmtfs parar
+  install -Dm755 "$s/rmtfs/modem-stop.sh" "$pkgdir/usr/lib/lumna/modem-stop.sh"
+  install -Dm644 "$s/rmtfs/50-lumna.conf" "$pkgdir/usr/lib/systemd/system/rmtfs.service.d/50-lumna.conf"
+
+  # a hora certa já no boot, sem internet
+  install -Dm755 "$s/relogio/relogio.sh" "$pkgdir/usr/lib/lumna/relogio.sh"
+  install -Dm644 -t "$pkgdir/usr/lib/systemd/system" \
+    "$s"/relogio/lumna-relogio.service "$s"/relogio/lumna-relogio-guarda.{service,timer,path}
+
+  # arquivos pelo cabo USB
+  install -Dm755 "$s/usb/usb-arquivos.sh" "$pkgdir/usr/lib/lumna/usb-arquivos.sh"
+  install -Dm644 "$s/usb/umtprd.conf.in" "$pkgdir/usr/share/lumna/umtprd.conf.in"
+  install -Dm644 "$s/usb/lumna-usb-arquivos.service" "$pkgdir/usr/lib/systemd/system/lumna-usb-arquivos.service"
+  install -Dm644 "$s/usb/50-lumna-usb-arquivos.rules" "$pkgdir/usr/share/polkit-1/rules.d/50-lumna-usb-arquivos.rules"
+
+  # a sessão (o Hyprland do celular) e os apps da grade
+  install -Dm644 "$s/hyprland-mobile.lua" "$pkgdir/usr/share/lumna/hyprland-mobile.lua"
+  install -Dm644 -t "$pkgdir/usr/share/lumna/icons" "$s"/apps/*.svg
+  install -Dm644 -t "$pkgdir/usr/share/applications" "$s"/apps/*.desktop
+
+  # a Loja (o botão fica na gaveta de apps): instalar, remover e atualizar pelo pkexec (a senha é
+  # pedida na tela do LUMNA)
+  install -Dm755 "$_root/session/lumna-pkg" "$pkgdir/usr/lib/lumna/lumna-pkg"
+  install -Dm644 "$_root/session/os.lumna.pkg.policy" "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
+}

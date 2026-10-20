@@ -1,0 +1,53 @@
+# Os serviços do celular, ligados. Antes do pacote o mobile/session/lumna-mobile.sh copiava tudo
+# em /etc e /usr/local: essas cópias saem (as de /etc passariam por cima das do pacote).
+
+_velhos() {
+  rm -f /etc/systemd/system/lumna-relogio.service \
+        /etc/systemd/system/lumna-relogio-guarda.service \
+        /etc/systemd/system/lumna-relogio-guarda.timer \
+        /etc/systemd/system/lumna-relogio-guarda.path \
+        /etc/systemd/system/lumna-usb-arquivos.service \
+        /etc/systemd/system/rmtfs.service.d/50-lumna.conf \
+        /etc/systemd/system.conf.d/50-lumna-stop.conf \
+        /etc/systemd/user.conf.d/50-lumna-stop.conf \
+        /etc/systemd/logind.conf.d/50-lumna-power.conf \
+        /etc/NetworkManager/conf.d/50-lumna-wifi.conf \
+        /etc/udev/rules.d/70-lumna-vibra.rules \
+        /etc/polkit-1/rules.d/50-lumna-usb-arquivos.rules \
+        /etc/umtprd/umtprd.conf \
+        /usr/local/bin/umtprd \
+        /usr/local/share/lumna/umtprd.ref \
+        /usr/local/lib/lumna/relogio.sh \
+        /usr/local/lib/lumna/usb-arquivos.sh \
+        /usr/local/lib/lumna/modem-stop.sh
+  rmdir /etc/umtprd /etc/systemd/system/rmtfs.service.d 2>/dev/null || true
+}
+
+_ligar() {
+  systemctl daemon-reload 2>/dev/null || true
+  # reenable: os links antigos apontavam pras cópias de /etc, que saíram
+  systemctl reenable lumna-relogio.service lumna-relogio-guarda.timer lumna-relogio-guarda.path >/dev/null 2>&1 || true
+  systemctl start lumna-relogio-guarda.timer lumna-relogio-guarda.path >/dev/null 2>&1 || true
+  systemctl enable bluetooth.service >/dev/null 2>&1 || true
+  # os botões do fone Bluetooth viram comandos de mídia (MPRIS)
+  systemctl --global enable mpris-proxy.service >/dev/null 2>&1 || true
+  udevadm control --reload 2>/dev/null || true
+  udevadm trigger --subsystem-match=input --action=change 2>/dev/null || true
+  # o logind relê a config sem derrubar a sessão
+  systemctl kill -s HUP systemd-logind 2>/dev/null || true
+  systemctl reload NetworkManager 2>/dev/null || true
+}
+
+post_install() {
+  _velhos
+  _ligar
+}
+
+post_upgrade() {
+  _velhos
+  _ligar
+}
+
+pre_remove() {
+  systemctl disable lumna-relogio.service lumna-relogio-guarda.timer lumna-relogio-guarda.path >/dev/null 2>&1 || true
+}

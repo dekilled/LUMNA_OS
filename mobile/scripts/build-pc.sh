@@ -91,6 +91,8 @@ mkdir -p "$OUT"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 cp "$ROOT/packages/lumna-shell/PKGBUILD" "$work/"
+# a mesma versão que o GitHub daria a este código (sem git, fica a do PKGBUILD)
+versao=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-shell 2>/dev/null) && sed -i "s/^pkgver=.*/pkgver=$versao/" "$work/PKGBUILD" || true
 sed "s|^CARCH=.*|CARCH=\"aarch64\"|; s|^CHOST=.*|CHOST=\"aarch64-unknown-linux-gnu\"|" /etc/makepkg.conf > "$work/makepkg.conf"
 (
     cd "$work"

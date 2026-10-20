@@ -215,7 +215,8 @@ export const storeSources = () => invoke<StoreSources>("store_sources");
 export const storeInstall = (p: Pick<StorePackage, "source" | "name" | "repo">) =>
   invoke<void>("store_install", { source: p.source, name: p.name, repo: p.repo });
 export const storeRemove = (p: Pick<StorePackage, "source" | "name">) => invoke<void>("store_remove", { source: p.source, name: p.name });
-export const storeUpgrade = (source: StoreSource) => invoke<void>("store_upgrade", { source });
+/** `true`: o lumna-shell mudou e o LUMNA vai reiniciar (celular). */
+export const storeUpgrade = (source: StoreSource) => invoke<boolean>("store_upgrade", { source });
 export const storeSetMultilib = (on: boolean) => invoke<void>("store_set_multilib", { on });
 export const storeSetFlathub = (on: boolean) => invoke<void>("store_set_flathub", { on });
 export const storeSetAur = (on: boolean) => invoke<void>("store_set_aur", { on });

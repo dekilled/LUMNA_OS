@@ -1,4 +1,6 @@
 #!/bin/sh
+# Pra testar no celular o que ainda não foi pro GitHub. (O normal agora é pela Loja: a cada push no
+# lumna-mobile o GitHub compila os pacotes e o celular mostra em Loja → Atualizações.)
 # Atualiza o celular inteiro com um comando só, rodado NO PC, na raiz do LUMNA_OS:
 #   sh mobile/scripts/atualizar.sh              # celular na USB (alarm@172.16.42.1)
 #   sh mobile/scripts/atualizar.sh alarm@IP     # outro endereço
@@ -22,7 +24,7 @@ for a in "$@"; do
     case $a in
         --ver) VER=1 ;;
         --tudo) TUDO=1 ;;
-        -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
         *) PHONE=$a ;;
     esac
 done
@@ -79,7 +81,7 @@ digital() {
       git -C "$repo" ls-files --others --exclude-standard -- "$@"; } | sha1sum | cut -c1-12
 }
 NOVO_SHELL=$(digital "$ROOT" shell crates Cargo.toml Cargo.lock packages/lumna-shell)
-NOVO_SESSAO=$(digital "$ROOT" mobile/session)
+NOVO_SESSAO=$(digital "$ROOT" mobile/session packages/lumna-mobile session/lumna-pkg session/os.lumna.pkg.policy)
 # o que só vale depois de reiniciar o celular (boot, desligar, modem)
 NOVO_BOOT=$(digital "$ROOT" mobile/session/boot-ok.sh mobile/session/lumna-boot-ok.service mobile/session/50-lumna-stop.conf mobile/session/rmtfs)
 NOVO_EMMA=-
@@ -124,10 +126,10 @@ fi
 passo "mandando pro celular"
 DEST='.cache/lumna-implantar'
 s "$PHONE" "rm -rf ~/$DEST && mkdir -p ~/$DEST"
-# só o que os scripts do celular usam (a sessão e as receitas dos pacotes)
-tar -C "$ROOT" -czf - mobile/session packages | s "$PHONE" "tar -C ~/$DEST -xzf -"
+# só o que os scripts do celular usam (a sessão, a Loja e as receitas dos pacotes)
+tar -C "$ROOT" -czf - mobile/session packages session/lumna-pkg session/os.lumna.pkg.policy | s "$PHONE" "tar -C ~/$DEST -xzf -"
 # o código do uMTP-Responder (arquivos pelo cabo) vai daqui: o celular nem sempre alcança o GitHub
-UMTP_REF=$(sed -n 's/^UMTP_REF=//p' "$ROOT/mobile/session/lumna-mobile.sh")
+UMTP_REF=$(sed -n 's/^_umtp=//p' "$ROOT/packages/lumna-mobile/PKGBUILD")
 UMTP_SRC="$ROOT/mobile/cache/umtp-$UMTP_REF.tar.gz"
 if [ -n "$UMTP_REF" ] && [ ! -s "$UMTP_SRC" ]; then
     mkdir -p "$ROOT/mobile/cache"
@@ -154,7 +156,7 @@ if [ -n "$FAZ_SHELL$FAZ_SESSAO" ]; then
     PACOTE=manter
     [ -z "$PKG" ] || PACOTE="\$HOME/$DEST/$(basename "$PKG")"
     # no fim ele reinicia a sessão (a tela pisca e o LUMNA volta)
-    REMOTO="$REMOTO; echo '--- interface e sessão'; LUMNA_PACOTE=$PACOTE sh mobile/session/lumna-mobile.sh"
+    REMOTO="$REMOTO; echo '--- interface e sessão'; LUMNA_PACOTE=$PACOTE LUMNA_VERSAO_MOBILE=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-mobile) sh mobile/session/lumna-mobile.sh"
 fi
 REMOTO="$REMOTO; mkdir -p ~/.config/lumna; printf 'shell=%s\nsessao=%s\nboot=%s\nemma=%s\n' '$NOVO_SHELL' '$NOVO_SESSAO' '$NOVO_BOOT' '$(
     [ "$NOVO_EMMA" = - ] && antes emma || echo "$NOVO_EMMA")' > ~/.config/lumna/implantado"

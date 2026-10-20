@@ -817,6 +817,7 @@ async fn notification_open(app: AppHandle, target: String) -> Result<(), String>
     match target.split_once(':') {
         Some(("remote", pc)) => open_remote(&app, Some(pc.to_string()).filter(|p| !p.is_empty())),
         Some(("gallery", path)) => open_gallery(&app, Some(path.to_string()).filter(|p| !p.is_empty())),
+        Some(("store", tab)) => open_store(&app, Some(tab.to_string()).filter(|t| !t.is_empty())),
         _ => Err(format!("não sei abrir {target}")),
     }
 }
@@ -950,6 +951,22 @@ async fn emma_app_open(app: AppHandle, tab: Option<String>) -> Result<(), String
     // o popup sai da frente (o app continua a conversa por lá)
     let _ = emma_panel(&app, LauncherAction::Close);
     open_emma_app(&app, tab)
+}
+
+/// Reinicia o LUMNA (depois de uma atualização do lumna-shell): um novo, com os mesmos argumentos,
+/// sobe um instante depois que este sai (as camadas, os avisos no D-Bus e o socket ficam livres).
+/// A saída continua indo pro mesmo lugar (no celular, o journal).
+pub fn restart_shell(app: &AppHandle) {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let spawned = std::process::Command::new("sh")
+        .args(["-c", "sleep 1; exec lumna-shell \"$@\"", "lumna-shell"])
+        .args(&args)
+        .stdin(std::process::Stdio::null())
+        .spawn();
+    match spawned {
+        Ok(_) => app.exit(0),
+        Err(err) => eprintln!("lumna-shell: não deu pra reiniciar: {err}"),
+    }
 }
 
 /// Abre a Loja (janela comum), na aba pedida.
@@ -1991,6 +2008,7 @@ fn main() {
                 connect::start(app.handle().clone());
                 mpris::start(app.handle().clone());
                 usb::watch(app.handle().clone());
+                store::watch_updates(app.handle().clone());
                 mobile::track_data_usage();
                 return Ok(());
             }

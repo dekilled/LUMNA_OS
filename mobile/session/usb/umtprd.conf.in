@@ -1,4 +1,4 @@
-# Gerado pelo lumna-mobile.sh: o armazenamento do celular pelo cabo USB (MTP).
+# Modelo da config do umtprd: o usb-arquivos.sh preenche com a pessoa que está na tela.
 loop_on_disconnect 1
 # a pasta da pessoa, sem os arquivos ocultos (configurações, chaves); o que o PC cria é dela
 storage "@HOME@" "Armazenamento interno" "rw,uid=@UID@,gid=@GID@"

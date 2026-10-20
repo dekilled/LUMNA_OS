@@ -7,12 +7,18 @@
 //!   passa pelo `lumna-pkg`).
 //!
 //! Uma operação por vez; o andamento sai linha a linha no evento `lumna://store-job`.
+//!
+//! No celular os pacotes do LUMNA vêm do repositório [lumna-celular] (o GitHub compila a cada
+//! push): de tempos em tempos a Loja procura atualizações e avisa, e só atualiza quando a pessoa
+//! toca em Atualizar. Se o lumna-shell mudou, o LUMNA reinicia sozinho no fim.
 
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -257,6 +263,106 @@ pub fn parse_checkupdates(out: &str) -> Vec<Update> {
             (f.len() == 4 && f[2] == "->").then(|| Update { source: "arch", name: f[0].into(), from: f[1].into(), to: f[3].into() })
         })
         .collect()
+}
+
+/// Os pacotes do LUMNA, pelo nome que a pessoa conhece.
+fn lumna_label(name: &str) -> Option<&'static str> {
+    match name {
+        "lumna-shell" => Some("interface"),
+        "lumna-mobile" => Some("sistema do celular"),
+        "lumna-emma" => Some("Emma"),
+        _ => None,
+    }
+}
+
+/// O aviso de atualizações: as do LUMNA pelo nome, as outras só contadas.
+pub fn notice_text(list: &[Update]) -> (String, String) {
+    let ours: Vec<&str> = list.iter().filter_map(|u| lumna_label(&u.name)).collect();
+    let others = list.len() - ours.len();
+    let system = match others {
+        0 => String::new(),
+        1 => "1 atualização do sistema".into(),
+        n => format!("{n} atualizações do sistema"),
+    };
+    if ours.is_empty() {
+        return ("Atualizações disponíveis".into(), format!("{system}. Toque para ver na Loja."));
+    }
+    let names = match ours.as_slice() {
+        [one] => one.to_string(),
+        [rest @ .., last] => format!("{} e {last}", rest.join(", ")),
+        [] => unreachable!(),
+    };
+    let body = if others == 0 { format!("Novidades: {names}.") } else { format!("Novidades: {names} · e mais {system}.") };
+    ("Atualização do LUMNA".into(), format!("{body} Toque para ver na Loja."))
+}
+
+/// O aviso na tela agora (0: nenhum) e o que ele mostrava.
+static NOTICE: AtomicU32 = AtomicU32::new(0);
+static NOTICED: Mutex<String> = Mutex::new(String::new());
+
+fn close_notice(app: &AppHandle) {
+    let id = NOTICE.swap(0, Ordering::SeqCst);
+    if id != 0 {
+        crate::notifications::local_close(app, id);
+    }
+}
+
+/// Celular: procura atualizações pouco depois de ligar e de 6 em 6 horas, e avisa quando aparece
+/// algo novo (o mesmo aviso não volta). Tocar no aviso abre a Loja em Atualizações.
+pub fn watch_updates(app: AppHandle) {
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(180));
+        loop {
+            if let Some(list) = check_updates() {
+                let key: Vec<String> = list.iter().map(|u| format!("{} {}", u.name, u.to)).collect();
+                let key = key.join(",");
+                let mut noticed = NOTICED.lock().unwrap();
+                if list.is_empty() {
+                    close_notice(&app);
+                } else if *noticed != key {
+                    close_notice(&app);
+                    let (summary, body) = notice_text(&list);
+                    let id = crate::notifications::local_open(&app, "Loja", &summary, &body, false, Some("store:atualizacoes".into()));
+                    NOTICE.store(id, Ordering::SeqCst);
+                }
+                *noticed = key;
+            }
+            std::thread::sleep(Duration::from_secs(6 * 3600));
+        }
+    });
+}
+
+/// O `checkupdates`: sai 0 com a lista, 2 sem nada novo e 1 quando falha (sem internet: `None`).
+fn check_updates() -> Option<Vec<Update>> {
+    let out = Command::new("checkupdates").env("LC_ALL", "C").stdin(Stdio::null()).output().ok()?;
+    match out.status.code() {
+        Some(0) => Some(parse_checkupdates(&String::from_utf8_lossy(&out.stdout))),
+        Some(2) => Some(Vec::new()),
+        _ => None,
+    }
+}
+
+fn installed_version(name: &str) -> Option<String> {
+    output("pacman", &["-Q", name]).and_then(|o| o.split_whitespace().nth(1).map(str::to_string))
+}
+
+/// Depois de atualizar pelo pacman: a Emma nova entra no ar e, no celular, se o lumna-shell mudou,
+/// o LUMNA reinicia (devolve `true`: a Loja avisa antes de sumir).
+fn after_upgrade(app: &AppHandle, shell: Option<String>, emma: Option<String>) -> bool {
+    close_notice(app);
+    NOTICED.lock().unwrap().clear();
+    if emma.is_some() && installed_version("lumna-emma") != emma {
+        let _ = Command::new("systemctl").args(["--user", "restart", "lumna-emma"]).stdin(Stdio::null()).status();
+    }
+    let restart = crate::MOBILE.load(Ordering::Relaxed) && installed_version("lumna-shell") != shell;
+    if restart {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(3));
+            crate::restart_shell(&app);
+        });
+    }
+    restart
 }
 
 /// Codifica a busca para a URL do AUR.
@@ -613,18 +719,22 @@ pub async fn store_remove(app: AppHandle, source: String, name: String) -> Resul
     .map_err(|e| e.to_string())?
 }
 
-/// Atualiza tudo de uma fonte (`arch`, `flathub` ou `aur`).
+/// Atualiza tudo de uma fonte (`arch`, `flathub` ou `aur`). `true`: o LUMNA vai reiniciar.
 #[tauri::command]
-pub async fn store_upgrade(app: AppHandle, source: String) -> Result<(), String> {
+pub async fn store_upgrade(app: AppHandle, source: String) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _busy = Busy::take()?;
         let key = format!("upgrade:{source}");
         match source.as_str() {
-            "arch" => stream(&app, &key, pkexec(&["upgrade"])),
+            "arch" => {
+                let (shell, emma) = (installed_version("lumna-shell"), installed_version("lumna-emma"));
+                stream(&app, &key, pkexec(&["upgrade"]))?;
+                Ok(after_upgrade(&app, shell, emma))
+            }
             "flathub" => {
                 let mut c = Command::new("flatpak");
                 c.args(["update", "-y", "--noninteractive"]);
-                stream(&app, &key, c)
+                stream(&app, &key, c).map(|()| false)
             }
             "aur" => {
                 let names: Vec<String> = output("pacman", &["-Qmq"]).map(|o| o.lines().map(str::to_string).collect()).unwrap_or_default();
@@ -637,7 +747,7 @@ pub async fn store_upgrade(app: AppHandle, source: String) -> Result<(), String>
                         build_aur(&app, &key, base)?;
                     }
                 }
-                Ok(())
+                Ok(false)
             }
             _ => Err("Fonte desconhecida.".into()),
         }
@@ -701,6 +811,18 @@ mod tests {
 
         let up = parse_checkupdates("firefox 130.0-1 -> 131.0-1\nlixo\n");
         assert_eq!(up, vec![Update { source: "arch", name: "firefox".into(), from: "130.0-1".into(), to: "131.0-1".into() }]);
+    }
+
+    #[test]
+    fn update_notice() {
+        let up = |n: &str| Update { source: "arch", name: n.into(), from: "1".into(), to: "2".into() };
+        let (title, body) = notice_text(&[up("lumna-shell"), up("lumna-emma"), up("mesa"), up("glibc")]);
+        assert_eq!(title, "Atualização do LUMNA");
+        assert_eq!(body, "Novidades: interface e Emma · e mais 2 atualizações do sistema. Toque para ver na Loja.");
+        let (_, body) = notice_text(&[up("lumna-mobile")]);
+        assert_eq!(body, "Novidades: sistema do celular. Toque para ver na Loja.");
+        let (title, body) = notice_text(&[up("mesa")]);
+        assert_eq!((title.as_str(), body.as_str()), ("Atualizações disponíveis", "1 atualização do sistema. Toque para ver na Loja."));
     }
 
     #[test]

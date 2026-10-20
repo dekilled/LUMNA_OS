@@ -16,7 +16,7 @@ O que for fechado a gente reaproveita do Android ou contorna com driver mínimo.
 1. ✅ Hyprland no 6T: tela, toque e GPU Adreno 630 pelo freedreno (`session/primeira-tela.sh`).
 2. ✅ `lumna-shell --mobile` rodando no 6T (a bateria já aparece na barra de status): barra de status, Início (relógio e "Pergunte à Emma"), aba Apps e
    barra de navegação (Início, Apps, Arquivos, Ajustes, Emma). Arquivos, Ajustes e Emma abrem os
-   mesmos apps do PC. Compila no celular com `sh mobile/session/lumna-mobile.sh`.
+   mesmos apps do PC. Instala com `sh mobile/session/lumna-mobile.sh` (pelos pacotes do GitHub).
 3. LUMNA Keyboard (`shell/src/components/mobile/MobileKeyboard.vue` + `touchkeys.rs`): letras ABNT
    com ç, duas páginas de símbolos e acentos. A barra de cima tem três camadas: ferramentas (Ajustes,
    Emojis, Copiados; a padrão), sugestões (aparece ao digitar, aprende as palavras) e atalhos (Esc,
@@ -158,9 +158,31 @@ Pra que serve cada grupo:
 
 Se faltar alguma coisa, o script avisa todos os comandos que faltam de uma vez e o pacote de cada um.
 
-### Compilar e testar
+### Atualizar pela Loja (o normal)
 
-**O jeito fácil: um comando só, no PC, com o celular no cabo USB:**
+A cada push no `lumna-mobile` o workflow **Celular** (`.github/workflows/celular.yml`) compila os
+pacotes do celular numa máquina ARM do GitHub, dentro de um Arch Linux ARM igual ao do celular
+(`mobile/scripts/ci-celular.sh`), e publica o repositório `[lumna-celular]` na release `celular`:
+
+- `lumna-shell`: a interface;
+- `lumna-mobile` (`packages/lumna-mobile`): tudo do celular que o `lumna-mobile.sh` copiava à mão
+  (hora sem internet, desligar rápido, Wi-Fi, modem, arquivos pelo cabo com o umtprd, vibração,
+  botão power, a config do Hyprland, os apps da grade e o ajudante da Loja);
+- `lumna-emma`: o servidor da Emma (precisa do segredo `EMMA_REPO_TOKEN`, como no ISO).
+
+Cada pacote tem a versão contada pelos commits que mexeram nele (`mobile/scripts/versao.sh`): o que
+não mudou não é compilado de novo nem aparece como atualização. O celular procura atualizações
+pouco depois de ligar e de 6 em 6 horas e avisa; tocar no aviso abre **Loja → Atualizações**, e
+nada é instalado sem você tocar em **Atualizar**. Se a interface mudou, o LUMNA reinicia sozinho
+no fim; a Emma nova entra no ar sozinha.
+
+Pra ligar isso num celular que ainda está no jeito antigo: rode o `atualizar.sh` uma vez (ou
+`sh mobile/session/lumna-mobile.sh` no celular). Ele põe o `[lumna-celular]` no
+`/etc/pacman.conf` e troca as cópias à mão pelos pacotes.
+
+### Compilar e testar (antes de ir pro GitHub)
+
+**Um comando só, no PC, com o celular no cabo USB:**
 ```
 sh mobile/scripts/atualizar.sh            # baixa as novidades, compila e instala só o que mudou
 sh mobile/scripts/atualizar.sh --ver      # só mostra o que mudou
@@ -178,7 +200,8 @@ sh mobile/scripts/build-pc.sh alarm@<ip-do-celular> # e já instala no celular p
 Compilação cruzada (o PC gera código ARM direto, sem emular), linkando contra um sysroot do
 Arch Linux ARM em `~/.cache/lumna/sysroot-aarch64` (baixado na primeira vez). No PC precisa de
 `rustup clang lld llvm pnpm nodejs base-devel`. No celular, com o pacote:
-`LUMNA_PACOTE=<arquivo> sh mobile/session/lumna-mobile.sh` (instala e configura, sem compilar).
+`LUMNA_PACOTE=<arquivo> sh mobile/session/lumna-mobile.sh` (instala ele e compila lá o
+`lumna-mobile`, que leva um minuto).
 
 
 ```sh

@@ -1,0 +1,69 @@
+name: Celular
+
+# Os pacotes do celular (lumna-shell, lumna-mobile e lumna-emma, aarch64) compilados num Arch
+# Linux ARM, numa máquina ARM do GitHub, e publicados como o repositório [lumna-celular] na
+# release "celular". O celular vê as novidades na Loja → Atualizações (e só atualiza com um toque).
+on:
+  push:
+    branches: [lumna-mobile]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# um build por vez; um push novo espera o que está rodando terminar (nunca publica pela metade)
+concurrency:
+  group: celular
+  cancel-in-progress: false
+
+jobs:
+  pacotes:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # as versões contam os commits
+
+      # A Emma (backend) mora no NewHarnessV2, privado: com o segredo EMMA_REPO_TOKEN ela entra;
+      # sem ele, fica a última publicada.
+      - name: Baixa a Emma
+        env:
+          EMMA_REPO_TOKEN: ${{ secrets.EMMA_REPO_TOKEN }}
+          EMMA_REF: ${{ vars.EMMA_REF || 'main' }}
+        run: |
+          if [ -n "$EMMA_REPO_TOKEN" ]; then
+            git clone --branch "$EMMA_REF" \
+              "https://x-access-token:${EMMA_REPO_TOKEN}@github.com/dekilled/NewHarnessV2.git" "$RUNNER_TEMP/emma"
+            echo "EMMA_SRC=$RUNNER_TEMP/emma" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Sem EMMA_REPO_TOKEN: a Emma fica com o pacote já publicado."
+          fi
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/lumna-celular
+          key: celular-${{ hashFiles('Cargo.lock', 'shell/pnpm-lock.yaml') }}-${{ github.run_id }}
+          restore-keys: celular-
+
+      - name: Compila no Arch Linux ARM
+        run: sudo -E env LUMNA_CACHE="$HOME/.cache/lumna-celular" sh mobile/scripts/ci-celular.sh
+
+      # Pacotes primeiro, o banco por último: quem atualizar no meio do caminho ainda acha tudo
+      # que o banco antigo aponta.
+      - name: Publica o repositório [lumna-celular]
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          command -v gh >/dev/null || { sudo apt-get update -q && sudo apt-get install -yq gh; }
+          cd out/celular
+          gh release view celular >/dev/null 2>&1 || gh release create celular --prerelease \
+            --target lumna-mobile \
+            --title "Repositório [lumna-celular]" \
+            --notes "Pacotes do LUMNA para o celular (aarch64). Não baixe à mão: a Loja do celular usa isto sozinha."
+          ls ./*.pkg.tar.zst >/dev/null 2>&1 && gh release upload celular --clobber ./*.pkg.tar.zst
+          gh release upload celular --clobber lumna-celular.db lumna-celular.db.tar.gz lumna-celular.files lumna-celular.files.tar.gz
+          # o banco novo já não aponta para os pacotes velhos: saem
+          gh release view celular --json assets -q '.assets[].name' | while read -r asset; do
+            [ -e "$asset" ] || gh release delete-asset celular "$asset" -y
+          done

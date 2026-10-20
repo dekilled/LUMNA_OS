@@ -3,4 +3,4 @@ Description=LUMNA: guarda a hora do celular
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/lib/lumna/relogio.sh guarda
+ExecStart=/usr/lib/lumna/relogio.sh guarda

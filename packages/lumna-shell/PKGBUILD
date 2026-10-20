@@ -22,7 +22,8 @@ build() {
   # passa da memória e o kernel mata ele (SIGKILL). Menos tarefas e menos partes ao mesmo tempo.
   if [ "$CARCH" = "aarch64" ]; then
     # uma parte só (um processo do LLVM por vez) e otimização -O2: o pico de memória cai bem
-    export CARGO_BUILD_JOBS=1
+    # (no GitHub, LUMNA_CI, sobra memória pra compilar as dependências em paralelo)
+    [ -n "${LUMNA_CI:-}" ] || export CARGO_BUILD_JOBS=1
     export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
     export CARGO_PROFILE_RELEASE_OPT_LEVEL=2
     export CARGO_PROFILE_RELEASE_LTO=false
