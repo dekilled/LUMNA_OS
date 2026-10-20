@@ -1,0 +1,169 @@
+#include "orbit.h"
+
+#include <getopt.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <wlr/backend.h>
+#include <wlr/render/allocator.h>
+#include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_fractional_scale_v1.h>
+#include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_scene.h>
+#include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_subcompositor.h>
+#include <wlr/types/wlr_viewporter.h>
+#include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/log.h>
+
+static int env_int(const char *name, int fallback, int min, int max) {
+	const char *text = getenv(name);
+	if (!text || !text[0]) {
+		return fallback;
+	}
+	char *end = NULL;
+	long value = strtol(text, &end, 10);
+	if (end == text || *end != '\0' || value < min || value > max) {
+		wlr_log(WLR_ERROR, "%s=%s inválido (%d..%d); a usar %d", name, text, min, max, fallback);
+		return fallback;
+	}
+	return (int)value;
+}
+
+static float env_float(const char *name, float fallback, float min, float max) {
+	const char *text = getenv(name);
+	if (!text || !text[0]) {
+		return fallback;
+	}
+	char *end = NULL;
+	float value = strtof(text, &end);
+	if (end == text || *end != '\0' || value < min || value > max) {
+		wlr_log(WLR_ERROR, "%s=%s inválido (%.1f..%.1f); a usar %.1f", name, text, min, max, fallback);
+		return fallback;
+	}
+	return value;
+}
+
+static int fail(struct orbit_server *server, const char *msg) {
+	wlr_log(WLR_ERROR, "%s", msg);
+	if (server->display) {
+		wl_display_destroy(server->display);
+		server->display = NULL;
+	}
+	orbit_xkb_finish();
+	return 1;
+}
+
+int main(int argc, char *argv[]) {
+	char *startup = NULL;
+	int opt;
+	while ((opt = getopt(argc, argv, "s:h")) != -1) {
+		if (opt == 's') {
+			startup = optarg;
+		} else {
+			fprintf(stderr, "uso: %s [-s comando]\n", argv[0]);
+			return opt == 'h' ? 0 : 1;
+		}
+	}
+
+	wlr_log_init(WLR_INFO, NULL);
+	struct orbit_server server = { 0 };
+	server.master_pct = env_int("ORBIT_MASTER", ORBIT_MASTER_DEFAULT, ORBIT_MASTER_MIN, ORBIT_MASTER_MAX);
+	server.gap = env_int("ORBIT_GAP", ORBIT_GAP_DEFAULT, 0, ORBIT_GAP_MAX);
+	server.phone_scale = env_float("ORBIT_PHONE_SCALE", ORBIT_PHONE_SCALE_DEFAULT, 1.0f, 3.0f);
+	server.term = getenv("ORBIT_TERMINAL");
+	server.display = wl_display_create();
+	if (!server.display) {
+		wlr_log(WLR_ERROR, "falha ao criar o display Wayland");
+		return 1;
+	}
+
+	struct wlr_session *session = NULL;
+	server.backend = wlr_backend_autocreate(wl_display_get_event_loop(server.display), &session);
+	(void)session;
+	if (!server.backend) {
+		return fail(&server, "falha ao criar o backend");
+	}
+	server.renderer = wlr_renderer_autocreate(server.backend);
+	if (!server.renderer) {
+		return fail(&server, "falha ao criar o renderer");
+	}
+	wlr_renderer_init_wl_display(server.renderer, server.display);
+	server.allocator = wlr_allocator_autocreate(server.backend, server.renderer);
+	if (!server.allocator) {
+		return fail(&server, "falha ao criar o allocator");
+	}
+
+	if (!wlr_compositor_create(server.display, 5, server.renderer)) {
+		return fail(&server, "falha ao criar o compositor");
+	}
+	wlr_subcompositor_create(server.display);
+	wlr_data_device_manager_create(server.display);
+	wlr_viewporter_create(server.display);
+	wlr_fractional_scale_manager_v1_create(server.display, 1);
+
+	server.layout = wlr_output_layout_create(server.display);
+	if (!server.layout) {
+		return fail(&server, "falha ao criar o layout de saídas");
+	}
+	wl_list_init(&server.outputs);
+	orbit_outputs_bind(&server);
+
+	server.scene = wlr_scene_create();
+	if (!server.scene) {
+		return fail(&server, "falha ao criar a cena");
+	}
+	wlr_scene_attach_output_layout(server.scene, server.layout);
+
+	wl_list_init(&server.views);
+	server.xdg_shell = wlr_xdg_shell_create(server.display, 3);
+	if (!server.xdg_shell) {
+		return fail(&server, "falha ao criar o xdg_shell");
+	}
+	orbit_views_bind(&server);
+
+	server.cursor = wlr_cursor_create();
+	if (!server.cursor) {
+		return fail(&server, "falha ao criar o cursor");
+	}
+	wlr_cursor_attach_output_layout(server.cursor, server.layout);
+	server.cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+	if (!server.cursor_mgr) {
+		return fail(&server, "falha ao criar o cursor X");
+	}
+	wlr_xcursor_manager_load(server.cursor_mgr, 1);
+	wlr_xcursor_manager_load(server.cursor_mgr, 2);
+
+	wl_list_init(&server.keyboards);
+	wl_list_init(&server.touches);
+	server.seat = wlr_seat_create(server.display, "seat0");
+	if (!server.seat) {
+		return fail(&server, "falha ao criar o seat0");
+	}
+	orbit_input_bind(&server);
+	orbit_xkb_prepare();
+
+	const char *socket = wl_display_add_socket_auto(server.display);
+	if (!socket) {
+		return fail(&server, "falha ao abrir o socket Wayland");
+	}
+	if (!wlr_backend_start(server.backend)) {
+		return fail(&server, "falha ao arrancar o backend");
+	}
+	setenv("WAYLAND_DISPLAY", socket, 1);
+	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala do telemóvel %.2f",
+		socket, server.gap, server.master_pct, server.phone_scale);
+	if (startup && fork() == 0) {
+		execl("/bin/sh", "/bin/sh", "-c", startup, (char *)NULL);
+		_exit(1);
+	}
+	wl_display_run(server.display);
+	wl_display_destroy_clients(server.display);
+	wl_display_destroy(server.display);
+	orbit_xkb_finish();
+	return 0;
+}
