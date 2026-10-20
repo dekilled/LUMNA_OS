@@ -31,20 +31,36 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 	if (h < 1) {
 		h = 1;
 	}
+	int b = view->server->border_px;
+	bool inset = !view->fullscreen && view->border && b > 0 && w > b * 2 && h > b * 2;
+	int cw = inset ? w - b * 2 : w;
+	int ch = inset ? h - b * 2 : h;
 	view->x = x;
 	view->y = y;
 	view->w = w;
 	view->h = h;
 	wlr_scene_node_set_enabled(&view->scene_tree->node, true);
-	wlr_scene_node_set_position(&view->scene_tree->node, x, y);
-	wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)w, (uint32_t)h);
+	if (view->border) {
+		wlr_scene_node_set_enabled(&view->border->node, inset);
+		if (inset) {
+			wlr_scene_rect_set_size(view->border, w, h);
+			wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
+		}
+	}
+	orbit_slide(view, x, y);
+	wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)cw, (uint32_t)ch);
 	wlr_xdg_toplevel_set_fullscreen(view->toplevel, view->fullscreen);
 	wlr_xdg_toplevel_set_tiled(view->toplevel,
 		tiled ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM : WLR_EDGE_NONE);
+	orbit_foreign_sync(view);
 }
 
 static void hide_view(struct orbit_view *view) {
+	orbit_slide_stop(view);
 	wlr_scene_node_set_enabled(&view->scene_tree->node, false);
+	if (view->border) {
+		wlr_scene_node_set_enabled(&view->border->node, false);
+	}
 }
 
 static bool split_candidate(struct orbit_view *view, struct orbit_output *output) {
@@ -202,8 +218,75 @@ static void phone_arrange(struct orbit_server *server, const struct wlr_box *box
 	}
 }
 
+static void fibonacci(struct orbit_server *server, const struct wlr_box *box,
+		struct orbit_view **tiled, int n, bool spiral) {
+	int gap = server->gap;
+	int x = box->x + gap;
+	int y = box->y + gap;
+	int w = box->width - 2 * gap;
+	int h = box->height - 2 * gap;
+	if (w < 1) {
+		w = 1;
+	}
+	if (h < 1) {
+		h = 1;
+	}
+	for (int i = 0; i < n; i++) {
+		if (i == n - 1) {
+			place(tiled[i], x, y, w, h, true);
+			break;
+		}
+		bool vertical = i % 2 == 1;
+		bool flip = !spiral && (i % 4 == 2 || i % 4 == 3);
+		if (!vertical) {
+			int part = w * (i == 0 ? server->master_pct : 50) / 100;
+			if (part < 1) {
+				part = 1;
+			}
+			if (part >= w) {
+				part = w / 2;
+			}
+			if (flip) {
+				place(tiled[i], x + (w - part) + gap, y, part - gap, h, true);
+				w -= part;
+			} else {
+				place(tiled[i], x, y, part - gap, h, true);
+				x += part;
+				w -= part;
+			}
+		} else {
+			int part = h / 2;
+			if (part < 1) {
+				part = 1;
+			}
+			if (flip) {
+				place(tiled[i], x, y + (h - part) + gap, w, part - gap, true);
+				h -= part;
+			} else {
+				place(tiled[i], x, y, w, part - gap, true);
+				y += part;
+				h -= part;
+			}
+		}
+	}
+}
+
 static void desktop_arrange(struct orbit_server *server, const struct wlr_box *box,
 		struct orbit_view **tiled, int n) {
+	if (server->layout == ORBIT_LAYOUT_MONOCLE) {
+		raise_focused(server, tiled, n);
+		if (n > 0) {
+			place(tiled[0], box->x, box->y, box->width, box->height, true);
+			for (int i = 1; i < n; i++) {
+				hide_view(tiled[i]);
+			}
+		}
+		return;
+	}
+	if (server->layout == ORBIT_LAYOUT_SPIRAL || server->layout == ORBIT_LAYOUT_DWINDLE) {
+		fibonacci(server, box, tiled, n, server->layout == ORBIT_LAYOUT_SPIRAL);
+		return;
+	}
 	int gap = server->gap;
 	if (n == 1) {
 		place(tiled[0], box->x + gap, box->y + gap, box->width - 2 * gap, box->height - 2 * gap, true);
@@ -259,6 +342,9 @@ void orbit_arrange(struct orbit_server *server) {
 			continue;
 		}
 
+		orbit_lock_configure(output);
+		struct wlr_box usable = orbit_layer_usable(output, &box);
+
 		struct orbit_view *tiled[ORBIT_MAX_VIEWS];
 		struct orbit_view *full = NULL;
 		int n = 0;
@@ -276,6 +362,10 @@ void orbit_arrange(struct orbit_server *server) {
 				full = view;
 			}
 			if (view->floating && !view->fullscreen) {
+				view->sliding = false;
+				view->placed = true;
+				view->slide_x = view->x;
+				view->slide_y = view->y;
 				wlr_scene_node_set_enabled(&view->scene_tree->node, true);
 				wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 				wlr_xdg_toplevel_set_fullscreen(view->toplevel, false);
@@ -312,10 +402,28 @@ void orbit_arrange(struct orbit_server *server) {
 			continue;
 		}
 		if (phone) {
-			phone_arrange(server, &box, tiled, n, parked);
+			phone_arrange(server, &usable, tiled, n, parked);
 		} else {
-			desktop_arrange(server, &box, tiled, n);
+			desktop_arrange(server, &usable, tiled, n);
 		}
+	}
+	orbit_idle_update(server);
+	orbit_borders_sync(server);
+}
+
+void orbit_borders_sync(struct orbit_server *server) {
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (!view->border || !view->border->node.enabled) {
+			continue;
+		}
+		float color[4];
+		bool on = server->focused == view;
+		for (int i = 0; i < 3; i++) {
+			color[i] = on ? server->border_color[i] : server->border_color[i] * 0.4f;
+		}
+		color[3] = server->border_color[3];
+		wlr_scene_rect_set_color(view->border, color);
 	}
 }
 

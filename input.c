@@ -8,6 +8,7 @@
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_switch.h>
 #include <wlr/util/log.h>
 
 static struct xkb_context *shared_context;
@@ -47,25 +48,57 @@ void orbit_xkb_finish(void) {
 }
 
 static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
+	if (server->cursor_mode == ORBIT_CURSOR_GESTURE && server->gesture_output && !server->gesture_done) {
+		double dx = server->cursor->x - server->gesture_x;
+		double dy = server->cursor->y - server->gesture_y;
+		struct orbit_output *output = server->gesture_output;
+		if (server->gesture == 1 && dx > 72) {
+			server->gesture_done = true;
+			if (output->tag > 0) {
+				output->tag -= 1;
+				orbit_arrange(server);
+				focus_top(server, output);
+			}
+		} else if (server->gesture == 2 && dx < -72) {
+			server->gesture_done = true;
+			if (output->tag + 1 < ORBIT_TAGS) {
+				output->tag += 1;
+				orbit_arrange(server);
+				focus_top(server, output);
+			}
+		} else if (server->gesture == 3 && dy < -72) {
+			server->gesture_done = true;
+			server->phone_split = !server->phone_split;
+			server->split_top = NULL;
+			server->split_bottom = NULL;
+			orbit_arrange(server);
+		}
+		return;
+	}
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && server->grabbed && server->grabbed->mapped) {
 		struct orbit_view *view = server->grabbed;
 		if (view->floating) {
 			view->x = server->grab_gx + (int)(server->cursor->x - server->grab_x);
 			view->y = server->grab_gy + (int)(server->cursor->y - server->grab_y);
+			view->sliding = false;
+			view->placed = true;
+			view->slide_x = view->x;
+			view->slide_y = view->y;
 			wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 		}
 		return;
 	}
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
-	struct orbit_view *view = view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!view) {
+	view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	if (!surface) {
 		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr", server->cursor);
 		wlr_seat_pointer_clear_focus(server->seat);
 		return;
 	}
 	wlr_seat_pointer_notify_enter(server->seat, surface, sx, sy);
 	wlr_seat_pointer_notify_motion(server->seat, time, sx, sy);
+	orbit_idle_activity(server);
 }
 
 static void on_cursor_motion(struct wl_listener *listener, void *data) {
@@ -105,12 +138,43 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 		return;
 	}
 
+	if (server->cursor_mode == ORBIT_CURSOR_GESTURE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
+		server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
+		server->gesture = 0;
+		server->gesture_output = NULL;
+		return;
+	}
+
 	if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
 		double sx, sy;
 		struct wlr_surface *surface = NULL;
 		struct orbit_view *view = view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
 		uint32_t mods = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
+		struct orbit_output *phone = output_at(server, server->cursor->x, server->cursor->y);
+		if (phone && output_is_phone(phone->wlr) && !(mods & WLR_MODIFIER_ALT)) {
+			struct wlr_box box;
+			wlr_output_layout_get_box(server->layout, phone->wlr, &box);
+			double lx = server->cursor->x - box.x;
+			double ly = server->cursor->y - box.y;
+			int edge = 0;
+			if (lx >= 0 && lx < 28) {
+				edge = 1;
+			} else if (box.width > 28 && lx > box.width - 28) {
+				edge = 2;
+			} else if (box.height > 28 && ly > box.height - 28) {
+				edge = 3;
+			}
+			if (edge) {
+				server->cursor_mode = ORBIT_CURSOR_GESTURE;
+				server->gesture = edge;
+				server->gesture_done = false;
+				server->gesture_x = server->cursor->x;
+				server->gesture_y = server->cursor->y;
+				server->gesture_output = phone;
+				return;
+			}
+		}
 		if (view && (mods & WLR_MODIFIER_ALT)) {
 			server->cursor_mode = ORBIT_CURSOR_MOVE;
 			server->grabbed = view;
@@ -124,6 +188,8 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 		}
 		if (view) {
 			orbit_focus(view);
+		} else if (surface) {
+			orbit_layer_offer_keyboard(surface);
 		}
 	}
 	wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
@@ -153,7 +219,8 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 	}
 	bool handled = false;
 	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-	if ((mods & WLR_MODIFIER_ALT) && event->state == WL_KEYBOARD_KEY_STATE_PRESSED && count > 0) {
+	orbit_idle_activity(server);
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && count > 0) {
 		for (int i = 0; i < count; i++) {
 			handled = orbit_keybinding(server, syms[i], mods) || handled;
 		}
@@ -195,6 +262,29 @@ static void seat_capabilities(struct orbit_server *server) {
 	wlr_seat_set_capabilities(server->seat, WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD);
 }
 
+struct orbit_switch {
+	struct wl_listener toggle;
+	struct wl_listener destroy;
+};
+
+static void switch_toggle(struct wl_listener *listener, void *data) {
+	struct wlr_switch_toggle_event *event = data;
+	const char *state = event->switch_state == WLR_SWITCH_STATE_ON ? "ligado" : "desligado";
+	if (event->switch_type == WLR_SWITCH_TYPE_LID) {
+		wlr_log(WLR_INFO, "tampa %s", event->switch_state == WLR_SWITCH_STATE_ON ? "fechada" : "aberta");
+	} else {
+		wlr_log(WLR_INFO, "modo tablet %s", state);
+	}
+	(void)listener;
+}
+
+static void switch_destroy(struct wl_listener *listener, void *data) {
+	struct orbit_switch *sw = wl_container_of(listener, sw, destroy);
+	wl_list_remove(&sw->toggle.link);
+	wl_list_remove(&sw->destroy.link);
+	free(sw);
+}
+
 static void server_new_input(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, new_input);
 	struct wlr_input_device *device = data;
@@ -220,7 +310,8 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 		wl_signal_add(&device->events.destroy, &keyboard->destroy);
 		wlr_seat_set_keyboard(server->seat, wlr_keyboard);
 		wl_list_insert(&server->keyboards, &keyboard->link);
-	} else if (device->type == WLR_INPUT_DEVICE_POINTER || device->type == WLR_INPUT_DEVICE_TOUCH) {
+	} else if (device->type == WLR_INPUT_DEVICE_POINTER || device->type == WLR_INPUT_DEVICE_TOUCH ||
+		device->type == WLR_INPUT_DEVICE_TABLET) {
 		wlr_cursor_attach_input_device(server->cursor, device);
 		if (device->type == WLR_INPUT_DEVICE_TOUCH) {
 			struct orbit_touch *touch = calloc(1, sizeof(*touch));
@@ -239,6 +330,19 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 					}
 				}
 			}
+		}
+	} else if (device->type == WLR_INPUT_DEVICE_TABLET_PAD) {
+		wlr_log(WLR_INFO, "mesa digitalizadora sem botões próprios; o traço segue o cursor");
+	} else if (device->type == WLR_INPUT_DEVICE_SWITCH) {
+		struct orbit_switch *sw = calloc(1, sizeof(*sw));
+		if (!sw) {
+			wlr_log(WLR_ERROR, "sem memória para o interruptor");
+		} else {
+			struct wlr_switch *dev = wlr_switch_from_input_device(device);
+			sw->toggle.notify = switch_toggle;
+			wl_signal_add(&dev->events.toggle, &sw->toggle);
+			sw->destroy.notify = switch_destroy;
+			wl_signal_add(&device->events.destroy, &sw->destroy);
 		}
 	}
 	seat_capabilities(server);

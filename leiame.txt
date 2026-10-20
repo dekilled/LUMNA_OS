@@ -13,7 +13,17 @@ Dependências
   Em 0.19 chama-se wlroots-0.19 — passa PKGS no make (ver Makefile).
   O fonte segue a API 0.18, que a 0.19 mantém nestes pontos: backend com
   event loop, wlr_output_state, xdg_shell versão 3, new_toplevel/new_popup
-  e o configure manual no initial_commit.
+  e o configure manual no initial_commit. O layer shell é a versão 4.
+
+Layer shell
+  Clientes como a barra, a doca, o papel de parede e o teclado no ecrã
+  entram por wlr_layer_shell_v1, não como janelas. A cena está empilhada
+  fundo, baixo, janelas, cima, overlay. Uma exclusive zone positiva
+  (a barra em cima, a doca em baixo, o teclado) é tirada da caixa do
+  mosaico. Zona 0 fica por cima sem empurrar. Zona -1 estica por baixo,
+  como um papel de parede. O ecrã inteiro de uma janela continua a cobrir
+  o output, painéis incluídos. O ponteiro chega à camada. Se ela pede
+  teclado exclusivo, as teclas vão para ela até se desmapear.
 
 Compilar e arrancar
   make
@@ -27,19 +37,64 @@ Módulos
   output.c    saídas, escala do telemóvel, toque preso ao DSI
   view.c      toplevels, foco, popups
   arrange.c   mosaico e o par dividido do telemóvel
-  input.c     ponteiro, toque e teclado
-  keybinds.c  atalhos com Alt
+  layer.c     layer shell: barra, doca, teclado, notificações
+  config.c    orbit.ini; o ambiente ganha ao ficheiro
+  foreign.c   espelho das janelas para uma barra cliente
+  lock.c      bloqueio de sessão e idle inhibit
+  manage.c    gamma e posição das saídas
+  anim.c      deslize curto até à posição nova
+  input.c     ponteiro, toque, tablet, tampa e teclado
+  keybinds.c  tabela de atalhos
 
   Os registos nossos são em português. Os do wlroots continuam em inglês.
+
+Configuração
+  Sem ficheiro usam-se as omissões. Com ficheiro, lê-se
+  $ORBIT_CONFIG, senão $XDG_CONFIG_HOME/orbit/orbit.ini, senão
+  ~/.config/orbit/orbit.ini. Um exemplo está em orbit.ini.
+  ORBIT_GAP, ORBIT_MASTER, ORBIT_PHONE_SCALE e ORBIT_TERMINAL,
+  se estiverem definidos, substituem o ficheiro.
+  intervalo 0..64, mestre 40..70, escala 1..3.
+  fundo é #RRGGBB. borda é a cor do foco, de 0 a 8 px (borda_px);
+  a janela sem foco usa a mesma cor mais escura. Ecrã inteiro não tem borda.
+  arranjo é mestre, monoculo, espiral ou dwindle (só na secretária;
+  o telemóvel continua monóculo ou par).
+  animacao é o deslize em milissegundos, 0 desliga, até 400. O tamanho
+  da janela muda logo; só a posição desliza.
+  [atalho] troca uma acção. Alt+Shift+q, Super+Return, Ctrl+Alt+Left.
+  "-" desliga. captura, volume_subir, volume_descer, brilho_subir
+  e brilho_descer correm o comando de [geral] e não têm tecla
+  até o ficheiro lhes dar uma.
+
+Protocolos
+  foreign toplevel anuncia título, app id, saída, foco e ecrã inteiro.
+  Uma barra pode listar as janelas. Pedidos de activar ou fechar
+  são ignorados.
+  O bloqueio de sessão esconde janelas e camadas. Se o cliente sair
+  sem desbloquear, o ecrã fica vazio até outro cliente assumir.
+  idle inhibit, com o notifier, impede um cliente como o swayidle
+  de apagar o ecrã enquanto uma superfície inibidora está mapeada.
+  O gamma aplica a rampa que um cliente pede. O output management
+  aceita modo, escala, transformação e posição (kanshi, wlr-randr).
+  O brilho do painel continua a ser o comando brilho_subir.
+  XWayland e decorações do servidor não entram.
+
+Baixa prioridade
+  Espiral corta sempre para o mesmo lado. Dwindle alterna o lado e
+  aperta para o centro. Os dois usam a percentagem do mestre no primeiro corte.
+  No telemóvel, um toque na faixa de 28 px da borda esquerda e um
+  arrasto para a direita recua um espaço; a direita avança; a de baixo,
+  para cima, liga ou desliga o par. Não passa o clique à aplicação.
+  Há um seat. O traço da mesa digitalizadora segue o cursor. A tampa
+  e o modo tablet só ficam no registo.
+  ./regressao.sh confirma o código e, se houver wlroots, arranca
+  dois segundos com WLR_BACKENDS=headless.
 
 Limites
   ORBIT_MAX_VIEWS é 64 (compilação). Ao chegar a 48 janelas em mosaico
   numa saída há um aviso; na 65.ª a janela deixa de entrar no mosaico
   e fica um erro no registo. O foco com Alt+J/K também corta nessa marca.
-  ORBIT_GAP=8          intervalo, 0..64
-  ORBIT_MASTER=56      percentagem do mestre, 40..70
-  ORBIT_PHONE_SCALE=2  escala da saída DSI (ou de ORBIT_PHONE), 1..3
-  Um valor fora da gama é recusado e fica o omissão, com erro no registo.
+  Um valor fora da gama é recusado e fica o anterior, com erro no registo.
 
 Popup
   O unconstrain usa a geometria da janela (origem da superfície do
@@ -82,19 +137,19 @@ Telemóvel (PinePhone, Librem 5, postmarketOS)
   Para ensaiar a política de telemóvel numa saída virtual:
   WLR_WL_OUTPUTS=2 ORBIT_PHONE=WL-1 ./orbit
 
-Atalhos (Alt premido)
-  Enter        lançar o terminal
-  Esc          terminar
-  Q            fechar o toplevel focado
-  Espaço       flutuante / mosaico
-  F            ecrã inteiro na saída da janela
-  S            dividir o ecrã no telemóvel
-  J / K        focar o seguinte / anterior neste espaço
-  H / L        encolher / alargar o mestre
-  ← / →        mudar a janela de saída
-  1–4          espaço da saída sob o ponteiro
-  Shift+1–4    mover a janela focada para esse espaço
-  Alt+botão    arrastar; ao largar noutra saída, a janela muda de mãe
+Atalhos (por omissão; [atalho] no orbit.ini muda-os)
+  Alt+Enter        lançar o terminal
+  Alt+Esc          terminar
+  Alt+Q            fechar o toplevel focado
+  Alt+Espaço       flutuante / mosaico
+  Alt+F            ecrã inteiro na saída da janela
+  Alt+S            dividir o ecrã no telemóvel
+  Alt+J / Alt+K    focar o seguinte / anterior neste espaço
+  Alt+H / Alt+L    encolher / alargar o mestre
+  Alt+← / Alt+→    mudar a janela de saída
+  Alt+1–4          espaço da saída sob o ponteiro
+  Alt+Shift+1–4    mover a janela focada para esse espaço
+  Alt+botão        arrastar; ao largar noutra saída, a janela muda de mãe
 
 seat0 anuncia pointer e keyboard. O toque entra pelo cursor de propósito:
 anunciar wl_touch sem entregar frames parte clientes. Todos os teclados

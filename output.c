@@ -152,6 +152,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 		}
 	}
 	struct orbit_view *view;
+	orbit_layers_close_output(output);
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == output) {
 			orbit_split_release(server, view);
@@ -172,6 +173,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 		wlr_scene_node_destroy(&output->bg->node);
 	}
 	free(output);
+	orbit_outputs_publish(server);
 	orbit_arrange(server);
 	pin_touch(server);
 }
@@ -198,12 +200,12 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	wl_signal_add(&wlr->events.destroy, &output->destroy);
 	wl_list_insert(&server->outputs, &output->link);
 
-	const float bg[4] = { 0.063f, 0.078f, 0.071f, 1.0f };
-	output->bg = wlr_scene_rect_create(&server->scene->tree, 1, 1, bg);
+	output->bg = wlr_scene_rect_create(server->layer_tree[ORBIT_LAYER_BACKGROUND], 1, 1, server->background);
 	if (!output->bg) {
 		wlr_log(WLR_ERROR, "saída %s: fundo da cena falhou", wlr->name);
 	}
 	wlr_output_layout_add_auto(server->layout, wlr);
+	orbit_outputs_publish(server);
 	wlr_log(WLR_INFO, "saída %s %dx%d scale %.2f%s", wlr->name, wlr->width, wlr->height, wlr->scale,
 		output_is_phone(wlr) ? " telemóvel" : "");
 	pin_touch(server);

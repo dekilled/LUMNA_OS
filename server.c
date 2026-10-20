@@ -20,32 +20,17 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 
-static int env_int(const char *name, int fallback, int min, int max) {
-	const char *text = getenv(name);
-	if (!text || !text[0]) {
-		return fallback;
+static const char *layout_name(enum orbit_layout layout) {
+	switch (layout) {
+	case ORBIT_LAYOUT_MONOCLE:
+		return "monóculo";
+	case ORBIT_LAYOUT_SPIRAL:
+		return "espiral";
+	case ORBIT_LAYOUT_DWINDLE:
+		return "dwindle";
+	default:
+		return "mestre";
 	}
-	char *end = NULL;
-	long value = strtol(text, &end, 10);
-	if (end == text || *end != '\0' || value < min || value > max) {
-		wlr_log(WLR_ERROR, "%s=%s inválido (%d..%d); a usar %d", name, text, min, max, fallback);
-		return fallback;
-	}
-	return (int)value;
-}
-
-static float env_float(const char *name, float fallback, float min, float max) {
-	const char *text = getenv(name);
-	if (!text || !text[0]) {
-		return fallback;
-	}
-	char *end = NULL;
-	float value = strtof(text, &end);
-	if (end == text || *end != '\0' || value < min || value > max) {
-		wlr_log(WLR_ERROR, "%s=%s inválido (%.1f..%.1f); a usar %.1f", name, text, min, max, fallback);
-		return fallback;
-	}
-	return value;
 }
 
 static int fail(struct orbit_server *server, const char *msg) {
@@ -72,10 +57,7 @@ int main(int argc, char *argv[]) {
 
 	wlr_log_init(WLR_INFO, NULL);
 	struct orbit_server server = { 0 };
-	server.master_pct = env_int("ORBIT_MASTER", ORBIT_MASTER_DEFAULT, ORBIT_MASTER_MIN, ORBIT_MASTER_MAX);
-	server.gap = env_int("ORBIT_GAP", ORBIT_GAP_DEFAULT, 0, ORBIT_GAP_MAX);
-	server.phone_scale = env_float("ORBIT_PHONE_SCALE", ORBIT_PHONE_SCALE_DEFAULT, 1.0f, 3.0f);
-	server.term = getenv("ORBIT_TERMINAL");
+	orbit_config_load(&server);
 	server.display = wl_display_create();
 	if (!server.display) {
 		wlr_log(WLR_ERROR, "falha ao criar o display Wayland");
@@ -118,6 +100,12 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao criar a cena");
 	}
 	wlr_scene_attach_output_layout(server.scene, server.layout);
+	if (!orbit_layers_bind(&server)) {
+		return fail(&server, "falha ao preparar o layer shell");
+	}
+	if (!orbit_foreign_bind(&server) || !orbit_session_bind(&server) || !orbit_manage_bind(&server)) {
+		return fail(&server, "falha ao preparar os protocolos de sessão");
+	}
 
 	wl_list_init(&server.views);
 	server.xdg_shell = wlr_xdg_shell_create(server.display, 3);
@@ -155,8 +143,8 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao arrancar o backend");
 	}
 	setenv("WAYLAND_DISPLAY", socket, 1);
-	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala do telemóvel %.2f",
-		socket, server.gap, server.master_pct, server.phone_scale);
+	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala %.2f arranjo %s",
+		socket, server.gap, server.master_pct, server.phone_scale, layout_name(server.layout));
 	if (startup && fork() == 0) {
 		execl("/bin/sh", "/bin/sh", "-c", startup, (char *)NULL);
 		_exit(1);

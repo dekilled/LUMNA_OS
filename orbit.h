@@ -24,6 +24,13 @@
 #define ORBIT_MASTER_MIN 40
 #define ORBIT_MASTER_MAX 70
 #define ORBIT_PHONE_SCALE_DEFAULT 2.0f
+#define ORBIT_CMD_LEN 192
+#define ORBIT_MAX_BINDS 48
+#define ORBIT_BORDER_DEFAULT 1
+#define ORBIT_BORDER_MAX 8
+#define ORBIT_ANIM_DEFAULT 120
+#define ORBIT_ANIM_MAX 400
+#define ORBIT_TAGS 4
 
 /*
  * Registos do binário em português. O wlroots continua a escrever os dele
@@ -39,10 +46,71 @@ struct wlr_surface;
 struct orbit_view;
 struct orbit_output;
 struct orbit_server;
+struct orbit_layer;
+struct wlr_layer_shell_v1;
+struct wlr_foreign_toplevel_manager_v1;
+struct wlr_foreign_toplevel_handle_v1;
+struct wlr_session_lock_manager_v1;
+struct wlr_idle_inhibit_manager_v1;
+struct wlr_idle_notifier_v1;
+struct wlr_gamma_control_manager_v1;
+struct wlr_output_manager_v1;
+struct wlr_output;
+
+enum orbit_node_kind {
+	ORBIT_NODE_VIEW = 0,
+	ORBIT_NODE_LAYER = 1,
+};
+
+/* Igual a zwlr_layer_shell_v1_layer. A ordem da cena segue estes índices. */
+enum {
+	ORBIT_LAYER_BACKGROUND = 0,
+	ORBIT_LAYER_BOTTOM = 1,
+	ORBIT_LAYER_TOP = 2,
+	ORBIT_LAYER_OVERLAY = 3,
+	ORBIT_LAYER_COUNT = 4,
+};
 
 enum orbit_cursor_mode {
 	ORBIT_CURSOR_PASSTHROUGH,
 	ORBIT_CURSOR_MOVE,
+	ORBIT_CURSOR_GESTURE,
+};
+
+enum orbit_layout {
+	ORBIT_LAYOUT_MASTER,
+	ORBIT_LAYOUT_MONOCLE,
+	ORBIT_LAYOUT_SPIRAL,
+	ORBIT_LAYOUT_DWINDLE,
+};
+
+enum orbit_action {
+	ORBIT_QUIT,
+	ORBIT_TERMINAL,
+	ORBIT_CLOSE,
+	ORBIT_FLOAT,
+	ORBIT_FULLSCREEN,
+	ORBIT_SPLIT,
+	ORBIT_FOCUS_NEXT,
+	ORBIT_FOCUS_PREV,
+	ORBIT_MASTER_SHRINK,
+	ORBIT_MASTER_GROW,
+	ORBIT_OUTPUT_LEFT,
+	ORBIT_OUTPUT_RIGHT,
+	ORBIT_TAG,
+	ORBIT_MOVE_TAG,
+	ORBIT_SCREENSHOT,
+	ORBIT_VOLUME_UP,
+	ORBIT_VOLUME_DOWN,
+	ORBIT_BRIGHTNESS_UP,
+	ORBIT_BRIGHTNESS_DOWN,
+};
+
+struct orbit_bind {
+	uint32_t mods;
+	xkb_keysym_t sym;
+	enum orbit_action action;
+	int arg;
 };
 
 struct orbit_server {
@@ -59,6 +127,29 @@ struct orbit_server {
 	struct wl_listener new_xdg_toplevel;
 	struct wl_listener new_xdg_popup;
 	struct wl_list views;
+
+	struct wlr_layer_shell_v1 *layer_shell;
+	struct wl_listener new_layer_surface;
+	struct wl_list layers;
+	struct orbit_layer *exclusive_layer;
+	struct wlr_scene_tree *layer_tree[ORBIT_LAYER_COUNT];
+	struct wlr_scene_tree *tile_tree;
+	struct wlr_scene_tree *lock_tree;
+
+	struct wlr_foreign_toplevel_manager_v1 *foreign_manager;
+	struct wlr_session_lock_manager_v1 *session_manager;
+	struct wl_listener new_lock;
+	void *session_lock;
+	bool session_locked;
+	struct wlr_idle_inhibit_manager_v1 *idle_inhibit;
+	struct wlr_idle_notifier_v1 *idle_notifier;
+	struct wl_listener new_inhibitor;
+	struct wl_list inhibitors;
+	struct wlr_gamma_control_manager_v1 *gamma_manager;
+	struct wl_listener gamma_set;
+	struct wlr_output_manager_v1 *output_manager;
+	struct wl_listener output_apply;
+	struct wl_listener output_test;
 
 	struct wlr_cursor *cursor;
 	struct wlr_xcursor_manager *cursor_mgr;
@@ -85,8 +176,25 @@ struct orbit_server {
 	int master_pct;
 	int gap;
 	float phone_scale;
+	enum orbit_layout layout;
+	float background[4];
+	char terminal[ORBIT_CMD_LEN];
+	char screenshot[ORBIT_CMD_LEN];
+	char volume_up[ORBIT_CMD_LEN];
+	char volume_down[ORBIT_CMD_LEN];
+	char brightness_up[ORBIT_CMD_LEN];
+	char brightness_down[ORBIT_CMD_LEN];
+	struct orbit_bind binds[ORBIT_MAX_BINDS];
+	int nbinds;
 	bool phone_split;
-	const char *term;
+	int border_px;
+	float border_color[4];
+	int anim_ms;
+	struct wl_event_source *slide_timer;
+	int gesture;
+	bool gesture_done;
+	double gesture_x, gesture_y;
+	struct orbit_output *gesture_output;
 };
 
 struct orbit_output {
@@ -103,6 +211,7 @@ struct orbit_output {
 };
 
 struct orbit_view {
+	enum orbit_node_kind kind;
 	struct wl_list link;
 	struct orbit_server *server;
 	struct orbit_output *output;
@@ -117,6 +226,31 @@ struct orbit_view {
 	bool floating;
 	bool fullscreen;
 	bool mapped;
+	struct wlr_scene_rect *border;
+	struct wlr_foreign_toplevel_handle_v1 *foreign;
+	struct wlr_output *foreign_output;
+	bool placed;
+	bool sliding;
+	int slide_x, slide_y;
+	int slide_from_x, slide_from_y;
+	int slide_to_x, slide_to_y;
+	uint32_t slide_start;
+};
+
+struct wlr_layer_surface_v1;
+struct wlr_scene_layer_surface_v1;
+
+struct orbit_layer {
+	enum orbit_node_kind kind;
+	struct wl_list link;
+	struct orbit_server *server;
+	struct wlr_layer_surface_v1 *surface;
+	struct wlr_scene_layer_surface_v1 *scene;
+	struct wl_listener map;
+	struct wl_listener unmap;
+	struct wl_listener commit;
+	struct wl_listener destroy;
+	struct wl_listener new_popup;
 };
 
 struct orbit_keyboard {
@@ -165,6 +299,31 @@ void orbit_input_bind(struct orbit_server *server);
 void orbit_xkb_prepare(void);
 void orbit_xkb_finish(void);
 
+bool orbit_layers_bind(struct orbit_server *server);
+struct wlr_box orbit_layer_usable(struct orbit_output *output, const struct wlr_box *full);
+void orbit_layers_close_output(struct orbit_output *output);
+void orbit_layer_offer_keyboard(struct wlr_surface *surface);
+
+bool orbit_foreign_bind(struct orbit_server *server);
+void orbit_foreign_map(struct orbit_view *view);
+void orbit_foreign_sync(struct orbit_view *view);
+void orbit_foreign_destroy(struct orbit_view *view);
+
+bool orbit_session_bind(struct orbit_server *server);
+void orbit_lock_configure(struct orbit_output *output);
+void orbit_idle_activity(struct orbit_server *server);
+void orbit_idle_update(struct orbit_server *server);
+
+bool orbit_manage_bind(struct orbit_server *server);
+void orbit_outputs_publish(struct orbit_server *server);
+void orbit_borders_sync(struct orbit_server *server);
+void orbit_slide(struct orbit_view *view, int x, int y);
+void orbit_slide_stop(struct orbit_view *view);
+
 bool orbit_keybinding(struct orbit_server *server, xkb_keysym_t sym, uint32_t mods);
+void orbit_binds_reset(struct orbit_server *server);
+bool orbit_bind_set(struct orbit_server *server, const char *action, const char *chord);
+
+void orbit_config_load(struct orbit_server *server);
 
 #endif

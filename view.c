@@ -9,6 +9,7 @@ void orbit_focus(struct orbit_view *view) {
 		return;
 	}
 	struct orbit_server *server = view->server;
+	struct orbit_view *previous_view = server->focused;
 	struct wlr_surface *prev = server->seat->keyboard_state.focused_surface;
 	if (prev && prev != view->toplevel->base->surface) {
 		struct wlr_xdg_surface *previous = wlr_xdg_surface_try_from_wlr_surface(prev);
@@ -18,12 +19,20 @@ void orbit_focus(struct orbit_view *view) {
 	}
 	server->focused = view;
 	wlr_scene_node_raise_to_top(&view->scene_tree->node);
+	if (view->border && view->border->node.enabled) {
+		wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
+	}
 	wlr_xdg_toplevel_set_activated(view->toplevel, true);
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
-	if (keyboard) {
+	if (keyboard && !server->exclusive_layer) {
 		wlr_seat_keyboard_notify_enter(server->seat, view->toplevel->base->surface,
 			keyboard->keycodes, keyboard->num_keycodes, &keyboard->modifiers);
 	}
+	orbit_foreign_sync(view);
+	if (previous_view && previous_view != view && previous_view->mapped) {
+		orbit_foreign_sync(previous_view);
+	}
+	orbit_borders_sync(server);
 }
 
 void orbit_unfocus(struct orbit_server *server) {
@@ -35,7 +44,11 @@ void orbit_unfocus(struct orbit_server *server) {
 	if (view->mapped && view->toplevel) {
 		wlr_xdg_toplevel_set_activated(view->toplevel, false);
 	}
-	wlr_seat_keyboard_notify_clear_focus(server->seat);
+	if (!server->exclusive_layer) {
+		wlr_seat_keyboard_notify_clear_focus(server->seat);
+	}
+	orbit_foreign_sync(view);
+	orbit_borders_sync(server);
 }
 
 void focus_top(struct orbit_server *server, struct orbit_output *output) {
@@ -70,7 +83,14 @@ struct orbit_view *view_at(struct orbit_server *server, double lx, double ly,
 	while (tree != NULL && tree->node.data == NULL) {
 		tree = tree->node.parent;
 	}
-	return tree ? tree->node.data : NULL;
+	if (!tree) {
+		return NULL;
+	}
+	struct orbit_view *view = tree->node.data;
+	if (view->kind != ORBIT_NODE_VIEW) {
+		return NULL;
+	}
+	return view;
 }
 
 static void xdg_map(struct wl_listener *listener, void *data) {
@@ -88,6 +108,7 @@ static void xdg_map(struct wl_listener *listener, void *data) {
 	view->w = box.width / 2;
 	view->h = box.height / 2;
 	wl_list_insert(view->server->views.prev, &view->link);
+	orbit_foreign_map(view);
 	struct orbit_server *server = view->server;
 	struct orbit_view *prev = server->focused;
 	orbit_arrange(server);
@@ -109,6 +130,7 @@ static void xdg_unmap(struct wl_listener *listener, void *data) {
 		: view == server->split_bottom ? server->split_top : NULL;
 	orbit_split_release(server, view);
 	view->mapped = false;
+	orbit_foreign_destroy(view);
 	if (view->server->grabbed == view) {
 		view->server->grabbed = NULL;
 		view->server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
@@ -149,6 +171,11 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 		view->server->grabbed = NULL;
 		view->server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
 	}
+	orbit_foreign_destroy(view);
+	if (view->border) {
+		wlr_scene_node_destroy(&view->border->node);
+		view->border = NULL;
+	}
 	free(view);
 }
 
@@ -156,6 +183,8 @@ static void xdg_commit(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, commit);
 	if (view->toplevel->base->initial_commit) {
 		wlr_xdg_toplevel_set_size(view->toplevel, 0, 0);
+	} else if (view->mapped) {
+		orbit_foreign_sync(view);
 	}
 }
 
@@ -169,7 +198,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	}
 	view->server = server;
 	view->toplevel = toplevel;
-	view->scene_tree = wlr_scene_xdg_surface_create(&server->scene->tree, toplevel->base);
+	view->scene_tree = wlr_scene_xdg_surface_create(server->tile_tree, toplevel->base);
 	if (!view->scene_tree) {
 		wlr_log(WLR_ERROR, "cena do toplevel falhou");
 		free(view);
@@ -177,6 +206,10 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	}
 	view->scene_tree->node.data = view;
 	toplevel->base->data = view->scene_tree;
+	view->border = wlr_scene_rect_create(server->tile_tree, 1, 1, server->border_color);
+	if (view->border) {
+		wlr_scene_node_set_enabled(&view->border->node, false);
+	}
 	view->map.notify = xdg_map;
 	wl_signal_add(&toplevel->base->surface->events.map, &view->map);
 	view->unmap.notify = xdg_unmap;
