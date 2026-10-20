@@ -118,6 +118,35 @@ pub fn mobile_panel(app: AppHandle, name: String, show: Option<bool>) -> Result<
     .map_err(|e| e.to_string())
 }
 
+// ---- uma janela por vez ----
+
+/// Uma janela abriu no celular: se já tinha outra na tela, a nova vai pra uma área só dela (com a
+/// troca animada) e a de antes vai pros recentes. O Hyprland dividiria a tela entre as duas sozinho;
+/// dividir vai ser um comando explícito. Ficam de fora as janelas flutuantes (diálogos: o app de
+/// trás tem que continuar ali) e a segunda janela do mesmo app de fora.
+pub fn window_opened(compositor: crate::SharedCompositor, address: String) {
+    std::thread::spawn(move || {
+        // a janela recém-aberta às vezes ainda não está na lista
+        for _ in 0..10 {
+            let Ok(windows) = compositor.windows() else { return };
+            let Some(w) = windows.iter().find(|w| w.address == address) else {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                continue;
+            };
+            if w.floating || w.minimized() {
+                return;
+            }
+            let ours = i64::from(std::process::id());
+            let others: Vec<_> = windows.iter().filter(|o| o.address != address && !o.minimized() && o.workspace == w.workspace).collect();
+            let same_app = others.iter().any(|o| o.pid == w.pid && o.pid != ours && o.pid > 0);
+            if !others.is_empty() && !same_app {
+                let _ = show_app(compositor.as_ref(), Some(&address));
+            }
+            return;
+        }
+    });
+}
+
 // ---- volume ----
 
 /// As teclas de volume (o Hyprland chama `lumna-ctl volume up|down|mute`): muda o volume da saída

@@ -45,6 +45,7 @@ import {
   type WifiState,
 } from "../../system";
 import { swipe } from "../../swipe";
+import { openSettingsAlone } from "./dock";
 
 type Tab = "notificacoes" | "atalhos";
 const tab = ref<Tab>("notificacoes");
@@ -359,7 +360,8 @@ function setVolume() {
 
 async function openSettings(page?: SettingsPage) {
   await close();
-  await settingsOpen(page);
+  // sozinho na tela (o app que estava aberto vai pros recentes, sem dividir)
+  await openSettingsAlone(page);
 }
 async function askEmma() {
   await close();

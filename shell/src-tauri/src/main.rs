@@ -1474,6 +1474,12 @@ fn forward_events(app: AppHandle, compositor: SharedCompositor) {
                     follow_workspaces(&app);
                 }
                 automation::compositor_event(&app, &event);
+                // celular: um app por vez na tela (dividir vai ser um comando explícito)
+                if let CompositorEvent::WindowOpened { address, .. } = &event {
+                    if MOBILE.load(std::sync::atomic::Ordering::Relaxed) {
+                        mobile::window_opened(compositor.clone(), address.clone());
+                    }
+                }
                 // Janela maximizada, aberta, fechada ou trocada de workspace: o dock pode mudar.
                 if !matches!(event, CompositorEvent::ActiveWindowChanged) {
                     dock::update(&app, false);

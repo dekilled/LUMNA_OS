@@ -64,11 +64,19 @@ async function bringUp(title: string, open: () => Promise<void>) {
   }
 }
 
+/** Os Ajustes (numa página) sozinhos na tela: os de antes voltam se já estavam abertos. */
+export async function openSettingsAlone(page?: Parameters<typeof settingsOpen>[0]) {
+  const list = await windows().catch(() => []);
+  const found = list.find((w) => w.title === "Configurações" || w.title.startsWith("Ajustes"));
+  await showApp(found?.address).catch(() => {});
+  await settingsOpen(page);
+}
+
 /** O que um atalho da barra faz ao ser tocado. */
 export async function runSlot(slot: Slot, apps: App[]) {
   if (slot === "inicio") return showHome("inicio");
   if (slot === "arquivos") return bringUp("Arquivos", () => filesWindow());
-  if (slot === "ajustes") return bringUp("Configurações", () => settingsOpen());
+  if (slot === "ajustes") return openSettingsAlone();
   if (slot === "emma") return toggleEmma();
   const app = apps.find((a) => `app:${a.id}` === slot);
   if (app) return openApp(app);
