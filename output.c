@@ -1,4 +1,5 @@
 #include "orbit.h"
+#include <wlr/backend.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -204,7 +205,9 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	if (!output->bg) {
 		wlr_log(WLR_ERROR, "saída %s: fundo da cena falhou", wlr->name);
 	}
-	wlr_output_layout_add_auto(server->layout, wlr);
+	struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->layout, wlr);
+	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr);
+	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 	orbit_outputs_publish(server);
 	wlr_log(WLR_INFO, "saída %s %dx%d scale %.2f%s", wlr->name, wlr->width, wlr->height, wlr->scale,
 		output_is_phone(wlr) ? " telemóvel" : "");

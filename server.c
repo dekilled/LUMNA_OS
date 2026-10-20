@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <wlr/backend.h>
+#include <wlr/types/wlr_xdg_output_v1.h>
+#include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
@@ -89,6 +91,8 @@ int main(int argc, char *argv[]) {
 	wlr_fractional_scale_manager_v1_create(server.display, 1);
 
 	server.layout = wlr_output_layout_create(server.display);
+	wlr_xdg_output_manager_v1_create(server.display, server.layout);
+	wlr_screencopy_manager_v1_create(server.display);
 	if (!server.layout) {
 		return fail(&server, "falha ao criar o layout de saídas");
 	}
@@ -99,7 +103,7 @@ int main(int argc, char *argv[]) {
 	if (!server.scene) {
 		return fail(&server, "falha ao criar a cena");
 	}
-	wlr_scene_attach_output_layout(server.scene, server.layout);
+	server.scene_layout = wlr_scene_attach_output_layout(server.scene, server.layout);
 	if (!orbit_layers_bind(&server)) {
 		return fail(&server, "falha ao preparar o layer shell");
 	}
@@ -144,7 +148,7 @@ int main(int argc, char *argv[]) {
 	}
 	setenv("WAYLAND_DISPLAY", socket, 1);
 	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala %.2f arranjo %s",
-		socket, server.gap, server.master_pct, server.phone_scale, layout_name(server.layout));
+		socket, server.gap, server.master_pct, server.phone_scale, layout_name(server.arrangement));
 	if (startup && fork() == 0) {
 		execl("/bin/sh", "/bin/sh", "-c", startup, (char *)NULL);
 		_exit(1);

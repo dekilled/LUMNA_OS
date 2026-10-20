@@ -9,8 +9,11 @@ e serve de monitores virtuais.
 Dependências
   wlroots 0.18, wayland-server, xkbcommon, libinput, pixman, mesa
   Debian/Ubuntu: libwlroots-dev, libwayland-dev, libxkbcommon-dev
-  O módulo pkg-config em 0.18 chama-se wlroots.
-  Em 0.19 chama-se wlroots-0.19 — passa PKGS no make (ver Makefile).
+  O módulo pkg-config em 0.18 chama-se wlroots-0.18 no Arch (o Makefile já
+  usa esse); noutras distros, wlroots: make PKGS="wlroots wayland-server
+  xkbcommon". Em 0.19: PKGS="wlroots-0.19 wayland-server xkbcommon".
+  O make gera os cabeçalhos do xdg-shell (do wayland-protocols) e do layer
+  shell (o XML está em protocolos/) com o wayland-scanner.
   O fonte segue a API 0.18, que a 0.19 mantém nestes pontos: backend com
   event loop, wlr_output_state, xdg_shell versão 3, new_toplevel/new_popup
   e o configure manual no initial_commit. O layer shell é a versão 4.
@@ -26,6 +29,7 @@ Layer shell
   teclado exclusivo, as teclas vão para ela até se desmapear.
 
 Compilar e arrancar
+  cp makefile.txt Makefile
   make
   ./orbit -s 'foot'
 
@@ -77,6 +81,8 @@ Protocolos
   O gamma aplica a rampa que um cliente pede. O output management
   aceita modo, escala, transformação e posição (kanshi, wlr-randr).
   O brilho do painel continua a ser o comando brilho_subir.
+  xdg-output dá o nome e a posição de cada saída (a waybar não arranca
+  sem ele) e o screencopy deixa o grim capturar o ecrã.
   XWayland e decorações do servidor não entram.
 
 Baixa prioridade

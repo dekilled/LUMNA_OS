@@ -15,7 +15,7 @@ static void gamma_set(struct wl_listener *listener, void *data) {
 	wlr_output_state_init(&state);
 	bool applied = wlr_gamma_control_v1_apply(control, &state);
 	if (!applied || !wlr_output_commit_state(output, &state)) {
-		wlr_gamma_control_v1_send_failed(control);
+		wlr_gamma_control_v1_send_failed_and_destroy(control);
 		wlr_log(WLR_ERROR, "gamma da saída %s falhou", output->name);
 	}
 	wlr_output_state_finish(&state);
@@ -44,24 +44,24 @@ static bool head_state(struct wlr_output *output, struct wlr_output_configuratio
 static bool apply_config(struct orbit_server *server, struct wlr_output_configuration_v1 *config, bool test) {
 	struct wlr_output_configuration_head_v1 *head;
 	wl_list_for_each(head, &config->heads, link) {
-		if (!head->output) {
+		if (!head->state.output) {
 			continue;
 		}
-		if (!head_state(head->output, head, test)) {
+		if (!head_state(head->state.output, head, test)) {
 			return false;
 		}
 		if (test) {
 			continue;
 		}
 		if (!head->state.enabled) {
-			wlr_output_layout_remove(server->layout, head->output);
+			wlr_output_layout_remove(server->layout, head->state.output);
 			continue;
 		}
 		struct wlr_box box;
-		wlr_output_layout_get_box(server->layout, head->output, &box);
+		wlr_output_layout_get_box(server->layout, head->state.output, &box);
 		if (box.x != head->state.x || box.y != head->state.y) {
-			wlr_output_layout_remove(server->layout, head->output);
-			wlr_output_layout_add(server->layout, head->output, head->state.x, head->state.y);
+			wlr_output_layout_remove(server->layout, head->state.output);
+			wlr_output_layout_add(server->layout, head->state.output, head->state.x, head->state.y);
 		}
 	}
 	return true;

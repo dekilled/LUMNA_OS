@@ -146,7 +146,7 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		}
 		server->anim_ms = number;
 	} else if (strcasecmp(key, "arranjo") == 0 || strcasecmp(key, "layout") == 0) {
-		if (!parse_layout(value, &server->layout)) {
+		if (!parse_layout(value, &server->arrangement)) {
 			wlr_log(WLR_ERROR, "config linha %d: arranjo %s inválido", line, value);
 		}
 	} else if (strcasecmp(key, "terminal") == 0) {
@@ -280,7 +280,7 @@ void orbit_config_load(struct orbit_server *server) {
 	server->gap = ORBIT_GAP_DEFAULT;
 	server->master_pct = ORBIT_MASTER_DEFAULT;
 	server->phone_scale = ORBIT_PHONE_SCALE_DEFAULT;
-	server->layout = ORBIT_LAYOUT_MASTER;
+	server->arrangement = ORBIT_LAYOUT_MASTER;
 	server->background[0] = 0.063f;
 	server->background[1] = 0.078f;
 	server->background[2] = 0.071f;

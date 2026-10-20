@@ -25,7 +25,7 @@ static void layer_keyboard_enter(struct orbit_layer *layer) {
 }
 
 static void layer_sync_keyboard(struct orbit_layer *layer) {
-	bool exclusive = layer->surface->mapped &&
+	bool exclusive = layer->surface->surface->mapped &&
 		layer->surface->current.keyboard_interactive ==
 			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
 	if (exclusive) {
@@ -225,7 +225,7 @@ static struct orbit_layer *orbit_layer_for_surface(struct wlr_surface *surface) 
 
 void orbit_layer_offer_keyboard(struct wlr_surface *surface) {
 	struct orbit_layer *layer = orbit_layer_for_surface(surface);
-	if (!layer || !layer->surface->mapped) {
+	if (!layer || !layer->surface->surface->mapped) {
 		return;
 	}
 	if (layer->surface->current.keyboard_interactive ==

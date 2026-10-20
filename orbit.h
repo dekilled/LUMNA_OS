@@ -120,6 +120,7 @@ struct orbit_server {
 	struct wlr_allocator *allocator;
 	struct wlr_scene *scene;
 	struct wlr_output_layout *layout;
+	struct wlr_scene_output_layout *scene_layout;
 	struct wl_listener new_output;
 	struct wl_list outputs;
 
@@ -176,7 +177,7 @@ struct orbit_server {
 	int master_pct;
 	int gap;
 	float phone_scale;
-	enum orbit_layout layout;
+	enum orbit_layout arrangement;
 	float background[4];
 	char terminal[ORBIT_CMD_LEN];
 	char screenshot[ORBIT_CMD_LEN];

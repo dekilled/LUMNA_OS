@@ -1,4 +1,5 @@
 #include "orbit.h"
+#include <wlr/backend.h>
 
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
@@ -92,7 +93,7 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	struct wlr_surface *surface = NULL;
 	view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 	if (!surface) {
-		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr", server->cursor);
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
 		wlr_seat_pointer_clear_focus(server->seat);
 		return;
 	}
@@ -134,7 +135,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 			orbit_arrange(server);
 			orbit_focus(view);
 		}
-		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr", server->cursor);
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
 		return;
 	}
 
@@ -182,7 +183,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 			server->grab_y = server->cursor->y;
 			server->grab_gx = view->x;
 			server->grab_gy = view->y;
-			wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "fleur", server->cursor);
+			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "fleur");
 			orbit_focus(view);
 			return;
 		}

@@ -1,12 +1,23 @@
-# Orbit — wlroots 0.18 usa o módulo "wlroots".
-# wlroots 0.19 muda o nome: make PKGS="wlroots-0.19 wayland-server xkbcommon"
-PKGS ?= wlroots wayland-server xkbcommon
+# Orbit — wlroots 0.18. O Arch chama o módulo de "wlroots-0.18"; noutras distros é "wlroots"
+# (make PKGS="wlroots wayland-server xkbcommon"). wlroots 0.19: PKGS="wlroots-0.19 ...".
+PKGS ?= wlroots-0.18 wayland-server xkbcommon
+WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
+WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
 SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c keybinds.c
+# os cabeçalhos que os do wlroots incluem, gerados dos XML dos protocolos
+PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
 
-orbit: $(SRCS) orbit.h
-	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS))
+orbit: $(SRCS) orbit.h $(PROTOS)
+	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS))
+
+xdg-shell-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
+
+# o XML do layer shell vem junto (protocolos/), como no dwl: não precisa do wlr-protocols
+wlr-layer-shell-unstable-v1-protocol.h: protocolos/wlr-layer-shell-unstable-v1.xml
+	$(WAYLAND_SCANNER) server-header $< $@
 
 clean:
-	rm -f orbit
+	rm -f orbit $(PROTOS)
 
 .PHONY: clean

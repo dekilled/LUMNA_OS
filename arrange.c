@@ -273,7 +273,7 @@ static void fibonacci(struct orbit_server *server, const struct wlr_box *box,
 
 static void desktop_arrange(struct orbit_server *server, const struct wlr_box *box,
 		struct orbit_view **tiled, int n) {
-	if (server->layout == ORBIT_LAYOUT_MONOCLE) {
+	if (server->arrangement == ORBIT_LAYOUT_MONOCLE) {
 		raise_focused(server, tiled, n);
 		if (n > 0) {
 			place(tiled[0], box->x, box->y, box->width, box->height, true);
@@ -283,8 +283,8 @@ static void desktop_arrange(struct orbit_server *server, const struct wlr_box *b
 		}
 		return;
 	}
-	if (server->layout == ORBIT_LAYOUT_SPIRAL || server->layout == ORBIT_LAYOUT_DWINDLE) {
-		fibonacci(server, box, tiled, n, server->layout == ORBIT_LAYOUT_SPIRAL);
+	if (server->arrangement == ORBIT_LAYOUT_SPIRAL || server->arrangement == ORBIT_LAYOUT_DWINDLE) {
+		fibonacci(server, box, tiled, n, server->arrangement == ORBIT_LAYOUT_SPIRAL);
 		return;
 	}
 	int gap = server->gap;
