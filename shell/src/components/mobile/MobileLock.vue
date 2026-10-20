@@ -149,6 +149,20 @@ async function load() {
 
 let clock = 0;
 const stops: (() => void)[] = [];
+// A tela de bloqueio nunca rola. O overflow: hidden só impede o dedo: o WebKit ainda rola por conta
+// própria pra mostrar o campo em foco (a senha) e a tela ficava deslocada, saindo do lugar. Qualquer
+// rolagem aqui (da página ou de dentro dela) volta pro zero na hora.
+function keepInPlace(e: Event) {
+  const el = e.target instanceof Element ? e.target : document.scrollingElement;
+  if (el && (el.scrollTop || el.scrollLeft)) {
+    el.scrollTop = 0;
+    el.scrollLeft = 0;
+  }
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+}
+document.addEventListener("scroll", keepInPlace, { capture: true, passive: true });
+onUnmounted(() => document.removeEventListener("scroll", keepInPlace, { capture: true }));
+
 onMounted(async () => {
   await load();
   clock = window.setInterval(() => (now.value = new Date()), 5000);

@@ -50,6 +50,11 @@ function open() {
 
 <style scoped>
 .music-card {
+  /* nunca mais largo que o lugar dele (no bloqueio, passar da tela fazia a página rolar) */
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 12px;
