@@ -115,7 +115,9 @@ typedef struct gv_opcoes {
 	enum gv_nivel nivel;
 	uint32_t ancoras;
 	int zona_exclusiva;
-	bool teclado;            /* a camada quer o teclado */
+	bool teclado;            /* a camada quer o teclado (quando se toca nela) */
+	bool teclado_exclusivo;  /* a camada fica com o teclado enquanto existir (um lançador, o bloqueio) */
+	int margens[4];          /* a camada afasta-se das bordas: cima, direita, baixo, esquerda */
 	const char *saida;       /* em que tela (o nome: "HDMI-A-1", ou "@principal": a primeira);
 	                          * NULL: a que o compositor escolher */
 } gv_opcoes;
@@ -313,6 +315,9 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
  * soltar já não conta como toque), ou a tecla Menu / Shift+F10 com ele focado. Abra um GV_POPUP
  * preso a ele. Peça-o antes de declarar elementos de dentro (o de fora fica com o pedido). */
 bool gv_menu_contexto(Clay_ElementId id);
+/* Seguraram este elemento meio segundo (o dedo ou o botão do rato, sem arrastar): o soltar já não
+ * conta como toque. Também abre gv_menu_contexto, por isso peça primeiro o que quiser. */
+bool gv_segurou(Clay_ElementId id);
 /* (do GV_POPUP) */
 bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_opcoes *opcoes);
 Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id);

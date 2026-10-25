@@ -529,6 +529,9 @@ static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fix
 	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
 	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
 	gv__entrada.toque = false;
+	if (gv__entrada.baixo && fabsf(gv__entrada.x - gv__entrada.aperto_x) + fabsf(gv__entrada.y - gv__entrada.aperto_y) > 10) {
+		gv__entrada.segurar_cancelado = true; /* arrastou: não é segurar */
+	}
 	app->precisa = true;
 }
 
@@ -553,6 +556,11 @@ static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, u
 		app->aperto_serial = serial;
 		gv__entrada.baixo = true;
 		gv__entrada.apertou = true;
+		gv__entrada.aperto_em = gv_agora();
+		gv__entrada.aperto_x = gv__entrada.x;
+		gv__entrada.aperto_y = gv__entrada.y;
+		gv__entrada.segurar_cancelado = false;
+		gv__app_acordar_em(0.5);
 		if (!app->ponteiro_no_popup) {
 			popups_fechar_fora(app);
 		}
@@ -1114,8 +1122,11 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 			zwlr_layer_surface_v1_set_anchor(app->camada, opcoes->ancoras);
 			zwlr_layer_surface_v1_set_exclusive_zone(app->camada, opcoes->zona_exclusiva);
 			zwlr_layer_surface_v1_set_keyboard_interactivity(app->camada,
-				opcoes->teclado ? ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_ON_DEMAND
+				opcoes->teclado_exclusivo ? ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE
+				: opcoes->teclado ? ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_ON_DEMAND
 						: ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
+			zwlr_layer_surface_v1_set_margin(app->camada, opcoes->margens[0], opcoes->margens[1], opcoes->margens[2],
+				opcoes->margens[3]);
 		}
 	}
 	if (app->opcoes.tipo == GV_JANELA) {
@@ -1494,8 +1505,8 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	}
 
 	gv__anim_quadro();
-	/* o dedo ficou meio segundo no mesmo sítio: segurou (uma vez por aperto) */
-	if (gv__entrada.baixo && gv__entrada.toque && !gv__entrada.segurar_cancelado && agora - gv__entrada.aperto_em >= 0.5) {
+	/* o dedo (ou o botão do rato) ficou meio segundo no mesmo sítio: segurou (uma vez por aperto) */
+	if (gv__entrada.baixo && !gv__entrada.segurar_cancelado && agora - gv__entrada.aperto_em >= 0.5) {
 		gv__entrada.segurou = true;
 		gv__entrada.segurar_cancelado = true;
 	}

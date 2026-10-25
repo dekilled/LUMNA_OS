@@ -38,6 +38,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_app_entrada_em` | só um elemento recebe o toque (a dock numa camada larga) |
 | `gv_menu_contexto` | pediram o menu deste elemento: botão direito, segurar o dedo, tecla Menu |
 | `gv_saidas`, `gv_opcoes.saida`, `gv_app_camada` | as telas pelo nome, uma camada numa tela escolhida, e mudar o tamanho e a zona dela com a app a correr |
+| `gv_segurou` | seguraram o elemento meio segundo (rato ou dedo); o soltar já não é toque |
 | `gv_imagem` | PNG, JPEG, WebP, SVG: cobrir, conter ou esticar, nos cantos do elemento, esmaecendo ao chegar |
 | `gv_icone_app` | o ícone de um app pelo tema de ícones (o `Icon=` do .desktop) |
 | `gv_rolagem` | área que rola: dedo com inércia e elástico, roda do rato, barra que aparece e some |
@@ -137,6 +138,7 @@ make
 ./rede               # a janela de Rede da tela nova: cartões que abrem e listas suspensas
 ./transferencia      # a área de transferência do Celular Connect: texto de várias linhas
 ./dock               # a dock: apps fixos (~/.config/lumna/dock), abertos e o ativo; preferências em dock.ini
+./lancador           # o Início: favoritos, apps por categoria com detalhes, recentes e busca (o losango da dock)
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste

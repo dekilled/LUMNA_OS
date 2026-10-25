@@ -14,7 +14,8 @@
  *   folder ; Arquivos ; lumna-arquivos ; lumna-arquivos
  *   -
  *   mic ; Emma ; lumna-emma ; lumna-emma
- * O ícone é um do LUMNA (o desenho de linha) ou, se não houver, o do tema de ícones.
+ * O ícone é um do LUMNA (o desenho de linha) ou, se não houver, o do tema de ícones. Um app_id
+ * que começa por "@" não é de janelas (o lançador: o losango abre e fecha o "Início").
  *
  * As preferências vêm de ~/.config/lumna/dock.ini (o Painel de controle grava-o) e valem na
  * hora, sem reiniciar:
@@ -56,7 +57,7 @@ static int nfixos;
 static double abriu_em[MAX_FIXOS]; /* o salto de "abrindo" até a janela aparecer */
 
 static const struct fixo padrao[] = {
-	{ "lumna", "Aplicativos", "lumna-apps", "lumna-apps" },
+	{ "lumna", "Início", "@lancador", "lumna-lancador" },
 	{ "folder", "Arquivos", "lumna-arquivos", "lumna-arquivos" },
 	{ "globe", "Navegador", "firefox", "firefox" },
 	{ "bag", "Loja", "lumna-loja", "lumna-loja" },
@@ -316,6 +317,9 @@ static void abrir(const char *comando) {
 
 /* as janelas de um app (pelo app_id, sem ligar a maiúsculas nem ao ".desktop") */
 static bool do_app(const gv_janela *j, const char *app_id) {
+	if (app_id[0] == '@') {
+		return false; /* não é de janelas */
+	}
 	size_t n = strlen(app_id);
 	if (n > 8 && !strcmp(app_id + n - 8, ".desktop")) {
 		n -= 8;
@@ -341,8 +345,8 @@ static void tocar(const char *app_id, const char *comando, const gv_janela **jan
 			printf("abrir %s: %s\n", app_id, comando);
 			fflush(stdout);
 			abrir(comando);
-			if (abriu) {
-				*abriu = gv_agora();
+			if (abriu && app_id[0] != '@') {
+				*abriu = gv_agora(); /* salta até a janela aparecer */
 			}
 		}
 		return;

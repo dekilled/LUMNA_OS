@@ -570,7 +570,17 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 	return mudou;
 }
 
-/* ---- menu de contexto ---- */
+/* ---- menu de contexto e segurar ---- */
+
+bool gv_segurou(Clay_ElementId id) {
+	if (gv__entrada.segurou && Clay_PointerOver(id)) {
+		gv__entrada.ativo = 0xffffffffu; /* o soltar já não é um toque */
+		gv__entrada.travado = true;
+		gv__entrada.segurou = false;
+		return true;
+	}
+	return false;
+}
 
 bool gv_menu_contexto(Clay_ElementId id) {
 	if ((gv__entrada.direito || gv__entrada.segurou) && Clay_PointerOver(id)) {

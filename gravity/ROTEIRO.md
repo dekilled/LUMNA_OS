@@ -32,7 +32,9 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [x] Janela maximizada: ocultar (com a faixa que a traz de volta) ou esticar, por monitor
   - [ ] Arrastar para reordenar
 - [~] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas) — o do Bluetooth já abre (dados de mentira)
-- [~] Lançador (grade de apps com busca) — a lista dos .desktop já existe no exemplo `apps`
+- [x] Lançador ("Início") — exemplo `lancador`: favoritos, abas por categoria com os detalhes do
+      app (o rato mostra, segurar fixa, ✕ solta), recentes, busca, bloquear/desligar/Emma
+  - [ ] Atualizações e desinstalar de verdade (o gestor de pacotes: lumna-pkg)
 - [ ] Notificações (servidor org.freedesktop.Notifications) e o centro delas
 - [ ] Tela de bloqueio com PIN
 - [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
