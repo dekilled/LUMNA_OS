@@ -1,0 +1,218 @@
+# Painel de controle — o plano
+
+O Painel do LUMNA em Gravity (`exemplos/painel.c`, `lumna-painel`). Os esboços estão em
+`docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
+
+## O início
+
+Abas no topo, com a busca à direita:
+
+| Aba | O que tem |
+| --- | --- |
+| **Geral** | "Usados recentemente" (4 atalhos para os últimos painéis abertos) e a grade das categorias do dia a dia |
+| **Inicialização** | o que acontece ao ligar e ao entrar (ver abaixo) |
+| **Sistema** | a grade das categorias do sistema |
+
+A busca procura em todas as categorias, seções e ajustes. Tocar num resultado abre o painel certo
+e realça o ajuste. No rodapé ficam as Atualizações, como no esboço.
+
+## Dentro de uma categoria
+
+O mesmo padrão em todas, como nas telas de Tema, Cores e Papel de parede:
+
+- **Barra lateral:**
+  - "‹ Todas as categorias";
+  - "Filtrar painéis";
+  - o nome da categoria e as seções dela (o ícone e o nome; a escolhida com a faixa do acento à esquerda);
+  - "Perguntar à Emma" no pé.
+- **Conteúdo:**
+  - a categoria em cinza;
+  - o título e a descrição;
+  - uma linha;
+  - os ajustes;
+  - no rodapé, **Restaurar padrão | Aplicar**.
+- A aba de onde a categoria veio fica marcada.
+
+**Aplicar:** a mudança aparece na hora como prévia sempre que der (cor, tema, papel de parede),
+mas só fica gravada no Aplicar. Ao sair com algo pendente, o painel pergunta: Aplicar, Descartar
+ou Continuar a editar. O Restaurar padrão volta a seção aos valores de fábrica (também pendente
+até o Aplicar).
+
+**Abrir direto numa seção:** `lumna-painel --secao aparencia/papel` (o menu do desktop, a dock,
+a busca do lançador).
+
+Os ajustes ficam em `~/.config/lumna/*.ini`. Cada peça vigia o seu arquivo e aplica na hora
+(como a dock já faz com o `dock.ini`).
+
+## As categorias
+
+Legenda: ✅ feito · 🔨 a seguir · ⏳ depois (depende de um serviço)
+
+### Geral
+
+**Aparência**
+- 🔨 **Tema:**
+  - estilo Escuro, Claro ou Automático (pelo horário);
+  - densidade Compacta ou Confortável;
+  - cantos das janelas Suaves ou Retos;
+  - animações;
+  - o tema atual.
+- 🔨 **Cores:**
+  - a cor de destaque (6 do LUMNA, um #hex e o conta-gotas);
+  - prévia ao vivo;
+  - usar as cores do papel de parede (a cor dominante da imagem vira o acento);
+  - destaque na janela ativa;
+  - contraste (Padrão ou Alto).
+- 🔨 **Papel de parede:**
+  - *O mesmo em todas as telas* ou *um por tela*: com "um por tela", o seletor de Monitor escolhe qual se edita.
+  - Modo: Desktop, Gaming ou Mídia, e "Todos os modos".
+  - Prévia grande, o nome, a coleção e "Escolher arquivo".
+  - Ajuste: Preencher, Ajustar, Esticar ou Centralizar.
+  - A Coleção LUMNA em miniaturas, mais "Ver todos".
+  - Trocar automaticamente, com o intervalo.
+  - ⏳ Vídeo e página web como papel de parede.
+- ✅ **Dock:** formato, monitores e o que fazer com uma janela maximizada (já existe; passa para este padrão).
+- 🔨 **Barra superior:** relógio (segundos, data), os ícones que aparecem e o indicador das áreas.
+- 🔨 **Tela de bloqueio:**
+  - papel de parede próprio ou o mesmo;
+  - mostrar avisos;
+  - relógio grande;
+  - bloquear depois de X minutos.
+- 🔨 **Tamanho e textos:**
+  - a escala da interface;
+  - o tamanho do texto;
+  - a fonte;
+  - texto em negrito.
+
+**Rede e internet**
+- ⏳ Wi-Fi;
+- ⏳ Cabo;
+- ⏳ VPN;
+- ⏳ Proxy;
+- ⏳ Ponto de acesso;
+- ⏳ Dados móveis (no celular).
+
+O NetworkManager por D-Bus; as telas da `rede` já existem.
+
+**Bluetooth**
+- ⏳ Dispositivos (parear, conectar, bateria);
+- ⏳ Nome e visibilidade;
+- ⏳ Receber arquivos.
+
+Pelo BlueZ.
+
+**Aplicativos**
+- 🔨 Instalados (a lista do lançador, com desinstalar pelo `lumna-pkg`);
+- 🔨 Apps padrão (navegador, música, vídeo, imagens, e-mail);
+- ⏳ Permissões (câmera, microfone, localização, arquivos);
+- ⏳ Atualizações.
+
+**Telas e modos**
+- ⏳ Monitores:
+  - resolução, escala, taxa e rotação;
+  - posição;
+  - qual é o principal.
+
+  Pelo Orbit (`orbit-msg` / wlr-output-management).
+- ⏳ Luz noturna;
+- 🔨 Modos (Desktop, Gaming, Mídia: o que cada um mostra);
+- ⏳ Áreas de trabalho.
+
+**Som**
+- ✅ Saída, entrada e volume por app (o `mixer` já fala com o PipeWire): passa para este padrão.
+- 🔨 Sons do sistema.
+
+**Celular Connect**
+- ⏳ Pareamento;
+- ⏳ Área de transferência (a tela `transferencia` existe);
+- ⏳ Avisos do celular;
+- ⏳ Arquivos.
+
+**Emma**
+- ⏳ Voz;
+- ⏳ "Oi Emma";
+- ⏳ Provedores e modelos;
+- ⏳ Privacidade;
+- ⏳ Automações.
+
+### Inicialização (a aba nova)
+
+- 🔨 **Ao entrar:** o modo inicial (Desktop, Gaming ou Mídia) e reabrir as janelas da última sessão.
+- 🔨 **Apps ao iniciar:** a lista de apps que abrem sozinhos (`~/.config/autostart`), com adicionar e remover.
+- ⏳ **Entrada:** login automático, PIN ou senha, e a tela de boas-vindas.
+- ⏳ **Em segundo plano:** os serviços do usuário (systemd --user), ligar e desligar.
+
+### Sistema
+
+- **Sobre:**
+  - 🔨 este computador (modelo, processador, memória, versão do LUMNA);
+  - ⏳ atualizações do sistema;
+  - avisos legais.
+- **Armazenamento:**
+  - 🔨 uso do disco por pasta;
+  - ⏳ limpeza (lixeira, cache, pacotes antigos);
+  - ⏳ discos e pendrives.
+- **Energia:**
+  - ⏳ perfil de energia (power-profiles-daemon);
+  - ⏳ bateria (UPower);
+  - 🔨 tela e suspensão (desligar a tela e suspender depois de X min);
+  - ⏳ o botão de ligar.
+- **Teclado e mouse:**
+  - 🔨 layout e repetição;
+  - 🔨 atalhos;
+  - ⏳ mouse e touchpad;
+  - ⏳ teclado na tela.
+- **Data e hora:**
+  - ⏳ automática;
+  - ⏳ fuso;
+  - 🔨 formato (24 h, data na barra).
+- **Idioma e região:**
+  - ⏳ idioma;
+  - ⏳ formatos;
+  - ⏳ métodos de entrada.
+- **Usuários:**
+  - ⏳ sua conta (foto, nome);
+  - ⏳ senha e PIN;
+  - ⏳ outros usuários.
+- **Privacidade:**
+  - ⏳ permissões dos apps;
+  - 🔨 histórico e recentes (limpar os recentes do lançador);
+  - ⏳ diagnóstico.
+
+## O papel de parede: o arquivo
+
+`~/.config/lumna/papel.ini`, que o `papel` vigia e aplica na hora:
+
+```ini
+[geral]
+por_tela = nao          ; sim: cada tela com o seu
+trocar = nao            ; trocar sozinho entre os da coleção
+intervalo = 30          ; minutos
+
+[desktop]               ; um grupo por modo (desktop, gaming, midia); [todos] vale para os três
+imagem = /usr/share/lumna/wallpapers/eclipse.jpg
+ajuste = preencher      ; preencher, ajustar, esticar, centralizar
+
+[desktop HDMI-A-1]      ; com por_tela = sim: o desta tela (sem o grupo, vale o do modo)
+imagem = ~/Imagens/praia.jpg
+```
+
+O `papel` passa a abrir uma camada por tela (como a dock em "todos os monitores"). Cada uma lê
+o seu grupo. O antigo `~/.config/lumna/papel` (um caminho só) continua a valer quando o `.ini`
+não existe.
+
+## A ordem
+
+1. A estrutura: as abas novas, a grade com "Usados recentemente", a vista da categoria com a
+   barra lateral, o rodapé Restaurar | Aplicar, o `--secao` e a busca.
+2. Aparência:
+   - Papel de parede (com uma camada por tela no `papel`);
+   - Cores (com as cores do papel de parede);
+   - Tema;
+   - Dock, que já existe, passa para o padrão novo;
+   - Tamanho e textos;
+   - Barra superior;
+   - Tela de bloqueio.
+3. Inicialização.
+4. As seções 🔨 do Sistema.
+5. As ⏳, à medida que os serviços (NetworkManager, BlueZ, UPower...) entram.
