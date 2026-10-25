@@ -145,6 +145,10 @@ make
 ./avisos             # os avisos: no canto ao chegarem e a central (./avisos --centro); precisa do D-Bus
 ```
 
+Para ver o desktop novo inteiro no PC, sem sair do seu: `./testar-desktop.sh`. Ele compila o
+Gravity, baixa e compila o Orbit (em `~/.cache/lumna`) e abre-o numa janela com o papel de
+parede, a topbar, a dock e os avisos (`--refazer` recompila tudo e atualiza o Orbit).
+
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste
 dele também serve: `orbit-msg toque baixo 0 X Y`.
 
