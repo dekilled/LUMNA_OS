@@ -76,6 +76,8 @@ struct gv_app {
 	struct wl_cursor_theme *cursores;
 	struct wl_surface *cursor_sup;
 	uint32_t ponteiro_serial;
+	uint32_t aperto_serial; /* o último aperto (ponteiro ou dedo), para mover a janela */
+	bool maximizada;
 	int32_t dedo; /* o dedo que manda (-1: nenhum) */
 
 	struct xkb_context *xkb;
@@ -146,6 +148,33 @@ float gv_app_largura(gv_app *app) {
 
 float gv_app_altura(gv_app *app) {
 	return app->altura;
+}
+
+void gv_app_minimizar(gv_app *app) {
+	if (app->janela) {
+		xdg_toplevel_set_minimized(app->janela);
+	}
+}
+
+void gv_app_maximizar(gv_app *app) {
+	if (!app->janela) {
+		return;
+	}
+	if (app->maximizada) {
+		xdg_toplevel_unset_maximized(app->janela);
+	} else {
+		xdg_toplevel_set_maximized(app->janela);
+	}
+}
+
+void gv_app_mover(gv_app *app) {
+	if (!app->janela || !app->seat) {
+		return;
+	}
+	xdg_toplevel_move(app->janela, app->seat, app->aperto_serial);
+	/* o compositor fica com o arrasto: o soltar não chega cá */
+	gv__entrada.baixo = false;
+	gv__entrada.ativo = 0;
 }
 
 void gv_app_sair(gv_app *app) {
@@ -354,6 +383,7 @@ static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, u
 		return;
 	}
 	if (estado == WL_POINTER_BUTTON_STATE_PRESSED) {
+		app->aperto_serial = serial;
 		gv__entrada.baixo = true;
 		gv__entrada.apertou = true;
 	} else {
@@ -403,6 +433,7 @@ static void toque_baixo(void *dados, struct wl_touch *t, uint32_t serial, uint32
 		return;
 	}
 	app->dedo = id;
+	app->aperto_serial = serial;
 	gv__entrada.x = wl_fixed_to_double(x);
 	gv__entrada.y = wl_fixed_to_double(y);
 	gv__entrada.baixo = true;
@@ -722,6 +753,14 @@ static const struct xdg_surface_listener xdg_sup_ouvinte = { .configure = xdg_su
 
 static void janela_configurar(void *dados, struct xdg_toplevel *j, int32_t largura, int32_t altura,
 		struct wl_array *estados) {
+	gv_app *app = dados;
+	app->maximizada = false;
+	uint32_t *e;
+	wl_array_for_each(e, estados) {
+		if (*e == XDG_TOPLEVEL_STATE_MAXIMIZED) {
+			app->maximizada = true;
+		}
+	}
 	tamanho_novo(dados, largura, altura);
 }
 

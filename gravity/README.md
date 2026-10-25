@@ -23,12 +23,15 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 |---|---|
 | `gv_texto`, `gv_rotulo` | texto com tamanho, cor e peso |
 | `gv_icone` | um ícone do LUMNA |
-| `gv_botao` | botão cheio, de contorno ou simples, com ícone e/ou texto |
+| `gv_botao`, `gv_botao_ext` | botão cheio (acento), elevado, de contorno, simples ou de perigo, com ícone e/ou texto; o `_ext` cresce e desativa |
 | `gv_botao_redondo` | botão redondo (ligado / perigo), como os do mixer e dos ajustes rápidos |
 | `gv_deslizante` | volume, brilho... (arrastar com o dedo ou o rato) |
 | `gv_interruptor` | liga/desliga animado |
 | `gv_campo` | campo de texto: normal, busca (lupa e ✕), senha (pontos e o olho), número, e-mail, URL |
-| `gv_separador` | linha de 1 px |
+| `gv_linha` | linha de ajuste: ícone, título, subtítulo e › ou interruptor (como no Painel de controle) |
+| `gv_abas` | abas com o sublinhado do acento |
+| `gv_barra_janela` | a barra de título: ícone, título, minimizar, maximizar, fechar; arrastar move |
+| `gv_separador` | linha de 1 px na cor da borda |
 | `gv_cartao()` | a declaração de um cartão: superfície, borda, cantos e sombra |
 | `gv_sombra()` | sombra macia em qualquer elemento |
 | `gv_anim`, `gv_anim_cor` | qualquer número ou cor animado até ao alvo |
@@ -53,8 +56,32 @@ O campo de texto faz o que se espera de um campo:
 ## Tema
 
 `gv_t` é o tema activo; os componentes lêem dele a cada quadro, então mudar um campo muda a tela.
-De fábrica é o do LUMNA (as cores do `styles.css` e do mixer). Um `tema.ini` muda o que quiser
-sem recompilar — `~/.config/gravity/tema.ini` ou `GRAVITY_TEMA=caminho`. Exemplo em
+De fábrica é a paleta nova do LUMNA, token a token:
+
+| Token | Campo | Cor | Onde |
+|---|---|---|---|
+| bg | `fundo` | `#0C0B12` | fundo geral |
+| surface | `superficie` | `#14121D` | janelas e conteúdo |
+| raised | `elevada` | `#1C1928` | barras, menus, cartões, teclas, campos |
+| hover | `sob_cursor` | `#262236` | superfície sob o cursor |
+| selected | `selecionado` | `#2B2340` | item selecionado |
+| border | `borda` | `#353044` | divisórias e bordas discretas |
+| border-control | `borda_controle` | `#746A8E` | contorno de controles |
+| text | `texto` | `#F4F1FA` | texto principal e ícones |
+| text-secondary | `texto_secundario` | `#BCB5CE` | texto secundário |
+| text-muted | `texto_suave` | `#8E869F` | texto auxiliar, dicas |
+| accent | `acento` | `#A78BFA` | ações principais, deslizantes, janela ativa |
+| accent-hover | `acento_cursor` | `#B79FFF` | ação principal sob o cursor |
+| accent-pressed | `acento_premido` | `#8F73DC` | ação principal premida |
+| on-accent | `sobre_acento` | `#160F26` | texto sobre o violeta |
+| focus | `foco` | `#C4B5FD` | anel de foco |
+| success / warning / danger / info | `sucesso` / `aviso` / `perigo` / `info` | `#78C6A3` / `#E4BB77` / `#E58B98` / `#86B8E8` | estados |
+| disabled | `desativado` | `#625B70` | controles desativados |
+| grip-idle | `divisor` | `#8E869F` | divisor em repouso (ativo: acento) |
+
+Mais `veu` (scrim, o escuro por trás de um diálogo) e `icone`. Cantos: 6 nos controles, 8 nas
+linhas, 12 nas janelas e cartões. Um `tema.ini` muda o que quiser
+sem recompilar, pelo nome do campo ou do token (`accent = #f472b6`) — `~/.config/gravity/tema.ini` ou `GRAVITY_TEMA=caminho`. Exemplo em
 [`exemplos/tema.ini`](exemplos/tema.ini): cores, raios, espaçamento, grossura dos ícones, fonte,
 tamanhos de texto, durações, curva (`suave`, `mola`, `linear`) e animações ligadas ou não.
 
@@ -79,6 +106,7 @@ make
 ./mixer --camada     # como no celular: uma camada por cima de tudo
 ./galeria            # os componentes, com o tema mudando ao vivo
 ./wifi               # conectar ao Wi-Fi: busca, lista e senha (os campos de texto)
+./painel             # o Painel de controle das telas novas: menu, abas, linhas e botões
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste

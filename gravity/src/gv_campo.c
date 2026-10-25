@@ -477,30 +477,32 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 		e->campo.comp_fim = cur + (int)lc;
 		e->campo.cursor_alfa = alfa;
 		e->campo.cor = gv_t.texto;
-		e->campo.cor_dica = gv_t.texto_fraco;
+		e->campo.cor_dica = gv_t.texto_suave;
 		e->campo.cor_sel = gv_alfa(gv_t.acento, 0.35f);
 		e->campo.cor_cursor = gv_t.acento;
 	}
 
 	/* ---- desenho ---- */
 	float realce = gv_anim(id.id, focado ? 1 : 0, gv_t.duracao_rapida);
-	Clay_Color borda = {
-		gv_t.linha.r + (gv_t.acento.r - gv_t.linha.r) * realce,
-		gv_t.linha.g + (gv_t.acento.g - gv_t.linha.g) * realce,
-		gv_t.linha.b + (gv_t.acento.b - gv_t.linha.b) * realce,
-		gv_t.linha.a + (255 - gv_t.linha.a) * realce,
+	/* em repouso a borda discreta, sob o cursor a de controle, com foco o anel de foco */
+	Clay_Color borda = gv_por_cima(id) && !gv__entrada.toque ? gv_t.borda_controle : gv_t.borda;
+	borda = (Clay_Color){
+		borda.r + (gv_t.foco.r - borda.r) * realce,
+		borda.g + (gv_t.foco.g - borda.g) * realce,
+		borda.b + (gv_t.foco.b - borda.b) * realce,
+		borda.a + (gv_t.foco.a - borda.a) * realce,
 	};
 	bool com_botao = (tipo == GV_CAMPO_BUSCA && n > 0) || senha;
 	CLAY(id, {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(50) },
 			.padding = { tipo == GV_CAMPO_BUSCA ? 14 : 16, com_botao ? 6 : 16, 0, 0 }, .childGap = 10,
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = gv_alfa(gv_cor(0xffffffff), 0.04f + 0.02f * realce),
-		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+		.backgroundColor = gv_t.elevada,
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 		.border = { .color = borda, .width = GV_BORDA(1) },
 	}) {
 		if (tipo == GV_CAMPO_BUSCA) {
-			gv_icone("search", 20, focado ? gv_t.icone : gv_t.texto_fraco);
+			gv_icone("search", 20, focado ? gv_t.icone : gv_t.texto_secundario);
 		}
 		CLAY(caixa_id, {
 			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(tamanho * 1.5f) } },
@@ -511,11 +513,11 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 			CLAY(botao_id, {
 				.layout = { .sizing = { CLAY_SIZING_FIXED(38), CLAY_SIZING_FIXED(38) },
 					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = gv_alfa(gv_cor(0xffffffff), sobre ? 0.06f : 0),
-				.cornerRadius = CLAY_CORNER_RADIUS(19),
+				.backgroundColor = gv_alfa(gv_t.sob_cursor, sobre ? 1 : 0),
+				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 			}) {
 				if (senha) {
-					gv_icone("eye", 20, c->mostrar ? gv_t.acento : gv_t.texto_fraco);
+					gv_icone(c->mostrar ? "eye-off" : "eye", 20, c->mostrar ? gv_t.acento : gv_t.texto_secundario);
 				} else {
 					gv_icone("close", 18, gv_t.texto_suave);
 				}

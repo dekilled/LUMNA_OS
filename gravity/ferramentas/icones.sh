@@ -1,6 +1,6 @@
 #!/bin/sh
 # Gera src/gv_icones.c com os ícones do shell do LUMNA (shell/src/components/Icon.vue): o mesmo
-# desenho nos dois lados. Rode de novo quando o Icon.vue ganhar ícones:
+# desenho nos dois lados, mais os de ferramentas/icones-extra.txt. Rode de novo quando o Icon.vue ganhar ícones:
 #   sh gravity/ferramentas/icones.sh
 set -eu
 export LC_ALL=C # a ordem do bsearch é a do strcmp
@@ -21,7 +21,9 @@ SAIDA="$RAIZ/gravity/src/gv_icones.c"
 	echo
 	echo 'static const struct icone icones[] = {'
 	# linhas como:   volume: "M4 9v6...",   ou   "volume-off": "M4 9h4...",
-	sed -n 's/^[[:space:]]*"\{0,1\}\([a-z0-9-]*\)"\{0,1\}: \("[^"]*"\),\{0,1\}$/	{ "\1", \2 },/p' "$VUE" | sort
+	# mais os do próprio Gravity (ferramentas/icones-extra.txt), no mesmo formato
+	cat "$VUE" "$RAIZ/gravity/ferramentas/icones-extra.txt" |
+		sed -n 's/^[[:space:]]*"\{0,1\}\([a-z0-9-]*\)"\{0,1\}: \("[^"]*"\),\{0,1\}$/	{ "\1", \2 },/p' | sort -u -t'"' -k2,2
 	echo '};'
 	echo
 	echo 'static int comparar(const void *chave, const void *item) {'

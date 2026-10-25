@@ -3,7 +3,7 @@
  * que quiser, chave a chave (o que não aparece fica como está):
  *
  *   # ~/.config/gravity/tema.ini
- *   acento = #f472b6
+ *   acento = #f472b6        (ou pelo nome do token do design: accent = #f472b6)
  *   raio_grande = 18
  *   fonte = Noto Sans
  *   duracao_normal = 300
@@ -33,29 +33,41 @@ Clay_Color gv_alfa(Clay_Color cor, float alfa) {
 
 void gv_tema_padrao(gv_tema *t) {
 	*t = (gv_tema){
-		/* as do shell: styles.css e o mixer (MobileVolume.vue) */
-		.fundo = gv_cor(0x04030a66),
-		.superficie = gv_cor(0x16131ff7),
-		.superficie_alta = gv_cor(0xffffff0a),
-		.texto = gv_cor(0xece8ffff),
-		.texto_suave = gv_cor(0xcfc6eeff),
-		.texto_fraco = gv_cor(0xa59cc9ff),
+		/* a paleta da UI nova do LUMNA */
+		.fundo = gv_cor(0x0c0b12ff),
+		.superficie = gv_cor(0x14121dff),
+		.elevada = gv_cor(0x1c1928ff),
+		.sob_cursor = gv_cor(0x262236ff),
+		.selecionado = gv_cor(0x2b2340ff),
+		.borda = gv_cor(0x353044ff),
+		.borda_controle = gv_cor(0x746a8eff),
+		.texto = gv_cor(0xf4f1faff),
+		.texto_secundario = gv_cor(0xbcb5ceff),
+		.texto_suave = gv_cor(0x8e869fff),
 		.acento = gv_cor(0xa78bfaff),
-		.acento_forte = gv_cor(0x8b5cf6ff),
-		.icone = gv_cor(0xb9a2fbff),
-		.linha = gv_cor(0xffffff1a),
-		.perigo = gv_cor(0xfca5a5ff),
-		.puxador = gv_cor(0xffffffff),
-		.raio_pequeno = 9,
-		.raio_medio = 16,
-		.raio_grande = 26,
+		.acento_cursor = gv_cor(0xb79fffff),
+		.acento_premido = gv_cor(0x8f73dcff),
+		.sobre_acento = gv_cor(0x160f26ff),
+		.foco = gv_cor(0xc4b5fdff),
+		.sucesso = gv_cor(0x78c6a3ff),
+		.aviso = gv_cor(0xe4bb77ff),
+		.perigo = gv_cor(0xe58b98ff),
+		.info = gv_cor(0x86b8e8ff),
+		.desativado = gv_cor(0x625b70ff),
+		.divisor = gv_cor(0x8e869fff),
+		.veu = gv_cor(0x0c0b1299),
+		.icone = gv_cor(0xf4f1faff),
+		/* cantos menores e superfícies sólidas, como nas telas novas */
+		.raio_pequeno = 6,
+		.raio_medio = 8,
+		.raio_grande = 12,
 		.espaco = 4,
-		.traco_icone = 1.8f,
+		.traco_icone = 1.6f,
 		.fonte = "Inter, Noto Sans, sans-serif",
 		.tamanho_legenda = 13,
 		.tamanho_corpo = 15,
 		.tamanho_destaque = 17,
-		.tamanho_titulo = 22,
+		.tamanho_titulo = 20,
 		.duracao_rapida = 120,
 		.duracao_normal = 200,
 		.duracao_lenta = 320,
@@ -86,16 +98,21 @@ static bool ler_cor(const char *texto, Clay_Color *cor) {
 
 struct chave_cor {
 	const char *nome;
+	const char *token; /* o nome no design do LUMNA */
 	size_t deslocamento;
 };
 
-#define COR(campo) { #campo, offsetof(gv_tema, campo) }
+#define COR(campo, token) { #campo, token, offsetof(gv_tema, campo) }
 static const struct chave_cor cores[] = {
-	COR(fundo), COR(superficie), COR(superficie_alta), COR(texto), COR(texto_suave), COR(texto_fraco),
-	COR(acento), COR(acento_forte), COR(icone), COR(linha), COR(perigo), COR(puxador),
+	COR(fundo, "bg"), COR(superficie, "surface"), COR(elevada, "raised"), COR(sob_cursor, "hover"),
+	COR(selecionado, "selected"), COR(borda, "border"), COR(borda_controle, "border-control"), COR(texto, "text"),
+	COR(texto_secundario, "text-secondary"), COR(texto_suave, "text-muted"), COR(acento, "accent"),
+	COR(acento_cursor, "accent-hover"), COR(acento_premido, "accent-pressed"), COR(sobre_acento, "on-accent"),
+	COR(foco, "focus"), COR(sucesso, "success"), COR(aviso, "warning"), COR(perigo, "danger"), COR(info, "info"),
+	COR(desativado, "disabled"), COR(divisor, "grip-idle"), COR(veu, "scrim"), COR(icone, "icon"),
 };
 
-#define NUM(campo) { #campo, offsetof(gv_tema, campo) }
+#define NUM(campo) { #campo, NULL, offsetof(gv_tema, campo) }
 static const struct chave_cor numeros[] = {
 	NUM(raio_pequeno), NUM(raio_medio), NUM(raio_grande), NUM(espaco), NUM(traco_icone),
 	NUM(tamanho_legenda), NUM(tamanho_corpo), NUM(tamanho_destaque), NUM(tamanho_titulo),
@@ -118,7 +135,7 @@ static char *aparar(char *s) {
 
 static void aplicar(gv_tema *t, const char *chave, const char *valor, const char *ficheiro, int linha) {
 	for (size_t i = 0; i < sizeof(cores) / sizeof(cores[0]); i++) {
-		if (!strcmp(chave, cores[i].nome)) {
+		if (!strcmp(chave, cores[i].nome) || !strcmp(chave, cores[i].token)) {
 			if (!ler_cor(valor, (Clay_Color *)((char *)t + cores[i].deslocamento))) {
 				fprintf(stderr, "gravity: %s:%d: cor %s inválida (use #RRGGBB ou #RRGGBBAA)\n", ficheiro, linha, valor);
 			}

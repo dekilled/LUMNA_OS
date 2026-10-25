@@ -126,7 +126,7 @@ static void cabecalho(gv_app *app) {
 		CLAY(fechar, {
 			.layout = { .sizing = { CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40) },
 				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-			.backgroundColor = gv_alfa(gv_cor(0xffffffff), gv_anim(fechar.id, sobre ? 0.08f : 0, gv_t.duracao_rapida)),
+			.backgroundColor = gv_alfa(gv_t.sob_cursor, gv_anim(fechar.id, sobre ? 1 : 0, gv_t.duracao_rapida)),
 			.cornerRadius = CLAY_CORNER_RADIUS(20),
 		}) {
 			gv_icone("close", 24, gv_t.icone);
@@ -143,7 +143,7 @@ static void saida(const struct som_no *atual) {
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 	}) {
 		CLAY(CLAY_ID("rotulo-saida"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-			gv_texto(CLAY_STRING("Saída"), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+			gv_texto(CLAY_STRING("Saída"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 		}
 		Clay_ElementId chip = CLAY_ID("chip-saida");
 		if (gv_tocado(chip) && som.nsaidas > 0) {
@@ -152,9 +152,9 @@ static void saida(const struct som_no *atual) {
 		CLAY(chip, {
 			.layout = { .sizing = { .width = CLAY_SIZING_FIT(0, 240), .height = CLAY_SIZING_FIXED(50) },
 				.padding = { 16, 16, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-			.backgroundColor = gv_alfa(gv_cor(0xffffffff), gv_premido(chip) ? 0.1f : 0.04f),
+			.backgroundColor = gv_premido(chip) ? gv_t.selecionado : gv_por_cima(chip) ? gv_t.sob_cursor : gv_t.elevada,
 			.cornerRadius = CLAY_CORNER_RADIUS(25),
-			.border = { .color = gv_alfa(gv_cor(0xffffffff), 0.12f), .width = GV_BORDA(1) },
+			.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
 			.clip = { .horizontal = true },
 		}) {
 			gv_icone(atual ? icone_saida(atual) : "speaker", 20, gv_t.icone);
@@ -166,9 +166,9 @@ static void saida(const struct som_no *atual) {
 				CLAY(CLAY_ID("lista-saidas"), {
 					.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIT(230, 320) },
 						.padding = CLAY_PADDING_ALL(6) },
-					.backgroundColor = gv_cor(0x1c1828ff),
+					.backgroundColor = gv_t.elevada,
 					.cornerRadius = CLAY_CORNER_RADIUS(14),
-					.border = { .color = gv_alfa(gv_t.acento, 0.2f), .width = GV_BORDA(1) },
+					.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
 					.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .offset = { 0, 6 }, .zIndex = 10,
 						.attachPoints = { .element = CLAY_ATTACH_POINT_RIGHT_TOP, .parent = CLAY_ATTACH_POINT_RIGHT_BOTTOM } },
 					.userData = gv_sombra(24, 14, 0.5f),
@@ -183,8 +183,8 @@ static void saida(const struct som_no *atual) {
 						CLAY(item, {
 							.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 10, 10, 0, 0 },
 								.childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-							.backgroundColor = s->padrao ? gv_alfa(gv_t.acento, 0.14f)
-								: gv_alfa(gv_cor(0xffffffff), gv_por_cima(item) ? 0.05f : 0),
+							.backgroundColor = s->padrao ? gv_t.selecionado
+								: gv_alfa(gv_t.sob_cursor, gv_por_cima(item) ? 1 : 0),
 							.cornerRadius = CLAY_CORNER_RADIUS(10),
 						}) {
 							gv_icone(icone_saida(s), 18, gv_t.icone);
@@ -206,9 +206,9 @@ static void volume_global(const struct som_no *atual) {
 	CLAY(CLAY_ID("global"), {
 		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) },
 			.padding = { .top = 18, .bottom = 16 }, .childGap = 8 },
-		.border = { .color = gv_alfa(gv_cor(0xffffffff), 0.08f), .width = { .bottom = 1 } },
+		.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
 	}) {
-		gv_texto(CLAY_STRING("Volume global"), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+		gv_texto(CLAY_STRING("Volume global"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 		CLAY(CLAY_ID("global-linha"), {
 			.layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		}) {
@@ -238,7 +238,7 @@ static void apps(void) {
 	if (som.napps == 0) {
 		CLAY(CLAY_ID("nenhum"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { .top = 16, .bottom = 6 } } }) {
 			gv_texto(CLAY_STRING("Nenhum app tocando som agora. Quando tocar, ele aparece aqui com o volume dele."),
-				14, gv_t.texto_fraco, GV_PESO_NORMAL);
+				14, gv_t.texto_suave, GV_PESO_NORMAL);
 		}
 		return;
 	}
@@ -248,12 +248,12 @@ static void apps(void) {
 		CLAY(CLAY_IDI("app", i), {
 			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(62) }, .childGap = 12,
 				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-			.border = { .color = gv_alfa(gv_cor(0xffffffff), 0.06f), .width = { .bottom = 1 } },
+			.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
 		}) {
 			CLAY(CLAY_IDI("app-icone", i), {
 				.layout = { .sizing = { CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(34) },
 					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = gv_alfa(gv_t.acento, 0.12f),
+				.backgroundColor = gv_t.selecionado,
 				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 			}) {
 				gv_icone(c.icone, 22, gv_t.icone);
@@ -326,7 +326,7 @@ static void desenhar(gv_app *app, void *dados) {
 	CLAY(veu, {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 20, 20, 20, 20 },
 			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = gv_alfa(gv_t.fundo, gv_t.fundo.a / 255.0f * entrada),
+		.backgroundColor = gv_alfa(gv_t.veu, gv_t.veu.a / 255.0f * entrada),
 	}) {
 		Clay_ElementDeclaration c = gv_cartao();
 		c.layout.sizing = (Clay_Sizing){ CLAY_SIZING_GROW(0, 420 * (0.97f + 0.03f * entrada)) };
@@ -336,7 +336,7 @@ static void desenhar(gv_app *app, void *dados) {
 			cabecalho(app);
 			if (!som.ligado) {
 				CLAY(CLAY_ID("sem-som"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { .top = 22, .bottom = 8 } } }) {
-					gv_texto(CLAY_STRING("Procurando o servidor de som…"), 14, gv_t.texto_fraco, GV_PESO_NORMAL);
+					gv_texto(CLAY_STRING("Procurando o servidor de som…"), 14, gv_t.texto_suave, GV_PESO_NORMAL);
 				}
 			} else {
 				saida(atual);

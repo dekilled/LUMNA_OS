@@ -65,22 +65,22 @@ static void lista(void) {
 			CLAY(id, {
 				.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(52) }, .padding = { 12, 12, 0, 0 },
 					.childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = esta ? gv_alfa(gv_t.acento, 0.14f) : gv_alfa(gv_cor(0xffffffff), gv_por_cima(id) ? 0.04f : 0),
-				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio - 4),
+				.backgroundColor = esta ? gv_t.selecionado : gv_alfa(gv_t.sob_cursor, gv_por_cima(id) ? 1 : 0),
+				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 			}) {
-				Clay_Color forca = redes[i].sinal >= 2 ? gv_t.icone : gv_t.texto_fraco;
+				Clay_Color forca = redes[i].sinal >= 2 ? gv_t.icone : gv_t.texto_suave;
 				gv_icone("wifi", 22, forca);
 				CLAY(CLAY_IDI("rede-nome", i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-					gv_texto(gv_str(redes[i].nome), gv_t.tamanho_corpo, gv_t.texto, esta ? GV_PESO_SEMINEGRITO : GV_PESO_NORMAL);
+					gv_texto(gv_str(redes[i].nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
 				}
 				if (!redes[i].aberta) {
-					gv_icone("lock", 16, gv_t.texto_fraco);
+					gv_icone("lock", 16, gv_t.texto_suave);
 				}
 			}
 		}
 		if (!mostradas) {
 			CLAY(CLAY_ID("nenhuma"), { .layout = { .padding = { 12, 12, 14, 14 } } }) {
-				gv_texto(gv_fmt("Nenhuma rede com “%s”.", busca), 14, gv_t.texto_fraco, GV_PESO_NORMAL);
+				gv_texto(gv_fmt("Nenhuma rede com “%s”.", busca), 14, gv_t.texto_suave, GV_PESO_NORMAL);
 			}
 		}
 	}
@@ -91,7 +91,7 @@ static void desenhar(gv_app *app, void *dados) {
 	CLAY(CLAY_ID("raiz"), {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(20),
 			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = gv_cor(0x0b0814ff),
+		.backgroundColor = gv_t.fundo,
 	}) {
 		Clay_ElementDeclaration c = gv_cartao();
 		c.layout.sizing = (Clay_Sizing){ CLAY_SIZING_GROW(0, 440) };
@@ -106,17 +106,17 @@ static void desenhar(gv_app *app, void *dados) {
 			lista();
 			if (escolhida >= 0) {
 				CLAY(CLAY_ID("conectar-a"), { .layout = { .padding = { .top = 6 } } }) {
-					gv_texto(gv_fmt("Conectar a %s", redes[escolhida].nome), 14, gv_t.texto_suave, GV_PESO_NORMAL);
+					gv_texto(gv_fmt("Conectar a %s", redes[escolhida].nome), 14, gv_t.texto_secundario, GV_PESO_NORMAL);
 				}
 				if (!redes[escolhida].aberta &&
 					(gv_campo(CLAY_ID("senha"), senha, sizeof(senha), "Senha", GV_CAMPO_SENHA) & GV_CAMPO_ENTER)) {
 					conectar();
 				}
 				if (aviso[0]) {
-					gv_texto(gv_str(aviso), 13, strstr(aviso, "pelo menos") ? gv_t.perigo : gv_t.acento, GV_PESO_NORMAL);
+					gv_texto(gv_str(aviso), 13, strstr(aviso, "pelo menos") ? gv_t.perigo : gv_t.info, GV_PESO_NORMAL);
 				}
 				CLAY(CLAY_ID("botoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { .top = 4 }, .childGap = 10 } }) {
-					if (gv_botao(CLAY_ID("cancelar"), NULL, "Cancelar", GV_BOTAO_CONTORNO)) {
+					if (gv_botao(CLAY_ID("cancelar"), NULL, "Cancelar", GV_BOTAO_ELEVADO)) {
 						escolhida = -1;
 						senha[0] = '\0';
 						aviso[0] = '\0';

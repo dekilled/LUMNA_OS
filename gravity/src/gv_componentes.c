@@ -123,7 +123,7 @@ void gv_separador(bool vertical, float comprimento) {
 	Clay_SizingAxis eixo = comprimento > 0 ? CLAY_SIZING_FIXED(comprimento) : CLAY_SIZING_GROW(0);
 	CLAY_AUTO_ID({
 		.layout = { .sizing = vertical ? (Clay_Sizing){ CLAY_SIZING_FIXED(1), eixo } : (Clay_Sizing){ eixo, CLAY_SIZING_FIXED(1) } },
-		.backgroundColor = gv_t.linha,
+		.backgroundColor = gv_t.borda,
 	}) {}
 }
 
@@ -136,63 +136,97 @@ Clay_ElementDeclaration gv_cartao(void) {
 		},
 		.backgroundColor = gv_t.superficie,
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
-		.border = { .color = gv_t.linha, .width = GV_BORDA(1) },
-		.userData = gv_sombra(48, 24, 0.55f),
+		.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
+		.userData = gv_sombra(40, 16, 0.45f),
 	};
+}
+
+/* o estado de um controle: 0 parado, 0,5 sob o cursor, 1 premido (animado) */
+static float estado_de(Clay_ElementId id, bool *tocado) {
+	*tocado = gv_tocado(id);
+	bool premido = gv_premido(id);
+	bool sobre = gv_por_cima(id) && !gv__entrada.toque;
+	return gv_anim(id.id, premido ? 1 : sobre ? 0.5f : 0, gv_t.duracao_rapida);
+}
+
+/* parado → sob o cursor → premido */
+static Clay_Color tres(Clay_Color parado, Clay_Color sobre, Clay_Color premido, float e) {
+	return e <= 0.5f ? misturar(parado, sobre, e * 2) : misturar(sobre, premido, (e - 0.5f) * 2);
 }
 
 /* ---- botões ---- */
 
-bool gv_botao(Clay_ElementId id, const char *icone, const char *texto, enum gv_estilo_botao estilo) {
-	bool tocado = gv_tocado(id);
-	bool premido = gv_premido(id);
-	bool sobre = gv_por_cima(id) && !gv__entrada.toque;
-	float realce = gv_anim(id.id, premido ? 1 : sobre ? 0.5f : 0, gv_t.duracao_rapida);
-
-	Clay_Color fundo = { 0 }, borda = { 0 }, conteudo = gv_t.texto;
-	if (estilo == GV_BOTAO_CHEIO) {
-		fundo = misturar(gv_t.acento_forte, gv_cor(0xffffffff), realce * 0.12f);
-		conteudo = gv_cor(0xffffffff);
-	} else {
-		fundo = gv_alfa(gv_cor(0xffffffff), realce * 0.08f);
-		conteudo = misturar(gv_t.acento, gv_t.texto, 0.35f);
-		if (estilo == GV_BOTAO_CONTORNO) {
-			borda = gv_t.linha;
-		}
+bool gv_botao_ext(Clay_ElementId id, const gv_botao_opcoes *o) {
+	bool tocado;
+	float e = estado_de(id, &tocado);
+	if (o->desativado) {
+		e = 0;
+		tocado = false;
+	}
+	Clay_Color nada = { 0 };
+	Clay_Color fundo = nada, borda = nada, conteudo = gv_t.texto;
+	switch (o->estilo) {
+	case GV_BOTAO_CHEIO:
+		fundo = tres(gv_t.acento, gv_t.acento_cursor, gv_t.acento_premido, e);
+		conteudo = gv_t.sobre_acento;
+		break;
+	case GV_BOTAO_ELEVADO:
+		fundo = tres(gv_t.elevada, gv_t.sob_cursor, gv_t.selecionado, e);
+		borda = gv_t.borda;
+		break;
+	case GV_BOTAO_CONTORNO:
+		fundo = tres(gv_alfa(gv_t.sob_cursor, 0), gv_t.sob_cursor, gv_t.selecionado, e);
+		borda = gv_t.borda_controle;
+		break;
+	case GV_BOTAO_SIMPLES:
+		fundo = tres(gv_alfa(gv_t.sob_cursor, 0), gv_t.sob_cursor, gv_t.selecionado, e);
+		break;
+	case GV_BOTAO_PERIGO:
+		fundo = gv_alfa(gv_t.perigo, 0.12f * e);
+		borda = gv_alfa(gv_t.perigo, 0.55f);
+		conteudo = gv_t.perigo;
+		break;
+	}
+	if (o->desativado) {
+		fundo = o->estilo == GV_BOTAO_CHEIO ? gv_t.elevada : fundo;
+		borda = borda.a > 0 ? gv_t.borda : borda;
+		conteudo = gv_t.desativado;
 	}
 	CLAY(id, {
 		.layout = {
-			.sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(52) },
-			.padding = { 16, 16, 0, 0 },
+			.sizing = { o->crescer ? CLAY_SIZING_GROW(0) : CLAY_SIZING_FIT(0), CLAY_SIZING_FIXED(o->altura > 0 ? o->altura : 44) },
+			.padding = { o->texto ? 18 : 12, o->texto ? 18 : 12, 0, 0 },
 			.childGap = 10,
 			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
 		},
 		.backgroundColor = fundo,
-		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 		.border = { .color = borda, .width = GV_BORDA(borda.a > 0 ? 1 : 0) },
 	}) {
-		if (icone) {
-			gv_icone(icone, 22, conteudo);
+		if (o->icone) {
+			gv_icone(o->icone, 20, conteudo);
 		}
-		if (texto) {
-			gv_texto(gv_str(texto), 14, conteudo, estilo == GV_BOTAO_CHEIO ? GV_PESO_SEMINEGRITO : GV_PESO_NORMAL);
+		if (o->texto) {
+			gv_texto(gv_str(o->texto), gv_t.tamanho_corpo, conteudo,
+				o->estilo == GV_BOTAO_CHEIO ? GV_PESO_MEDIO : GV_PESO_NORMAL);
 		}
 	}
 	return tocado;
 }
 
-bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool ligado, bool perigo) {
-	bool tocado = gv_tocado(id);
-	bool premido = gv_premido(id);
-	bool sobre = gv_por_cima(id) && !gv__entrada.toque;
-	float realce = gv_anim(id.id, premido ? 1 : sobre ? 0.5f : 0, gv_t.duracao_rapida);
-	float ativo = gv_anim(id.id + 1, ligado ? 1 : 0, gv_t.duracao_normal);
+bool gv_botao(Clay_ElementId id, const char *icone, const char *texto, enum gv_estilo_botao estilo) {
+	return gv_botao_ext(id, &(gv_botao_opcoes){ .icone = icone, .texto = texto, .estilo = estilo });
+}
 
+bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool ligado, bool perigo) {
+	bool tocado;
+	float e = estado_de(id, &tocado);
+	float ativo = gv_anim(id.id + 1, ligado ? 1 : 0, gv_t.duracao_normal);
 	Clay_Color marca = perigo ? gv_t.perigo : gv_t.acento;
-	Clay_Color fundo = misturar(gv_t.superficie_alta, gv_alfa(marca, perigo ? 0.06f : 0.18f), ativo);
-	fundo = misturar(fundo, gv_alfa(gv_cor(0xffffffff), 0.14f), realce * 0.5f);
-	Clay_Color borda = misturar(gv_t.linha, gv_alfa(marca, 0.4f), ativo);
-	Clay_Color cor = misturar(gv_t.texto_suave, marca, ativo);
+	Clay_Color fundo = tres(gv_t.elevada, gv_t.sob_cursor, gv_t.selecionado, e);
+	fundo = misturar(fundo, perigo ? misturar(gv_t.elevada, gv_t.perigo, 0.12f) : gv_t.selecionado, ativo * (1 - e));
+	Clay_Color borda = misturar(gv_t.borda, gv_alfa(marca, 0.6f), ativo);
+	Clay_Color cor = misturar(gv_t.texto_secundario, marca, ativo);
 	if (tamanho <= 0) {
 		tamanho = 44;
 	}
@@ -214,10 +248,10 @@ bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool 
 
 bool gv_deslizante(Clay_ElementId id, float *valor, float trilho, float puxador) {
 	if (trilho <= 0) {
-		trilho = 12;
+		trilho = 6;
 	}
 	if (puxador <= 0) {
-		puxador = 28;
+		puxador = 20;
 	}
 	candidato(id);
 	bool arrastando = gv__entrada.ativo == id.id && (gv__entrada.baixo || gv__entrada.soltou);
@@ -233,18 +267,19 @@ bool gv_deslizante(Clay_ElementId id, float *valor, float trilho, float puxador)
 			}
 		}
 	}
+	bool sobre = gv_por_cima(id) && !gv__entrada.toque;
 	struct gv_extra *e = extra(GV_EXTRA_DESLIZANTE);
 	if (e) {
 		e->deslizante.valor = *valor;
 		e->deslizante.trilho = trilho;
 		e->deslizante.puxador = puxador;
-		e->deslizante.cheio = gv_t.acento;
-		e->deslizante.vazio = gv_alfa(gv_cor(0xffffffff), 0.1f);
-		e->deslizante.cor_puxador = gv_t.puxador;
-		e->deslizante.realce = gv_anim(id.id, arrastando ? 1 : 0, gv_t.duracao_rapida);
+		e->deslizante.cheio = arrastando ? gv_t.acento_premido : sobre ? gv_t.acento_cursor : gv_t.acento;
+		e->deslizante.vazio = gv_t.borda;
+		e->deslizante.cor_puxador = gv_t.texto;
+		e->deslizante.realce = gv_anim(id.id, arrastando ? 1 : sobre ? 0.5f : 0, gv_t.duracao_rapida);
 	}
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(fmaxf(puxador + 8, 30)) } },
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(fmaxf(puxador + 12, 32)) } },
 		.custom = { .customData = e },
 	}) {}
 	return mudou;
@@ -257,15 +292,125 @@ bool gv_interruptor(Clay_ElementId id, bool *ligado) {
 		mudou = true;
 	}
 	float pos = gv_anim(id.id, *ligado ? 1 : 0, gv_t.duracao_normal);
+	bool sobre = gv_por_cima(id) && !gv__entrada.toque;
 	struct gv_extra *e = extra(GV_EXTRA_INTERRUPTOR);
 	if (e) {
 		e->interruptor.posicao = pos;
-		e->interruptor.fundo = misturar(gv_alfa(gv_cor(0xffffffff), 0.14f), gv_t.acento_forte, pos);
-		e->interruptor.bolinha = gv_cor(0xffffffff);
+		e->interruptor.fundo = misturar(sobre ? gv_t.sob_cursor : gv_t.borda, sobre ? gv_t.acento_cursor : gv_t.acento, pos);
+		e->interruptor.bolinha = misturar(gv_t.texto_secundario, gv_t.texto, pos);
 	}
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(32) } },
+		.layout = { .sizing = { CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(30) } },
 		.custom = { .customData = e },
 	}) {}
 	return mudou;
+}
+
+/* ---- linhas, abas e a barra da janela ---- */
+
+bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const char *subtitulo, bool *interruptor) {
+	bool tocado;
+	float e = estado_de(id, &tocado);
+	bool mudou = false;
+	Clay_ElementId chave = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 2000003u, id.baseId);
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(subtitulo ? 68 : 52) }, .padding = { 16, 16, 10, 10 },
+			.childGap = 18, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = interruptor ? (Clay_Color){ 0 } : gv_alfa(gv_t.sob_cursor, fminf(e * 2, 1)),
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+	}) {
+		if (icone) {
+			gv_icone(icone, 28, gv_t.icone);
+		}
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
+			gv_texto(gv_str(titulo), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+			if (subtitulo) {
+				gv_texto(gv_str(subtitulo), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+		if (interruptor) {
+			mudou = gv_interruptor(chave, interruptor);
+		} else {
+			gv_icone("forward", 18, gv_t.texto_secundario);
+		}
+	}
+	if (interruptor) {
+		/* tocar na linha também liga e desliga */
+		if (tocado && !mudou && !gv_por_cima(chave)) {
+			*interruptor = !*interruptor;
+			mudou = true;
+		}
+		return mudou;
+	}
+	return tocado;
+}
+
+bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa) {
+	bool mudou = false;
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 },
+		.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
+	}) {
+		for (int i = 0; i < n; i++) {
+			Clay_ElementId aba = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 3000017u + i, id.baseId);
+			if (gv_tocado(aba) && *ativa != i) {
+				*ativa = i;
+				mudou = true;
+			}
+			bool esta = *ativa == i;
+			bool sobre = gv_por_cima(aba) && !gv__entrada.toque;
+			float marca = gv_anim(aba.id, esta ? 1 : 0, gv_t.duracao_normal);
+			CLAY(aba, {
+				.layout = { .sizing = { .height = CLAY_SIZING_FIXED(48) }, .padding = { 16, 16, 0, 0 },
+					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+				.border = { .color = gv_alfa(gv_t.acento, marca), .width = { .bottom = 2 } },
+			}) {
+				gv_texto(gv_str(nomes[i]), gv_t.tamanho_corpo + 1,
+					esta ? gv_t.texto : sobre ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+	}
+	return mudou;
+}
+
+static bool botao_janela(Clay_ElementId id, const char *icone, bool fechar) {
+	bool tocado;
+	float e = estado_de(id, &tocado);
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(36) },
+			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = fechar ? gv_alfa(gv_t.perigo, 0.25f * fminf(e * 2, 1)) : gv_alfa(gv_t.sob_cursor, fminf(e * 2, 1)),
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
+	}) {
+		gv_icone(icone, 18, gv_t.texto_secundario);
+	}
+	return tocado;
+}
+
+void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo) {
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(54) }, .padding = { 20, 10, 0, 0 }, .childGap = 14,
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
+	}) {
+		if (icone) {
+			gv_icone(icone, 22, gv_t.texto_secundario);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			gv_texto(gv_str(titulo), gv_t.tamanho_corpo + 2, gv_t.texto, GV_PESO_NORMAL);
+		}
+		if (botao_janela(Clay__HashStringWithOffset(id.stringId, 4000001u, id.baseId), "minimize", false)) {
+			gv_app_minimizar(app);
+		}
+		if (botao_janela(Clay__HashStringWithOffset(id.stringId, 4000002u, id.baseId), "maximize", false)) {
+			gv_app_maximizar(app);
+		}
+		if (botao_janela(Clay__HashStringWithOffset(id.stringId, 4000003u, id.baseId), "close", true)) {
+			gv_app_sair(app);
+		}
+	}
+	/* arrastar a barra move a janela (o compositor faz o resto) */
+	if (gv__entrada.apertou && gv_por_cima(id) && !gv__entrada.ativo) {
+		gv_app_mover(app);
+	}
 }

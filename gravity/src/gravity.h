@@ -37,30 +37,43 @@ enum gv_curva {
 };
 
 typedef struct gv_tema {
-	/* cores (0-255, como no Clay) */
-	Clay_Color fundo;           /* o véu atrás de um painel */
-	Clay_Color superficie;      /* cartões e painéis */
-	Clay_Color superficie_alta; /* o que fica por cima de uma superfície (botões, campos) */
-	Clay_Color texto;
-	Clay_Color texto_suave;     /* legendas */
-	Clay_Color texto_fraco;     /* o menos importante */
-	Clay_Color acento;          /* violeta do LUMNA */
-	Clay_Color acento_forte;
-	Clay_Color icone;           /* ícones dos cabeçalhos */
-	Clay_Color linha;           /* bordas e separadores */
-	Clay_Color perigo;
-	Clay_Color puxador;         /* o botão redondo do deslizante */
+	/* cores (0-255, como no Clay); entre parênteses, o nome do token no design do LUMNA */
+	Clay_Color fundo;            /* (bg) o fundo geral */
+	Clay_Color superficie;       /* (surface) janelas e conteúdo */
+	Clay_Color elevada;          /* (raised) barras, menus, cards e teclas */
+	Clay_Color sob_cursor;       /* (hover) uma superfície sob o cursor */
+	Clay_Color selecionado;      /* (selected) o fundo do item escolhido */
+	Clay_Color borda;            /* (border) divisórias e bordas discretas */
+	Clay_Color borda_controle;   /* (border-control) o contorno do que se toca */
+	Clay_Color texto;            /* (text) texto principal e ícones essenciais */
+	Clay_Color texto_secundario; /* (text-secondary) */
+	Clay_Color texto_suave;      /* (text-muted) texto auxiliar */
+	Clay_Color acento;           /* (accent) ações principais, deslizantes, janela ativa */
+	Clay_Color acento_cursor;    /* (accent-hover) */
+	Clay_Color acento_premido;   /* (accent-pressed) */
+	Clay_Color sobre_acento;     /* (on-accent) o texto num botão violeta */
+	Clay_Color foco;             /* (focus) o anel do foco do teclado */
+	Clay_Color sucesso;          /* (success) */
+	Clay_Color aviso;            /* (warning) */
+	Clay_Color perigo;           /* (danger) erros e ações destrutivas */
+	Clay_Color info;             /* (info) */
+	Clay_Color desativado;       /* (disabled) */
+	Clay_Color divisor;          /* (grip-idle) um divisor parado; arrastado, usa o acento */
+	Clay_Color veu;              /* atrás de um painel por cima de tudo (o fundo, meio transparente) */
+	Clay_Color icone;            /* os ícones dos cabeçalhos e das linhas */
 	/* forma */
-	float raio_pequeno, raio_medio, raio_grande;
-	float espaco;               /* a unidade dos espaçamentos (gv_e(n) = n × espaco) */
-	float traco_icone;          /* grossura do traço dos ícones, em 24 px */
+	float raio_pequeno;          /* botões, campos, seletores */
+	float raio_medio;            /* linhas e itens */
+	float raio_grande;           /* janelas, cartões e menus */
+	float espaco;                /* a unidade dos espaçamentos (gv_e(n) = n × espaco) */
+	float traco_icone;           /* grossura do traço dos ícones, em 24 px */
 	/* texto */
 	char fonte[64];
 	float tamanho_legenda, tamanho_corpo, tamanho_destaque, tamanho_titulo;
 	/* movimento */
 	int duracao_rapida, duracao_normal, duracao_lenta; /* ms */
 	enum gv_curva curva;
-	bool animacoes;             /* falso: tudo muda na hora */
+	bool animacoes;              /* falso: tudo muda na hora */
 } gv_tema;
 
 /* O tema activo. Os componentes lêem dele a cada quadro: mudar um campo muda a tela. */
@@ -112,6 +125,10 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes);
 /* Corre até gv_app_sair (ou o compositor fechar a janela). Devolve o código de saída. */
 int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados);
 void gv_app_sair(gv_app *app);
+/* Janelas: minimizar, maximizar (ou voltar) e começar a arrastar (num aperto do ponteiro ou do dedo). */
+void gv_app_minimizar(gv_app *app);
+void gv_app_maximizar(gv_app *app);
+void gv_app_mover(gv_app *app);
 /* Pede outro quadro (os componentes e as animações já pedem sozinhos). NULL: a app actual. */
 void gv_app_redesenhar(gv_app *app);
 /* Um descritor a vigiar no ciclo da app (um socket, um pipe); a função corre quando há o que ler. */
@@ -168,13 +185,24 @@ const char *gv_colar(void);
 /* ---- componentes ---- */
 
 enum gv_estilo_botao {
-	GV_BOTAO_CHEIO,    /* fundo de acento */
-	GV_BOTAO_CONTORNO, /* só a borda */
+	GV_BOTAO_CHEIO,    /* a ação principal: fundo de acento */
+	GV_BOTAO_ELEVADO,  /* uma ação comum: superfície elevada com contorno ("Parear", "Verificar") */
+	GV_BOTAO_CONTORNO, /* só o contorno ("Adicionar dispositivo") */
 	GV_BOTAO_SIMPLES,  /* só o conteúdo */
+	GV_BOTAO_PERIGO,   /* destrutiva: contorno e texto de perigo ("Desconectar") */
 };
 
-/* Um botão com ícone e/ou texto (NULL num deles tira-o). Devolve verdadeiro no toque. */
+/* Um botão com ícone e/ou texto (NULL num deles tira-o), do tamanho do conteúdo. Devolve
+ * verdadeiro no toque. */
 bool gv_botao(Clay_ElementId id, const char *icone, const char *texto, enum gv_estilo_botao estilo);
+typedef struct gv_botao_opcoes {
+	const char *icone, *texto;
+	enum gv_estilo_botao estilo;
+	bool crescer;     /* ocupa a largura que sobrar */
+	bool desativado;
+	float altura;     /* 0: 44 */
+} gv_botao_opcoes;
+bool gv_botao_ext(Clay_ElementId id, const gv_botao_opcoes *opcoes);
 /* Um botão redondo só com ícone; "ligado" pinta-o como activo (perigo: em vermelho). */
 bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool ligado, bool perigo);
 /* Um deslizante de 0 a 1. Devolve verdadeiro quando o valor mudou neste quadro. */
@@ -197,7 +225,15 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 void gv_focar(Clay_ElementId id);
 bool gv_focado(Clay_ElementId id);
 
-/* Um separador de 1 px na cor da linha. */
+/* Uma linha de ajuste: ícone, título, subtítulo (NULL: sem) e, à direita, um › (devolve
+ * verdadeiro no toque) ou um interruptor (passe o bool; devolve verdadeiro quando mudou). */
+bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const char *subtitulo, bool *interruptor);
+/* Abas com o sublinhado do acento. Devolve verdadeiro quando a pessoa trocou de aba. */
+bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
+/* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
+void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
+
+/* Um separador de 1 px na cor da borda. */
 void gv_separador(bool vertical, float comprimento);
 
 /* A declaração de um cartão (superfície, borda, cantos e sombra do tema) para o CLAY():
