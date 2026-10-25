@@ -25,6 +25,7 @@
  *   espaco N [SAIDA]            mostra o espaço N (1-4) na saída (sem ela, a do ponteiro)
  *   mover ID N                  leva a janela para o espaço N
  *   ecra [ID] | flutuar [ID]    ecrã inteiro / flutuante, alterna
+ *   maximizar [ID]              maximizada (a área útil, sem a barra e a dock), alterna
  *   dividir                     liga ou desliga o par no telemóvel
  *   acao NOME                   uma acção dos atalhos (terminal, captura, mestre_mais...)
  *   exec COMANDO                corre um comando
@@ -138,9 +139,9 @@ static void put_view(struct ipc_buf *b, struct orbit_view *view) {
 	put_str(b, view->toplevel->title);
 	put(b, ",\"saida\":");
 	put_str(b, view->output ? view->output->wlr->name : "");
-	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}",
+	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}",
 		view->tag + 1, server->focused == view ? "true" : "false", view->floating ? "true" : "false",
-		view->fullscreen ? "true" : "false", view->x, view->y, view->w, view->h);
+		view->fullscreen ? "true" : "false", view->maximized ? "true" : "false", view->x, view->y, view->w, view->h);
 }
 
 static struct orbit_view *view_by_id(uint32_t id) {
@@ -316,6 +317,14 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			focus_top(server, view->output);
 		}
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "maximizar")) {
+		struct orbit_view *view = target(arg1);
+		if (!view) {
+			fail(b, "janela não encontrada");
+			return;
+		}
+		orbit_view_set_maximized(view, !view->maximized);
+		put(b, "{\"ok\":true,\"maximizada\":%s}", view->maximized ? "true" : "false");
 	} else if (!strcmp(cmd, "ecra") || !strcmp(cmd, "flutuar")) {
 		struct orbit_view *view = target(arg1);
 		if (!view) {
@@ -387,7 +396,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		put(b, "{\"ok\":true}");
 	} else {
 		fail(b, "pedido desconhecido (saidas, janelas, espacos, foco, fechar, espaco, mover, "
-			"ecra, flutuar, dividir, acao, exec, toque, subscrever)");
+			"ecra, maximizar, flutuar, dividir, acao, exec, toque, subscrever)");
 	}
 }
 

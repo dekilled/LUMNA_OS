@@ -98,6 +98,67 @@ struct orbit_view *view_at(struct orbit_server *server, double lx, double ly,
 	return view;
 }
 
+/*
+ * Maximizar e ecrã inteiro, pedidos pela própria janela (o botão dela, o F11 de um leitor de
+ * vídeo), pela dock (foreign toplevel) ou pelo Orbit. Maximizada ocupa a área útil da saída e as
+ * outras ficam no mosaico por baixo (voltam à frente com o foco); em ecrã inteiro vai para cima
+ * da barra e da dock.
+ */
+void orbit_view_set_maximized(struct orbit_view *view, bool on) {
+	if (view->maximized == on) {
+		if (view->toplevel->base->initialized) {
+			wlr_xdg_surface_schedule_configure(view->toplevel->base);
+		}
+		return;
+	}
+	view->maximized = on;
+	if (on) {
+		orbit_split_release(view->server, view);
+	}
+	if (!view->mapped) {
+		if (view->toplevel->base->initialized) {
+			wlr_xdg_toplevel_set_maximized(view->toplevel, on);
+		}
+		return;
+	}
+	orbit_arrange(view->server);
+	if (on) {
+		orbit_focus(view);
+	}
+}
+
+void orbit_view_set_fullscreen(struct orbit_view *view, bool on) {
+	if (view->fullscreen == on) {
+		if (view->toplevel->base->initialized) {
+			wlr_xdg_surface_schedule_configure(view->toplevel->base);
+		}
+		return;
+	}
+	view->fullscreen = on;
+	if (on) {
+		view->floating = false;
+		orbit_split_release(view->server, view);
+	}
+	if (!view->mapped) {
+		if (view->toplevel->base->initialized) {
+			wlr_xdg_toplevel_set_fullscreen(view->toplevel, on);
+		}
+		return;
+	}
+	orbit_arrange(view->server);
+	orbit_focus(view);
+}
+
+static void xdg_request_maximize(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, request_maximize);
+	orbit_view_set_maximized(view, view->toplevel->requested.maximized);
+}
+
+static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, request_fullscreen);
+	orbit_view_set_fullscreen(view, view->toplevel->requested.fullscreen);
+}
+
 static void xdg_map(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, map);
 	struct orbit_output *output = cursor_output(view->server);
@@ -161,6 +222,8 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&view->unmap.link);
 	wl_list_remove(&view->commit.link);
 	wl_list_remove(&view->destroy.link);
+	wl_list_remove(&view->request_maximize.link);
+	wl_list_remove(&view->request_fullscreen.link);
 	if (view->mapped) {
 		orbit_split_release(view->server, view);
 		wl_list_remove(&view->link);
@@ -226,6 +289,10 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&toplevel->base->surface->events.commit, &view->commit);
 	view->destroy.notify = xdg_destroy;
 	wl_signal_add(&toplevel->events.destroy, &view->destroy);
+	view->request_maximize.notify = xdg_request_maximize;
+	wl_signal_add(&toplevel->events.request_maximize, &view->request_maximize);
+	view->request_fullscreen.notify = xdg_request_fullscreen;
+	wl_signal_add(&toplevel->events.request_fullscreen, &view->request_fullscreen);
 }
 
 static struct orbit_view *popup_root_view(struct wlr_xdg_popup *popup) {

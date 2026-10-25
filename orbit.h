@@ -135,6 +135,7 @@ struct orbit_server {
 	struct orbit_layer *exclusive_layer;
 	struct wlr_scene_tree *layer_tree[ORBIT_LAYER_COUNT];
 	struct wlr_scene_tree *tile_tree;
+	struct wlr_scene_tree *full_tree; /* janelas em ecrã inteiro: por cima da barra e da dock, por baixo do overlay */
 	struct wlr_scene_tree *lock_tree;
 
 	struct wlr_foreign_toplevel_manager_v1 *foreign_manager;
@@ -234,12 +235,17 @@ struct orbit_view {
 	int tag;
 	bool floating;
 	bool fullscreen;
+	bool maximized;  /* ocupa a área útil da saída (sem a barra e a dock); as outras ficam por baixo */
 	bool mapped;
 	struct wlr_scene_rect *border;
 	struct wlr_foreign_toplevel_handle_v1 *foreign;
 	struct wlr_output *foreign_output;
 	struct wl_listener foreign_activate;
 	struct wl_listener foreign_close;
+	struct wl_listener foreign_maximize;
+	struct wl_listener foreign_fullscreen;
+	struct wl_listener request_maximize;
+	struct wl_listener request_fullscreen;
 	bool placed;
 	bool sliding;
 	int slide_x, slide_y;
@@ -297,6 +303,8 @@ struct orbit_output *adjacent_output(struct orbit_server *server, struct orbit_o
 void orbit_outputs_bind(struct orbit_server *server);
 
 void orbit_views_bind(struct orbit_server *server);
+void orbit_view_set_maximized(struct orbit_view *view, bool on);
+void orbit_view_set_fullscreen(struct orbit_view *view, bool on);
 void orbit_focus(struct orbit_view *view);
 void orbit_unfocus(struct orbit_server *server);
 void focus_top(struct orbit_server *server, struct orbit_output *output);

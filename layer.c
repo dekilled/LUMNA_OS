@@ -304,9 +304,10 @@ bool orbit_layers_bind(struct orbit_server *server) {
 	server->layer_tree[ORBIT_LAYER_BOTTOM] = wlr_scene_tree_create(&server->scene->tree);
 	server->tile_tree = wlr_scene_tree_create(&server->scene->tree);
 	server->layer_tree[ORBIT_LAYER_TOP] = wlr_scene_tree_create(&server->scene->tree);
+	server->full_tree = wlr_scene_tree_create(&server->scene->tree);
 	server->layer_tree[ORBIT_LAYER_OVERLAY] = wlr_scene_tree_create(&server->scene->tree);
 	if (!server->layer_tree[ORBIT_LAYER_BACKGROUND] || !server->layer_tree[ORBIT_LAYER_BOTTOM] ||
-		!server->tile_tree || !server->layer_tree[ORBIT_LAYER_TOP] ||
+		!server->tile_tree || !server->layer_tree[ORBIT_LAYER_TOP] || !server->full_tree ||
 		!server->layer_tree[ORBIT_LAYER_OVERLAY]) {
 		wlr_log(WLR_ERROR, "falha ao criar as árvores de camada");
 		return false;

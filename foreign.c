@@ -4,11 +4,12 @@
 #include <wlr/util/log.h>
 
 /*
- * Espelho para uma barra cliente. Publica título, app id, saída,
- * foco e ecrã inteiro. Dos pedidos, atende dois que a dock precisa:
- * activar (como o "foco" do orbit-msg: vai para o espaço da janela)
- * e fechar. Os outros (maximizar, ecrã inteiro) não mudam a
- * política: quem manda continua a ser o Orbit.
+ * Espelho para uma barra cliente. Publica título, app id, foco,
+ * maximizada, ecrã inteiro e a saída onde se vê (só quando está no
+ * espaço visível dela: a dock esconde-se pela janela maximizada que
+ * está à vista, não pela de outro espaço). Atende activar (como o
+ * "foco" do orbit-msg: vai para o espaço da janela), fechar,
+ * maximizar e ecrã inteiro.
  */
 
 static void handle_activate(struct wl_listener *listener, void *data) {
@@ -22,6 +23,18 @@ static void handle_activate(struct wl_listener *listener, void *data) {
 	orbit_arrange(view->server);
 	orbit_focus(view);
 	orbit_arrange(view->server);
+}
+
+static void handle_maximize(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, foreign_maximize);
+	struct wlr_foreign_toplevel_handle_v1_maximized_event *event = data;
+	orbit_view_set_maximized(view, event->maximized);
+}
+
+static void handle_fullscreen(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, foreign_fullscreen);
+	struct wlr_foreign_toplevel_handle_v1_fullscreen_event *event = data;
+	orbit_view_set_fullscreen(view, event->fullscreen);
 }
 
 static void handle_close(struct wl_listener *listener, void *data) {
@@ -52,6 +65,10 @@ void orbit_foreign_map(struct orbit_view *view) {
 	wl_signal_add(&view->foreign->events.request_activate, &view->foreign_activate);
 	view->foreign_close.notify = handle_close;
 	wl_signal_add(&view->foreign->events.request_close, &view->foreign_close);
+	view->foreign_maximize.notify = handle_maximize;
+	wl_signal_add(&view->foreign->events.request_maximize, &view->foreign_maximize);
+	view->foreign_fullscreen.notify = handle_fullscreen;
+	wl_signal_add(&view->foreign->events.request_fullscreen, &view->foreign_fullscreen);
 	orbit_foreign_sync(view);
 }
 
@@ -65,8 +82,10 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	wlr_foreign_toplevel_handle_v1_set_app_id(view->foreign, app);
 	wlr_foreign_toplevel_handle_v1_set_activated(view->foreign, view->server->focused == view);
 	wlr_foreign_toplevel_handle_v1_set_fullscreen(view->foreign, view->fullscreen);
+	wlr_foreign_toplevel_handle_v1_set_maximized(view->foreign, view->maximized && !view->fullscreen);
 	wlr_foreign_toplevel_handle_v1_set_minimized(view->foreign, false);
-	struct wlr_output *output = view->output ? view->output->wlr : NULL;
+	/* a saída só enquanto se vê nela (o espaço dela é o visível) */
+	struct wlr_output *output = view->output && view->tag == view->output->tag ? view->output->wlr : NULL;
 	if (view->foreign_output != output) {
 		if (view->foreign_output) {
 			wlr_foreign_toplevel_handle_v1_output_leave(view->foreign, view->foreign_output);
@@ -84,6 +103,8 @@ void orbit_foreign_destroy(struct orbit_view *view) {
 	}
 	wl_list_remove(&view->foreign_activate.link);
 	wl_list_remove(&view->foreign_close.link);
+	wl_list_remove(&view->foreign_maximize.link);
+	wl_list_remove(&view->foreign_fullscreen.link);
 	wlr_foreign_toplevel_handle_v1_destroy(view->foreign);
 	view->foreign = NULL;
 	view->foreign_output = NULL;

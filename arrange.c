@@ -47,9 +47,19 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 			wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
 		}
 	}
+	/* em ecrã inteiro a janela passa para cima da barra e da dock (e volta ao sair) */
+	struct wlr_scene_tree *tree = view->fullscreen ? view->server->full_tree : view->server->tile_tree;
+	if (view->scene_tree->node.parent != tree) {
+		wlr_scene_node_reparent(&view->scene_tree->node, tree);
+		if (view->border) {
+			wlr_scene_node_reparent(&view->border->node, tree);
+			wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
+		}
+	}
 	orbit_slide(view, x, y);
 	wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)cw, (uint32_t)ch);
 	wlr_xdg_toplevel_set_fullscreen(view->toplevel, view->fullscreen);
+	wlr_xdg_toplevel_set_maximized(view->toplevel, view->maximized && !view->fullscreen);
 	wlr_xdg_toplevel_set_tiled(view->toplevel,
 		tiled ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM : WLR_EDGE_NONE);
 	orbit_foreign_sync(view);
@@ -61,6 +71,7 @@ static void hide_view(struct orbit_view *view) {
 	if (view->border) {
 		wlr_scene_node_set_enabled(&view->border->node, false);
 	}
+	orbit_foreign_sync(view); /* deixou de se ver nesta saída */
 }
 
 static bool split_candidate(struct orbit_view *view, struct orbit_output *output) {
@@ -346,8 +357,9 @@ void orbit_arrange(struct orbit_server *server) {
 		struct wlr_box usable = orbit_layer_usable(output, &box);
 
 		struct orbit_view *tiled[ORBIT_MAX_VIEWS];
+		struct orbit_view *maxed[ORBIT_MAX_VIEWS];
 		struct orbit_view *full = NULL;
-		int n = 0;
+		int n = 0, nmax = 0;
 		bool capped = false;
 		struct orbit_view *view;
 		wl_list_for_each(view, &server->views, link) {
@@ -360,6 +372,10 @@ void orbit_arrange(struct orbit_server *server) {
 			}
 			if (view->fullscreen) {
 				full = view;
+			}
+			if (view->maximized && !view->fullscreen && nmax < ORBIT_MAX_VIEWS) {
+				maxed[nmax++] = view; /* fora do mosaico: ocupa a área útil, por cima dele */
+				continue;
 			}
 			if (view->floating && !view->fullscreen) {
 				view->sliding = false;
@@ -399,12 +415,18 @@ void orbit_arrange(struct orbit_server *server) {
 					hide_view(tiled[i]);
 				}
 			}
+			for (int i = 0; i < nmax; i++) {
+				hide_view(maxed[i]);
+			}
 			continue;
 		}
 		if (phone) {
 			phone_arrange(server, &usable, tiled, n, parked);
 		} else {
 			desktop_arrange(server, &usable, tiled, n);
+		}
+		for (int i = 0; i < nmax; i++) {
+			place(maxed[i], usable.x, usable.y, usable.width, usable.height, false);
 		}
 	}
 	orbit_idle_update(server);
