@@ -20,6 +20,7 @@ struct orbit_lock_surface {
 	struct orbit_lock *lock;
 	struct wlr_session_lock_surface_v1 *surface;
 	struct wlr_scene_tree *tree;
+	int cfg_w, cfg_h; /* o último tamanho mandado */
 	struct wl_listener commit;
 	struct wl_listener destroy;
 };
@@ -34,6 +35,11 @@ struct orbit_inhibitor {
 static void blank_session(struct orbit_server *server, bool locked) {
 	server->session_locked = locked;
 	wlr_scene_node_set_enabled(&server->tile_tree->node, !locked);
+	wlr_scene_node_set_enabled(&server->full_tree->node, !locked); /* um vídeo em ecrã inteiro também some */
+	if (locked) {
+		/* as teclas deixam de ir para a janela; vão para a tela de bloqueio quando ela aparecer */
+		wlr_seat_keyboard_notify_clear_focus(server->seat);
+	}
 	for (int i = 0; i < ORBIT_LAYER_COUNT; i++) {
 		wlr_scene_node_set_enabled(&server->layer_tree[i]->node, !locked);
 	}
@@ -48,13 +54,31 @@ static void lock_surface_place(struct orbit_lock_surface *surface) {
 	if (box.width < 1 || box.height < 1) {
 		return;
 	}
-	wlr_session_lock_surface_v1_configure(surface->surface, (uint32_t)box.width, (uint32_t)box.height);
+	/* só quando o tamanho muda: um configure a cada commit fazia o cliente redesenhar sem parar */
+	if (box.width != surface->cfg_w || box.height != surface->cfg_h) {
+		surface->cfg_w = box.width;
+		surface->cfg_h = box.height;
+		wlr_session_lock_surface_v1_configure(surface->surface, (uint32_t)box.width, (uint32_t)box.height);
+	}
 	wlr_scene_node_set_position(&surface->tree->node, box.x, box.y);
+}
+
+/* o teclado vai para a tela de bloqueio (sem isto o PIN e a senha não recebiam nada) */
+static void lock_keyboard_enter(struct orbit_lock_surface *surface) {
+	struct wlr_seat *seat = surface->lock->server->seat;
+	struct wlr_surface *wlr = surface->surface->surface;
+	if (!wlr->mapped || seat->keyboard_state.focused_surface == wlr) {
+		return;
+	}
+	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+	wlr_seat_keyboard_notify_enter(seat, wlr, keyboard ? keyboard->keycodes : NULL, keyboard ? keyboard->num_keycodes : 0,
+		keyboard ? &keyboard->modifiers : NULL);
 }
 
 static void lock_surface_commit(struct wl_listener *listener, void *data) {
 	struct orbit_lock_surface *surface = wl_container_of(listener, surface, commit);
 	lock_surface_place(surface);
+	lock_keyboard_enter(surface);
 }
 
 static void lock_surface_destroy(struct wl_listener *listener, void *data) {
@@ -97,6 +121,11 @@ static void lock_unlock(struct wl_listener *listener, void *data) {
 	lock->unlocked = true;
 	blank_session(lock->server, false);
 	orbit_arrange(lock->server);
+	/* o teclado volta para a janela que o tinha */
+	wlr_seat_keyboard_notify_clear_focus(lock->server->seat);
+	if (lock->server->focused) {
+		orbit_focus(lock->server->focused);
+	}
 	wlr_log(WLR_INFO, "sessão desbloqueada");
 }
 

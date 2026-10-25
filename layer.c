@@ -17,7 +17,7 @@
 
 static void layer_keyboard_enter(struct orbit_layer *layer) {
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(layer->server->seat);
-	if (!layer->surface->surface) {
+	if (!layer->surface->surface || layer->server->session_locked) {
 		return;
 	}
 	wlr_seat_keyboard_notify_enter(layer->server->seat, layer->surface->surface,

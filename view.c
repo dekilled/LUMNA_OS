@@ -5,8 +5,8 @@
 #include <wlr/util/log.h>
 
 void orbit_focus(struct orbit_view *view) {
-	if (!view || !view->mapped) {
-		return;
+	if (!view || !view->mapped || view->server->session_locked) {
+		return; /* trancado, o teclado é só da tela de bloqueio */
 	}
 	struct orbit_server *server = view->server;
 	struct orbit_view *previous_view = server->focused;
