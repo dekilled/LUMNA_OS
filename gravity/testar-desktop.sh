@@ -14,14 +14,14 @@ set -e
 AQUI=$(cd "$(dirname "$0")" && pwd)
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lumna
 ORBIT_DIR=${ORBIT_DIR:-$CACHE/orbit}
-ORBIT_REPO=https://github.com/dekilled/lumna_compositor
+ORBIT_REPO=https://github.com/dekilled/LUMNA_COMPOSITOR
 ORBIT_BRANCH=claude/orbit-compila
 BIN=$CACHE/bin
 
 falta() {
 	echo "Falta: $1"
 	echo "No Arch: sudo pacman -S --needed base-devel git wayland wayland-protocols libxkbcommon cairo pango \\"
-	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.19 dbus foot libnotify"
+	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.20 dbus foot libnotify"
 	exit 1
 }
 
@@ -39,24 +39,26 @@ if [ "$1" = "--refazer" ] || [ ! -x "$AQUI/avisos" ]; then
 	make -C "$AQUI" -j"$(nproc)"
 fi
 
-# o Orbit: o módulo do wlroots muda de nome conforme a distro e a versão (o 0.19 vem pronto no
-# Arch; o 0.18 do AUR já não compila com a libinput nova)
+# o Orbit: compila no wlroots 0.18, 0.19 e 0.20 (o Arch de hoje só tem o 0.20; o 0.18 do AUR já
+# não compila com a libinput nova). O módulo muda de nome conforme a distro e a versão.
 WLR=""
-for m in wlroots-0.19 wlroots-0.18 wlroots; do
+for m in wlroots-0.20 wlroots-0.19 wlroots-0.18 wlroots; do
 	if pkg-config --exists "$m"; then
 		WLR=$m
 		break
 	fi
 done
-[ -n "$WLR" ] || falta "wlroots 0.19 (wlroots0.19)"
+[ -n "$WLR" ] || falta "wlroots (no Arch: wlroots0.20)"
 if [ ! -d "$ORBIT_DIR/.git" ]; then
 	git clone --depth 1 -b "$ORBIT_BRANCH" "$ORBIT_REPO" "$ORBIT_DIR"
-elif [ "$1" = "--refazer" ]; then
-	git -C "$ORBIT_DIR" pull --ff-only
-	rm -f "$ORBIT_DIR/src/compositor/orbit/orbit"
 fi
 O="$ORBIT_DIR/src/compositor/orbit"
-if [ ! -x "$O/orbit" ]; then
+if [ "$1" = "--refazer" ] || [ ! -x "$O/orbit" ]; then
+	# sempre a versão mais nova antes de compilar (um clone de uma tentativa que falhou também)
+	git -C "$ORBIT_DIR" remote set-url origin "$ORBIT_REPO"
+	git -C "$ORBIT_DIR" pull --ff-only
+	rm -f "$O/orbit"
+	make -C "$O" clean >/dev/null 2>&1 || true
 	cp "$O/makefile.txt" "$O/Makefile"
 	make -C "$O" PKGS="$WLR wayland-server xkbcommon"
 fi
