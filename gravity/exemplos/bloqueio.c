@@ -386,17 +386,18 @@ static void entrar_pin(void) {
 			}
 		}
 	}
-	/* o teclado físico também */
-	for (uint32_t k = 0; k < 10; k++) {
-		if ((gv_tecla_carregada(XKB_KEY_0 + k) || gv_tecla_carregada(XKB_KEY_KP_0 + k)) && strlen(pin) < sizeof(pin) - 1) {
-			char d[2] = { (char)('0' + k), 0 };
-			strcat(pin, d);
+	/* o teclado físico também: todas as teclas do quadro, pela ordem */
+	uint32_t k;
+	for (int i = 0; (k = gv_tecla_n(i)); i++) {
+		int d = k >= XKB_KEY_0 && k <= XKB_KEY_9 ? (int)(k - XKB_KEY_0) : k >= XKB_KEY_KP_0 && k <= XKB_KEY_KP_9 ? (int)(k - XKB_KEY_KP_0) : -1;
+		if (d >= 0 && strlen(pin) < sizeof(pin) - 1 && (int)strlen(pin) < (n > 0 ? n : 8)) {
+			char s[2] = { (char)('0' + d), 0 };
+			strcat(pin, s);
 			erro[0] = '\0';
 			mexeu = gv_agora();
+		} else if (k == XKB_KEY_BackSpace && pin[0]) {
+			pin[strlen(pin) - 1] = '\0';
 		}
-	}
-	if (gv_tecla_carregada(XKB_KEY_BackSpace) && pin[0]) {
-		pin[strlen(pin) - 1] = '\0';
 	}
 	if (n > 0 && (int)strlen(pin) >= n) {
 		conferir(false);
@@ -504,13 +505,9 @@ static void desenhar(gv_app *app, void *dados) {
 			tela = RELOGIO;
 		}
 	} else if (gv_tecla() && gv_tecla() != XKB_KEY_Escape) {
-		/* começar a digitar no relógio vai direto ao PIN (com o número já lá) */
-		uint32_t k = gv_tecla();
+		/* começar a digitar no relógio vai direto ao PIN: o número que se carregou entra neste mesmo
+		 * quadro, pelo teclado do PIN (que lê as teclas do quadro) */
 		ir_entrar();
-		if (!usar_senha && ((k >= XKB_KEY_0 && k <= XKB_KEY_9) || (k >= XKB_KEY_KP_0 && k <= XKB_KEY_KP_9))) {
-			pin[0] = (char)('0' + (k >= XKB_KEY_KP_0 ? k - XKB_KEY_KP_0 : k - XKB_KEY_0));
-			pin[1] = '\0';
-		}
 	}
 
 	Clay_ElementId raiz = CLAY_ID("raiz");

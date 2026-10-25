@@ -43,6 +43,10 @@ Clay_BoundingBox gv_caixa(Clay_ElementId id) {
 	return dados.found ? dados.boundingBox : (Clay_BoundingBox){ 0 };
 }
 
+uint32_t gv_tecla_n(int i) {
+	return i >= 0 && i < gv__entrada.nteclas ? gv__entrada.teclas[i] : 0;
+}
+
 uint32_t gv_tecla(void) {
 	return gv__entrada.nteclas ? gv__entrada.teclas[0] : 0;
 }

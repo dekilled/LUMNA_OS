@@ -182,6 +182,9 @@ Clay_BoundingBox gv_caixa(Clay_ElementId id);
 Clay_Vector2 gv_ponteiro(void);
 /* A tecla carregada neste quadro (um keysym do xkbcommon), ou 0. */
 uint32_t gv_tecla(void);
+/* A i-ésima tecla deste quadro, pela ordem (0 quando acabam): quem digita depressa manda várias
+ * por quadro, até a mesma repetida ("1111"). */
+uint32_t gv_tecla_n(int i);
 /* Se esta tecla foi carregada neste quadro (com repetição, pode vir mais de uma). */
 bool gv_tecla_carregada(uint32_t keysym);
 
