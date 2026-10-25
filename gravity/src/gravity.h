@@ -247,6 +247,25 @@ bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
 /* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
 
+/* ---- as janelas abertas (para a dock e o alternador) ----
+ * Do compositor, pelo wlr-foreign-toplevel-management (o Orbit tem). A lista muda sozinha (e
+ * pede um quadro) quando uma janela abre, fecha, muda de título ou ganha o foco. */
+typedef struct gv_janela {
+	uint32_t id;
+	const char *titulo, *app_id;
+	bool ativa, minimizada;
+	bool pronta; /* (interno) já chegou o primeiro "done" */
+} gv_janela;
+/* As janelas abertas, pela ordem em que abriram; devolve quantas (até max). Os ponteiros valem
+ * até ao fim do quadro. */
+int gv_janelas(const gv_janela **lista, int max);
+bool gv_janelas_disponivel(void);
+void gv_janela_ativar(uint32_t id);
+void gv_janela_fechar(uint32_t id);
+/* Numa camada larga com um pedaço só à vista (a dock, que ocupa a largura toda mas só a pílula
+ * se vê), só esse elemento recebe o ponteiro e o toque: o resto passa para as janelas de baixo. */
+void gv_app_entrada_em(gv_app *app, Clay_ElementId id);
+
 /* ---- popups e menus ---- */
 enum gv_popup_lado { GV_POPUP_ABAIXO, GV_POPUP_ACIMA, GV_POPUP_DIREITA, GV_POPUP_ESQUERDA };
 enum gv_alinhar { GV_ALINHAR_INICIO, GV_ALINHAR_CENTRO, GV_ALINHAR_FIM };

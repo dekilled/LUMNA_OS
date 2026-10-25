@@ -23,12 +23,12 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 
 - [x] Papel de parede (camada de fundo) — exemplo `papel`; falta trocar ao vivo
 - [~] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio — exemplo `barra`
-- [ ] Dock: apps fixos, abertos, indicador do ativo
+- [x] Dock: apps fixos, abertos, indicador do ativo — exemplo `dock` (falta: menu de fixar/fechar e reordenar)
 - [~] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas) — o do Bluetooth já abre (dados de mentira)
 - [~] Lançador (grade de apps com busca) — a lista dos .desktop já existe no exemplo `apps`
 - [ ] Notificações (servidor org.freedesktop.Notifications) e o centro delas
 - [ ] Tela de bloqueio com PIN
-- [ ] Orbit: o que o desktop pedir pelo caminho (foreign-toplevel para o dock, áreas pelo IPC)
+- [~] Orbit: o que o desktop pedir pelo caminho — já atende ativar e fechar pelo foreign-toplevel (dock); falta as áreas
 
 ## 3. Serviços do sistema
 

@@ -18,6 +18,7 @@ static const struct icone icones[] = {
 	{ "arrow-up", "M12 19V5M6 11l6-6 6 6" },
 	{ "back", "M15 5l-7 7 7 7" },
 	{ "backspace", "M9 5h11v14H9l-6-7zM12 9l6 6M18 9l-6 6" },
+	{ "bag", "M5.5 8h13l-1.1 12.2a1 1 0 0 1-1 .8H7.6a1 1 0 0 1-1-.8zM9 8V6.5a3 3 0 0 1 6 0V8" },
 	{ "bars", "M4 20v-6M9 20V10M14 20V4M19 20v-9" },
 	{ "battery", "M3 7h16v10H3zM21 10v4" },
 	{ "bell", "M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4" },

@@ -10,13 +10,15 @@ WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
 
 FONTES = src/gv_app.c src/gv_texto.c src/gv_tema.c src/gv_anim.c src/gv_svg.c src/gv_icones.c \
-	src/gv_desenho.c src/gv_componentes.c src/gv_campo.c src/gv_escrita.c src/gv_rolagem.c src/gv_imagem.c src/gv_foco.c src/gv_clay.c
+	src/gv_desenho.c src/gv_componentes.c src/gv_campo.c src/gv_escrita.c src/gv_rolagem.c src/gv_imagem.c src/gv_foco.c src/gv_janelas.c src/gv_clay.c
 PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 	text-input-unstable-v3-client-protocol.h text-input-unstable-v3-protocol.c \
-	wlr-layer-shell-unstable-v1-client-protocol.h wlr-layer-shell-unstable-v1-protocol.c
-OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o
+	wlr-layer-shell-unstable-v1-client-protocol.h wlr-layer-shell-unstable-v1-protocol.c \
+	wlr-foreign-toplevel-management-unstable-v1-client-protocol.h wlr-foreign-toplevel-management-unstable-v1-protocol.c
+OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
+	wlr-foreign-toplevel-management-unstable-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -30,9 +32,14 @@ wlr-layer-shell-unstable-v1-client-protocol.h: protocolos/wlr-layer-shell-unstab
 	$(WAYLAND_SCANNER) client-header $< $@
 wlr-layer-shell-unstable-v1-protocol.c: protocolos/wlr-layer-shell-unstable-v1.xml
 	$(WAYLAND_SCANNER) private-code $< $@
+wlr-foreign-toplevel-management-unstable-v1-client-protocol.h: protocolos/wlr-foreign-toplevel-management-unstable-v1.xml
+	$(WAYLAND_SCANNER) client-header $< $@
+wlr-foreign-toplevel-management-unstable-v1-protocol.c: protocolos/wlr-foreign-toplevel-management-unstable-v1.xml
+	$(WAYLAND_SCANNER) private-code $< $@
 
 src/gv_app.o: xdg-shell-client-protocol.h wlr-layer-shell-unstable-v1-client-protocol.h
 src/gv_escrita.o: text-input-unstable-v3-client-protocol.h
+src/gv_janelas.o: wlr-foreign-toplevel-management-unstable-v1-client-protocol.h
 $(OBJS): src/gravity.h src/gv_interno.h vendor/clay/clay.h
 
 # o Clay é de fora: os avisos dele não são nossos
@@ -70,7 +77,10 @@ rede: exemplos/rede.c libgravity.a
 transferencia: exemplos/transferencia.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
+dock: exemplos/dock.c libgravity.a
+	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock $(PROTOS)
 
 .PHONY: all clean

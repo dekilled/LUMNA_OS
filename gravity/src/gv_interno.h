@@ -62,6 +62,12 @@ void gv__foco_definir(uint32_t id, bool anel);
 void gv__foco_camada(int camada); /* os focáveis declarados a seguir são do popup camada (0: principal) */
 void gv__foco_fim_do_quadro(void);
 
+/* ---- janelas abertas (gv_janelas.c) ---- */
+struct wl_registry;
+struct wl_seat;
+bool gv__janelas_global(struct wl_registry *registo, uint32_t nome, const char *iface, uint32_t versao);
+void gv__janelas_seat(struct wl_seat *seat);
+
 /* ---- imagens (gv_imagem.c) ---- */
 void gv__imagens_iniciar(gv_app *app);
 void gv__imagens_fim_do_quadro(void);

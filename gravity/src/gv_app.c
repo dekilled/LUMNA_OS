@@ -138,6 +138,8 @@ struct gv_app {
 	float dedo_dx, dedo_dy;
 	bool dedo_no_popup;
 	uint32_t xdg_versao;
+	uint32_t entrada_id;          /* gv_app_entrada_em: o elemento que recebe a entrada */
+	Clay_BoundingBox entrada_caixa;
 
 	Clay_Arena arena;
 	double ultimo_quadro;
@@ -222,6 +224,30 @@ void gv_app_mover(gv_app *app) {
 	/* o compositor fica com o arrasto: o soltar não chega cá */
 	gv__entrada.baixo = false;
 	gv__entrada.ativo = 0;
+}
+
+void gv_app_entrada_em(gv_app *app, Clay_ElementId id) {
+	app->entrada_id = id.id;
+}
+
+/* depois do layout: a região de entrada segue a caixa do elemento escolhido */
+static void entrada_rever(gv_app *app) {
+	if (!app->entrada_id) {
+		return;
+	}
+	Clay_ElementData d = Clay_GetElementData((Clay_ElementId){ .id = app->entrada_id });
+	if (!d.found) {
+		return;
+	}
+	Clay_BoundingBox b = d.boundingBox;
+	if (!memcmp(&b, &app->entrada_caixa, sizeof(b))) {
+		return;
+	}
+	app->entrada_caixa = b;
+	struct wl_region *regiao = wl_compositor_create_region(app->compositor);
+	wl_region_add(regiao, (int)floorf(b.x), (int)floorf(b.y), (int)ceilf(b.width), (int)ceilf(b.height));
+	wl_surface_set_input_region(app->superficie, regiao);
+	wl_region_destroy(regiao);
 }
 
 void gv_app_sair(gv_app *app) {
@@ -857,6 +883,8 @@ static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, co
 		app->camadas = wl_registry_bind(r, nome, &zwlr_layer_shell_v1_interface, versao < 4 ? versao : 4);
 	} else if (gv__escrita_global(r, nome, iface, versao)) {
 		/* área de transferência e campo de texto (gv_escrita.c) */
+	} else if (gv__janelas_global(r, nome, iface, versao)) {
+		/* as janelas abertas (gv_janelas.c) */
 	} else if (!strcmp(iface, wl_output_interface.name) && app->nsaidas < GV_MAX_SAIDAS) {
 		struct gv_saida *saida = &app->saidas[app->nsaidas++];
 		saida->escala = 1;
@@ -1013,6 +1041,7 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	wl_surface_commit(app->superficie);
 	gv__escrita_iniciar(app->display, app->seat, app->superficie);
 	gv__imagens_iniciar(app);
+	gv__janelas_seat(app->seat);
 
 	app->repete_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
 	app->repete_taxa = 25;
@@ -1380,6 +1409,7 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	desenhar(app, dados);
 	Clay_RenderCommandArray comandos = Clay_EndLayout(dt);
 	popups_rever(app);
+	entrada_rever(app);
 
 	cairo_t *cr = cairo_create(buffer->superficie);
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);

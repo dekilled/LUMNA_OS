@@ -34,6 +34,8 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_barra_janela` | a barra de título: ícone, título, minimizar, maximizar, fechar; arrastar move |
 | `GV_POPUP`, `gv_popup_*`, `gv_menu_item` | popup preso a um elemento, numa superfície própria (sai da janela ou da barra), com sombra; fecha ao tocar fora ou com Esc |
 | `gv_lista_suspensa` | dropdown: a opção escolhida e as outras num popup da largura dela |
+| `gv_janelas`, `gv_janela_ativar/fechar` | as janelas abertas no compositor (wlr-foreign-toplevel), para a dock |
+| `gv_app_entrada_em` | só um elemento recebe o toque (a dock numa camada larga) |
 | `gv_imagem` | PNG, JPEG, WebP, SVG: cobrir, conter ou esticar, nos cantos do elemento, esmaecendo ao chegar |
 | `gv_icone_app` | o ícone de um app pelo tema de ícones (o `Icon=` do .desktop) |
 | `gv_rolagem` | área que rola: dedo com inércia e elástico, roda do rato, barra que aparece e some |
@@ -132,6 +134,7 @@ make
 ./barra              # a topbar do desktop novo; o Bluetooth abre o menu da tela nova
 ./rede               # a janela de Rede da tela nova: cartões que abrem e listas suspensas
 ./transferencia      # a área de transferência do Celular Connect: texto de várias linhas
+./dock               # a dock: apps fixos (~/.config/lumna/dock), abertos e o ativo
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste
