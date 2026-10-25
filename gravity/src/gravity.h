@@ -93,7 +93,9 @@ Clay_Color gv_alfa(Clay_Color cor, float alfa);
 
 enum gv_tipo {
 	GV_JANELA, /* uma janela normal (xdg-shell) */
-	GV_CAMADA, /* uma camada do LUMNA (layer-shell): barra, painel, teclado, bloqueio */
+	GV_CAMADA, /* uma camada do LUMNA (layer-shell): barra, painel, teclado */
+	GV_BLOQUEIO, /* a tela de bloqueio (ext-session-lock): tranca a sessão até gv_app_desbloquear; se a
+	              * app cair, a sessão continua trancada */
 };
 
 enum {
@@ -129,6 +131,8 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes);
 /* Corre até gv_app_sair (ou o compositor fechar a janela). Devolve o código de saída. */
 int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados);
 void gv_app_sair(gv_app *app);
+/* GV_BLOQUEIO: destranca a sessão (a senha conferiu) e sai. */
+void gv_app_desbloquear(gv_app *app);
 /* Janelas: minimizar, maximizar (ou voltar) e começar a arrastar (num aperto do ponteiro ou do dedo). */
 void gv_app_minimizar(gv_app *app);
 void gv_app_maximizar(gv_app *app);

@@ -105,6 +105,10 @@ static void imagem(cairo_t *cr, Clay_BoundingBox b, Clay_CornerRadius r, const s
 	cairo_save(cr);
 	redondo(cr, b.x, b.y, b.width, b.height, r);
 	cairo_clip(cr);
+	if (e->imagem.atras.a > 0) {
+		cor(cr, e->imagem.atras);
+		cairo_paint(cr);
+	}
 	if (alfa < 1 && e->imagem.fundo.a > 0) {
 		Clay_Color f = e->imagem.fundo;
 		f.a *= 1 - alfa;

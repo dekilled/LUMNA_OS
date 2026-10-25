@@ -98,7 +98,8 @@ Legenda: ✅ feito · 🔨 a seguir · ⏳ depois (depende de um serviço)
   - ⏳ Vídeo e página web como papel de parede.
 - ✅ **Dock:** formato, monitores e o que fazer com uma janela maximizada.
 - ✅ **Barra superior:** relógio (segundos, data), os ícones que aparecem e o indicador das áreas.
-- 🔨 **Tela de bloqueio:**
+- ✅ **Tela de bloqueio:** layout Centralizado ou Lateral, papel próprio ou o do desktop, o que está
+  tocando, a Emma, o PIN (criar, trocar, tirar) e Bloquear agora. Antes era:
   - papel de parede próprio ou o mesmo;
   - mostrar avisos;
   - relógio grande;
@@ -245,7 +246,7 @@ não existe.
 
 1. ✅ A estrutura (em `exemplos/painel/`, um arquivo por categoria): as abas novas, a grade com "Usados recentemente", a vista da categoria com a
    barra lateral, o rodapé Restaurar | Aplicar, o `--secao` e a busca.
-2. ✅ Aparência (menos a Tela de bloqueio, que espera o bloqueio):
+2. ✅ Aparência:
    - Papel de parede (com uma camada por tela no `papel`);
    - Cores (com as cores do papel de parede);
    - Tema;

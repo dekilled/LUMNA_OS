@@ -130,6 +130,13 @@ void pn_tema_descartar(void), pn_cores_descartar(void), pn_tamanho_descartar(voi
 void pn_tema_restaurar(void), pn_cores_restaurar(void), pn_tamanho_restaurar(void);
 void pn_tema_desenhar(void), pn_cores_desenhar(void), pn_tamanho_desenhar(void);
 
+void pn_bloqueio_abrir(void);
+bool pn_bloqueio_pendente(void);
+void pn_bloqueio_aplicar(void);
+void pn_bloqueio_descartar(void);
+void pn_bloqueio_restaurar(void);
+void pn_bloqueio_desenhar(void);
+
 void pn_barra_abrir(void);
 bool pn_barra_pendente(void);
 void pn_barra_aplicar(void);
@@ -151,9 +158,9 @@ static const pn_secao secoes[] = {
 		dock_descartar, dock_restaurar, dock_abrir },
 	{ "barra", "menu", "Barra superior", "O que a barra do topo mostra.", pn_barra_desenhar, "Relógio com segundos e a data",
 		pn_barra_pendente, pn_barra_aplicar, pn_barra_descartar, pn_barra_restaurar, pn_barra_abrir },
-	{ "bloqueio", "lock", "Tela de bloqueio", "Como o LUMNA fica quando está bloqueado.", NULL,
-		"Papel de parede próprio ou o mesmo do desktop;Mostrar os avisos;Relógio grande;Bloquear depois de alguns minutos"
-		" (chega com a tela de bloqueio, que é a próxima peça do desktop)" },
+	{ "bloqueio", "lock", "Tela de bloqueio", "Como o LUMNA fica quando está bloqueado.", pn_bloqueio_desenhar,
+		"Layout centralizado ou lateral;PIN;O que está tocando;Emma", pn_bloqueio_pendente, pn_bloqueio_aplicar,
+		pn_bloqueio_descartar, pn_bloqueio_restaurar, pn_bloqueio_abrir },
 	{ "tamanho", "text", "Tamanho e textos", "O tamanho das letras e a fonte da interface.", pn_tamanho_desenhar,
 		"Tamanho do texto;Fonte", pn_tamanho_pendente, pn_tamanho_aplicar, pn_tamanho_descartar, pn_tamanho_restaurar,
 		pn_estilo_abrir },

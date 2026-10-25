@@ -339,6 +339,11 @@ Clay_ElementDeclaration gv_imagem(Clay_ElementId id, const char *caminho, enum g
 	if (e && img && img->erro) {
 		e->imagem.sup = NULL;
 	}
+	/* o Clay manda o retângulo do fundo depois da imagem (taparia-a): o fundo vai com ela, por baixo */
+	if (e && d.backgroundColor.a > 0) {
+		e->imagem.atras = d.backgroundColor;
+	}
+	d.backgroundColor = (Clay_Color){ 0 };
 	d.custom.customData = e;
 	return d;
 }

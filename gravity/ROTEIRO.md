@@ -41,7 +41,11 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
       urgência, residentes e transitórios), os avisos no canto (o rato segura, ✕ dispensa) e a
       central pelo sino da topbar (por app, limpar, "Não perturbe")
   - [ ] Um ponto no sino quando há avisos por ver, e os avisos no ecrã de bloqueio
-- [ ] Tela de bloqueio com PIN
+- [x] Tela de bloqueio — exemplo `bloqueio` (lumna-bloqueio): tranca a sessão (ext-session-lock), layouts
+      Centralizado e Lateral, PIN ou senha (o mesmo PIN do celular), o que está tocando (MPRIS) e a Emma
+      só para o simples
+  - [ ] As outras telas no bloqueio (hoje ficam apagadas), bloquear sozinho quando parado, a voz da Emma
+- [ ] Tela de login (greetd): Centralizado ou Painel lateral, com as mesmas peças do bloqueio
 - [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
       dock), ecrã inteiro por cima da barra e da dock, ponteiro virtual; falta as áreas
 

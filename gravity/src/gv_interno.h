@@ -157,6 +157,7 @@ struct gv_extra {
 			enum gv_ajuste ajuste;
 			float alfa;           /* o esmaecer da chegada */
 			Clay_Color fundo;     /* o lugar da imagem enquanto não chega */
+			Clay_Color atras;     /* a cor do elemento, por baixo (as sobras do Ajustar, a transparência) */
 		} imagem;
 	};
 };

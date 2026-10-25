@@ -123,6 +123,9 @@ Fora da interface, em `servicos/`, o que as peças do LUMNA usam do sistema:
 - `som.c` — saídas, volume e mudo de cada saída e de cada app tocando, a saída padrão; assina as
   mudanças (as teclas, a topbar, outra app) e avisa a app por um descritor que o Gravity vigia
   (`gv_app_vigiar`).
+- `entrar.c` — conferir a senha (unix_chkpwd) e o PIN do LUMNA (o mesmo arquivo do celular).
+- `mpris.c` — o que está tocando em qualquer player (MPRIS) e os botões de tocar e passar.
+- `papelini.c` — o papel.ini: um papel por tela e por modo, a Coleção LUMNA.
 - `avisos.c` — o servidor das notificações (`org.freedesktop.Notifications`, o que o
   `notify-send`, os navegadores e as apps GTK e Qt usam) numa linha com o GDBus; o que chega vai
   para uma fila que a app lê pelo descritor vigiado, e as ações e os fechos voltam como sinais.
@@ -142,6 +145,7 @@ make
 ./transferencia      # a área de transferência do Celular Connect: texto de várias linhas
 ./dock               # a dock: apps fixos (~/.config/lumna/dock), abertos e o ativo; preferências em dock.ini
 ./lancador           # o Início: favoritos, apps por categoria com detalhes, recentes e busca (o losango da dock)
+./bloqueio           # a tela de bloqueio: tranca a sessão; PIN ou senha, o que toca, a Emma
 ./avisos             # os avisos: no canto ao chegarem e a central (./avisos --centro); precisa do D-Bus
 ```
 

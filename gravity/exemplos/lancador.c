@@ -886,7 +886,7 @@ static void desenhar(gv_app *app, void *dados) {
 			CLAY(CLAY_ID("rodape-esq"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10,
 				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 			if (gv_botao(CLAY_ID("bloquear"), "lock", "Bloquear", GV_BOTAO_SIMPLES)) {
-				executar("loginctl lock-session");
+				executar("lumna-bloqueio");
 				sair();
 			}
 			gv_separador(true, 28);

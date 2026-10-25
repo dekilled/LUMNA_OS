@@ -52,6 +52,7 @@ static const struct icone icones[] = {
 	{ "drive", "M3 13h18v6H3zM5 13l2-8h10l2 8M17 16h.01" },
 	{ "edit", "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" },
 	{ "eject", "M12 5l7 8H5zM5 18h14" },
+	{ "emma", "M8.5 5.5v3M15.5 5.5v3M5.5 13.5a6.5 6.5 0 0 0 13 0" },
 	{ "enter", "M20 5v7a3 3 0 0 1-3 3H5M9 11l-4 4 4 4" },
 	{ "ethernet", "M4 8h16v9H4zM8 17v3M12 17v3M16 17v3M8 11h8" },
 	{ "extend", "M2 5h20v10H2zM8 19h8M12 15v4" },

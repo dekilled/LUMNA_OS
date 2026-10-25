@@ -28,6 +28,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "ext-session-lock-v1-client-protocol.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
@@ -95,6 +96,11 @@ struct gv_app {
 	struct xdg_surface *xdg_superficie;
 	struct xdg_toplevel *janela;
 	struct zwlr_layer_surface_v1 *camada;
+	/* GV_BLOQUEIO: o bloqueio da sessão (ext-session-lock) e a superfície dele */
+	struct ext_session_lock_manager_v1 *bloqueios;
+	struct ext_session_lock_v1 *bloqueio;
+	struct ext_session_lock_surface_v1 *bloqueio_sup;
+	bool trancado;
 	struct wl_callback *quadro_cb;
 
 	struct wl_pointer *ponteiro;
@@ -968,6 +974,8 @@ static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, co
 		app->xdg_versao = versao < 3 ? versao : 3;
 		app->xdg = wl_registry_bind(r, nome, &xdg_wm_base_interface, app->xdg_versao);
 		xdg_wm_base_add_listener(app->xdg, &xdg_ouvinte, app);
+	} else if (!strcmp(iface, ext_session_lock_manager_v1_interface.name)) {
+		app->bloqueios = wl_registry_bind(r, nome, &ext_session_lock_manager_v1_interface, 1);
 	} else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name)) {
 		app->camadas = wl_registry_bind(r, nome, &zwlr_layer_shell_v1_interface, versao < 4 ? versao : 4);
 	} else if (gv__escrita_global(r, nome, iface, versao)) {
@@ -1070,6 +1078,47 @@ static const struct zwlr_layer_surface_v1_listener camada_ouvinte = {
 	.closed = camada_fechar,
 };
 
+/* ---- o bloqueio da sessão ---- */
+
+static void bloqueio_configurar(void *dados, struct ext_session_lock_surface_v1 *s, uint32_t serial, uint32_t largura,
+		uint32_t altura) {
+	ext_session_lock_surface_v1_ack_configure(s, serial);
+	tamanho_novo(dados, largura, altura);
+}
+
+static const struct ext_session_lock_surface_v1_listener bloqueio_sup_ouvinte = { .configure = bloqueio_configurar };
+
+static void bloqueio_trancou(void *dados, struct ext_session_lock_v1 *b) {
+	gv_app *app = dados;
+	app->trancado = true;
+}
+
+static void bloqueio_acabou(void *dados, struct ext_session_lock_v1 *b) {
+	/* o compositor recusou (já há outro bloqueio) ou acabou com ele */
+	gv_app *app = dados;
+	if (!app->trancado) {
+		fprintf(stderr, "gravity: o compositor não deixou bloquear (já há um bloqueio?)\n");
+	}
+	ext_session_lock_v1_destroy(b);
+	app->bloqueio = NULL;
+	gv_app_sair(app);
+}
+
+static const struct ext_session_lock_v1_listener bloqueio_ouvinte = { .locked = bloqueio_trancou, .finished = bloqueio_acabou };
+
+void gv_app_desbloquear(gv_app *app) {
+	if (app->bloqueio) {
+		if (app->bloqueio_sup) {
+			ext_session_lock_surface_v1_destroy(app->bloqueio_sup);
+			app->bloqueio_sup = NULL;
+		}
+		ext_session_lock_v1_unlock_and_destroy(app->bloqueio);
+		app->bloqueio = NULL;
+		wl_display_roundtrip(app->display);
+	}
+	gv_app_sair(app);
+}
+
 static void quadro_pronto(void *dados, struct wl_callback *cb, uint32_t tempo) {
 	gv_app *app = dados;
 	wl_callback_destroy(cb);
@@ -1155,6 +1204,24 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 
 	app->superficie = wl_compositor_create_surface(app->compositor);
 	wl_surface_add_listener(app->superficie, &sup_ouvinte, app);
+	if (opcoes->tipo == GV_BLOQUEIO) {
+		if (!app->bloqueios) {
+			fprintf(stderr, "gravity: o compositor não tem ext-session-lock\n");
+			free(app);
+			return NULL;
+		}
+		/* a tela escolhida (ou a primeira); nas outras o compositor fica apagado */
+		struct wl_output *saida = app->nsaidas ? app->saidas[0].wl : NULL;
+		for (int i = 0; opcoes->saida && i < app->nsaidas; i++) {
+			if (!strcmp(app->saidas[i].nome, opcoes->saida)) {
+				saida = app->saidas[i].wl;
+			}
+		}
+		app->bloqueio = ext_session_lock_manager_v1_lock(app->bloqueios);
+		ext_session_lock_v1_add_listener(app->bloqueio, &bloqueio_ouvinte, app);
+		app->bloqueio_sup = ext_session_lock_v1_get_lock_surface(app->bloqueio, app->superficie, saida);
+		ext_session_lock_surface_v1_add_listener(app->bloqueio_sup, &bloqueio_sup_ouvinte, app);
+	}
 	if (opcoes->tipo == GV_CAMADA) {
 		if (!app->camadas) {
 			fprintf(stderr, "gravity: o compositor não tem layer-shell; abrindo como janela\n");
@@ -1198,7 +1265,10 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 		xdg_toplevel_set_title(app->janela, opcoes->titulo ? opcoes->titulo : "Gravity");
 		xdg_toplevel_set_app_id(app->janela, opcoes->app_id ? opcoes->app_id : "gravity");
 	}
-	wl_surface_commit(app->superficie);
+	if (app->opcoes.tipo != GV_BLOQUEIO) {
+		/* o commit vazio pede o primeiro configure; o bloqueio já o recebe e não aceita um vazio */
+		wl_surface_commit(app->superficie);
+	}
 	gv__escrita_iniciar(app->display, app->seat, app->superficie);
 	gv__imagens_iniciar(app);
 	gv__janelas_seat(app->seat);

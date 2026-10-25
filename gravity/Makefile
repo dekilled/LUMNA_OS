@@ -14,11 +14,12 @@ FONTES = src/gv_app.c src/gv_texto.c src/gv_tema.c src/gv_anim.c src/gv_svg.c sr
 PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 	text-input-unstable-v3-client-protocol.h text-input-unstable-v3-protocol.c \
 	wlr-layer-shell-unstable-v1-client-protocol.h wlr-layer-shell-unstable-v1-protocol.c \
-	wlr-foreign-toplevel-management-unstable-v1-client-protocol.h wlr-foreign-toplevel-management-unstable-v1-protocol.c
+	wlr-foreign-toplevel-management-unstable-v1-client-protocol.h wlr-foreign-toplevel-management-unstable-v1-protocol.c \
+	ext-session-lock-v1-client-protocol.h ext-session-lock-v1-protocol.c
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
-	wlr-foreign-toplevel-management-unstable-v1-protocol.o
+	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -28,6 +29,10 @@ text-input-unstable-v3-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/unstable/text-input/text-input-unstable-v3.xml $@
 text-input-unstable-v3-protocol.c:
 	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/unstable/text-input/text-input-unstable-v3.xml $@
+ext-session-lock-v1-client-protocol.h:
+	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/staging/ext-session-lock/ext-session-lock-v1.xml $@
+ext-session-lock-v1-protocol.c:
+	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/staging/ext-session-lock/ext-session-lock-v1.xml $@
 wlr-layer-shell-unstable-v1-client-protocol.h: protocolos/wlr-layer-shell-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
 wlr-layer-shell-unstable-v1-protocol.c: protocolos/wlr-layer-shell-unstable-v1.xml
@@ -37,7 +42,7 @@ wlr-foreign-toplevel-management-unstable-v1-client-protocol.h: protocolos/wlr-fo
 wlr-foreign-toplevel-management-unstable-v1-protocol.c: protocolos/wlr-foreign-toplevel-management-unstable-v1.xml
 	$(WAYLAND_SCANNER) private-code $< $@
 
-src/gv_app.o: xdg-shell-client-protocol.h wlr-layer-shell-unstable-v1-client-protocol.h
+src/gv_app.o: xdg-shell-client-protocol.h wlr-layer-shell-unstable-v1-client-protocol.h ext-session-lock-v1-client-protocol.h
 src/gv_escrita.o: text-input-unstable-v3-client-protocol.h
 src/gv_janelas.o: wlr-foreign-toplevel-management-unstable-v1-client-protocol.h
 $(OBJS): src/gravity.h src/gv_interno.h vendor/clay/clay.h
@@ -61,9 +66,9 @@ wifi: exemplos/wifi.c libgravity.a
 
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
-	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c \
-	servicos/papelini.c
-painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h libgravity.a
+	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
+	servicos/papelini.c servicos/entrar.c
+painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos -o $@ $(PAINEL) libgravity.a $(LDLIBS)
 
 apps: exemplos/apps.c libgravity.a
@@ -92,7 +97,12 @@ avisos: exemplos/avisos.c servicos/avisos.c servicos/avisos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/avisos.c servicos/avisos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
+# a tela de bloqueio: o PIN e a senha (servicos/entrar.c), o que toca (servicos/mpris.c) e o papel
+bloqueio: exemplos/bloqueio.c servicos/entrar.c servicos/mpris.c servicos/papelini.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/bloqueio.c servicos/entrar.c \
+		servicos/mpris.c servicos/papelini.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio $(PROTOS)
 
 .PHONY: all clean
