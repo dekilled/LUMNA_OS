@@ -67,6 +67,7 @@ void gv__entrada_fim_do_quadro(void) {
 	}
 	gv__campos_fim_do_quadro();
 	gv__rolagens_fim_do_quadro();
+	gv__imagens_fim_do_quadro();
 	gv__entrada.apertou = false;
 	gv__entrada.soltou = false;
 	gv__entrada.nteclas = 0;

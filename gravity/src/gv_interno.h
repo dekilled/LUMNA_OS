@@ -45,6 +45,11 @@ extern struct gv_entrada gv__entrada;
 void gv__entrada_fim_do_quadro(void);
 void gv__app_pedir(void); /* o quadro actual pede outro (animação a correr) */
 void gv__app_acordar_em(double segundos); /* um quadro daqui a pouco (sem desenhar até lá) */
+int gv__app_escala(void); /* a escala do ecrã da app (1, 2...) */
+
+/* ---- imagens (gv_imagem.c) ---- */
+void gv__imagens_iniciar(gv_app *app);
+void gv__imagens_fim_do_quadro(void);
 
 /* ---- escrita: área de transferência e text-input (gv_escrita.c) ---- */
 struct wl_registry;
@@ -71,6 +76,7 @@ enum gv_extra_tipo {
 	GV_EXTRA_INTERRUPTOR,
 	GV_EXTRA_CAMPO,
 	GV_EXTRA_ROLAGEM,
+	GV_EXTRA_IMAGEM,
 };
 
 struct gv_extra {
@@ -111,6 +117,12 @@ struct gv_extra {
 			bool grossa;     /* o rato está perto ou a arrastar */
 			Clay_Color cor;
 		} rolagem;
+		struct {
+			cairo_surface_t *sup; /* NULL: ainda não chegou (desenha só o fundo) */
+			enum gv_ajuste ajuste;
+			float alfa;           /* o esmaecer da chegada */
+			Clay_Color fundo;     /* o lugar da imagem enquanto não chega */
+		} imagem;
 	};
 };
 

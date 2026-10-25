@@ -22,6 +22,7 @@ struct app {
 	char nome[96];
 	char comentario[160];
 	char exec[256];
+	char icone[256];
 };
 
 static struct app apps[MAX_APPS];
@@ -82,6 +83,8 @@ static void ler(const char *caminho, const char *id) {
 			snprintf(a.comentario, sizeof(a.comentario), "%s", valor);
 		} else if (!strcmp(linha, "Exec")) {
 			snprintf(a.exec, sizeof(a.exec), "%s", valor);
+		} else if (!strcmp(linha, "Icon")) {
+			snprintf(a.icone, sizeof(a.icone), "%s", valor);
 		} else if (!strcmp(linha, "Type")) {
 			aplicacao = !strcmp(valor, "Application");
 		} else if (!strcmp(linha, "NoDisplay") || !strcmp(linha, "Hidden")) {
@@ -170,6 +173,26 @@ static bool combina(const struct app *a) {
 	return !busca[0] || strcasestr(a->nome, busca) || strcasestr(a->comentario, busca);
 }
 
+/* uma linha com o ícone do app (do tema de ícones), o nome e a descrição */
+static bool item(Clay_ElementId id, const struct app *a) {
+	bool tocado = gv_tocado(id);
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(72) }, .padding = { 14, 18, 12, 12 }, .childGap = 18,
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_premido(id) ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+	}) {
+		gv_icone_app(a->icone, 40);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
+			gv_texto(gv_str(a->nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);
+			if (a->comentario[0]) {
+				gv_texto(gv_str(a->comentario), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+	}
+	return tocado;
+}
+
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
 	CLAY(CLAY_ID("janela"), {
@@ -196,7 +219,7 @@ static void desenhar(gv_app *app, void *dados) {
 				if (mostrados++) {
 					gv_separador(false, 0);
 				}
-				if (gv_linha(CLAY_IDI("app", i), "app", apps[i].nome, apps[i].comentario[0] ? apps[i].comentario : NULL, NULL)) {
+				if (item(CLAY_IDI("app", i), &apps[i])) {
 					abrir(&apps[i]);
 				}
 			}

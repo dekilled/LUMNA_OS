@@ -99,6 +99,37 @@ static void interruptor(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *
 	cairo_fill(cr);
 }
 
+/* Uma imagem nos cantos da caixa: o fundo enquanto não chega, depois a imagem esmaecendo. */
+static void imagem(cairo_t *cr, Clay_BoundingBox b, Clay_CornerRadius r, const struct gv_extra *e) {
+	float alfa = e->imagem.sup ? e->imagem.alfa : 0;
+	cairo_save(cr);
+	redondo(cr, b.x, b.y, b.width, b.height, r);
+	cairo_clip(cr);
+	if (alfa < 1 && e->imagem.fundo.a > 0) {
+		Clay_Color f = e->imagem.fundo;
+		f.a *= 1 - alfa;
+		cor(cr, f);
+		cairo_paint(cr);
+	}
+	if (e->imagem.sup && alfa > 0) {
+		double sw = cairo_image_surface_get_width(e->imagem.sup);
+		double sh = cairo_image_surface_get_height(e->imagem.sup);
+		double ex = b.width / sw, ey = b.height / sh;
+		if (e->imagem.ajuste == GV_AJUSTE_COBRIR) {
+			ex = ey = fmax(ex, ey);
+		} else if (e->imagem.ajuste == GV_AJUSTE_CONTER) {
+			ex = ey = fmin(ex, ey);
+		}
+		cairo_translate(cr, b.x + (b.width - sw * ex) / 2, b.y + (b.height - sh * ey) / 2);
+		cairo_scale(cr, ex, ey);
+		cairo_set_source_surface(cr, e->imagem.sup, 0, 0);
+		/* reduzir muito pede o filtro bom; perto de 1:1 o bilinear chega */
+		cairo_pattern_set_filter(cairo_get_source(cr), ex < 0.75 ? CAIRO_FILTER_GOOD : CAIRO_FILTER_BILINEAR);
+		cairo_paint_with_alpha(cr, alfa);
+	}
+	cairo_restore(cr);
+}
+
 /* A barra fina de uma área que rola, na borda de dentro. */
 static void barra(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *e) {
 	if (e->rolagem.alfa <= 0.01f) {
@@ -221,6 +252,9 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos) {
 				break;
 			case GV_EXTRA_CAMPO:
 				gv__campo_desenhar(cr, b, extra);
+				break;
+			case GV_EXTRA_IMAGEM:
+				imagem(cr, b, c->cornerRadius, extra);
 				break;
 			default:
 				break;

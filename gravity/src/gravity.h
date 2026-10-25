@@ -234,6 +234,25 @@ bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
 /* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
 
+/* ---- imagens ---- */
+enum gv_ajuste {
+	GV_AJUSTE_COBRIR,  /* enche a caixa e corta o que sobra (papel de parede, capas) */
+	GV_AJUSTE_CONTER,  /* cabe inteira, com sobra nos lados */
+	GV_AJUSTE_ESTICAR, /* deforma até à caixa */
+};
+/* Uma imagem (PNG, JPEG, WebP, SVG...) como fundo do elemento d, nos cantos dele: descodifica numa
+ * thread, no tamanho da caixa, e aparece esmaecendo. Os filhos de d vão por cima.
+ *   CLAY(CLAY_ID("capa"), gv_imagem(CLAY_ID("capa"), "/caminho/capa.jpg", GV_AJUSTE_COBRIR, (Clay_ElementDeclaration){
+ *       .layout = { .sizing = { CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(200) } },
+ *       .cornerRadius = CLAY_CORNER_RADIUS(12) })) {}
+ * O custom.customData de d é da imagem. */
+Clay_ElementDeclaration gv_imagem(Clay_ElementId id, const char *caminho, enum gv_ajuste ajuste, Clay_ElementDeclaration d);
+/* largura / altura da imagem (0 enquanto não se sabe), para um .aspectRatio. */
+float gv_imagem_proporcao(const char *caminho);
+/* O ícone de um app pelo tema de ícones (o Icon= do .desktop: um nome ou um caminho), em
+ * tamanho × tamanho; sem ícone, o desenho genérico. O tema é o de GRAVITY_ICONES, depois hicolor. */
+void gv_icone_app(const char *nome, float tamanho);
+
 /* ---- rolagem ---- */
 enum gv_rolagem_eixo { GV_ROLAGEM_VERTICAL, GV_ROLAGEM_HORIZONTAL, GV_ROLAGEM_AMBOS };
 /* Uma área que rola: devolve a declaração d com o corte, o deslocamento e a barra. Arrastar com o

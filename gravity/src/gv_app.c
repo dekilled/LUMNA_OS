@@ -136,6 +136,10 @@ void gv__app_acordar_em(double segundos) {
 	}
 }
 
+int gv__app_escala(void) {
+	return atual && atual->escala > 0 ? atual->escala : 1;
+}
+
 void gv__app_pedir(void) {
 	if (atual) {
 		atual->precisa = true;
@@ -872,6 +876,7 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	}
 	wl_surface_commit(app->superficie);
 	gv__escrita_iniciar(app->display, app->seat, app->superficie);
+	gv__imagens_iniciar(app);
 
 	app->repete_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
 	app->repete_taxa = 25;
