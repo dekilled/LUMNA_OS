@@ -33,7 +33,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [ ] Arrastar para reordenar
 - [~] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas) — o do Bluetooth já abre (dados de mentira)
 - [x] Lançador ("Início") — exemplo `lancador`: favoritos, abas por categoria com os detalhes do
-      app (o rato mostra, segurar fixa, ✕ solta), recentes, busca, bloquear/desligar/Emma
+      app (o rato mostra, segurar fixa, ✕ solta; abre sempre solto), recentes, busca,
+      bloquear/desligar/Emma e o Fechar ao centro
   - [ ] Atualizações e desinstalar de verdade (o gestor de pacotes: lumna-pkg)
 - [ ] Notificações (servidor org.freedesktop.Notifications) e o centro delas
 - [ ] Tela de bloqueio com PIN

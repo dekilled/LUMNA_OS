@@ -1555,6 +1555,9 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {
 		if (app->precisa && app->configurado && !app->quadro_cb) {
 			desenhar_quadro(app, desenhar, dados);
 		}
+		if (!app->a_correr) {
+			break; /* gv_app_sair durante o quadro: sai já, sem esperar o próximo despertar */
+		}
 		while (wl_display_prepare_read(app->display) != 0) {
 			wl_display_dispatch_pending(app->display);
 		}

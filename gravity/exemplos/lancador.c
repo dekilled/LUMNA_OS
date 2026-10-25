@@ -8,7 +8,8 @@
  * - As outras abas: a grade dos apps da categoria (pelo Categories= do .desktop) e, ao lado, os
  *   detalhes do app — o que está debaixo do rato. Segurar um app (rato ou dedo) ou o botão
  *   direito fixa os detalhes nele: o rato nos outros já não os troca, e os botões dele ficam à
- *   mão (abrir, favoritar, fixar na dock, propriedades, desinstalar); o ✕ solta.
+ *   mão (abrir, favoritar, fixar na dock, propriedades, desinstalar); o ✕ solta. Cada vez que
+ *   o lançador abre, os detalhes começam soltos (ao_abrir).
  * - Tocar num app abre-o e fecha o lançador. A busca procura em todos os apps (nome,
  *   descrição, palavras-chave) e nos recentes. Esc fecha; "/" vai à busca.
  *
@@ -879,8 +880,11 @@ static void desenhar(gv_app *app, void *dados) {
 			}
 		}
 		/* em baixo: bloquear, desligar, a Emma e a dica da busca */
+		/* três partes: as duas de fora dividem o espaço por igual, e o Fechar fica mesmo ao centro */
 		CLAY(CLAY_ID("rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 26, 0 }, .childGap = 10,
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY(CLAY_ID("rodape-esq"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10,
+				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 			if (gv_botao(CLAY_ID("bloquear"), "lock", "Bloquear", GV_BOTAO_SIMPLES)) {
 				executar("loginctl lock-session");
 				sair();
@@ -901,7 +905,13 @@ static void desenhar(gv_app *app, void *dados) {
 					executar("systemctl poweroff");
 				}
 			}
-			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+			}
+			/* fechar sem teclado (com o rato ou o dedo) */
+			if (gv_botao(CLAY_ID("fechar"), "chevron-down", "Fechar", GV_BOTAO_ELEVADO)) {
+				sair();
+			}
+			CLAY(CLAY_ID("rodape-dir"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10,
+				.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
 			if (gv_botao(CLAY_ID("emma"), "mic", "Perguntar à Emma", GV_BOTAO_SIMPLES)) {
 				executar("lumna-emma");
 				sair();
@@ -914,6 +924,7 @@ static void desenhar(gv_app *app, void *dados) {
 					gv_texto(CLAY_STRING("/"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
 				}
 				gv_texto(CLAY_STRING("para buscar"), gv_t.tamanho_corpo + 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
 			}
 		}
 	}
@@ -932,6 +943,17 @@ static void desenhar(gv_app *app, void *dados) {
 	if (gv_tecla_carregada(XKB_KEY_slash) && !gv_focado(CLAY_ID("busca"))) {
 		gv_focar(CLAY_ID("busca"));
 	}
+}
+
+/* Cada abertura começa limpa: os detalhes soltos (o último fixado não fica preso), sem busca, e a
+ * busca pronta para escrever. Hoje cada abertura é um processo novo; se o lançador passar a ficar
+ * residente (para abrir mais depressa), é aqui que se volta ao começo. */
+static void ao_abrir(void) {
+	fixado = false;
+	detalhe = -1;
+	confirmar_remocao = false;
+	busca[0] = '\0';
+	gv_focar(CLAY_ID("busca"));
 }
 
 /* chamar outra vez fecha o aberto (a dock abre e fecha com o mesmo toque) */
@@ -980,7 +1002,7 @@ int main(void) {
 	}
 	app_lancador = app;
 	signal(SIGTERM, ao_terminar);
-	gv_focar(CLAY_ID("busca"));
+	ao_abrir();
 	int r = gv_app_correr(app, desenhar, NULL);
 	soltar_marca();
 	return r;
