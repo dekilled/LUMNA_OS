@@ -3,6 +3,31 @@
 O Painel do LUMNA em Gravity (`exemplos/painel.c`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
+## Tudo num lugar só
+
+O Painel é o único lugar das configurações. As telas que nasceram separadas viram seções dele, e
+os exemplos soltos saem quando a seção estiver pronta:
+
+| Tela solta | Passa a ser |
+| --- | --- |
+| `rede` e `wifi` | Rede e internet → Wi-Fi, Cabo, VPN... |
+| o menu do Bluetooth da `barra` (a parte completa) | Bluetooth → Dispositivos |
+| `mixer` (na janela) | Som → Saída, Entrada, Apps |
+| `transferencia` | Celular Connect → Área de transferência |
+
+A topbar fica com o **rápido**:
+- ligar e desligar;
+- escolher a rede ou o fone;
+- o volume.
+
+No pé de cada menu dela, um **"Mais configurações"** abre o Painel direto na seção certa
+(`lumna-painel --secao rede/wifi`). O mixer continua a existir como camada de volume no celular
+(as teclas de volume), mas sem ajustes próprios.
+
+O código das telas fica em funções por seção dentro do Painel (`painel/*.c`, uma por categoria),
+para o `painel.c` não virar um arquivo gigante. Os serviços (`servicos/som.c`, e depois a rede e o
+Bluetooth) são os mesmos para o Painel e para a topbar.
+
 ## O início
 
 Abas no topo, com a busca à direita:
@@ -203,7 +228,7 @@ não existe.
 
 ## A ordem
 
-1. A estrutura: as abas novas, a grade com "Usados recentemente", a vista da categoria com a
+1. A estrutura (já em `painel/`, um arquivo por categoria): as abas novas, a grade com "Usados recentemente", a vista da categoria com a
    barra lateral, o rodapé Restaurar | Aplicar, o `--secao` e a busca.
 2. Aparência:
    - Papel de parede (com uma camada por tela no `papel`);
@@ -215,4 +240,6 @@ não existe.
    - Tela de bloqueio.
 3. Inicialização.
 4. As seções 🔨 do Sistema.
-5. As ⏳, à medida que os serviços (NetworkManager, BlueZ, UPower...) entram.
+5. Trazer para dentro as telas soltas: Som (o mixer), Rede, Bluetooth e a área de transferência
+   do Celular Connect, com o "Mais configurações" nos menus da topbar.
+6. As ⏳, à medida que os serviços (NetworkManager, BlueZ, UPower...) entram.
