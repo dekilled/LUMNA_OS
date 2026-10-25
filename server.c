@@ -201,6 +201,9 @@ int main(int argc, char *argv[]) {
 	}
 	orbit_ipc_finish();
 	wl_display_destroy_clients(server.display);
+	/* o wlroots confere que ninguém mais ouve estes sinais quando o display acaba */
+	wl_list_remove(&server.new_lock.link);
+	wl_list_remove(&server.new_inhibitor.link);
 	wl_display_destroy(server.display);
 	orbit_xkb_finish();
 	return 0;
