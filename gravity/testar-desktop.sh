@@ -21,7 +21,7 @@ BIN=$CACHE/bin
 falta() {
 	echo "Falta: $1"
 	echo "No Arch: sudo pacman -S --needed base-devel git wayland wayland-protocols libxkbcommon cairo pango \\"
-	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.18 dbus foot libnotify"
+	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.19 dbus foot libnotify"
 	exit 1
 }
 
@@ -39,15 +39,16 @@ if [ "$1" = "--refazer" ] || [ ! -x "$AQUI/avisos" ]; then
 	make -C "$AQUI" -j"$(nproc)"
 fi
 
-# o Orbit: o módulo do wlroots muda de nome conforme a distro e a versão
+# o Orbit: o módulo do wlroots muda de nome conforme a distro e a versão (o 0.19 vem pronto no
+# Arch; o 0.18 do AUR já não compila com a libinput nova)
 WLR=""
-for m in wlroots-0.18 wlroots-0.19 wlroots; do
+for m in wlroots-0.19 wlroots-0.18 wlroots; do
 	if pkg-config --exists "$m"; then
 		WLR=$m
 		break
 	fi
 done
-[ -n "$WLR" ] || falta "wlroots 0.18 (wlroots0.18)"
+[ -n "$WLR" ] || falta "wlroots 0.19 (wlroots0.19)"
 if [ ! -d "$ORBIT_DIR/.git" ]; then
 	git clone --depth 1 -b "$ORBIT_BRANCH" "$ORBIT_REPO" "$ORBIT_DIR"
 elif [ "$1" = "--refazer" ]; then
