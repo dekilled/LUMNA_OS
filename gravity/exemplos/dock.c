@@ -20,6 +20,9 @@
  * hora, sem reiniciar:
  *   formato = pilula | barra         a pílula ao centro, ou a barra de borda a borda
  *   monitores = principal | todos    só na primeira tela, ou uma dock em cada
+ *   ao_maximizar = ocultar | esticar com uma janela maximizada à vista nesta tela: desce e deixa
+ *                                    uma faixa na borda (o rato ali trá-la de volta, por cima da
+ *                                    janela), ou passa a barra de borda a borda enquanto durar
  * Com "todos", esta dock (a da tela principal) abre as das outras telas (./dock --saida NOME) e
  * fecha-as quando volta a "principal"; uma tela ligada depois também ganha a sua.
  *   ./dock
@@ -70,6 +73,7 @@ static char pasta_config[1024];
 static struct {
 	bool barra;   /* de borda a borda */
 	bool todos;   /* uma dock em cada tela */
+	bool esticar; /* com uma janela maximizada: esticar (em vez de ocultar) */
 } pref;
 
 static const char *minha_saida; /* NULL: a dock da tela principal (a que abre as outras) */
@@ -85,7 +89,7 @@ static int nfilhas;
 static void ler_pref(void) {
 	char caminho[1100];
 	snprintf(caminho, sizeof(caminho), "%s/dock.ini", pasta_config);
-	pref.barra = pref.todos = false;
+	pref.barra = pref.todos = pref.esticar = false;
 	FILE *f = fopen(caminho, "r");
 	if (!f) {
 		return;
@@ -105,6 +109,8 @@ static void ler_pref(void) {
 			pref.barra = !strcmp(valor, "barra");
 		} else if (!strcmp(chave, "monitores")) {
 			pref.todos = !strcmp(valor, "todos");
+		} else if (!strcmp(chave, "ao_maximizar")) {
+			pref.esticar = !strcmp(valor, "esticar");
 		}
 	}
 	fclose(f);
@@ -660,10 +666,45 @@ static void filhas_rever(void) {
 	fflush(stdout);
 }
 
-/* a camada do formato: a pílula flutua (92 px, com margem), a barra cola em baixo (68 px) */
-static void aplicar_formato(void) {
-	int altura = pref.barra ? 68 : 92;
-	gv_app_camada(app_dock, 0, altura, altura);
+/* a camada: a pílula flutua (92 px, com margem), a barra cola em baixo (68 px); a zona exclusiva
+ * é a altura, ou 0 quando a dock se oculta por uma janela maximizada (a janela vai até baixo) */
+static int camada_altura, camada_zona;
+
+static void camada_quer(int altura, int zona) {
+	if (altura != camada_altura || zona != camada_zona) {
+		camada_altura = altura;
+		camada_zona = zona;
+		gv_app_camada(app_dock, 0, altura, zona);
+	}
+}
+
+/* ---- ocultar com uma janela maximizada ---- */
+
+#define OCULTA_SAIDA 0.6 /* s fora da dock até ela descer de novo */
+
+static struct {
+	bool revelada;   /* o rato chamou-a de volta por cima da janela */
+	double saiu;     /* quando o rato saiu dela (0: está nela) */
+} oculta;
+
+/* a tela desta dock: a dada, ou a principal (a primeira) */
+static const char *minha_tela(gv_app *app) {
+	if (minha_saida) {
+		return minha_saida;
+	}
+	const char *saidas[8];
+	return gv_saidas(app, saidas, 8) ? saidas[0] : "";
+}
+
+/* há uma janela maximizada à vista nesta tela? (a de outra área de trabalho não conta) */
+static bool maximizada_aqui(gv_app *app, const gv_janela **janelas, int n) {
+	const char *tela = minha_tela(app);
+	for (int k = 0; k < n; k++) {
+		if (janelas[k]->maximizada && !janelas[k]->minimizada && janelas[k]->saida && !strcmp(janelas[k]->saida, tela)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /* o dock.ini ou a lista dos fixos mudou (o Painel, ou a dock de outra tela, gravou) */
@@ -671,12 +712,9 @@ static void config_mudou(gv_app *app, int fd, void *dados) {
 	char buf[4096];
 	while (read(fd, buf, sizeof(buf)) > 0) {
 	}
-	bool barra = pref.barra, todos = pref.todos;
+	bool todos = pref.todos;
 	ler_pref();
 	carregar();
-	if (barra != pref.barra) {
-		aplicar_formato();
-	}
 	if (minha_saida && !pref.todos) {
 		gv_app_sair(app); /* só a da tela principal fica */
 	} else if (!minha_saida && todos != pref.todos) {
@@ -706,9 +744,42 @@ static void desenhar(gv_app *app, void *dados) {
 		filhas_rever(); /* uma tela ligou ou desligou */
 	}
 	Clay_ElementId pilula = CLAY_ID("pilula");
-	gv_app_entrada_em(app, pilula);
+	Clay_ElementId faixa = CLAY_ID("faixa");
+
+	/* com uma janela maximizada à vista: esticar (vira barra) ou ocultar (desce, a janela vai até
+	 * baixo, e a faixa na borda chama-a de volta por cima dela) */
+	bool maximizada = maximizada_aqui(app, janelas, n);
+	bool barra = pref.barra || (maximizada && pref.esticar);
+	bool ocultar = maximizada && !pref.esticar;
+	int altura = barra ? 68 : 92;
+	camada_quer(altura, ocultar ? 0 : altura);
+	bool popup = gv_popup_aberto(CLAY_ID("menu")) || gv_popup_aberto(CLAY_ID("previa"));
+	bool sobre = gv_por_cima(faixa) || (oculta.revelada && gv_por_cima(pilula)) || popup;
+	if (!ocultar) {
+		oculta.revelada = false;
+		oculta.saiu = 0;
+	} else if (sobre) {
+		oculta.revelada = true;
+		oculta.saiu = 0;
+	} else if (oculta.revelada) {
+		double agora = gv_agora();
+		if (!oculta.saiu) {
+			oculta.saiu = agora;
+		}
+		if (agora - oculta.saiu >= OCULTA_SAIDA) {
+			oculta.revelada = false;
+		} else {
+			gv_acordar_em(OCULTA_SAIDA - (agora - oculta.saiu) + 0.01);
+		}
+	}
+	bool visivel = !ocultar || oculta.revelada;
+	float vis = gv_anim(0xd0c0a11u, visivel ? 1 : 0, gv_t.duracao_lenta);
+	float desce = (1 - vis) * altura;
+	/* oculta, só a faixa recebe o rato; à vista, a dock */
+	gv_app_entrada_em(app, visivel ? pilula : faixa);
+
 	/* a pílula flutua ao centro; a barra vai de borda a borda, colada em baixo, ícones ao centro */
-	Clay_ElementDeclaration forma = pref.barra
+	Clay_ElementDeclaration forma = barra
 		? (Clay_ElementDeclaration){
 			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 10, 10, 4, 4 }, .childGap = 6,
 				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
@@ -723,7 +794,11 @@ static void desenhar(gv_app *app, void *dados) {
 			.userData = gv_sombra(18, 6, 0.45f),
 		};
 	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
-		.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
+		.padding = { .top = (uint16_t)(2 * desce) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
+		/* a faixa de 3 px na borda de baixo que chama a dock oculta */
+		CLAY(faixa, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(3) } },
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT,
+				.attachPoints = { CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM } } }) {}
 		CLAY(pilula, forma) {
 			for (int i = 0; i < nfixos; i++) {
 				const struct fixo *x = &fixos[i];
@@ -809,6 +884,7 @@ int main(int argc, char **argv) {
 	carregar();
 	ler_pref();
 	int altura = pref.barra ? 68 : 92;
+	camada_altura = camada_zona = altura;
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Dock", .app_id = "lumna-dock", .tipo = GV_CAMADA,
 		.nivel = GV_NIVEL_CIMA, .ancoras = GV_ANCORA_BAIXO | GV_ANCORA_ESQUERDA | GV_ANCORA_DIREITA,
 		.altura = altura, .zona_exclusiva = altura, .saida = minha_saida ? minha_saida : "@principal" });

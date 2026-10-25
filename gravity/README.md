@@ -34,7 +34,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_barra_janela` | a barra de título: ícone, título, minimizar, maximizar, fechar; arrastar move |
 | `GV_POPUP`, `gv_popup_*`, `gv_menu_item` | popup preso a um elemento, numa superfície própria (sai da janela ou da barra), com sombra; fecha ao tocar fora ou com Esc |
 | `gv_lista_suspensa` | dropdown: a opção escolhida e as outras num popup da largura dela |
-| `gv_janelas`, `gv_janela_ativar/fechar` | as janelas abertas no compositor (wlr-foreign-toplevel), para a dock |
+| `gv_janelas`, `gv_janela_ativar/fechar/maximizar/tela_cheia` | as janelas abertas no compositor (wlr-foreign-toplevel): ativa, maximizada, em ecrã inteiro e a tela onde se veem |
 | `gv_app_entrada_em` | só um elemento recebe o toque (a dock numa camada larga) |
 | `gv_menu_contexto` | pediram o menu deste elemento: botão direito, segurar o dedo, tecla Menu |
 | `gv_saidas`, `gv_opcoes.saida`, `gv_app_camada` | as telas pelo nome, uma camada numa tela escolhida, e mudar o tamanho e a zona dela com a app a correr |

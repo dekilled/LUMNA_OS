@@ -229,6 +229,15 @@ void gv_app_mover(gv_app *app) {
 	gv__entrada.ativo = 0;
 }
 
+const char *gv__saida_nome(struct wl_output *saida) {
+	for (int i = 0; atual && i < atual->nsaidas; i++) {
+		if (atual->saidas[i].wl == saida) {
+			return atual->saidas[i].nome;
+		}
+	}
+	return "";
+}
+
 int gv_saidas(gv_app *app, const char **nomes, int max) {
 	int n = 0;
 	for (int i = 0; i < app->nsaidas && n < max; i++) {

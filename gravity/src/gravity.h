@@ -255,7 +255,8 @@ void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const ch
 typedef struct gv_janela {
 	uint32_t id;
 	const char *titulo, *app_id;
-	bool ativa, minimizada;
+	bool ativa, minimizada, maximizada, tela_cheia;
+	const char *saida; /* a tela onde se vê agora ("" se em nenhuma: noutra área de trabalho) */
 	bool pronta; /* (interno) já chegou o primeiro "done" */
 } gv_janela;
 /* As janelas abertas, pela ordem em que abriram; devolve quantas (até max). Os ponteiros valem
@@ -264,6 +265,8 @@ int gv_janelas(const gv_janela **lista, int max);
 bool gv_janelas_disponivel(void);
 void gv_janela_ativar(uint32_t id);
 void gv_janela_fechar(uint32_t id);
+void gv_janela_maximizar(uint32_t id, bool sim);
+void gv_janela_tela_cheia(uint32_t id, bool sim);
 /* Numa camada larga com um pedaço só à vista (a dock, que ocupa a largura toda mas só a pílula
  * se vê), só esse elemento recebe o ponteiro e o toque: o resto passa para as janelas de baixo. */
 void gv_app_entrada_em(gv_app *app, Clay_ElementId id);

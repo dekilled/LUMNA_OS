@@ -29,14 +29,14 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [ ] Miniaturas na lista, quando o Orbit for para o wlroots 0.19 (que captura janelas)
   - [x] Preferências (Painel → Aparência → Dock): pílula ou barra de borda a borda; só no monitor
         principal ou em todos (uma dock por tela, também nas que ligarem depois); valem na hora
-  - [ ] Janela maximizada: ocultar (com a faixa que a traz de volta) ou esticar, por monitor —
-        precisa do "maximizar" no Orbit
+  - [x] Janela maximizada: ocultar (com a faixa que a traz de volta) ou esticar, por monitor
   - [ ] Arrastar para reordenar
 - [~] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas) — o do Bluetooth já abre (dados de mentira)
 - [~] Lançador (grade de apps com busca) — a lista dos .desktop já existe no exemplo `apps`
 - [ ] Notificações (servidor org.freedesktop.Notifications) e o centro delas
 - [ ] Tela de bloqueio com PIN
-- [~] Orbit: o que o desktop pedir pelo caminho — já atende ativar e fechar pelo foreign-toplevel (dock); falta as áreas
+- [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
+      dock), ecrã inteiro por cima da barra e da dock, ponteiro virtual; falta as áreas
 
 ## 3. Serviços do sistema
 

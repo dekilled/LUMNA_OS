@@ -72,6 +72,8 @@ struct wl_registry;
 struct wl_seat;
 bool gv__janelas_global(struct wl_registry *registo, uint32_t nome, const char *iface, uint32_t versao);
 void gv__janelas_seat(struct wl_seat *seat);
+struct wl_output;
+const char *gv__saida_nome(struct wl_output *saida); /* "" se não a conhece */
 
 /* ---- imagens (gv_imagem.c) ---- */
 void gv__imagens_iniciar(gv_app *app);
