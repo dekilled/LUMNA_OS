@@ -288,6 +288,11 @@ static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 static void server_new_xdg_popup(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, new_xdg_popup);
 	struct wlr_xdg_popup *xdg_popup = data;
+	/* um popup de camada nasce sem pai: a layer-shell dá-lho depois (zwlr_layer_surface_v1.get_popup)
+	 * e quem cuida dele é o layer.c */
+	if (!xdg_popup->parent) {
+		return;
+	}
 	struct wlr_xdg_surface *parent = wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
 	if (parent == NULL || parent->data == NULL) {
 		return;
