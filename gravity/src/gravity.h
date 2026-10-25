@@ -262,6 +262,9 @@ bool gv_popup_aberto(Clay_ElementId id);
 /* Uma linha de menu: ícone (NULL: sem), texto e, à direita, um atalho ou detalhe (NULL: sem).
  * Devolve verdadeiro no toque. */
 bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const char *detalhe);
+/* Uma lista suspensa (dropdown): mostra a opção escolhida e abre as outras num popup logo abaixo,
+ * da largura dela. Devolve verdadeiro quando a escolha mudou. */
+bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int *escolhida);
 /* (do GV_POPUP) */
 bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_opcoes *opcoes);
 Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id);

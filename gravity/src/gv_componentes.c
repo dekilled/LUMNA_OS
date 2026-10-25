@@ -436,3 +436,60 @@ bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const
 	}
 	return tocado;
 }
+
+/* ---- lista suspensa ---- */
+
+bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int *escolhida) {
+	Clay_ElementId menu = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 5000011u, id.baseId);
+	bool aberta = gv_popup_aberto(menu);
+	bool tocado;
+	float e = estado_de(id, &tocado);
+	if (tocado) {
+		gv_popup_alternar(menu);
+	}
+	/* como o campo: borda de controle sob o cursor, o anel de foco aberta */
+	float foco = gv_anim(id.id + 7, aberta ? 1 : 0, gv_t.duracao_rapida);
+	Clay_Color borda = misturar(misturar(gv_t.borda, gv_t.borda_controle, fminf(e * 2, 1)), gv_t.foco, foco);
+	const char *texto = *escolhida >= 0 && *escolhida < n ? opcoes[*escolhida] : "";
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 16, 12, 0, 0 }, .childGap = 10,
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = misturar(gv_t.elevada, gv_t.sob_cursor, e >= 1 ? 1 : 0),
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
+		.border = { .color = borda, .width = GV_BORDA(1) },
+	}) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			gv_texto(gv_str(texto), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+		}
+		gv_icone(aberta ? "chevron-up" : "chevron-down", 18, gv_t.texto_secundario);
+	}
+	bool mudou = false;
+	float largura = gv_caixa(id).width;
+	GV_POPUP(menu, id, .alinhar = GV_ALINHAR_INICIO, .largura = largura > 0 ? largura : 240, .distancia = 4) {
+		for (int i = 0; i < n; i++) {
+			Clay_ElementId item = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 6000023u + i, id.baseId);
+			bool esta = *escolhida == i;
+			bool t;
+			float ei = estado_de(item, &t);
+			if (t) {
+				mudou = *escolhida != i;
+				*escolhida = i;
+				gv_popup_fechar(menu);
+			}
+			CLAY(item, {
+				.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(42) }, .padding = { 12, 12, 0, 0 }, .childGap = 12,
+					.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = esta ? gv_t.selecionado : tres(gv_alfa(gv_t.sob_cursor, 0), gv_t.sob_cursor, gv_t.selecionado, ei),
+				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+			}) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(18), CLAY_SIZING_FIXED(18) } } }) {
+					if (esta) {
+						gv_icone("check", 18, gv_t.acento);
+					}
+				}
+				gv_texto(gv_str(opcoes[i]), gv_t.tamanho_corpo + 1, esta ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+	}
+	return mudou;
+}

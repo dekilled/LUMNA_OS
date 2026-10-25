@@ -16,7 +16,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 	wlr-layer-shell-unstable-v1-client-protocol.h wlr-layer-shell-unstable-v1-protocol.c
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra
+all: libgravity.a mixer galeria wifi painel apps papel barra rede
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -64,7 +64,10 @@ papel: exemplos/papel.c libgravity.a
 barra: exemplos/barra.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
+rede: exemplos/rede.c libgravity.a
+	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede $(PROTOS)
 
 .PHONY: all clean

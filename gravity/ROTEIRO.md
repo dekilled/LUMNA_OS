@@ -14,7 +14,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Rolagem: arrastar com o dedo, inércia, elástico nas pontas, roda do rato, barra que aparece
 - [x] Imagens: PNG/JPEG/WebP/SVG descodificadas em threads, no tamanho da tela, em cache
 - [x] Popups e menus presos a um botão (xdg-popup), que fecham ao tocar fora
-- [ ] Lista suspensa (dropdown), como na tela de Rede
+- [x] Lista suspensa (dropdown), como na tela de Rede
 - [ ] Foco pelo teclado entre controles (Tab, setas, Enter) com o anel de foco
 - [ ] Texto que quebra em várias linhas e campo de várias linhas
 - [x] Ícones dos apps pelo tema de ícones (freedesktop) para o lançador
@@ -41,7 +41,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 ## 4. Apps
 
 - [~] Painel de controle (o layout da tela nova já está no exemplo `painel`)
-- [ ] Rede
+- [~] Rede — a janela da tela nova no exemplo `rede` (falta o NetworkManager)
 - [ ] Celular Connect
 - [ ] Mixer como app e como camada (já existe no exemplo `mixer`)
 
