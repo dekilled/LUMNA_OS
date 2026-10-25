@@ -39,7 +39,20 @@ Clay_BoundingBox gv_caixa(Clay_ElementId id) {
 }
 
 uint32_t gv_tecla(void) {
-	return gv__entrada.tecla;
+	return gv__entrada.nteclas ? gv__entrada.teclas[0] : 0;
+}
+
+bool gv_tecla_carregada(uint32_t keysym) {
+	for (int i = 0; i < gv__entrada.nteclas; i++) {
+		if (gv__entrada.teclas[i] == keysym) {
+			return true;
+		}
+	}
+	return false;
+}
+
+uint32_t gv_modificadores(void) {
+	return gv__entrada.mods;
 }
 
 void gv__entrada_fim_do_quadro(void) {
@@ -51,9 +64,12 @@ void gv__entrada_fim_do_quadro(void) {
 			gv__app_pedir();
 		}
 	}
+	gv__campos_fim_do_quadro();
 	gv__entrada.apertou = false;
 	gv__entrada.soltou = false;
-	gv__entrada.tecla = 0;
+	gv__entrada.nteclas = 0;
+	gv__entrada.texto[0] = '\0';
+	gv__entrada.ime.chegou = false;
 	gv__entrada.roda_x = gv__entrada.roda_y = 0;
 }
 

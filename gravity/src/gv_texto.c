@@ -118,6 +118,25 @@ static void preparar(PangoLayout *layout, const char *texto, int n, int peso, fl
 	pango_layout_set_text(layout, texto, n);
 }
 
+/* Onde fica (em x) o caractere que começa no byte "indice" de um texto de uma linha. */
+float gv__texto_x(const char *texto, float tamanho, int indice) {
+	preparar(medidor, texto, -1, GV_PESO_NORMAL, tamanho);
+	PangoRectangle pos;
+	pango_layout_index_to_pos(medidor, indice, &pos);
+	return pos.x / (float)PANGO_SCALE;
+}
+
+/* O byte mais perto do x dado (o cursor vai para antes ou depois do caractere tocado). */
+int gv__texto_indice(const char *texto, float tamanho, float x) {
+	preparar(medidor, texto, -1, GV_PESO_NORMAL, tamanho);
+	int indice = 0, depois = 0;
+	pango_layout_xy_to_index(medidor, (int)(x * PANGO_SCALE), 0, &indice, &depois);
+	while (depois-- > 0 && texto[indice]) {
+		indice = (int)(g_utf8_next_char(texto + indice) - texto);
+	}
+	return indice;
+}
+
 Clay_Dimensions gv__texto_medir(Clay_StringSlice texto, Clay_TextElementConfig *config, void *dados) {
 	(void)dados;
 	preparar(medidor, texto.chars, texto.length, config->fontId, config->fontSize);
@@ -146,6 +165,64 @@ void gv__texto_desenhar(cairo_t *cr, Clay_RenderCommand *cmd) {
 	cairo_move_to(cr, cmd->boundingBox.x, cmd->boundingBox.y + (cmd->boundingBox.height - altura) / 2);
 	pango_cairo_show_layout(cr, layout);
 	g_object_unref(layout);
+}
+
+static void fonte_cor(cairo_t *cr, Clay_Color c) {
+	cairo_set_source_rgba(cr, c.r / 255.0, c.g / 255.0, c.b / 255.0, c.a / 255.0);
+}
+
+/* O campo de texto: seleção por trás, o texto (a palavra a compor sublinhada), o cursor. */
+void gv__campo_desenhar(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *e) {
+	cairo_save(cr);
+	cairo_rectangle(cr, b.x, b.y - 2, b.width, b.height + 4);
+	cairo_clip(cr);
+	PangoLayout *layout = pango_cairo_create_layout(cr);
+	cairo_font_options_t *opcoes = cairo_font_options_create();
+	cairo_font_options_set_hint_metrics(opcoes, CAIRO_HINT_METRICS_OFF);
+	pango_cairo_context_set_font_options(pango_layout_get_context(layout), opcoes);
+	cairo_font_options_destroy(opcoes);
+	pango_layout_context_changed(layout);
+	bool vazio = !e->campo.mostrado[0];
+	const char *texto = vazio && e->campo.dica ? e->campo.dica : e->campo.mostrado;
+	preparar(layout, texto, -1, GV_PESO_NORMAL, e->campo.tamanho);
+	if (!vazio && e->campo.comp_fim > e->campo.comp_ini) {
+		PangoAttrList *attrs = pango_attr_list_new();
+		PangoAttribute *sub = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+		sub->start_index = e->campo.comp_ini;
+		sub->end_index = e->campo.comp_fim;
+		pango_attr_list_insert(attrs, sub);
+		pango_layout_set_attributes(layout, attrs);
+		pango_attr_list_unref(attrs);
+	}
+	PangoRectangle logico;
+	pango_layout_get_extents(layout, NULL, &logico);
+	double altura = logico.height / (double)PANGO_SCALE;
+	double x0 = b.x - (vazio ? 0 : e->campo.rolagem);
+	double y0 = b.y + (b.height - altura) / 2;
+	if (!vazio && e->campo.sel_fim > e->campo.sel_ini) {
+		PangoRectangle a, z;
+		pango_layout_index_to_pos(layout, e->campo.sel_ini, &a);
+		pango_layout_index_to_pos(layout, e->campo.sel_fim, &z);
+		fonte_cor(cr, e->campo.cor_sel);
+		cairo_rectangle(cr, x0 + a.x / (double)PANGO_SCALE, y0, (z.x - a.x) / (double)PANGO_SCALE, altura);
+		cairo_fill(cr);
+	}
+	if (texto[0]) {
+		fonte_cor(cr, vazio ? e->campo.cor_dica : e->campo.cor);
+		cairo_move_to(cr, x0, y0);
+		pango_cairo_show_layout(cr, layout);
+	}
+	if (e->campo.cursor_alfa > 0) {
+		PangoRectangle c;
+		pango_layout_index_to_pos(layout, vazio ? 0 : e->campo.cursor, &c);
+		Clay_Color cor = e->campo.cor_cursor;
+		cor.a *= e->campo.cursor_alfa;
+		fonte_cor(cr, cor);
+		cairo_rectangle(cr, x0 + (vazio ? 0 : c.x / (double)PANGO_SCALE) - 1, y0 + 1, 2, altura - 2);
+		cairo_fill(cr);
+	}
+	g_object_unref(layout);
+	cairo_restore(cr);
 }
 
 void gv_texto(Clay_String texto, float tamanho, Clay_Color cor, enum gv_peso peso) {

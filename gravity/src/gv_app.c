@@ -17,10 +17,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/timerfd.h>
 #include <time.h>
 #include <unistd.h>
 #include <wayland-client.h>
 #include <wayland-cursor.h>
+#include <xkbcommon/xkbcommon-compose.h>
 #include <xkbcommon/xkbcommon.h>
 
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
@@ -79,6 +81,11 @@ struct gv_app {
 	struct xkb_context *xkb;
 	struct xkb_keymap *mapa;
 	struct xkb_state *estado;
+	struct xkb_compose_state *compor; /* teclas mortas: ´ + a = á */
+	int repete_fd;                    /* timerfd da repetição de tecla */
+	uint32_t repete_tecla;            /* a tecla segura (0: nenhuma) */
+	int repete_taxa, repete_atraso;   /* por segundo / ms */
+	double acordar;                   /* um quadro pedido para esta hora (0: nenhum) */
 
 	struct gv_buffer buffers[2];
 	int largura, altura; /* lógicos */
@@ -114,6 +121,16 @@ void gv_app_redesenhar(gv_app *app) {
 	}
 	if (app) {
 		app->precisa = true;
+	}
+}
+
+void gv__app_acordar_em(double segundos) {
+	if (!atual) {
+		return;
+	}
+	double quando = gv_agora() + segundos;
+	if (atual->acordar <= 0 || quando < atual->acordar) {
+		atual->acordar = quando;
 	}
 }
 
@@ -466,30 +483,146 @@ static void teclado_mapa(void *dados, struct wl_keyboard *k, uint32_t formato, i
 	}
 	app->mapa = mapa;
 	app->estado = xkb_state_new(mapa);
+	if (!app->compor) {
+		const char *local = getenv("LC_ALL");
+		if (!local || !*local) {
+			local = getenv("LC_CTYPE");
+		}
+		if (!local || !*local) {
+			local = getenv("LANG");
+		}
+		if (!local || !*local) {
+			local = "C.UTF-8";
+		}
+		struct xkb_compose_table *tabela = xkb_compose_table_new_from_locale(app->xkb, local, XKB_COMPOSE_COMPILE_NO_FLAGS);
+		if (tabela) {
+			app->compor = xkb_compose_state_new(tabela, XKB_COMPOSE_STATE_NO_FLAGS);
+			xkb_compose_table_unref(tabela);
+		}
+	}
 }
 
-static void teclado_entrou(void *d, struct wl_keyboard *k, uint32_t s, struct wl_surface *sup, struct wl_array *t) {}
-static void teclado_saiu(void *d, struct wl_keyboard *k, uint32_t s, struct wl_surface *sup) {}
+static void teclado_entrou(void *dados, struct wl_keyboard *k, uint32_t serial, struct wl_surface *sup,
+		struct wl_array *teclas) {
+	gv__entrada.serial_tecla = serial;
+}
+
+static void repeticao_parar(gv_app *app) {
+	app->repete_tecla = 0;
+	if (app->repete_fd >= 0) {
+		struct itimerspec zero = { 0 };
+		timerfd_settime(app->repete_fd, 0, &zero, NULL);
+	}
+}
+
+static void teclado_saiu(void *dados, struct wl_keyboard *k, uint32_t s, struct wl_surface *sup) {
+	gv_app *app = dados;
+	repeticao_parar(app);
+	gv__entrada.mods = 0;
+}
+
+/* Uma tecla carregada (ou repetida): o keysym para os atalhos e o texto para os campos. */
+static void tecla_vale(gv_app *app, uint32_t codigo) {
+	xkb_keycode_t k = codigo + 8;
+	xkb_keysym_t sym = xkb_state_key_get_one_sym(app->estado, k);
+	if (gv__entrada.nteclas < GV_MAX_TECLAS) {
+		gv__entrada.teclas[gv__entrada.nteclas++] = sym;
+	}
+	app->precisa = true;
+	if (gv__entrada.mods & (GV_MOD_CTRL | GV_MOD_ALT | GV_MOD_LOGO)) {
+		return;
+	}
+	char utf8[32] = "";
+	if (app->compor && xkb_compose_state_feed(app->compor, sym) == XKB_COMPOSE_FEED_ACCEPTED) {
+		switch (xkb_compose_state_get_status(app->compor)) {
+		case XKB_COMPOSE_COMPOSING:
+			return; /* uma tecla morta: espera a próxima */
+		case XKB_COMPOSE_COMPOSED:
+			xkb_compose_state_get_utf8(app->compor, utf8, sizeof(utf8));
+			xkb_compose_state_reset(app->compor);
+			break;
+		case XKB_COMPOSE_CANCELLED:
+			xkb_compose_state_reset(app->compor);
+			return;
+		default:
+			xkb_state_key_get_utf8(app->estado, k, utf8, sizeof(utf8));
+			break;
+		}
+	} else {
+		xkb_state_key_get_utf8(app->estado, k, utf8, sizeof(utf8));
+	}
+	/* só o que se escreve: Enter, Tab, Backspace e companhia vão pelos keysyms */
+	if ((unsigned char)utf8[0] < 0x20 || utf8[0] == 0x7f) {
+		return;
+	}
+	size_t usado = strlen(gv__entrada.texto);
+	if (usado + strlen(utf8) < sizeof(gv__entrada.texto)) {
+		strcat(gv__entrada.texto, utf8);
+	}
+}
 
 static void teclado_tecla(void *dados, struct wl_keyboard *k, uint32_t serial, uint32_t tempo, uint32_t tecla,
 		uint32_t estado) {
 	gv_app *app = dados;
-	if (estado != WL_KEYBOARD_KEY_STATE_PRESSED || !app->estado) {
+	if (!app->estado) {
 		return;
 	}
-	gv__entrada.tecla = xkb_state_key_get_one_sym(app->estado, tecla + 8);
-	app->precisa = true;
+	if (estado != WL_KEYBOARD_KEY_STATE_PRESSED) {
+		if (tecla == app->repete_tecla) {
+			repeticao_parar(app);
+		}
+		return;
+	}
+	gv__entrada.serial_tecla = serial;
+	tecla_vale(app, tecla);
+	if (app->repete_fd >= 0 && app->repete_taxa > 0 && xkb_keymap_key_repeats(app->mapa, tecla + 8)) {
+		app->repete_tecla = tecla;
+		struct itimerspec t = {
+			.it_value = { app->repete_atraso / 1000, (app->repete_atraso % 1000) * 1000000L },
+			.it_interval = { 0, 1000000000L / app->repete_taxa },
+		};
+		timerfd_settime(app->repete_fd, 0, &t, NULL);
+	}
+}
+
+static void repeticao_pronta(gv_app *app, int fd, void *dados) {
+	uint64_t vezes = 0;
+	if (read(fd, &vezes, sizeof(vezes)) <= 0 || !app->repete_tecla) {
+		return;
+	}
+	for (uint64_t i = 0; i < vezes && i < 8; i++) {
+		tecla_vale(app, app->repete_tecla);
+	}
 }
 
 static void teclado_mods(void *dados, struct wl_keyboard *k, uint32_t serial, uint32_t baixo, uint32_t preso,
 		uint32_t trancado, uint32_t grupo) {
 	gv_app *app = dados;
-	if (app->estado) {
-		xkb_state_update_mask(app->estado, baixo, preso, trancado, 0, 0, grupo);
+	if (!app->estado) {
+		return;
 	}
+	xkb_state_update_mask(app->estado, baixo, preso, trancado, 0, 0, grupo);
+	uint32_t mods = 0;
+	if (xkb_state_mod_name_is_active(app->estado, XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE) > 0) {
+		mods |= GV_MOD_SHIFT;
+	}
+	if (xkb_state_mod_name_is_active(app->estado, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) > 0) {
+		mods |= GV_MOD_CTRL;
+	}
+	if (xkb_state_mod_name_is_active(app->estado, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) > 0) {
+		mods |= GV_MOD_ALT;
+	}
+	if (xkb_state_mod_name_is_active(app->estado, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) > 0) {
+		mods |= GV_MOD_LOGO;
+	}
+	gv__entrada.mods = mods;
 }
 
-static void teclado_repete(void *d, struct wl_keyboard *k, int32_t taxa, int32_t atraso) {}
+static void teclado_repete(void *dados, struct wl_keyboard *k, int32_t taxa, int32_t atraso) {
+	gv_app *app = dados;
+	app->repete_taxa = taxa;
+	app->repete_atraso = atraso;
+}
 
 static const struct wl_keyboard_listener teclado_ouvinte = {
 	.keymap = teclado_mapa,
@@ -551,6 +684,8 @@ static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, co
 		xdg_wm_base_add_listener(app->xdg, &xdg_ouvinte, app);
 	} else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name)) {
 		app->camadas = wl_registry_bind(r, nome, &zwlr_layer_shell_v1_interface, versao < 4 ? versao : 4);
+	} else if (gv__escrita_global(r, nome, iface, versao)) {
+		/* área de transferência e campo de texto (gv_escrita.c) */
 	} else if (!strcmp(iface, wl_output_interface.name) && app->nsaidas < GV_MAX_SAIDAS) {
 		struct gv_saida *saida = &app->saidas[app->nsaidas++];
 		saida->escala = 1;
@@ -697,6 +832,14 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 		xdg_toplevel_set_app_id(app->janela, opcoes->app_id ? opcoes->app_id : "gravity");
 	}
 	wl_surface_commit(app->superficie);
+	gv__escrita_iniciar(app->display, app->seat, app->superficie);
+
+	app->repete_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+	app->repete_taxa = 25;
+	app->repete_atraso = 600;
+	if (app->repete_fd >= 0) {
+		gv_app_vigiar(app, app->repete_fd, repeticao_pronta, NULL);
+	}
 
 	uint32_t memoria = Clay_MinMemorySize();
 	app->arena = Clay_CreateArenaWithCapacityAndMemory(memoria, malloc(memoria));
@@ -736,6 +879,7 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	cairo_destroy(cr);
 	cairo_surface_flush(buffer->superficie);
 
+	gv__escrita_fim_do_quadro();
 	gv__entrada_fim_do_quadro();
 	gv__quadro_limpar();
 
@@ -767,6 +911,11 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {
 		}
 		/* com um quadro por desenhar mas à espera do compositor, o poll acorda com o callback */
 		int espera = (app->precisa && app->configurado && !app->quadro_cb) ? 0 : -1;
+		if (espera < 0 && app->acordar > 0) {
+			/* um quadro marcado (o cursor que pisca): dorme só até lá */
+			double falta = app->acordar - gv_agora();
+			espera = falta > 0 ? (int)(falta * 1000) + 1 : 0;
+		}
 		if (poll(fds, 1 + app->nvigias, espera) < 0 && errno != EINTR) {
 			wl_display_cancel_read(app->display);
 			break;
@@ -780,6 +929,10 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {
 		}
 		if (wl_display_dispatch_pending(app->display) < 0) {
 			break;
+		}
+		if (app->acordar > 0 && gv_agora() >= app->acordar) {
+			app->acordar = 0;
+			app->precisa = true;
 		}
 		for (int i = 0; i < app->nvigias; i++) {
 			if (fds[1 + i].revents & (POLLIN | POLLHUP)) {

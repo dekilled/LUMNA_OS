@@ -27,11 +27,28 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_botao_redondo` | botão redondo (ligado / perigo), como os do mixer e dos ajustes rápidos |
 | `gv_deslizante` | volume, brilho... (arrastar com o dedo ou o rato) |
 | `gv_interruptor` | liga/desliga animado |
+| `gv_campo` | campo de texto: normal, busca (lupa e ✕), senha (pontos e o olho), número, e-mail, URL |
 | `gv_separador` | linha de 1 px |
 | `gv_cartao()` | a declaração de um cartão: superfície, borda, cantos e sombra |
 | `gv_sombra()` | sombra macia em qualquer elemento |
 | `gv_anim`, `gv_anim_cor` | qualquer número ou cor animado até ao alvo |
-| `gv_tocado`, `gv_premido`, `gv_por_cima`, `gv_tecla` | interação |
+| `gv_tocado`, `gv_premido`, `gv_por_cima`, `gv_tecla`, `gv_tecla_carregada`, `gv_modificadores` | interação |
+| `gv_copiar`, `gv_colar` | área de transferência (entre apps) |
+| `gv_focar`, `gv_focado` | o campo com o foco |
+
+## Escrever
+
+O campo de texto faz o que se espera de um campo:
+
+- **teclado físico:** letras com os acentos do ABNT (as teclas mortas ´ ~ ^ pelo *compose* do
+  xkb), a tecla segura repete, ← → (Ctrl: palavra a palavra), Home/End, Shift para selecionar,
+  Backspace/Delete (Ctrl: a palavra), Ctrl+A, Ctrl+C/X/V, Enter, Esc;
+- **rato e dedo:** tocar põe o cursor, arrastar seleciona, dois toques selecionam a palavra;
+- **teclado no ecrã do LUMNA** (text-input-v3): o campo diz que é um campo (e se é senha, número,
+  e-mail...), manda o texto à volta e onde está o cursor; o que o teclado escreve entra, e a
+  palavra a compor aparece sublinhada;
+- **senha:** pontos, um olho para mostrar, e não deixa copiar para fora;
+- o cursor pisca sem gastar: o Gravity só acorda para cada piscada.
 
 ## Tema
 
@@ -61,6 +78,7 @@ make
 ./mixer              # o mixer de áudio do LUMNA (som de verdade), numa janela
 ./mixer --camada     # como no celular: uma camada por cima de tudo
 ./galeria            # os componentes, com o tema mudando ao vivo
+./wifi               # conectar ao Wi-Fi: busca, lista e senha (os campos de texto)
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste
@@ -90,10 +108,11 @@ int main(void) {
 
 ## O que vem a seguir
 
-- campo de texto (cursor, seleção, o teclado do LUMNA pelo text-input);
 - listas que rolam com física de dedo e vários dedos (pinça, deslizar);
 - imagens (ícones das apps, capas de álbum);
-- outras peças do LUMNA em Gravity (a barra de volume das teclas, a central);
+- o Wi-Fi ligado ao NetworkManager, e outras peças do LUMNA em Gravity (a barra de volume das
+  teclas, a central);
+- as janelinhas de sugestão do teclado no ecrã e campos de várias linhas;
 - desenho na GPU quando o cairo não chegar.
 
 O Clay vem em `vendor/clay` (licença zlib), no commit `e6cc369` do repositório dele.

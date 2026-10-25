@@ -152,6 +152,17 @@ bool gv_tocado(Clay_ElementId id);       /* começou e acabou nele: um clique, u
 Clay_BoundingBox gv_caixa(Clay_ElementId id);
 /* A tecla carregada neste quadro (um keysym do xkbcommon), ou 0. */
 uint32_t gv_tecla(void);
+/* Se esta tecla foi carregada neste quadro (com repetição, pode vir mais de uma). */
+bool gv_tecla_carregada(uint32_t keysym);
+
+enum { GV_MOD_SHIFT = 1, GV_MOD_CTRL = 2, GV_MOD_ALT = 4, GV_MOD_LOGO = 8 };
+uint32_t gv_modificadores(void);
+
+/* ---- área de transferência ---- */
+
+void gv_copiar(const char *texto);
+/* O texto copiado (desta app ou de outra), até ao fim do quadro; NULL se não houver. */
+const char *gv_colar(void);
 
 /* ---- componentes ---- */
 
@@ -169,6 +180,22 @@ bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool 
 bool gv_deslizante(Clay_ElementId id, float *valor, float trilho, float puxador);
 /* Um interruptor. Devolve verdadeiro quando mudou. */
 bool gv_interruptor(Clay_ElementId id, bool *ligado);
+/* Um campo de texto. A app guarda o texto (texto, com a capacidade dada); o cursor, a seleção
+ * e a rolagem ficam com o Gravity. Devolve GV_CAMPO_MUDOU quando o texto mudou e GV_CAMPO_ENTER
+ * quando a pessoa carregou Enter (ou "ir" no teclado do ecrã). */
+enum gv_campo_tipo {
+	GV_CAMPO_TEXTO,
+	GV_CAMPO_BUSCA,   /* lupa à esquerda e um x para limpar */
+	GV_CAMPO_SENHA,   /* pontos, e um olho para mostrar */
+	GV_CAMPO_NUMERO,
+	GV_CAMPO_EMAIL,
+	GV_CAMPO_URL,
+};
+enum { GV_CAMPO_MUDOU = 1, GV_CAMPO_ENTER = 2 };
+int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo);
+void gv_focar(Clay_ElementId id);
+bool gv_focado(Clay_ElementId id);
+
 /* Um separador de 1 px na cor da linha. */
 void gv_separador(bool vertical, float comprimento);
 

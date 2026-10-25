@@ -181,6 +181,9 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos) {
 			case GV_EXTRA_INTERRUPTOR:
 				interruptor(cr, b, extra);
 				break;
+			case GV_EXTRA_CAMPO:
+				gv__campo_desenhar(cr, b, extra);
+				break;
 			default:
 				break;
 			}
