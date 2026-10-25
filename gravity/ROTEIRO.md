@@ -16,7 +16,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Popups e menus presos a um botão (xdg-popup), que fecham ao tocar fora
 - [x] Lista suspensa (dropdown), como na tela de Rede
 - [x] Foco pelo teclado entre controles (Tab, setas, Enter) com o anel de foco
-- [ ] Texto que quebra em várias linhas e campo de várias linhas
+- [x] Texto que quebra em várias linhas e campo de várias linhas
 - [x] Ícones dos apps pelo tema de ícones (freedesktop) para o lançador
 
 ## 2. O desktop no Orbit
@@ -42,7 +42,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 
 - [~] Painel de controle (o layout da tela nova já está no exemplo `painel`)
 - [~] Rede — a janela da tela nova no exemplo `rede` (falta o NetworkManager)
-- [ ] Celular Connect
+- [~] Celular Connect — a área de transferência no exemplo `transferencia` (falta a ligação ao celular)
 - [ ] Mixer como app e como camada (já existe no exemplo `mixer`)
 
 ## 5. O celular

@@ -4,6 +4,9 @@
  *
  * Teclado: letras (com os acentos compostos), ← → (Ctrl: palavra a palavra), Home/End, Shift
  * para selecionar, Backspace/Delete (Ctrl: a palavra), Ctrl+A, Ctrl+C/X/V, Enter, Esc (sai).
+ * Várias linhas (gv_campo_area): Enter quebra a linha e Ctrl+Enter envia, ↑ ↓ andam entre as
+ * linhas (lembrando a coluna), Home/End vão às pontas da linha (Ctrl: do texto); o campo cresce
+ * até linhas_max e depois rola por dentro, seguindo o cursor.
  * Rato e dedo: tocar põe o cursor, arrastar seleciona, dois toques selecionam a palavra.
  * Teclado no ecrã: o text-input recebe o texto à volta e o tipo do campo, e o que ele escreve
  * (e a palavra a compor, sublinhada) entra aqui.
@@ -23,6 +26,8 @@ struct campo {
 	uint32_t id;
 	int cursor, ancora;
 	float rolagem;
+	float rolagem_y;       /* várias linhas: quanto rolou para baixo */
+	float x_desejado;      /* ↑ ↓ lembram a coluna (-1: nenhuma) */
 	double editado;        /* o cursor fica aceso depois de mexer */
 	double ultimo_toque;
 	int toques;            /* dois seguidos: palavra */
@@ -155,7 +160,9 @@ static bool numero_valido(const char *s) {
 	return true;
 }
 
-static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo, Clay_ElementId id) {
+static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo, Clay_ElementId id, float tamanho,
+		float largura) {
+	bool multi = largura > 0;
 	int resultado = 0;
 	bool shift = gv__entrada.mods & GV_MOD_SHIFT;
 	bool ctrl = gv__entrada.mods & GV_MOD_CTRL;
@@ -165,7 +172,28 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 		int ini = c->cursor < c->ancora ? c->cursor : c->ancora;
 		int fim = c->cursor < c->ancora ? c->ancora : c->cursor;
 		int antes = c->cursor;
+		if (sym != XKB_KEY_Up && sym != XKB_KEY_Down) {
+			c->x_desejado = -1;
+		}
 		switch (sym) {
+		case XKB_KEY_Up:
+		case XKB_KEY_Down: {
+			if (!multi) {
+				continue;
+			}
+			float x, y, h;
+			gv__texto_pos(t, tamanho, largura, c->cursor, &x, &y, &h);
+			if (c->x_desejado < 0) {
+				c->x_desejado = x;
+			}
+			if (sym == XKB_KEY_Up) {
+				c->cursor = y < h / 2 ? 0 : gv__texto_indice_xy(t, tamanho, largura, c->x_desejado, y - h / 2);
+			} else {
+				float total = gv__texto_altura(t, tamanho, largura);
+				c->cursor = y + h * 1.5f > total ? (int)strlen(t) : gv__texto_indice_xy(t, tamanho, largura, c->x_desejado, y + h * 1.5f);
+			}
+			break;
+		}
 		case XKB_KEY_Left:
 			c->cursor = !shift && ini != fim ? ini : ctrl ? palavra_antes(t, c->cursor) : anterior(t, c->cursor);
 			break;
@@ -174,12 +202,18 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 			break;
 		case XKB_KEY_Home:
 		case XKB_KEY_KP_Home:
-			c->cursor = 0;
-			break;
 		case XKB_KEY_End:
-		case XKB_KEY_KP_End:
-			c->cursor = (int)strlen(t);
+		case XKB_KEY_KP_End: {
+			bool home = sym == XKB_KEY_Home || sym == XKB_KEY_KP_Home;
+			if (multi && !ctrl) {
+				int li, lf;
+				gv__texto_linha_de(t, tamanho, largura, c->cursor, &li, &lf);
+				c->cursor = home ? li : lf;
+			} else {
+				c->cursor = home ? 0 : (int)strlen(t);
+			}
 			break;
+		}
 		case XKB_KEY_BackSpace:
 			if (ini == fim) {
 				ini = ctrl ? palavra_antes(t, c->cursor) : anterior(t, c->cursor);
@@ -199,7 +233,14 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 			continue;
 		case XKB_KEY_Return:
 		case XKB_KEY_KP_Enter:
-			resultado |= GV_CAMPO_ENTER;
+			/* várias linhas: Enter quebra a linha; Ctrl+Enter é o "enviar" */
+			if (multi && !ctrl) {
+				if (inserir(t, cap, c, "\n")) {
+					resultado |= GV_CAMPO_MUDOU;
+				}
+			} else {
+				resultado |= GV_CAMPO_ENTER;
+			}
 			continue;
 		case XKB_KEY_Escape:
 			gv__foco_definir(0, false);
@@ -222,13 +263,16 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 				} else if (letra == XKB_KEY_v) {
 					const char *colado = gv_colar();
 					if (colado) {
-						/* um campo de uma linha: as quebras viram espaços */
+						/* um campo de uma linha: as quebras viram espaços (num de várias ficam) */
 						char *linha = g_strdup(colado);
+						char *escrita = linha;
 						for (char *p = linha; *p; p++) {
-							if (*p == '\n' || *p == '\r' || *p == '\t') {
-								*p = ' ';
+							if (*p == '\r') {
+								continue;
 							}
+							*escrita++ = (*p == '\n' && !multi) || *p == '\t' ? ' ' : *p;
 						}
+						*escrita = '\0';
 						if ((tipo != GV_CAMPO_NUMERO || numero_valido(linha)) && inserir(t, cap, c, linha)) {
 							resultado |= GV_CAMPO_MUDOU;
 						}
@@ -250,8 +294,10 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 
 /* ---- o componente ---- */
 
-int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo) {
+static int campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo,
+		int linhas_min, int linhas_max) {
 	struct campo *c = campo_de(id.id);
+	bool multi = linhas_max > 1;
 	c->visto = quadro;
 	int n = (int)strlen(texto);
 	if (c->cursor < 0 || c->cursor > n) {
@@ -266,6 +312,8 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 	float tamanho = gv_t.tamanho_corpo;
 	Clay_ElementId caixa_id = parte(id, 0);
 	Clay_ElementId botao_id = parte(id, 1);
+	/* várias linhas: quebram na largura da área do texto (a do quadro anterior) */
+	float largura_quebra = multi ? (c->caixa_texto.width > 0 ? c->caixa_texto.width : 300) : 0;
 
 	/* ---- toque e rato: pôr o cursor, arrastar para selecionar, dois toques: palavra ---- */
 	bool no_botao = gv_por_cima(botao_id);
@@ -283,9 +331,11 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 			bolinhas[k * 3] = '\0';
 			mostrado = bolinhas;
 		}
-		int i = do_mostrado(texto,
-			gv__texto_indice(mostrado, tamanho, gv__entrada.x - c->caixa_texto.x + c->rolagem), pontos);
+		int i = multi ? gv__texto_indice_xy(texto, tamanho, largura_quebra, gv__entrada.x - c->caixa_texto.x,
+				gv__entrada.y - c->caixa_texto.y + c->rolagem_y)
+			: do_mostrado(texto, gv__texto_indice(mostrado, tamanho, gv__entrada.x - c->caixa_texto.x + c->rolagem), pontos);
 		g_free(bolinhas);
+		c->x_desejado = -1;
 		double agora = gv_agora();
 		c->toques = agora - c->ultimo_toque < 0.4 ? c->toques + 1 : 1;
 		c->ultimo_toque = agora;
@@ -322,8 +372,9 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 			bolinhas[k * 3] = '\0';
 			mostrado = bolinhas;
 		}
-		c->cursor = do_mostrado(texto,
-			gv__texto_indice(mostrado, tamanho, gv__entrada.x - c->caixa_texto.x + c->rolagem), pontos);
+		c->cursor = multi ? gv__texto_indice_xy(texto, tamanho, largura_quebra, gv__entrada.x - c->caixa_texto.x,
+				gv__entrada.y - c->caixa_texto.y + c->rolagem_y)
+			: do_mostrado(texto, gv__texto_indice(mostrado, tamanho, gv__entrada.x - c->caixa_texto.x + c->rolagem), pontos);
 		g_free(bolinhas);
 	}
 
@@ -332,7 +383,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 	const char *compondo = "";
 	if (focado) {
 		int antes = (int)strlen(texto);
-		resultado |= teclas(texto, capacidade, c, tipo, id);
+		resultado |= teclas(texto, capacidade, c, tipo, id, tamanho, largura_quebra);
 		if (gv__entrada.texto[0] && (tipo != GV_CAMPO_NUMERO || numero_valido(gv__entrada.texto))) {
 			if (inserir(texto, capacidade, c, gv__entrada.texto)) {
 				resultado |= GV_CAMPO_MUDOU;
@@ -351,9 +402,9 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 				resultado |= GV_CAMPO_MUDOU;
 			}
 			if (gv__entrada.ime.escrito[0]) {
-				/* "\n" do teclado no ecrã é o "ir" */
+				/* "\n" do teclado no ecrã é o "ir" (num campo de várias linhas, uma linha nova) */
 				char *sem_enter = g_strdup(gv__entrada.ime.escrito);
-				char *nl = strchr(sem_enter, '\n');
+				char *nl = multi ? NULL : strchr(sem_enter, '\n');
 				if (nl) {
 					*nl = '\0';
 					resultado |= GV_CAMPO_ENTER;
@@ -396,16 +447,41 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 
 	/* a rolagem segue o cursor */
 	float largura = c->caixa_texto.width > 0 ? c->caixa_texto.width : 200;
-	float cx = gv__texto_x(mostrado, tamanho, cursor_mostrado);
-	float total = gv__texto_x(mostrado, tamanho, (int)strlen(mostrado));
-	if (cx - c->rolagem > largura - 2) {
-		c->rolagem = cx - largura + 2;
-	}
-	if (cx - c->rolagem < 0) {
-		c->rolagem = cx;
-	}
-	if (total - c->rolagem < largura - 2) {
-		c->rolagem = fmaxf(0, total - largura + 2);
+	float cx, cy = 0, ch = 0;
+	float linha = gv__texto_altura("", tamanho, 0);
+	int nlinhas = 1;
+	if (multi) {
+		gv__texto_pos(mostrado, tamanho, largura_quebra, cursor_mostrado, &cx, &cy, &ch);
+		float total = gv__texto_altura(mostrado, tamanho, largura_quebra);
+		nlinhas = (int)ceilf(total / linha - 0.01f);
+		nlinhas = nlinhas < linhas_min ? linhas_min : nlinhas > linhas_max ? linhas_max : nlinhas;
+		float vista = nlinhas * linha;
+		c->rolagem = 0;
+		/* a roda rola por dentro (e não chega à rolagem de fora) quando há o que rolar */
+		if (gv_por_cima(id) && gv__entrada.roda_y != 0 && total > vista) {
+			c->rolagem_y -= gv__entrada.roda_y * 5;
+			gv__entrada.roda_y = 0;
+		} else if (focado && (resultado || gv__entrada.nteclas || gv__entrada.ime.chegou || arrastando)) {
+			if (cy - c->rolagem_y < 0) {
+				c->rolagem_y = cy;
+			}
+			if (cy + ch - c->rolagem_y > vista) {
+				c->rolagem_y = cy + ch - vista;
+			}
+		}
+		c->rolagem_y = fmaxf(0, fminf(c->rolagem_y, total - vista));
+	} else {
+		cx = gv__texto_x(mostrado, tamanho, cursor_mostrado);
+		float total = gv__texto_x(mostrado, tamanho, (int)strlen(mostrado));
+		if (cx - c->rolagem > largura - 2) {
+			c->rolagem = cx - largura + 2;
+		}
+		if (cx - c->rolagem < 0) {
+			c->rolagem = cx;
+		}
+		if (total - c->rolagem < largura - 2) {
+			c->rolagem = fmaxf(0, total - largura + 2);
+		}
 	}
 
 	/* o pisca: aceso logo depois de mexer; acorda o Gravity só para a próxima troca */
@@ -435,7 +511,12 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 			dicas = 0x1 | 0x2 | 0x4; /* completion | spellcheck | auto_capitalization */
 			break;
 		}
-		Clay_BoundingBox cursor_caixa = { c->caixa_texto.x + cx - c->rolagem, c->caixa_texto.y, 2, c->caixa_texto.height };
+		if (multi) {
+			dicas |= 0x200; /* multiline: o Enter do teclado no ecrã quebra a linha */
+		}
+		Clay_BoundingBox cursor_caixa = multi
+			? (Clay_BoundingBox){ c->caixa_texto.x + cx, c->caixa_texto.y + cy - c->rolagem_y, 2, ch }
+			: (Clay_BoundingBox){ c->caixa_texto.x + cx - c->rolagem, c->caixa_texto.y, 2, c->caixa_texto.height };
 		gv__campo_pede(senha ? "" : texto, senha ? 0 : c->cursor, senha ? 0 : c->ancora, cursor_caixa, dicas, proposito);
 	}
 
@@ -447,6 +528,8 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 		e->campo.dica = (!n && !lc && dica) ? dica : NULL;
 		e->campo.tamanho = tamanho;
 		e->campo.rolagem = c->rolagem;
+		e->campo.largura = largura_quebra;
+		e->campo.rolagem_y = c->rolagem_y;
 		e->campo.cursor = cursor_mostrado;
 		int si = cur < anc ? cur : anc, sf = cur < anc ? anc : cur;
 		/* a seleção (com a palavra a compor no meio, desloca o que vem depois) */
@@ -474,11 +557,11 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 		borda.b + (gv_t.foco.b - borda.b) * realce,
 		borda.a + (gv_t.foco.a - borda.a) * realce,
 	};
-	bool com_botao = (tipo == GV_CAMPO_BUSCA && n > 0) || senha;
+	bool com_botao = !multi && ((tipo == GV_CAMPO_BUSCA && n > 0) || senha);
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) },
-			.padding = { tipo == GV_CAMPO_BUSCA ? 14 : 16, com_botao ? 6 : 16, 0, 0 }, .childGap = 10,
-			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), multi ? CLAY_SIZING_FIT(44) : CLAY_SIZING_FIXED(44) },
+			.padding = { tipo == GV_CAMPO_BUSCA ? 14 : 16, com_botao ? 6 : 16, multi ? 11 : 0, multi ? 11 : 0 }, .childGap = 10,
+			.childAlignment = { .y = multi ? CLAY_ALIGN_Y_TOP : CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = gv_t.elevada,
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 		.border = { .color = borda, .width = GV_BORDA(1) },
@@ -487,7 +570,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 			gv_icone("search", 20, focado ? gv_t.icone : gv_t.texto_secundario);
 		}
 		CLAY(caixa_id, {
-			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(tamanho * 1.5f) } },
+			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(multi ? nlinhas * linha : tamanho * 1.5f) } },
 			.custom = { .customData = e },
 		}) {}
 		if (com_botao) {
@@ -519,7 +602,24 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 	}
 	Clay_ElementData dados = Clay_GetElementData(caixa_id);
 	if (dados.found) {
+		if (multi && dados.boundingBox.width != c->caixa_texto.width) {
+			gv__app_pedir(); /* a largura mudou: as linhas quebram noutro sítio */
+		}
 		c->caixa_texto = dados.boundingBox;
 	}
 	return resultado;
+}
+
+int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo) {
+	return campo(id, texto, capacidade, dica, tipo, 1, 1);
+}
+
+int gv_campo_area(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_min, int linhas_max) {
+	if (linhas_min < 1) {
+		linhas_min = 3;
+	}
+	if (linhas_max < linhas_min) {
+		linhas_max = linhas_min > 8 ? linhas_min : 8;
+	}
+	return campo(id, texto, capacidade, dica, GV_CAMPO_TEXTO, linhas_min, linhas_max < 2 ? 2 : linhas_max);
 }

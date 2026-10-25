@@ -28,6 +28,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_deslizante` | volume, brilho... (arrastar com o dedo ou o rato) |
 | `gv_interruptor` | liga/desliga animado |
 | `gv_campo` | campo de texto: normal, busca (lupa e ✕), senha (pontos e o olho), número, e-mail, URL |
+| `gv_campo_area` | campo de várias linhas: cresce até um máximo e rola por dentro; Enter quebra, Ctrl+Enter envia |
 | `gv_linha` | linha de ajuste: ícone, título, subtítulo e › ou interruptor (como no Painel de controle) |
 | `gv_abas` | abas com o sublinhado do acento |
 | `gv_barra_janela` | a barra de título: ícone, título, minimizar, maximizar, fechar; arrastar move |
@@ -130,6 +131,7 @@ make
 ./papel [imagem]     # o papel de parede: uma camada no fundo da tela
 ./barra              # a topbar do desktop novo; o Bluetooth abre o menu da tela nova
 ./rede               # a janela de Rede da tela nova: cartões que abrem e listas suspensas
+./transferencia      # a área de transferência do Celular Connect: texto de várias linhas
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste

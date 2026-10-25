@@ -116,6 +116,61 @@ static void preparar(PangoLayout *layout, const char *texto, int n, int peso, fl
 	pango_layout_set_font_description(layout, fonte);
 	pango_font_description_free(fonte);
 	pango_layout_set_text(layout, texto, n);
+	pango_layout_set_width(layout, -1);
+}
+
+/* como preparar, quebrando as linhas na largura dada (0: sem quebra) */
+static void preparar_largura(PangoLayout *layout, const char *texto, float tamanho, float largura) {
+	preparar(layout, texto, -1, GV_PESO_NORMAL, tamanho);
+	if (largura > 0) {
+		pango_layout_set_width(layout, (int)(largura * PANGO_SCALE));
+		pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+	}
+}
+
+/* Onde fica o cursor antes do byte "indice", num texto quebrado na largura dada. */
+void gv__texto_pos(const char *texto, float tamanho, float largura, int indice, float *x, float *y, float *altura) {
+	preparar_largura(medidor, texto, tamanho, largura);
+	PangoRectangle forte;
+	pango_layout_get_cursor_pos(medidor, indice, &forte, NULL);
+	*x = forte.x / (float)PANGO_SCALE;
+	*y = forte.y / (float)PANGO_SCALE;
+	*altura = forte.height / (float)PANGO_SCALE;
+}
+
+/* O byte mais perto de (x, y), num texto quebrado na largura dada. */
+int gv__texto_indice_xy(const char *texto, float tamanho, float largura, float x, float y) {
+	preparar_largura(medidor, texto, tamanho, largura);
+	int indice = 0, depois = 0;
+	pango_layout_xy_to_index(medidor, (int)(x * PANGO_SCALE), (int)(y * PANGO_SCALE), &indice, &depois);
+	/* depois de um caractere (ou no fim de uma linha quebrada, antes do primeiro da seguinte) */
+	if (depois > 0 && texto[indice] && texto[indice] != '\n') {
+		indice = (int)(g_utf8_next_char(texto + indice) - texto);
+	}
+	return indice;
+}
+
+/* A altura do texto quebrado na largura dada (uma linha vazia conta). */
+float gv__texto_altura(const char *texto, float tamanho, float largura) {
+	preparar_largura(medidor, texto[0] ? texto : " ", tamanho, largura);
+	PangoRectangle logico;
+	pango_layout_get_extents(medidor, NULL, &logico);
+	return logico.height / (float)PANGO_SCALE;
+}
+
+/* Onde começa e acaba a linha (visual) com o byte "indice". */
+void gv__texto_linha_de(const char *texto, float tamanho, float largura, int indice, int *ini, int *fim) {
+	preparar_largura(medidor, texto, tamanho, largura);
+	int linha = 0, x = 0;
+	pango_layout_index_to_line_x(medidor, indice, false, &linha, &x);
+	PangoLayoutLine *l = pango_layout_get_line_readonly(medidor, linha);
+	*ini = l ? l->start_index : 0;
+	*fim = l ? l->start_index + l->length : (int)strlen(texto);
+	/* o fim de uma linha quebrada é antes do espaço onde quebrou */
+	int n = (int)strlen(texto);
+	if (*fim < n && *fim > *ini && texto[*fim - 1] == ' ') {
+		(*fim)--;
+	}
 }
 
 /* Onde fica (em x) o caractere que começa no byte "indice" de um texto de uma linha. */
@@ -174,7 +229,9 @@ static void fonte_cor(cairo_t *cr, Clay_Color c) {
 /* O campo de texto: seleção por trás, o texto (a palavra a compor sublinhada), o cursor. */
 void gv__campo_desenhar(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *e) {
 	cairo_save(cr);
-	cairo_rectangle(cr, b.x, b.y - 2, b.width, b.height + 4);
+	/* uma linha: folga para os acentos; várias: corta rente (a de cima não espreita ao rolar) */
+	bool varias = e->campo.largura > 0;
+	cairo_rectangle(cr, b.x - 2, b.y - (varias ? 0 : 2), b.width + 4, b.height + (varias ? 0 : 4));
 	cairo_clip(cr);
 	PangoLayout *layout = pango_cairo_create_layout(cr);
 	cairo_font_options_t *opcoes = cairo_font_options_create();
@@ -184,7 +241,8 @@ void gv__campo_desenhar(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *
 	pango_layout_context_changed(layout);
 	bool vazio = !e->campo.mostrado[0];
 	const char *texto = vazio && e->campo.dica ? e->campo.dica : e->campo.mostrado;
-	preparar(layout, texto, -1, GV_PESO_NORMAL, e->campo.tamanho);
+	bool linhas = e->campo.largura > 0;
+	preparar_largura(layout, texto, e->campo.tamanho, e->campo.largura);
 	if (!vazio && e->campo.comp_fim > e->campo.comp_ini) {
 		PangoAttrList *attrs = pango_attr_list_new();
 		PangoAttribute *sub = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
@@ -198,8 +256,39 @@ void gv__campo_desenhar(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *
 	pango_layout_get_extents(layout, NULL, &logico);
 	double altura = logico.height / (double)PANGO_SCALE;
 	double x0 = b.x - (vazio ? 0 : e->campo.rolagem);
-	double y0 = b.y + (b.height - altura) / 2;
-	if (!vazio && e->campo.sel_fim > e->campo.sel_ini) {
+	double y0 = linhas ? b.y - e->campo.rolagem_y : b.y + (b.height - altura) / 2;
+	if (linhas && !vazio && e->campo.sel_fim > e->campo.sel_ini) {
+		/* a seleção linha a linha: o pedaço de cada linha que cai dentro dela */
+		fonte_cor(cr, e->campo.cor_sel);
+		PangoLayoutIter *it = pango_layout_get_iter(layout);
+		do {
+			PangoLayoutLine *l = pango_layout_iter_get_line_readonly(it);
+			int li = l->start_index, lf = l->start_index + l->length;
+			int a = e->campo.sel_ini > li ? e->campo.sel_ini : li;
+			int z = e->campo.sel_fim < lf ? e->campo.sel_fim : lf;
+			bool continua = e->campo.sel_fim > lf; /* a seleção passa para a linha seguinte */
+			if (a > z || (a == z && !continua)) {
+				continue;
+			}
+			int y_cima, y_baixo;
+			pango_layout_iter_get_line_yrange(it, &y_cima, &y_baixo);
+			int *faixas = NULL, nfaixas = 0;
+			pango_layout_line_get_x_ranges((PangoLayoutLine *)l, a, z, &faixas, &nfaixas);
+			for (int k = 0; k < nfaixas; k++) {
+				double fx0 = faixas[2 * k] / (double)PANGO_SCALE, fx1 = faixas[2 * k + 1] / (double)PANGO_SCALE;
+				if (continua && k == nfaixas - 1) {
+					fx1 += e->campo.tamanho * 0.3; /* a quebra de linha selecionada também se vê */
+				}
+				cairo_rectangle(cr, x0 + fx0, y0 + y_cima / (double)PANGO_SCALE, fx1 - fx0, (y_baixo - y_cima) / (double)PANGO_SCALE);
+			}
+			if (!nfaixas && continua) {
+				cairo_rectangle(cr, x0, y0 + y_cima / (double)PANGO_SCALE, e->campo.tamanho * 0.3, (y_baixo - y_cima) / (double)PANGO_SCALE);
+			}
+			g_free(faixas);
+			cairo_fill(cr);
+		} while (pango_layout_iter_next_line(it));
+		pango_layout_iter_free(it);
+	} else if (!vazio && e->campo.sel_fim > e->campo.sel_ini) {
 		PangoRectangle a, z;
 		pango_layout_index_to_pos(layout, e->campo.sel_ini, &a);
 		pango_layout_index_to_pos(layout, e->campo.sel_fim, &z);
@@ -214,11 +303,12 @@ void gv__campo_desenhar(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *
 	}
 	if (e->campo.cursor_alfa > 0) {
 		PangoRectangle c;
-		pango_layout_index_to_pos(layout, vazio ? 0 : e->campo.cursor, &c);
+		pango_layout_get_cursor_pos(layout, vazio ? 0 : e->campo.cursor, &c, NULL);
 		Clay_Color cor = e->campo.cor_cursor;
 		cor.a *= e->campo.cursor_alfa;
 		fonte_cor(cr, cor);
-		cairo_rectangle(cr, x0 + (vazio ? 0 : c.x / (double)PANGO_SCALE) - 1, y0 + 1, 2, altura - 2);
+		double cy = linhas ? c.y / (double)PANGO_SCALE : 0, ch = linhas ? c.height / (double)PANGO_SCALE : altura;
+		cairo_rectangle(cr, x0 + (vazio ? 0 : c.x / (double)PANGO_SCALE) - 1, y0 + cy + 1, 2, ch - 2);
 		cairo_fill(cr);
 	}
 	g_object_unref(layout);

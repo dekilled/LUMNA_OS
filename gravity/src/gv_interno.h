@@ -82,6 +82,11 @@ void gv__rolagens_fim_do_quadro(void);
 /* ---- medidas de texto para os campos (pango) ---- */
 float gv__texto_x(const char *texto, float tamanho, int indice);
 int gv__texto_indice(const char *texto, float tamanho, float x);
+/* o mesmo, num texto quebrado em várias linhas na largura dada (o campo de várias linhas) */
+void gv__texto_pos(const char *texto, float tamanho, float largura, int indice, float *x, float *y, float *altura);
+int gv__texto_indice_xy(const char *texto, float tamanho, float largura, float x, float y);
+float gv__texto_altura(const char *texto, float tamanho, float largura);
+void gv__texto_linha_de(const char *texto, float tamanho, float largura, int indice, int *ini, int *fim);
 
 /* ---- o que vai pendurado nos elementos, para o desenho ---- */
 enum gv_extra_tipo {
@@ -119,6 +124,8 @@ struct gv_extra {
 			const char *mostrado;  /* o texto como aparece (pontos numa senha, com a palavra a compor) */
 			const char *dica;      /* o texto cinza do campo vazio (NULL: não mostra) */
 			float tamanho, rolagem;
+			float largura;         /* > 0: várias linhas, quebradas nesta largura */
+			float rolagem_y;
 			int cursor;            /* índices em bytes no texto mostrado */
 			int sel_ini, sel_fim;
 			int comp_ini, comp_fim; /* a palavra a compor, sublinhada */

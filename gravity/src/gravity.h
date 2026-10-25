@@ -224,6 +224,10 @@ enum gv_campo_tipo {
 };
 enum { GV_CAMPO_MUDOU = 1, GV_CAMPO_ENTER = 2 };
 int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo);
+/* Um campo de várias linhas (uma mensagem, uma nota): o texto quebra na largura, o campo cresce
+ * de linhas_min até linhas_max (0, 0: de 3 a 8) e depois rola por dentro. Enter quebra a linha;
+ * Ctrl+Enter devolve GV_CAMPO_ENTER. */
+int gv_campo_area(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_min, int linhas_max);
 /* ---- foco ----
  * Um foco para a app inteira: Tab e Shift+Tab andam pelos controles na ordem em que aparecem,
  * Enter ou Espaço ativam, o anel violeta só aparece ao navegar pelo teclado. Os componentes do

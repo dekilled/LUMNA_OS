@@ -111,8 +111,15 @@ struct gv_app {
 	uint32_t repete_tecla;            /* a tecla segura (0: nenhuma) */
 	int repete_taxa, repete_atraso;   /* por segundo / ms */
 	double acordar;                   /* um quadro pedido para esta hora (0: nenhum) */
-	uint32_t pendentes[32];           /* teclas que chegaram depois de um Tab no mesmo quadro */
+	/* teclas que esperam o quadro seguinte para manter a ordem (ver entregar) */
+	struct tecla_pendente {
+		uint32_t sym;
+		char utf8[16];
+		uint32_t mods;
+	} pendentes[64];
 	int npendentes;
+	bool quadro_com_acao; /* já houve uma tecla de ação (Enter, setas...) neste quadro */
+	uint32_t mods_reais;  /* os modificadores agora; gv__entrada.mods são os das teclas do quadro */
 
 	struct gv_buffer buffers[2];
 	int largura, altura; /* lógicos */
@@ -639,58 +646,83 @@ static void teclado_saiu(void *dados, struct wl_keyboard *k, uint32_t s, struct 
 	gv__entrada.mods = 0;
 }
 
-/* Uma tecla carregada (ou repetida): o keysym para os atalhos e o texto para os campos. */
-static void tecla_vale(gv_app *app, uint32_t codigo) {
-	xkb_keycode_t k = codigo + 8;
-	/* depois de um Tab o resto espera o quadro seguinte: o foco anda no fim do quadro, e
-	 * "Tab Espaço" tem de ativar o novo focado, não o antigo */
+/* Uma tecla (já com o texto que escreve) entra no quadro, ou espera pelo seguinte. Num quadro os
+ * componentes leem primeiro as teclas de ação e depois o texto; para não trocar a ordem quando
+ * várias chegam juntas (o teclado no ecrã, um colar por teclas), uma tecla de ação depois de
+ * texto, um texto depois de uma ação, e tudo depois de um Tab (o foco anda no fim do quadro)
+ * esperam o quadro seguinte. */
+static void entregar(gv_app *app, uint32_t sym, const char *utf8, uint32_t mods) {
+	bool escreve = utf8[0] != '\0';
+	bool depois_de_tab = false;
 	for (int i = 0; i < gv__entrada.nteclas; i++) {
 		uint32_t s = gv__entrada.teclas[i];
-		if ((s == XKB_KEY_Tab || s == XKB_KEY_ISO_Left_Tab) && app->npendentes < 32) {
-			app->pendentes[app->npendentes++] = codigo;
-			app->precisa = true;
-			return;
-		}
+		depois_de_tab |= s == XKB_KEY_Tab || s == XKB_KEY_ISO_Left_Tab;
 	}
-	xkb_keysym_t sym = xkb_state_key_get_one_sym(app->estado, k);
-	/* Shift+Tab já como ISO_Left_Tab: o Shift pode ser solto antes de o quadro ler as teclas */
-	if (sym == XKB_KEY_Tab && (gv__entrada.mods & GV_MOD_SHIFT)) {
-		sym = XKB_KEY_ISO_Left_Tab;
+	/* uma tecla com outros modificadores que as do quadro também espera: Shift+↑ tem de ver o
+	 * Shift mesmo que ele já tenha sido solto quando o quadro lê as teclas */
+	bool outros_mods = gv__entrada.nteclas > 0 && mods != gv__entrada.mods;
+	bool esperar = app->npendentes > 0 || depois_de_tab || outros_mods || (escreve && app->quadro_com_acao) ||
+		(!escreve && gv__entrada.texto[0]);
+	app->precisa = true;
+	if (esperar) {
+		if (app->npendentes < (int)(sizeof(app->pendentes) / sizeof(app->pendentes[0]))) {
+			struct tecla_pendente *p = &app->pendentes[app->npendentes++];
+			p->sym = sym;
+			snprintf(p->utf8, sizeof(p->utf8), "%s", utf8);
+			p->mods = mods;
+		}
+		return;
+	}
+	if (gv__entrada.nteclas == 0) {
+		gv__entrada.mods = mods; /* o quadro vê os modificadores da sua primeira tecla */
 	}
 	if (gv__entrada.nteclas < GV_MAX_TECLAS) {
 		gv__entrada.teclas[gv__entrada.nteclas++] = sym;
 	}
-	app->precisa = true;
-	if (gv__entrada.mods & (GV_MOD_CTRL | GV_MOD_ALT | GV_MOD_LOGO)) {
-		return;
+	if (escreve) {
+		size_t usado = strlen(gv__entrada.texto);
+		if (usado + strlen(utf8) < sizeof(gv__entrada.texto)) {
+			strcat(gv__entrada.texto, utf8);
+		}
+	} else if (!(sym >= XKB_KEY_Shift_L && sym <= XKB_KEY_Hyper_R)) {
+		app->quadro_com_acao = true;
+	}
+}
+
+/* Uma tecla carregada (ou repetida): o keysym para os atalhos e o texto para os campos. */
+static void tecla_vale(gv_app *app, uint32_t codigo) {
+	xkb_keycode_t k = codigo + 8;
+	xkb_keysym_t sym = xkb_state_key_get_one_sym(app->estado, k);
+	/* Shift+Tab já como ISO_Left_Tab: o Shift pode ser solto antes de o quadro ler as teclas */
+	if (sym == XKB_KEY_Tab && (app->mods_reais & GV_MOD_SHIFT)) {
+		sym = XKB_KEY_ISO_Left_Tab;
 	}
 	char utf8[32] = "";
-	if (app->compor && xkb_compose_state_feed(app->compor, sym) == XKB_COMPOSE_FEED_ACCEPTED) {
-		switch (xkb_compose_state_get_status(app->compor)) {
-		case XKB_COMPOSE_COMPOSING:
-			return; /* uma tecla morta: espera a próxima */
-		case XKB_COMPOSE_COMPOSED:
-			xkb_compose_state_get_utf8(app->compor, utf8, sizeof(utf8));
-			xkb_compose_state_reset(app->compor);
-			break;
-		case XKB_COMPOSE_CANCELLED:
-			xkb_compose_state_reset(app->compor);
-			return;
-		default:
+	if (!(app->mods_reais & (GV_MOD_CTRL | GV_MOD_ALT | GV_MOD_LOGO))) {
+		if (app->compor && xkb_compose_state_feed(app->compor, sym) == XKB_COMPOSE_FEED_ACCEPTED) {
+			switch (xkb_compose_state_get_status(app->compor)) {
+			case XKB_COMPOSE_COMPOSING:
+				return; /* uma tecla morta: espera a próxima */
+			case XKB_COMPOSE_COMPOSED:
+				xkb_compose_state_get_utf8(app->compor, utf8, sizeof(utf8));
+				xkb_compose_state_reset(app->compor);
+				break;
+			case XKB_COMPOSE_CANCELLED:
+				xkb_compose_state_reset(app->compor);
+				return;
+			default:
+				xkb_state_key_get_utf8(app->estado, k, utf8, sizeof(utf8));
+				break;
+			}
+		} else {
 			xkb_state_key_get_utf8(app->estado, k, utf8, sizeof(utf8));
-			break;
 		}
-	} else {
-		xkb_state_key_get_utf8(app->estado, k, utf8, sizeof(utf8));
+		/* só o que se escreve: Enter, Tab, Backspace e companhia vão pelos keysyms */
+		if ((unsigned char)utf8[0] < 0x20 || utf8[0] == 0x7f) {
+			utf8[0] = '\0';
+		}
 	}
-	/* só o que se escreve: Enter, Tab, Backspace e companhia vão pelos keysyms */
-	if ((unsigned char)utf8[0] < 0x20 || utf8[0] == 0x7f) {
-		return;
-	}
-	size_t usado = strlen(gv__entrada.texto);
-	if (usado + strlen(utf8) < sizeof(gv__entrada.texto)) {
-		strcat(gv__entrada.texto, utf8);
-	}
+	entregar(app, sym, utf8, app->mods_reais);
 }
 
 static void teclado_tecla(void *dados, struct wl_keyboard *k, uint32_t serial, uint32_t tempo, uint32_t tecla,
@@ -747,7 +779,12 @@ static void teclado_mods(void *dados, struct wl_keyboard *k, uint32_t serial, ui
 	if (xkb_state_mod_name_is_active(app->estado, XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE) > 0) {
 		mods |= GV_MOD_LOGO;
 	}
-	gv__entrada.mods = mods;
+	app->mods_reais = mods;
+	/* com teclas já no quadro, os modificadores delas valem até ao fim dele */
+	if (gv__entrada.nteclas == 0 && app->npendentes == 0) {
+		gv__entrada.mods = mods;
+	}
+	app->precisa = true;
 }
 
 static void teclado_repete(void *dados, struct wl_keyboard *k, int32_t taxa, int32_t atraso) {
@@ -1319,13 +1356,18 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	float dt = app->ultimo_quadro > 0 ? (float)(agora - app->ultimo_quadro) : 0.016f;
 	app->ultimo_quadro = agora;
 	app->precisa = false;
+	app->quadro_com_acao = false;
+	if (gv__entrada.nteclas == 0 && !app->npendentes) {
+		gv__entrada.mods = app->mods_reais;
+	}
 	if (app->npendentes) {
-		uint32_t fila[32];
+		/* as que esperaram, pela ordem: as que voltarem a esperar ficam para o próximo */
+		struct tecla_pendente fila[64];
 		int n = app->npendentes;
-		memcpy(fila, app->pendentes, n * sizeof(uint32_t));
+		memcpy(fila, app->pendentes, n * sizeof(fila[0]));
 		app->npendentes = 0;
 		for (int i = 0; i < n; i++) {
-			tecla_vale(app, fila[i]);
+			entregar(app, fila[i].sym, fila[i].utf8, fila[i].mods);
 		}
 	}
 
