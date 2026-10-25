@@ -19,8 +19,10 @@ static bool todos_modos = true;
 static bool ver_todos;
 static char colecao[PAPEL_COLECAO_MAX][512];
 static int ncolecao;
-static char suas[48][512]; /* as imagens da pessoa (Imagens, Pictures, Downloads) */
-static int nsuas;
+/* as imagens da pessoa (Imagens e Downloads), todas, por ordem de nome */
+static GPtrArray *suas;
+#define nsuas ((int)suas->len)
+#define SUA(i) ((const char *)g_ptr_array_index(suas, (i)))
 
 static const char *const modos_id[] = { "desktop", "gaming", "midia" };
 
@@ -30,21 +32,28 @@ static void juntar_suas(const char *pasta) {
 		return;
 	}
 	const char *nome;
-	while (nsuas < 48 && (nome = g_dir_read_name(d))) {
+	while ((nome = g_dir_read_name(d))) {
 		const char *ponto = strrchr(nome, '.');
 		if (ponto && (!strcasecmp(ponto, ".jpg") || !strcasecmp(ponto, ".jpeg") || !strcasecmp(ponto, ".png") ||
 			!strcasecmp(ponto, ".webp"))) {
-			snprintf(suas[nsuas++], 512, "%.255s/%.255s", pasta, nome);
+			g_ptr_array_add(suas, g_build_filename(pasta, nome, NULL));
 		}
 	}
 	g_dir_close(d);
+}
+
+static gint comparar_nomes(gconstpointer a, gconstpointer b) {
+	return g_utf8_collate(*(const char *const *)a, *(const char *const *)b);
 }
 
 void pn_papel_abrir(void) {
 	papel_ler(&cfg);
 	gravada = cfg;
 	ncolecao = papel_colecao(colecao, PAPEL_COLECAO_MAX);
-	nsuas = 0;
+	if (suas) {
+		g_ptr_array_free(suas, TRUE);
+	}
+	suas = g_ptr_array_new_with_free_func(g_free);
 	const char *imagens = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES);
 	if (imagens) {
 		juntar_suas(imagens);
@@ -52,6 +61,7 @@ void pn_papel_abrir(void) {
 	char *downloads = g_build_filename(g_get_home_dir(), "Downloads", NULL);
 	juntar_suas(downloads);
 	g_free(downloads);
+	g_ptr_array_sort(suas, comparar_nomes);
 	/* começa no modo de agora, a valer para todos se ainda não há um por modo */
 	const char *agora = papel_modo_atual();
 	for (int i = 0; i < 3; i++) {
@@ -122,8 +132,19 @@ static const struct papel_item *atual(void) {
 }
 
 static void escolher(const char *caminho) {
-	struct papel_item *it = papel_editar(&cfg, modo_editado(), saida_editada());
 	int ajuste = atual()->ajuste;
+	/* "Todas as telas" vale por cima: os papéis de uma tela só (deste modo, ou de todos com
+	 * "Todos os modos") saem; com "Todos os modos", os de cada modo também */
+	if (!saida_editada()[0]) {
+		for (int i = 0; i < cfg.n; i++) {
+			struct papel_item *x = &cfg.itens[i];
+			bool do_modo = todos_modos || !strcmp(x->modo, modo_editado());
+			if (do_modo && (x->saida[0] || (todos_modos && strcmp(x->modo, "todos")))) {
+				x->imagem[0] = '\0';
+			}
+		}
+	}
+	struct papel_item *it = papel_editar(&cfg, modo_editado(), saida_editada());
 	snprintf(it->imagem, sizeof(it->imagem), "%s", caminho);
 	it->ajuste = ajuste;
 }
@@ -261,15 +282,23 @@ void pn_papel_desenhar(void) {
 			gv_texto(CLAY_STRING("Suas imagens (Imagens e Downloads)"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 			if (!nsuas) {
 				gv_texto(CLAY_STRING("Nenhuma imagem encontrada."), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+			} else {
+				gv_texto(gv_fmt("%d imagens", nsuas), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
 			}
-			for (int linha = 0; linha * 3 < nsuas && linha < 4; linha++) {
-				CLAY(CLAY_IDI("suas-linha", (uint32_t)linha), { .layout = { .childGap = 10 } }) {
-					for (int i = linha * 3; i < nsuas && i < linha * 3 + 3; i++) {
-						char n[128];
-						papel_nome(suas[i], n, sizeof(n));
-						if (miniatura(CLAY_IDI("sua", (uint32_t)i), suas[i], 156, 90, !strcmp(suas[i], it->imagem), n)) {
-							escolher(suas[i]);
-							gv_popup_fechar(CLAY_ID("papel-suas"));
+			/* todas, numa grade que rola (as miniaturas descodificam pequenas, só as que aparecem) */
+			Clay_ElementId grade = CLAY_ID("suas-grade");
+			CLAY(grade, gv_rolagem(grade, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
+				.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0, 430) },
+					.childGap = 10 } })) {
+				for (int linha = 0; linha * 3 < nsuas; linha++) {
+					CLAY(CLAY_IDI("suas-linha", (uint32_t)linha), { .layout = { .childGap = 10 } }) {
+						for (int i = linha * 3; i < nsuas && i < linha * 3 + 3; i++) {
+							char n[128];
+							papel_nome(SUA(i), n, sizeof(n));
+							if (miniatura(CLAY_IDI("sua", (uint32_t)i), SUA(i), 156, 90, !strcmp(SUA(i), it->imagem), n)) {
+								escolher(SUA(i));
+								gv_popup_fechar(CLAY_ID("papel-suas"));
+							}
 						}
 					}
 				}

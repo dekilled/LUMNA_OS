@@ -2904,6 +2904,7 @@ void Clay__CalculateFinalLayout(float deltaTime, bool useStoredBoundingBoxes, bo
                     if (closeClipElement) {
                         Clay__AddRenderCommand(CLAY__INIT(Clay_RenderCommand) {
                                 .id = Clay__HashNumber(currentElement->id, rootElement->children.length + 11).id,
+                                .zIndex = root->zIndex, // Gravity: o fim do recorte vai com o flutuante (ALTERACOES.md)
                                 .commandType = CLAY_RENDER_COMMAND_TYPE_SCISSOR_END,
                         });
                     }
@@ -3189,7 +3190,7 @@ void Clay__CalculateFinalLayout(float deltaTime, bool useStoredBoundingBoxes, bo
         if (root->clipElementId) {
             Clay_LayoutElementHashMapItem *clipHashMapItem = Clay__GetHashMapItem(root->clipElementId);
             if (clipHashMapItem && !Clay__ElementIsOffscreen(&clipHashMapItem->boundingBox)) {
-                Clay__AddRenderCommand(CLAY__INIT(Clay_RenderCommand) { .id = Clay__HashNumber(rootElement->id, rootElement->children.length + 11).id, .commandType = CLAY_RENDER_COMMAND_TYPE_SCISSOR_END });
+                Clay__AddRenderCommand(CLAY__INIT(Clay_RenderCommand) { .id = Clay__HashNumber(rootElement->id, rootElement->children.length + 11).id, .zIndex = root->zIndex, .commandType = CLAY_RENDER_COMMAND_TYPE_SCISSOR_END }); // Gravity: com o zIndex (ALTERACOES.md)
             }
         }
     }
