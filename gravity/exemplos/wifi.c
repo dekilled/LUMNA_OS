@@ -68,6 +68,14 @@ static void lista(void) {
 				.backgroundColor = esta ? gv_t.selecionado : gv_alfa(gv_t.sob_cursor, gv_por_cima(id) ? 1 : 0),
 				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 			}) {
+				if (gv_focavel(id, gv_t.raio_medio)) {
+					escolhida = i;
+					senha[0] = '\0';
+					aviso[0] = '\0';
+					if (!redes[i].aberta) {
+						gv_focar(CLAY_ID("senha"));
+					}
+				}
 				Clay_Color forca = redes[i].sinal >= 2 ? gv_t.icone : gv_t.texto_suave;
 				gv_icone("wifi", 22, forca);
 				CLAY(CLAY_IDI("rede-nome", i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {

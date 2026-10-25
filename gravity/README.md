@@ -44,6 +44,16 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_copiar`, `gv_colar` | área de transferência (entre apps) |
 | `gv_focar`, `gv_focado` | o campo com o foco |
 
+## Teclado
+
+Um foco para a app inteira. **Tab** e **Shift+Tab** andam pelos controles na ordem em que
+aparecem, **Enter** ou **Espaço** ativam, e o anel violeta só aparece ao navegar pelo teclado
+(o rato e o dedo focam sem anel). Nas abas **← →** trocam; no deslizante as setas andam de 5%
+(Shift: 1%) e Home/End vão às pontas; numa lista suspensa fechada **↑ ↓** trocam a escolha.
+Um popup aberto pelo teclado puxa o foco para dentro (para a opção marcada), as setas andam
+pelos itens, **Esc** fecha e o foco volta para onde estava. Um elemento feito à mão entra na
+fila com `gv_focavel(id, raio)`.
+
 ## Escrever
 
 O campo de texto faz o que se espera de um campo:

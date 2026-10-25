@@ -2846,6 +2846,7 @@ void Clay__CalculateFinalLayout(float deltaTime, bool useStoredBoundingBoxes, bo
                             }},
                             .userData = currentElement->config.userData,
                             .id = Clay__HashNumber(currentElement->id, currentElement->children.length).id,
+                            .zIndex = root->zIndex, /* Gravity: faltava (as bordas de um flutuante saíam no z 0) */
                             .commandType = CLAY_RENDER_COMMAND_TYPE_BORDER,
                         };
                         Clay__AddRenderCommand(renderCommand);
@@ -2864,6 +2865,7 @@ void Clay__CalculateFinalLayout(float deltaTime, bool useStoredBoundingBoxes, bo
                                                 } },
                                                 .userData = currentElement->config.userData,
                                                 .id = Clay__HashNumber(currentElement->id, currentElement->children.length + 1 + i).id,
+                                                .zIndex = root->zIndex,
                                                 .commandType = CLAY_RENDER_COMMAND_TYPE_RECTANGLE,
                                         });
                                     }
@@ -2880,6 +2882,7 @@ void Clay__CalculateFinalLayout(float deltaTime, bool useStoredBoundingBoxes, bo
                                                 } },
                                                 .userData = currentElement->config.userData,
                                                 .id = Clay__HashNumber(currentElement->id, currentElement->children.length + 1 + i).id,
+                                                .zIndex = root->zIndex,
                                                 .commandType = CLAY_RENDER_COMMAND_TYPE_RECTANGLE,
                                         });
                                     }

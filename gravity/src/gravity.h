@@ -224,8 +224,15 @@ enum gv_campo_tipo {
 };
 enum { GV_CAMPO_MUDOU = 1, GV_CAMPO_ENTER = 2 };
 int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo);
+/* ---- foco ----
+ * Um foco para a app inteira: Tab e Shift+Tab andam pelos controles na ordem em que aparecem,
+ * Enter ou Espaço ativam, o anel violeta só aparece ao navegar pelo teclado. Os componentes do
+ * Gravity já entram na fila; um elemento feito à mão entra com gv_focavel. */
 void gv_focar(Clay_ElementId id);
 bool gv_focado(Clay_ElementId id);
+/* Põe o elemento id na fila do Tab e desenha o anel nele (chame DENTRO do bloco do elemento, com
+ * o raio dos cantos dele). Devolve verdadeiro quando Enter ou Espaço o ativaram. */
+bool gv_focavel(Clay_ElementId id, float raio);
 
 /* Uma linha de ajuste: ícone, título, subtítulo (NULL: sem) e, à direita, um › (devolve
  * verdadeiro no toque) ou um interruptor (passe o bool; devolve verdadeiro quando mudou). */
@@ -254,7 +261,8 @@ typedef struct gv_popup_opcoes {
  *   }
  */
 #define GV_POPUP(id, ancora, ...) \
-	if (gv__popup_comecar((id), (ancora), &(gv_popup_opcoes){ __VA_ARGS__ })) CLAY((id), gv__popup_declaracao(id))
+	if (gv__popup_comecar((id), (ancora), &(gv_popup_opcoes){ __VA_ARGS__ })) \
+		for (int gv__p = 0; gv__p < 1; gv__p++, gv__popup_fim()) CLAY((id), gv__popup_declaracao(id))
 void gv_popup_abrir(Clay_ElementId id);
 void gv_popup_fechar(Clay_ElementId id);
 void gv_popup_alternar(Clay_ElementId id);
@@ -268,6 +276,7 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 /* (do GV_POPUP) */
 bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_opcoes *opcoes);
 Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id);
+void gv__popup_fim(void);
 
 /* ---- imagens ---- */
 enum gv_ajuste {

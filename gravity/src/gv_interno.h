@@ -47,6 +47,21 @@ void gv__app_pedir(void); /* o quadro actual pede outro (animação a correr) */
 void gv__app_acordar_em(double segundos); /* um quadro daqui a pouco (sem desenhar até lá) */
 int gv__app_escala(void); /* a escala do ecrã da app (1, 2...) */
 
+/* ---- foco (gv_foco.c) ---- */
+#define GV_POPUP_Z 100 /* o zIndex do primeiro popup; abaixo disto é a superfície principal */
+/* Entra na fila do Tab (preferido: o item a focar quando o seu popup abre). Devolve se está focado. */
+bool gv__focavel(Clay_ElementId id, bool preferido);
+/* O anel de foco (só ao navegar pelo teclado), declarado dentro do elemento id. */
+void gv__foco_anel(Clay_ElementId id, float raio);
+/* Enter ou Espaço no focado (e consome a tecla). */
+bool gv__foco_ativou(Clay_ElementId id);
+/* Esta tecla, se id está focado (e consome-a). */
+bool gv__foco_tecla(Clay_ElementId id, uint32_t keysym);
+uint32_t gv__foco_id(void);
+void gv__foco_definir(uint32_t id, bool anel);
+void gv__foco_camada(int camada); /* os focáveis declarados a seguir são do popup camada (0: principal) */
+void gv__foco_fim_do_quadro(void);
+
 /* ---- imagens (gv_imagem.c) ---- */
 void gv__imagens_iniciar(gv_app *app);
 void gv__imagens_fim_do_quadro(void);

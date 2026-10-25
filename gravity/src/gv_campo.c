@@ -33,24 +33,8 @@ struct campo {
 
 static struct campo campos[GV_MAX_CAMPOS];
 static uint32_t quadro;
-static uint32_t foco;            /* o id do campo focado (0: nenhum) */
-static bool campo_apertado;      /* um campo recebeu o aperto deste quadro */
-
-void gv_focar(Clay_ElementId id) {
-	foco = id.id;
-	gv__app_pedir();
-}
-
-bool gv_focado(Clay_ElementId id) {
-	return foco && foco == id.id;
-}
-
+/* o foco é o da app inteira (gv_foco.c): tocar fora de tudo tira-o, e o teclado no ecrã some */
 void gv__campos_fim_do_quadro(void) {
-	/* tocar fora de qualquer campo tira o foco (e o teclado no ecrã some) */
-	if (gv__entrada.apertou && !campo_apertado) {
-		foco = 0;
-	}
-	campo_apertado = false;
 	quadro++;
 }
 
@@ -218,7 +202,7 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 			resultado |= GV_CAMPO_ENTER;
 			continue;
 		case XKB_KEY_Escape:
-			foco = 0;
+			gv__foco_definir(0, false);
 			continue;
 		default:
 			if (ctrl) {
@@ -286,8 +270,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 	/* ---- toque e rato: pôr o cursor, arrastar para selecionar, dois toques: palavra ---- */
 	bool no_botao = gv_por_cima(botao_id);
 	if (gv__entrada.apertou && !gv__entrada.travado && gv_por_cima(id) && !no_botao) {
-		foco = id.id;
-		campo_apertado = true;
+		gv__foco_definir(id.id, false);
 		gv__entrada.ativo = id.id;
 		const char *mostrado = pontos ? NULL : texto;
 		char *bolinhas = NULL;
@@ -325,10 +308,9 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 		}
 		c->editado = agora;
 	} else if (gv__entrada.apertou && gv_por_cima(id)) {
-		campo_apertado = true; /* o botão de dentro não tira o foco */
 	}
 	bool arrastando = gv__entrada.ativo == id.id && gv__entrada.baixo && c->toques < 2;
-	if (arrastando && foco == id.id) {
+	if (arrastando && gv__foco_id() == id.id) {
 		char *bolinhas = NULL;
 		const char *mostrado = texto;
 		if (pontos) {
@@ -346,7 +328,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 	}
 
 	/* ---- teclado ---- */
-	bool focado = foco == id.id;
+	bool focado = gv__focavel(id, false); /* entra na fila do Tab; o anel é a própria borda */
 	const char *compondo = "";
 	if (focado) {
 		int antes = (int)strlen(texto);
@@ -530,7 +512,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 					c->cursor = c->ancora = 0;
 					c->rolagem = 0;
 					resultado |= GV_CAMPO_MUDOU;
-					foco = id.id;
+					gv__foco_definir(id.id, false);
 				}
 			}
 		}

@@ -31,6 +31,7 @@ static bool cabeca(Clay_ElementId id, const char *icone, const char *nome, Clay_
 		.backgroundColor = gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande - 1),
 	}) {
+		tocado |= gv_focavel(id, gv_t.raio_grande - 1);
 		gv_icone(icone, 32, gv_t.icone);
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 } }) {
 			gv_texto(gv_str(nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);

@@ -182,6 +182,7 @@ static bool item(Clay_ElementId id, const struct app *a) {
 		.backgroundColor = gv_premido(id) ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 	}) {
+		tocado |= gv_focavel(id, gv_t.raio_medio);
 		gv_icone_app(a->icone, 40);
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
 			gv_texto(gv_str(a->nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);

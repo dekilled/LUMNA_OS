@@ -121,6 +121,7 @@ static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 		.backgroundColor = aberto ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 	}) {
+		tocado |= gv_focavel(id, gv_t.raio_pequeno);
 		gv_icone(icone, 20, gv_t.icone);
 	}
 	return tocado;

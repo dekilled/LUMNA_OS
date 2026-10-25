@@ -15,7 +15,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Imagens: PNG/JPEG/WebP/SVG descodificadas em threads, no tamanho da tela, em cache
 - [x] Popups e menus presos a um botão (xdg-popup), que fecham ao tocar fora
 - [x] Lista suspensa (dropdown), como na tela de Rede
-- [ ] Foco pelo teclado entre controles (Tab, setas, Enter) com o anel de foco
+- [x] Foco pelo teclado entre controles (Tab, setas, Enter) com o anel de foco
 - [ ] Texto que quebra em várias linhas e campo de várias linhas
 - [x] Ícones dos apps pelo tema de ícones (freedesktop) para o lançador
 

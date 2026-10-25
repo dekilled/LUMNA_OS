@@ -10,6 +10,7 @@
 
 #include <math.h>
 #include <string.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 /* ---- interação ---- */
 
@@ -66,6 +67,7 @@ void gv__entrada_fim_do_quadro(void) {
 		}
 	}
 	gv__campos_fim_do_quadro();
+	gv__foco_fim_do_quadro();
 	gv__rolagens_fim_do_quadro();
 	gv__imagens_fim_do_quadro();
 	gv__entrada.apertou = false;
@@ -165,6 +167,9 @@ bool gv_botao_ext(Clay_ElementId id, const gv_botao_opcoes *o) {
 	if (o->desativado) {
 		e = 0;
 		tocado = false;
+	} else {
+		gv__focavel(id, false);
+		tocado |= gv__foco_ativou(id);
 	}
 	Clay_Color nada = { 0 };
 	Clay_Color fundo = nada, borda = nada, conteudo = gv_t.texto;
@@ -206,6 +211,7 @@ bool gv_botao_ext(Clay_ElementId id, const gv_botao_opcoes *o) {
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 		.border = { .color = borda, .width = GV_BORDA(borda.a > 0 ? 1 : 0) },
 	}) {
+		gv__foco_anel(id, gv_t.raio_pequeno);
 		if (o->icone) {
 			gv_icone(o->icone, 20, conteudo);
 		}
@@ -224,6 +230,8 @@ bool gv_botao(Clay_ElementId id, const char *icone, const char *texto, enum gv_e
 bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool ligado, bool perigo) {
 	bool tocado;
 	float e = estado_de(id, &tocado);
+	gv__focavel(id, false);
+	tocado |= gv__foco_ativou(id);
 	float ativo = gv_anim(id.id + 1, ligado ? 1 : 0, gv_t.duracao_normal);
 	Clay_Color marca = perigo ? gv_t.perigo : gv_t.acento;
 	Clay_Color fundo = tres(gv_t.elevada, gv_t.sob_cursor, gv_t.selecionado, e);
@@ -242,6 +250,7 @@ bool gv_botao_redondo(Clay_ElementId id, const char *icone, float tamanho, bool 
 		.cornerRadius = CLAY_CORNER_RADIUS(tamanho / 2),
 		.border = { .color = borda, .width = GV_BORDA(1) },
 	}) {
+		gv__foco_anel(id, tamanho / 2);
 		gv_icone(icone, tamanho * 0.46f, cor);
 	}
 	return tocado;
@@ -270,6 +279,24 @@ bool gv_deslizante(Clay_ElementId id, float *valor, float trilho, float puxador)
 			}
 		}
 	}
+	/* pelo teclado: setas de 5% em 5% (Shift: 1%), Home e End */
+	if (gv__focavel(id, false)) {
+		float passo = gv__entrada.mods & GV_MOD_SHIFT ? 0.01f : 0.05f;
+		float antes = *valor;
+		while (gv__foco_tecla(id, XKB_KEY_Right) || gv__foco_tecla(id, XKB_KEY_Up)) {
+			*valor = fminf(1, *valor + passo);
+		}
+		while (gv__foco_tecla(id, XKB_KEY_Left) || gv__foco_tecla(id, XKB_KEY_Down)) {
+			*valor = fmaxf(0, *valor - passo);
+		}
+		if (gv__foco_tecla(id, XKB_KEY_Home)) {
+			*valor = 0;
+		}
+		if (gv__foco_tecla(id, XKB_KEY_End)) {
+			*valor = 1;
+		}
+		mudou |= *valor != antes;
+	}
 	bool sobre = gv_por_cima(id) && !gv__entrada.toque;
 	struct gv_extra *e = extra(GV_EXTRA_DESLIZANTE);
 	if (e) {
@@ -284,13 +311,16 @@ bool gv_deslizante(Clay_ElementId id, float *valor, float trilho, float puxador)
 	CLAY(id, {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(fmaxf(puxador + 12, 32)) } },
 		.custom = { .customData = e },
-	}) {}
+	}) {
+		gv__foco_anel(id, fmaxf(puxador + 12, 32) / 2);
+	}
 	return mudou;
 }
 
-bool gv_interruptor(Clay_ElementId id, bool *ligado) {
+static bool interruptor_de(Clay_ElementId id, bool *ligado, bool focavel) {
 	bool mudou = false;
-	if (gv_tocado(id)) {
+	bool ativou = focavel && gv__focavel(id, false) && gv__foco_ativou(id);
+	if (gv_tocado(id) || ativou) {
 		*ligado = !*ligado;
 		mudou = true;
 	}
@@ -305,8 +335,16 @@ bool gv_interruptor(Clay_ElementId id, bool *ligado) {
 	CLAY(id, {
 		.layout = { .sizing = { CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(30) } },
 		.custom = { .customData = e },
-	}) {}
+	}) {
+		if (focavel) {
+			gv__foco_anel(id, 15);
+		}
+	}
 	return mudou;
+}
+
+bool gv_interruptor(Clay_ElementId id, bool *ligado) {
+	return interruptor_de(id, ligado, true);
 }
 
 /* ---- linhas, abas e a barra da janela ---- */
@@ -316,12 +354,15 @@ bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const ch
 	float e = estado_de(id, &tocado);
 	bool mudou = false;
 	Clay_ElementId chave = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 2000003u, id.baseId);
+	gv__focavel(id, false);
+	bool ativou = gv__foco_ativou(id);
 	CLAY(id, {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(subtitulo ? 76 : 56) }, .padding = { 18, 18, 14, 14 },
 			.childGap = 22, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = interruptor ? (Clay_Color){ 0 } : gv_alfa(gv_t.sob_cursor, fminf(e * 2, 1)),
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 	}) {
+		gv__foco_anel(id, gv_t.raio_medio);
 		if (icone) {
 			gv_icone(icone, 30, gv_t.icone);
 		}
@@ -332,24 +373,38 @@ bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const ch
 			}
 		}
 		if (interruptor) {
-			mudou = gv_interruptor(chave, interruptor);
+			mudou = interruptor_de(chave, interruptor, false); /* a linha é que entra na fila */
 		} else {
 			gv_icone("forward", 20, gv_t.texto_secundario);
 		}
 	}
 	if (interruptor) {
 		/* tocar na linha também liga e desliga */
-		if (tocado && !mudou && !gv_por_cima(chave)) {
+		if ((tocado && !mudou && !gv_por_cima(chave)) || ativou) {
 			*interruptor = !*interruptor;
 			mudou = true;
 		}
 		return mudou;
 	}
-	return tocado;
+	return tocado || ativou;
 }
 
 bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa) {
 	bool mudou = false;
+	/* no teclado as abas são uma parada só (a ativa): ← → trocam */
+	Clay_ElementId da_ativa = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 3000017u + *ativa, id.baseId);
+	if (gv__focavel(da_ativa, false)) {
+		int antes = *ativa;
+		if (gv__foco_tecla(da_ativa, XKB_KEY_Right) && *ativa < n - 1) {
+			(*ativa)++;
+		} else if (gv__foco_tecla(da_ativa, XKB_KEY_Left) && *ativa > 0) {
+			(*ativa)--;
+		}
+		if (*ativa != antes) {
+			mudou = true;
+			gv__foco_definir(Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 3000017u + *ativa, id.baseId).id, true);
+		}
+	}
 	CLAY(id, { .layout = { .childGap = 14 } }) {
 		for (int i = 0; i < n; i++) {
 			Clay_ElementId aba = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 3000017u + i, id.baseId);
@@ -365,6 +420,7 @@ bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa) {
 					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
 				.border = { .color = gv_alfa(gv_t.acento, marca), .width = { .bottom = 2 } },
 			}) {
+				gv__foco_anel(aba, gv_t.raio_pequeno);
 				gv_texto(gv_str(nomes[i]), gv_t.tamanho_corpo + 1,
 					esta ? gv_t.texto : sobre ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
@@ -418,12 +474,15 @@ void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const ch
 bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const char *detalhe) {
 	bool tocado;
 	float e = estado_de(id, &tocado);
+	gv__focavel(id, false);
+	tocado |= gv__foco_ativou(id);
 	CLAY(id, {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 12, 14, 0, 0 }, .childGap = 14,
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = tres(gv_alfa(gv_t.sob_cursor, 0), gv_t.sob_cursor, gv_t.selecionado, e),
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 	}) {
+		gv__foco_anel(id, gv_t.raio_medio);
 		if (icone) {
 			gv_icone(icone, 20, gv_t.texto_secundario);
 		}
@@ -444,6 +503,18 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 	bool aberta = gv_popup_aberto(menu);
 	bool tocado;
 	float e = estado_de(id, &tocado);
+	bool mudou = false;
+	/* no teclado: Enter ou Espaço abrem; fechada, ↑ ↓ trocam a escolha direto */
+	if (gv__focavel(id, false)) {
+		tocado |= gv__foco_ativou(id);
+		if (!aberta && gv__foco_tecla(id, XKB_KEY_Down) && *escolhida < n - 1) {
+			(*escolhida)++;
+			mudou = true;
+		} else if (!aberta && gv__foco_tecla(id, XKB_KEY_Up) && *escolhida > 0) {
+			(*escolhida)--;
+			mudou = true;
+		}
+	}
 	if (tocado) {
 		gv_popup_alternar(menu);
 	}
@@ -458,12 +529,12 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
 		.border = { .color = borda, .width = GV_BORDA(1) },
 	}) {
+		gv__foco_anel(id, gv_t.raio_pequeno);
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
 			gv_texto(gv_str(texto), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
 		}
 		gv_icone(aberta ? "chevron-up" : "chevron-down", 18, gv_t.texto_secundario);
 	}
-	bool mudou = false;
 	float largura = gv_caixa(id).width;
 	GV_POPUP(menu, id, .alinhar = GV_ALINHAR_INICIO, .largura = largura > 0 ? largura : 240, .distancia = 4) {
 		for (int i = 0; i < n; i++) {
@@ -471,6 +542,8 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 			bool esta = *escolhida == i;
 			bool t;
 			float ei = estado_de(item, &t);
+			gv__focavel(item, esta);
+			t |= gv__foco_ativou(item);
 			if (t) {
 				mudou = *escolhida != i;
 				*escolhida = i;
@@ -482,6 +555,7 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 				.backgroundColor = esta ? gv_t.selecionado : tres(gv_alfa(gv_t.sob_cursor, 0), gv_t.sob_cursor, gv_t.selecionado, ei),
 				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 			}) {
+				gv__foco_anel(item, gv_t.raio_medio);
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(18), CLAY_SIZING_FIXED(18) } } }) {
 					if (esta) {
 						gv_icone("check", 18, gv_t.acento);

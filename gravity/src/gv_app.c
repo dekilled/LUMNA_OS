@@ -24,6 +24,7 @@
 #include <wayland-cursor.h>
 #include <xkbcommon/xkbcommon-compose.h>
 #include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
@@ -32,7 +33,6 @@
 #define GV_MAX_VIGIAS 8
 #define GV_MAX_POPUPS 4
 #define GV_POPUP_MARGEM 28 /* à volta do popup, para a sombra */
-#define GV_POPUP_Z 100     /* o zIndex do primeiro popup; abaixo disto é a superfície principal */
 
 struct gv_buffer {
 	struct wl_buffer *wl;
@@ -111,6 +111,8 @@ struct gv_app {
 	uint32_t repete_tecla;            /* a tecla segura (0: nenhuma) */
 	int repete_taxa, repete_atraso;   /* por segundo / ms */
 	double acordar;                   /* um quadro pedido para esta hora (0: nenhum) */
+	uint32_t pendentes[32];           /* teclas que chegaram depois de um Tab no mesmo quadro */
+	int npendentes;
 
 	struct gv_buffer buffers[2];
 	int largura, altura; /* lógicos */
@@ -640,7 +642,21 @@ static void teclado_saiu(void *dados, struct wl_keyboard *k, uint32_t s, struct 
 /* Uma tecla carregada (ou repetida): o keysym para os atalhos e o texto para os campos. */
 static void tecla_vale(gv_app *app, uint32_t codigo) {
 	xkb_keycode_t k = codigo + 8;
+	/* depois de um Tab o resto espera o quadro seguinte: o foco anda no fim do quadro, e
+	 * "Tab Espaço" tem de ativar o novo focado, não o antigo */
+	for (int i = 0; i < gv__entrada.nteclas; i++) {
+		uint32_t s = gv__entrada.teclas[i];
+		if ((s == XKB_KEY_Tab || s == XKB_KEY_ISO_Left_Tab) && app->npendentes < 32) {
+			app->pendentes[app->npendentes++] = codigo;
+			app->precisa = true;
+			return;
+		}
+	}
 	xkb_keysym_t sym = xkb_state_key_get_one_sym(app->estado, k);
+	/* Shift+Tab já como ISO_Left_Tab: o Shift pode ser solto antes de o quadro ler as teclas */
+	if (sym == XKB_KEY_Tab && (gv__entrada.mods & GV_MOD_SHIFT)) {
+		sym = XKB_KEY_ISO_Left_Tab;
+	}
 	if (gv__entrada.nteclas < GV_MAX_TECLAS) {
 		gv__entrada.teclas[gv__entrada.nteclas++] = sym;
 	}
@@ -1068,6 +1084,7 @@ bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_
 	}
 	p->declarado = true;
 	p->opcoes = *o;
+	gv__foco_camada((int)(p - atual->popups) + 1);
 	Clay_ElementData a = Clay_GetElementData(ancora);
 	if (a.found) {
 		p->ancora = a.boundingBox;
@@ -1076,6 +1093,10 @@ bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_
 		popup_palpite(p, p->w > 0 ? p->w : (o->largura > 0 ? o->largura : 200), p->h);
 	}
 	return true;
+}
+
+void gv__popup_fim(void) {
+	gv__foco_camada(0);
 }
 
 Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id) {
@@ -1298,6 +1319,15 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	float dt = app->ultimo_quadro > 0 ? (float)(agora - app->ultimo_quadro) : 0.016f;
 	app->ultimo_quadro = agora;
 	app->precisa = false;
+	if (app->npendentes) {
+		uint32_t fila[32];
+		int n = app->npendentes;
+		memcpy(fila, app->pendentes, n * sizeof(uint32_t));
+		app->npendentes = 0;
+		for (int i = 0; i < n; i++) {
+			tecla_vale(app, fila[i]);
+		}
+	}
 
 	gv__anim_quadro();
 	Clay_SetLayoutDimensions((Clay_Dimensions){ app->largura, app->altura });
