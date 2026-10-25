@@ -1,4 +1,5 @@
 /* O papel.ini do LUMNA: ler, gravar e decidir o que vale em cada tela (papelini.h). */
+#define _DEFAULT_SOURCE /* realpath */
 #include "papelini.h"
 
 #include <ctype.h>
