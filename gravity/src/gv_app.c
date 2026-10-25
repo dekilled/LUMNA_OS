@@ -266,7 +266,23 @@ void gv_app_camada(gv_app *app, int largura, int altura, int zona_exclusiva) {
 	app->precisa = true;
 }
 
+void gv_app_camada_ancoras(gv_app *app, uint32_t ancoras, bool teclado_exclusivo) {
+	if (!app->camada) {
+		return;
+	}
+	zwlr_layer_surface_v1_set_anchor(app->camada, ancoras);
+	zwlr_layer_surface_v1_set_keyboard_interactivity(app->camada,
+		teclado_exclusivo ? ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE
+		: app->opcoes.teclado ? ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_ON_DEMAND
+				      : ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
+	app->opcoes.ancoras = ancoras;
+	app->opcoes.teclado_exclusivo = teclado_exclusivo;
+}
+
 void gv_app_entrada_em(gv_app *app, Clay_ElementId id) {
+	if (app->entrada_id != id.id) {
+		app->entrada_caixa = (Clay_BoundingBox){ -1, -1, -1, -1 }; /* outro elemento: refazer a região */
+	}
 	app->entrada_id = id.id;
 }
 

@@ -18,7 +18,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -83,7 +83,12 @@ dock: exemplos/dock.c libgravity.a
 lancador: exemplos/lancador.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
+# os avisos: o servidor org.freedesktop.Notifications (GDBus) e o canto e a central
+avisos: exemplos/avisos.c servicos/avisos.c servicos/avisos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/avisos.c servicos/avisos.c \
+		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos $(PROTOS)
 
 .PHONY: all clean

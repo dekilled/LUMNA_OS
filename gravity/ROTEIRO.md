@@ -36,7 +36,10 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
       app (o rato mostra, segurar fixa, ✕ solta; abre sempre solto), recentes, busca,
       bloquear/desligar/Emma e o Fechar ao centro
   - [ ] Atualizações e desinstalar de verdade (o gestor de pacotes: lumna-pkg)
-- [ ] Notificações (servidor org.freedesktop.Notifications) e o centro delas
+- [x] Notificações — exemplo `avisos`: o servidor org.freedesktop.Notifications (ações, imagens,
+      urgência, residentes e transitórios), os avisos no canto (o rato segura, ✕ dispensa) e a
+      central pelo sino da topbar (por app, limpar, "Não perturbe")
+  - [ ] Um ponto no sino quando há avisos por ver, e os avisos no ecrã de bloqueio
 - [ ] Tela de bloqueio com PIN
 - [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
       dock), ecrã inteiro por cima da barra e da dock, ponteiro virtual; falta as áreas

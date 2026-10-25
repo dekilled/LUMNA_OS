@@ -1,12 +1,15 @@
 /*
  * A topbar do desktop novo, em Gravity: o LUMNA e o modo à esquerda, as áreas de trabalho ao
- * meio, Wi-Fi, som, Bluetooth e o relógio à direita. O Bluetooth abre o menu da tela nova num
+ * meio, Wi-Fi, som, Bluetooth, o sino dos avisos e o relógio à direita. O Bluetooth abre o menu da tela nova num
  * popup que desce da barra (uma camada de 40 px; o menu sai dela).
+ * O sino abre a central dos avisos (lumna-avisos --centro).
  * Os aparelhos ainda são de mentira: o BlueZ vem com os serviços do sistema.
  *   ./barra
  */
 #include <stdio.h>
 #include <time.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "gravity.h"
 
@@ -114,6 +117,22 @@ static void menu_bluetooth(void) {
 	}
 }
 
+/* corre sem esperar (o filho do filho fica com o init: sem zumbis na barra) */
+static void executar(const char *programa, const char *arg) {
+	pid_t p = fork();
+	if (p == 0) {
+		if (fork() == 0) {
+			setsid();
+			execlp(programa, programa, arg, (char *)NULL);
+			_exit(127);
+		}
+		_exit(0);
+	}
+	if (p > 0) {
+		waitpid(p, NULL, 0);
+	}
+}
+
 static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 	bool tocado = gv_tocado(id);
 	CLAY(id, {
@@ -165,6 +184,9 @@ static void desenhar(gv_app *app, void *dados) {
 			icone_barra(CLAY_ID("som"), "volume", false);
 			if (icone_barra(CLAY_ID("bt"), "bluetooth", gv_popup_aberto(CLAY_ID("menu-bt")))) {
 				gv_popup_alternar(CLAY_ID("menu-bt"));
+			}
+			if (icone_barra(CLAY_ID("avisos"), "bell", false)) {
+				executar("lumna-avisos", "--centro");
 			}
 			time_t agora = time(NULL);
 			struct tm t;

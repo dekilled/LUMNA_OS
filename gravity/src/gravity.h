@@ -274,6 +274,9 @@ void gv_janela_tela_cheia(uint32_t id, bool sim);
 void gv_app_entrada_em(gv_app *app, Clay_ElementId id);
 /* Uma camada muda de tamanho e de zona exclusiva com a app a correr (a dock que passa a barra). */
 void gv_app_camada(gv_app *app, int largura, int altura, int zona_exclusiva);
+/* Muda as âncoras e se fica com o teclado (os avisos, que passam do canto à tela inteira com a
+ * central). Vale com o gv_app_camada que se chama logo a seguir, que também dá o tamanho. */
+void gv_app_camada_ancoras(gv_app *app, uint32_t ancoras, bool teclado_exclusivo);
 /* As telas, pelo nome, na ordem em que o compositor as anunciou (a primeira é a principal). */
 int gv_saidas(gv_app *app, const char **nomes, int max);
 /* Uma tela entrou ou saiu desde a última vez que se perguntou. */

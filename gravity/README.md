@@ -123,6 +123,9 @@ Fora da interface, em `servicos/`, o que as peças do LUMNA usam do sistema:
 - `som.c` — saídas, volume e mudo de cada saída e de cada app tocando, a saída padrão; assina as
   mudanças (as teclas, a topbar, outra app) e avisa a app por um descritor que o Gravity vigia
   (`gv_app_vigiar`).
+- `avisos.c` — o servidor das notificações (`org.freedesktop.Notifications`, o que o
+  `notify-send`, os navegadores e as apps GTK e Qt usam) numa linha com o GDBus; o que chega vai
+  para uma fila que a app lê pelo descritor vigiado, e as ações e os fechos voltam como sinais.
 
 ```
 cd gravity
@@ -134,11 +137,12 @@ make
 ./painel             # o Painel de controle das telas novas: abas, busca, atalhos em duas colunas
 ./apps               # os apps instalados (.desktop) com os ícones do tema, rolagem e busca; tocar abre
 ./papel [imagem]     # o papel de parede: uma camada no fundo da tela
-./barra              # a topbar do desktop novo; o Bluetooth abre o menu da tela nova
+./barra              # a topbar do desktop novo; o Bluetooth abre o menu da tela nova, o sino a central
 ./rede               # a janela de Rede da tela nova: cartões que abrem e listas suspensas
 ./transferencia      # a área de transferência do Celular Connect: texto de várias linhas
 ./dock               # a dock: apps fixos (~/.config/lumna/dock), abertos e o ativo; preferências em dock.ini
 ./lancador           # o Início: favoritos, apps por categoria com detalhes, recentes e busca (o losango da dock)
+./avisos             # os avisos: no canto ao chegarem e a central (./avisos --centro); precisa do D-Bus
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste
