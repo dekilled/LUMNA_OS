@@ -903,7 +903,8 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	gv__anim_quadro();
 	Clay_SetLayoutDimensions((Clay_Dimensions){ app->largura, app->altura });
 	Clay_SetPointerState((Clay_Vector2){ gv__entrada.x, gv__entrada.y }, gv__entrada.baixo || gv__entrada.apertou);
-	Clay_UpdateScrollContainers(gv__entrada.toque, (Clay_Vector2){ gv__entrada.roda_x * 2, gv__entrada.roda_y * 2 }, dt);
+	/* a rolagem é do gv_rolagem (inércia e elástico): o Clay só corta e desloca */
+	Clay_UpdateScrollContainers(false, (Clay_Vector2){ 0 }, dt);
 	Clay_BeginLayout();
 	desenhar(app, dados);
 	Clay_RenderCommandArray comandos = Clay_EndLayout(dt);

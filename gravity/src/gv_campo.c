@@ -285,7 +285,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 
 	/* ---- toque e rato: pôr o cursor, arrastar para selecionar, dois toques: palavra ---- */
 	bool no_botao = gv_por_cima(botao_id);
-	if (gv__entrada.apertou && gv_por_cima(id) && !no_botao) {
+	if (gv__entrada.apertou && !gv__entrada.travado && gv_por_cima(id) && !no_botao) {
 		foco = id.id;
 		campo_apertado = true;
 		gv__entrada.ativo = id.id;

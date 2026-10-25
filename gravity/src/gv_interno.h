@@ -25,6 +25,7 @@ struct gv_entrada {
 	bool soltou;        /* subiu desde o último quadro */
 	bool toque;         /* o último a mexer foi um dedo */
 	uint32_t ativo;     /* o id que recebeu o aperto (0: nenhum) */
+	bool travado;       /* uma rolagem ficou com o aperto: os de dentro não o tomam */
 	uint32_t teclas[GV_MAX_TECLAS]; /* keysyms carregados neste quadro (com as repetições) */
 	int nteclas;
 	char texto[128];    /* o texto escrito neste quadro (UTF-8, já com os acentos compostos) */
@@ -56,6 +57,7 @@ void gv__escrita_fim_do_quadro(void);
 /* O campo focado diz, a cada quadro, o que o teclado no ecrã deve saber dele. */
 void gv__campo_pede(const char *texto, int cursor, int ancora, Clay_BoundingBox cursor_caixa, uint32_t dica, uint32_t proposito);
 void gv__campos_fim_do_quadro(void);
+void gv__rolagens_fim_do_quadro(void);
 
 /* ---- medidas de texto para os campos (pango) ---- */
 float gv__texto_x(const char *texto, float tamanho, int indice);
@@ -68,6 +70,7 @@ enum gv_extra_tipo {
 	GV_EXTRA_DESLIZANTE,
 	GV_EXTRA_INTERRUPTOR,
 	GV_EXTRA_CAMPO,
+	GV_EXTRA_ROLAGEM,
 };
 
 struct gv_extra {
@@ -101,6 +104,13 @@ struct gv_extra {
 			float cursor_alfa;
 			Clay_Color cor, cor_dica, cor_sel, cor_cursor;
 		} campo;
+		struct {
+			bool tem[2];     /* barra na horizontal [0] e na vertical [1] */
+			float ini[2], tam[2]; /* onde a barra começa e o tamanho, ao longo do eixo */
+			float alfa;
+			bool grossa;     /* o rato está perto ou a arrastar */
+			Clay_Color cor;
+		} rolagem;
 	};
 };
 

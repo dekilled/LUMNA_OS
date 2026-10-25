@@ -31,6 +31,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_linha` | linha de ajuste: ícone, título, subtítulo e › ou interruptor (como no Painel de controle) |
 | `gv_abas` | abas com o sublinhado do acento |
 | `gv_barra_janela` | a barra de título: ícone, título, minimizar, maximizar, fechar; arrastar move |
+| `gv_rolagem` | área que rola: dedo com inércia e elástico, roda do rato, barra que aparece e some |
 | `gv_separador` | linha de 1 px na cor da borda |
 | `gv_cartao()` | a declaração de um cartão: superfície, borda, cantos e sombra |
 | `gv_sombra()` | sombra macia em qualquer elemento |
@@ -109,7 +110,8 @@ make
 ./mixer --camada     # como no celular: uma camada por cima de tudo
 ./galeria            # os componentes, com o tema mudando ao vivo
 ./wifi               # conectar ao Wi-Fi: busca, lista e senha (os campos de texto)
-./painel             # o Painel de controle das telas novas: menu, abas, linhas e botões
+./painel             # o Painel de controle das telas novas: abas, busca, atalhos em duas colunas
+./apps               # os apps instalados (.desktop), com rolagem e busca; tocar abre
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste

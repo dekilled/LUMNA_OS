@@ -234,6 +234,21 @@ bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
 /* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
 
+/* ---- rolagem ---- */
+enum gv_rolagem_eixo { GV_ROLAGEM_VERTICAL, GV_ROLAGEM_HORIZONTAL, GV_ROLAGEM_AMBOS };
+/* Uma área que rola: devolve a declaração d com o corte, o deslocamento e a barra. Arrastar com o
+ * dedo (com inércia e elástico nas pontas), a roda do rato (Shift: de lado) e a barra.
+ *   CLAY(CLAY_ID("lista"), gv_rolagem(CLAY_ID("lista"), GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
+ *       .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {
+ *       ...os itens...
+ *   }
+ * O userData da declaração é da rolagem. */
+Clay_ElementDeclaration gv_rolagem(Clay_ElementId id, enum gv_rolagem_eixo eixos, Clay_ElementDeclaration d);
+/* Leva a área a (x, y) — deslizando, se animado. */
+void gv_rolar_para(Clay_ElementId id, float x, float y, bool animado);
+/* Quanto a área já rolou. */
+Clay_Vector2 gv_rolagem_posicao(Clay_ElementId id);
+
 /* Um separador de 1 px na cor da borda. */
 void gv_separador(bool vertical, float comprimento);
 

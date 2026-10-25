@@ -99,7 +99,34 @@ static void interruptor(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *
 	cairo_fill(cr);
 }
 
+/* A barra fina de uma área que rola, na borda de dentro. */
+static void barra(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *e) {
+	if (e->rolagem.alfa <= 0.01f) {
+		return;
+	}
+	double grossura = e->rolagem.grossa ? 7 : 4;
+	Clay_Color c = e->rolagem.cor;
+	c.a *= e->rolagem.alfa * (e->rolagem.grossa ? 0.9f : 0.7f);
+	if (e->rolagem.tem[1]) {
+		redondo(cr, b.x + b.width - grossura - 3, b.y + e->rolagem.ini[1], grossura, e->rolagem.tam[1], todos(grossura / 2));
+		cor(cr, c);
+		cairo_fill(cr);
+	}
+	if (e->rolagem.tem[0]) {
+		redondo(cr, b.x + e->rolagem.ini[0], b.y + b.height - grossura - 3, e->rolagem.tam[0], grossura, todos(grossura / 2));
+		cor(cr, c);
+		cairo_fill(cr);
+	}
+}
+
+#define GV_MAX_CORTES 32
+
 void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos) {
+	struct {
+		Clay_BoundingBox caixa;
+		const struct gv_extra *rolagem;
+	} cortes[GV_MAX_CORTES];
+	int ncortes = 0;
 	for (int i = 0; i < comandos.length; i++) {
 		Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&comandos, i);
 		Clay_BoundingBox b = cmd->boundingBox;
@@ -152,13 +179,24 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos) {
 		case CLAY_RENDER_COMMAND_TYPE_TEXT:
 			gv__texto_desenhar(cr, cmd);
 			break;
-		case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
+		case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
+			struct gv_extra *extra = cmd->userData;
+			if (ncortes < GV_MAX_CORTES) {
+				cortes[ncortes].caixa = b;
+				cortes[ncortes].rolagem = extra && extra->tipo == GV_EXTRA_ROLAGEM ? extra : NULL;
+			}
+			ncortes++;
 			cairo_save(cr);
 			cairo_rectangle(cr, b.x, b.y, b.width, b.height);
 			cairo_clip(cr);
 			break;
+		}
 		case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
 			cairo_restore(cr);
+			/* a barra da rolagem vai por cima do conteúdo, já fora do corte */
+			if (ncortes > 0 && --ncortes < GV_MAX_CORTES && cortes[ncortes].rolagem) {
+				barra(cr, cortes[ncortes].caixa, cortes[ncortes].rolagem);
+			}
 			break;
 		case CLAY_RENDER_COMMAND_TYPE_CUSTOM: {
 			Clay_CustomRenderData *c = &cmd->renderData.custom;

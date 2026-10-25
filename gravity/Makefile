@@ -10,13 +10,13 @@ WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
 
 FONTES = src/gv_app.c src/gv_texto.c src/gv_tema.c src/gv_anim.c src/gv_svg.c src/gv_icones.c \
-	src/gv_desenho.c src/gv_componentes.c src/gv_campo.c src/gv_escrita.c src/gv_clay.c
+	src/gv_desenho.c src/gv_componentes.c src/gv_campo.c src/gv_escrita.c src/gv_rolagem.c src/gv_clay.c
 PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 	text-input-unstable-v3-client-protocol.h text-input-unstable-v3-protocol.c \
 	wlr-layer-shell-unstable-v1-client-protocol.h wlr-layer-shell-unstable-v1-protocol.c
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o
 
-all: libgravity.a mixer galeria wifi painel
+all: libgravity.a mixer galeria wifi painel apps
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -55,7 +55,10 @@ wifi: exemplos/wifi.c libgravity.a
 painel: exemplos/painel.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
+apps: exemplos/apps.c libgravity.a
+	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps $(PROTOS)
 
 .PHONY: all clean

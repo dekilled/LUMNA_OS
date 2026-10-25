@@ -14,7 +14,7 @@
 /* ---- interação ---- */
 
 static void candidato(Clay_ElementId id) {
-	if (gv__entrada.apertou && Clay_PointerOver(id)) {
+	if (gv__entrada.apertou && !gv__entrada.travado && Clay_PointerOver(id)) {
 		gv__entrada.ativo = id.id;
 	}
 }
@@ -58,6 +58,7 @@ uint32_t gv_modificadores(void) {
 void gv__entrada_fim_do_quadro(void) {
 	if (gv__entrada.soltou && !gv__entrada.baixo) {
 		gv__entrada.ativo = 0;
+		gv__entrada.travado = false;
 		/* um dedo que saiu não fica "por cima" de nada */
 		if (gv__entrada.toque) {
 			gv__entrada.x = gv__entrada.y = -1;
@@ -65,6 +66,7 @@ void gv__entrada_fim_do_quadro(void) {
 		}
 	}
 	gv__campos_fim_do_quadro();
+	gv__rolagens_fim_do_quadro();
 	gv__entrada.apertou = false;
 	gv__entrada.soltou = false;
 	gv__entrada.nteclas = 0;
