@@ -262,6 +262,7 @@ struct orbit_layer {
 	struct wl_listener commit;
 	struct wl_listener destroy;
 	struct wl_listener new_popup;
+	struct wl_listener scene_destroy; /* a cena pode ir antes da camada: esquecê-la */
 };
 
 struct orbit_keyboard {

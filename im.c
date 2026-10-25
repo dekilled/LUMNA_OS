@@ -4,7 +4,9 @@
 #include <wlr/types/wlr_input_method_v2.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_text_input_v3.h>
+#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
+#include <wlr/types/wlr_virtual_pointer_v1.h>
 #include <wlr/util/log.h>
 
 /*
@@ -20,6 +22,9 @@
  * unavailable. Se ele agarrar o teclado, as teclas físicas vão para ele (menos as dos teclados
  * virtuais, que podem ser dele mesmo e dariam a volta).
  * As janelas de sugestões do método de entrada (popup surface) ainda não aparecem.
+ *
+ * Ponteiro virtual (zwlr_virtual_pointer_v1): um rato a mais ligado ao cursor, para um controle
+ * remoto (o celular a mexer o rato do PC) e para os testes.
  */
 
 struct orbit_text_input {
@@ -45,6 +50,7 @@ static struct {
 	struct wl_listener grab_destroy;
 	struct wl_listener focus_change;
 	struct wl_listener new_virtual_keyboard;
+	struct wl_listener new_virtual_pointer;
 } relay;
 
 static bool same_client(struct wlr_text_input_v3 *input, struct wlr_surface *surface) {
@@ -249,13 +255,20 @@ static void new_virtual_keyboard(struct wl_listener *listener, void *data) {
 	wlr_log(WLR_INFO, "teclado virtual ligado");
 }
 
+static void new_virtual_pointer(struct wl_listener *listener, void *data) {
+	struct wlr_virtual_pointer_v1_new_pointer_event *event = data;
+	wlr_cursor_attach_input_device(relay.server->cursor, &event->new_pointer->pointer.base);
+	wlr_log(WLR_INFO, "ponteiro virtual ligado");
+}
+
 bool orbit_im_bind(struct orbit_server *server) {
 	relay.server = server;
 	wl_list_init(&relay.inputs);
 	struct wlr_text_input_manager_v3 *text_inputs = wlr_text_input_manager_v3_create(server->display);
 	struct wlr_input_method_manager_v2 *methods = wlr_input_method_manager_v2_create(server->display);
 	struct wlr_virtual_keyboard_manager_v1 *virtuals = wlr_virtual_keyboard_manager_v1_create(server->display);
-	if (!text_inputs || !methods || !virtuals) {
+	struct wlr_virtual_pointer_manager_v1 *pointers = wlr_virtual_pointer_manager_v1_create(server->display);
+	if (!text_inputs || !methods || !virtuals || !pointers) {
 		wlr_log(WLR_ERROR, "falha ao criar os protocolos de escrita");
 		return false;
 	}
@@ -265,6 +278,8 @@ bool orbit_im_bind(struct orbit_server *server) {
 	wl_signal_add(&methods->events.input_method, &relay.new_input_method);
 	relay.new_virtual_keyboard.notify = new_virtual_keyboard;
 	wl_signal_add(&virtuals->events.new_virtual_keyboard, &relay.new_virtual_keyboard);
+	relay.new_virtual_pointer.notify = new_virtual_pointer;
+	wl_signal_add(&pointers->events.new_virtual_pointer, &relay.new_virtual_pointer);
 	relay.focus_change.notify = keyboard_focus_change;
 	wl_signal_add(&server->seat->keyboard_state.events.focus_change, &relay.focus_change);
 	return true;

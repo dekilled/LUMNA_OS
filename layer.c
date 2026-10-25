@@ -43,6 +43,9 @@ static void layer_sync_keyboard(struct orbit_layer *layer) {
 }
 
 static void layer_reparent(struct orbit_layer *layer) {
+	if (!layer->scene) {
+		return;
+	}
 	int index = layer->surface->current.layer;
 	if (index < 0 || index >= ORBIT_LAYER_COUNT) {
 		index = ORBIT_LAYER_TOP;
@@ -78,11 +81,22 @@ static void layer_commit(struct wl_listener *listener, void *data) {
 	orbit_arrange(layer->server);
 }
 
+/* O wlr_scene destrói a cena da camada sozinho quando a camada morre, e pode fazê-lo antes de
+ * layer_destroy (por exemplo com um popup aberto quando o cliente fecha): sem isto layer->scene
+ * ficava a apontar para memória já libertada. */
+static void layer_scene_destroy(struct wl_listener *listener, void *data) {
+	struct orbit_layer *layer = wl_container_of(listener, layer, scene_destroy);
+	wl_list_remove(&layer->scene_destroy.link);
+	layer->scene = NULL;
+}
+
 static void layer_destroy(struct wl_listener *listener, void *data) {
 	struct orbit_layer *layer = wl_container_of(listener, layer, destroy);
 	struct orbit_server *server = layer->server;
-	if (layer->scene && layer->scene->tree) {
+	if (layer->scene) {
+		wl_list_remove(&layer->scene_destroy.link);
 		layer->scene->tree->node.data = NULL;
+		layer->scene = NULL;
 	}
 	wl_list_remove(&layer->map.link);
 	wl_list_remove(&layer->unmap.link);
@@ -270,6 +284,8 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 		return;
 	}
 	layer->scene->tree->node.data = layer;
+	layer->scene_destroy.notify = layer_scene_destroy;
+	wl_signal_add(&layer->scene->tree->node.events.destroy, &layer->scene_destroy);
 	layer->map.notify = layer_map;
 	wl_signal_add(&surface->surface->events.map, &layer->map);
 	layer->unmap.notify = layer_unmap;
