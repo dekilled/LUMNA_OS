@@ -121,6 +121,7 @@ static void layer_destroy(struct wl_listener *listener, void *data) {
 struct orbit_layer_popup {
 	struct orbit_layer *layer;
 	struct wlr_xdg_popup *popup;
+	struct wlr_scene_tree *above; /* o popup de uma camada de baixo vai para cima das janelas */
 	struct wl_listener commit;
 	struct wl_listener destroy;
 };
@@ -154,6 +155,9 @@ static void layer_popup_destroy(struct wl_listener *listener, void *data) {
 	struct orbit_layer_popup *popup = wl_container_of(listener, popup, destroy);
 	wl_list_remove(&popup->commit.link);
 	wl_list_remove(&popup->destroy.link);
+	if (popup->above) {
+		wlr_scene_node_destroy(&popup->above->node);
+	}
 	free(popup);
 }
 
@@ -172,7 +176,17 @@ static void layer_new_popup(struct wl_listener *listener, void *data) {
 	popup->destroy.notify = layer_popup_destroy;
 	wl_signal_add(&xdg_popup->events.destroy, &popup->destroy);
 	if (layer->scene) {
-		struct wlr_scene_tree *tree = wlr_scene_xdg_surface_create(layer->scene->tree, xdg_popup->base);
+		/* o menu do papel de parede (fundo) ficaria atrás das janelas: os popups das camadas de
+		 * baixo vão para o overlay, no mesmo sítio da camada */
+		struct wlr_scene_tree *parent = layer->scene->tree;
+		if (layer->surface->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP) {
+			popup->above = wlr_scene_tree_create(layer->server->layer_tree[ORBIT_LAYER_OVERLAY]);
+			if (popup->above) {
+				wlr_scene_node_set_position(&popup->above->node, layer->scene->tree->node.x, layer->scene->tree->node.y);
+				parent = popup->above;
+			}
+		}
+		struct wlr_scene_tree *tree = wlr_scene_xdg_surface_create(parent, xdg_popup->base);
 		if (!tree) {
 			wlr_log(WLR_ERROR, "cena do popup de camada falhou");
 		} else {
