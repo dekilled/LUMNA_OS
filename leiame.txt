@@ -62,7 +62,7 @@ Configuração
   Sem ficheiro usam-se as omissões. Com ficheiro, lê-se
   $ORBIT_CONFIG, senão $XDG_CONFIG_HOME/orbit/orbit.ini, senão
   ~/.config/orbit/orbit.ini. Um exemplo está em orbit.ini.
-  ORBIT_GAP, ORBIT_MASTER, ORBIT_PHONE_SCALE e ORBIT_TERMINAL,
+  ORBIT_GAP, ORBIT_BORDA, ORBIT_MASTER, ORBIT_PHONE_SCALE e ORBIT_TERMINAL,
   se estiverem definidos, substituem o ficheiro.
   intervalo 0..64, mestre 40..70, escala 1..3.
   fundo é #RRGGBB. borda é a cor do foco, de 0 a 8 px (borda_px);

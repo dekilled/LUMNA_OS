@@ -32,7 +32,8 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 		h = 1;
 	}
 	int b = view->server->border_px;
-	bool inset = !view->fullscreen && view->border && b > 0 && w > b * 2 && h > b * 2;
+	/* maximizada ou em ecrã inteiro, a janela vai até à borda: sem moldura */
+	bool inset = !view->fullscreen && !view->maximized && view->border && b > 0 && w > b * 2 && h > b * 2;
 	int cw = inset ? w - b * 2 : w;
 	int ch = inset ? h - b * 2 : h;
 	view->x = x;
@@ -57,11 +58,21 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 		}
 	}
 	orbit_slide(view, x, y);
-	wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)cw, (uint32_t)ch);
-	wlr_xdg_toplevel_set_fullscreen(view->toplevel, view->fullscreen);
-	wlr_xdg_toplevel_set_maximized(view->toplevel, view->maximized && !view->fullscreen);
-	wlr_xdg_toplevel_set_tiled(view->toplevel,
-		tiled ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM : WLR_EDGE_NONE);
+	bool max = view->maximized && !view->fullscreen;
+	uint32_t edges = tiled ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM : WLR_EDGE_NONE;
+	if (!view->cfg_valid || view->cfg_w != cw || view->cfg_h != ch || view->cfg_full != view->fullscreen ||
+		view->cfg_max != max || view->cfg_tiled != edges) {
+		wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)cw, (uint32_t)ch);
+		wlr_xdg_toplevel_set_fullscreen(view->toplevel, view->fullscreen);
+		wlr_xdg_toplevel_set_maximized(view->toplevel, max);
+		wlr_xdg_toplevel_set_tiled(view->toplevel, edges);
+		view->cfg_valid = true;
+		view->cfg_w = cw;
+		view->cfg_h = ch;
+		view->cfg_full = view->fullscreen;
+		view->cfg_max = max;
+		view->cfg_tiled = edges;
+	}
 	orbit_foreign_sync(view);
 }
 
@@ -386,6 +397,7 @@ void orbit_arrange(struct orbit_server *server) {
 				wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
 				wlr_xdg_toplevel_set_fullscreen(view->toplevel, false);
 				wlr_xdg_toplevel_set_tiled(view->toplevel, WLR_EDGE_NONE);
+				view->cfg_valid = false; /* mandado por fora de place() */
 				continue;
 			}
 			if (n < ORBIT_MAX_VIEWS) {

@@ -118,6 +118,7 @@ void orbit_view_set_maximized(struct orbit_view *view, bool on) {
 	if (!view->mapped) {
 		if (view->toplevel->base->initialized) {
 			wlr_xdg_toplevel_set_maximized(view->toplevel, on);
+			view->cfg_valid = false;
 		}
 		return;
 	}
@@ -142,6 +143,7 @@ void orbit_view_set_fullscreen(struct orbit_view *view, bool on) {
 	if (!view->mapped) {
 		if (view->toplevel->base->initialized) {
 			wlr_xdg_toplevel_set_fullscreen(view->toplevel, on);
+			view->cfg_valid = false;
 		}
 		return;
 	}
@@ -253,6 +255,7 @@ static void xdg_commit(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, commit);
 	if (view->toplevel->base->initial_commit) {
 		wlr_xdg_toplevel_set_size(view->toplevel, 0, 0);
+		view->cfg_valid = false;
 	} else if (view->mapped) {
 		orbit_foreign_sync(view);
 	}

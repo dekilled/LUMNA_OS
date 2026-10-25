@@ -78,7 +78,11 @@ static void layer_commit(struct wl_listener *listener, void *data) {
 	}
 	layer_reparent(layer);
 	layer_sync_keyboard(layer);
-	orbit_arrange(layer->server);
+	/* só quando muda o que conta para a arrumação (tamanho, âncoras, zona, margens, nível): um
+	 * quadro novo da barra ou da dock não mexe nas janelas */
+	if (layer->surface->initial_commit || layer->surface->current.committed) {
+		orbit_arrange(layer->server);
+	}
 }
 
 /* O wlr_scene destrói a cena da camada sozinho quando a camada morre, e pode fazê-lo antes de

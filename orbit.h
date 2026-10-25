@@ -253,6 +253,12 @@ struct orbit_view {
 	int slide_from_x, slide_from_y;
 	int slide_to_x, slide_to_y;
 	uint32_t slide_start;
+	/* o último configure mandado por place(): só se manda outro quando algo muda (cada configure
+	 * faz o app redesenhar e responder; mandá-los sem mudança era um ciclo sem fim) */
+	bool cfg_valid;
+	int cfg_w, cfg_h;
+	bool cfg_full, cfg_max;
+	uint32_t cfg_tiled;
 };
 
 struct wlr_layer_surface_v1;

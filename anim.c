@@ -61,6 +61,10 @@ void orbit_slide(struct orbit_view *view, int x, int y) {
 	if (!view->sliding && view->slide_x == x && view->slide_y == y) {
 		return;
 	}
+	if (view->sliding && view->slide_to_x == x && view->slide_to_y == y) {
+		/* já vai para lá: recomeçar a cada arrumação deixava-a parada a meio caminho */
+		return;
+	}
 	view->slide_from_x = view->slide_x;
 	view->slide_from_y = view->slide_y;
 	view->slide_to_x = x;

@@ -171,8 +171,17 @@ static void apply_env(struct orbit_server *server) {
 	const char *master = getenv("ORBIT_MASTER");
 	const char *scale = getenv("ORBIT_PHONE_SCALE");
 	const char *term = getenv("ORBIT_TERMINAL");
+	const char *borda = getenv("ORBIT_BORDA");
 	int number = 0;
 	float value = 0;
+	/* o desktop do LUMNA desliga-a: as janelas desenham a própria moldura, de cantos redondos */
+	if (borda && borda[0]) {
+		if (parse_int(borda, 0, 8, &number)) {
+			server->border_px = number;
+		} else {
+			wlr_log(WLR_ERROR, "ORBIT_BORDA=%s inválido; fica o valor do ficheiro", borda);
+		}
+	}
 	if (gap && gap[0]) {
 		if (parse_int(gap, 0, ORBIT_GAP_MAX, &number)) {
 			server->gap = number;
