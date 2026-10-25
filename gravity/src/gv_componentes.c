@@ -72,6 +72,8 @@ void gv__entrada_fim_do_quadro(void) {
 	gv__imagens_fim_do_quadro();
 	gv__entrada.apertou = false;
 	gv__entrada.soltou = false;
+	gv__entrada.direito = false;
+	gv__entrada.segurou = false;
 	gv__entrada.nteclas = 0;
 	gv__entrada.texto[0] = '\0';
 	gv__entrada.ime.chegou = false;
@@ -566,4 +568,20 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 		}
 	}
 	return mudou;
+}
+
+/* ---- menu de contexto ---- */
+
+bool gv_menu_contexto(Clay_ElementId id) {
+	if ((gv__entrada.direito || gv__entrada.segurou) && Clay_PointerOver(id)) {
+		if (gv__entrada.segurou) {
+			/* o soltar deste dedo já não é um toque */
+			gv__entrada.ativo = 0xffffffffu;
+			gv__entrada.travado = true;
+		}
+		gv__entrada.direito = gv__entrada.segurou = false; /* só um elemento abre menu */
+		return true;
+	}
+	return gv__foco_tecla(id, XKB_KEY_Menu) ||
+		((gv__entrada.mods & GV_MOD_SHIFT) && gv__foco_tecla(id, XKB_KEY_F10));
 }

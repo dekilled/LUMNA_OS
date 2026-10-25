@@ -3,6 +3,8 @@
  * lançador, arquivos, navegador, loja, painel e, depois do separador, a Emma) e os apps abertos
  * que não estão fixos. Um ponto por baixo de quem tem janela aberta, violeta no app ativo.
  * Tocar abre o app, ou traz a janela para a frente; com várias janelas do mesmo app, alterna.
+ * Botão direito (ou segurar o dedo, ou a tecla Menu) abre o menu do app: abrir nova janela,
+ * fixar ou remover da dock, fechar as janelas e as preferências da dock.
  *
  * As janelas vêm do compositor (wlr-foreign-toplevel, o Orbit tem). Os fixos vêm de
  * ~/.config/lumna/dock, uma linha por app (# comenta, "-" é um separador):
@@ -15,6 +17,7 @@
  */
 #define _GNU_SOURCE
 #include <ctype.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,6 +50,15 @@ static const struct fixo padrao[] = {
 	{ "mic", "Emma", "lumna-emma", "lumna-emma" },
 };
 
+static char caminho_config[1024];
+
+/* o menu do botão direito: de que app é, e o elemento onde se prende */
+static struct {
+	struct fixo app;
+	int fixo;              /* o índice nos fixos (-1: aberto e não fixo) */
+	Clay_ElementId ancora;
+} menu;
+
 static char *aparar(char *s) {
 	while (isspace((unsigned char)*s)) {
 		s++;
@@ -59,13 +71,13 @@ static char *aparar(char *s) {
 }
 
 static void carregar(void) {
-	char caminho[1024];
+	char *caminho = caminho_config;
 	const char *config = getenv("XDG_CONFIG_HOME");
 	const char *casa = getenv("HOME");
 	if (config && *config) {
-		snprintf(caminho, sizeof(caminho), "%s/lumna/dock", config);
+		snprintf(caminho_config, sizeof(caminho_config), "%s/lumna/dock", config);
 	} else {
-		snprintf(caminho, sizeof(caminho), "%s/.config/lumna/dock", casa ? casa : "");
+		snprintf(caminho_config, sizeof(caminho_config), "%s/.config/lumna/dock", casa ? casa : "");
 	}
 	FILE *f = fopen(caminho, "r");
 	if (!f) {
@@ -102,6 +114,129 @@ static void carregar(void) {
 		nfixos++;
 	}
 	fclose(f);
+}
+
+/* grava os fixos (cria a pasta se for preciso) */
+static void salvar(void) {
+	char pasta[1024];
+	snprintf(pasta, sizeof(pasta), "%s", caminho_config);
+	char *barra = strrchr(pasta, '/');
+	if (barra) {
+		*barra = '\0';
+		char cmd[1100];
+		snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta);
+		if (system(cmd) != 0) {
+			fprintf(stderr, "dock: não deu para criar %s\n", pasta);
+		}
+	}
+	FILE *f = fopen(caminho_config, "w");
+	if (!f) {
+		fprintf(stderr, "dock: não deu para gravar %s\n", caminho_config);
+		return;
+	}
+	fprintf(f, "# A dock do LUMNA: ícone ; nome ; app_id ; comando (\"-\" separa)\n");
+	for (int i = 0; i < nfixos; i++) {
+		if (fixos[i].separador) {
+			fprintf(f, "-\n");
+		} else {
+			fprintf(f, "%s ; %s ; %s ; %s\n", fixos[i].icone, fixos[i].nome, fixos[i].app_id, fixos[i].comando);
+		}
+	}
+	fclose(f);
+}
+
+/* Name (de preferência em português), Icon e Exec (sem os %U) do .desktop de um app_id: pelo
+ * nome do ficheiro ou pelo StartupWMClass. */
+static bool ler_desktop(const char *caminho, const char *app_id, bool pelo_nome, struct fixo *x) {
+	FILE *f = fopen(caminho, "r");
+	if (!f) {
+		return false;
+	}
+	char linha[1024], nome[96] = "", nome_pt[96] = "", icone[64] = "", exec[256] = "", classe[96] = "";
+	bool entrada = false;
+	while (fgets(linha, sizeof(linha), f)) {
+		linha[strcspn(linha, "\r\n")] = '\0';
+		if (linha[0] == '[') {
+			entrada = !strcmp(linha, "[Desktop Entry]");
+			continue;
+		}
+		char *igual = strchr(linha, '=');
+		if (!entrada || !igual) {
+			continue;
+		}
+		*igual = '\0';
+		const char *v = igual + 1;
+		if (!strcmp(linha, "Name")) {
+			snprintf(nome, sizeof(nome), "%s", v);
+		} else if (!strcmp(linha, "Name[pt_BR]") || (!nome_pt[0] && !strcmp(linha, "Name[pt]"))) {
+			snprintf(nome_pt, sizeof(nome_pt), "%s", v);
+		} else if (!strcmp(linha, "Icon")) {
+			snprintf(icone, sizeof(icone), "%s", v);
+		} else if (!strcmp(linha, "Exec")) {
+			size_t j = 0;
+			for (const char *s = v; *s && j < sizeof(exec) - 1; s++) {
+				if (s[0] == '%' && s[1]) {
+					s++;
+					continue;
+				}
+				exec[j++] = *s;
+			}
+			exec[j] = '\0';
+		} else if (!strcmp(linha, "StartupWMClass")) {
+			snprintf(classe, sizeof(classe), "%s", v);
+		}
+	}
+	fclose(f);
+	if (!pelo_nome && strcasecmp(classe, app_id)) {
+		return false;
+	}
+	snprintf(x->nome, sizeof(x->nome), "%s", nome_pt[0] ? nome_pt : nome[0] ? nome : app_id);
+	snprintf(x->icone, sizeof(x->icone), "%s", icone[0] ? icone : app_id);
+	snprintf(x->comando, sizeof(x->comando), "%s", aparar(exec)[0] ? aparar(exec) : app_id);
+	return true;
+}
+
+static void achar_app(const char *app_id, struct fixo *x) {
+	memset(x, 0, sizeof(*x));
+	snprintf(x->app_id, sizeof(x->app_id), "%s", app_id);
+	snprintf(x->nome, sizeof(x->nome), "%s", app_id);
+	snprintf(x->icone, sizeof(x->icone), "%s", app_id);
+	snprintf(x->comando, sizeof(x->comando), "%s", app_id);
+	char dirs[2048];
+	const char *casa = getenv("HOME");
+	const char *sistema = getenv("XDG_DATA_DIRS");
+	snprintf(dirs, sizeof(dirs), "%s/.local/share:%s", casa ? casa : "", sistema && *sistema ? sistema : "/usr/local/share:/usr/share");
+	/* duas voltas: primeiro pelo nome do ficheiro, depois pelo StartupWMClass */
+	for (int volta = 0; volta < 2; volta++) {
+		char copia[2048];
+		snprintf(copia, sizeof(copia), "%s", dirs);
+		for (char *d = strtok(copia, ":"); d; d = strtok(NULL, ":")) {
+			char pasta[1024];
+			snprintf(pasta, sizeof(pasta), "%s/applications", d);
+			DIR *dir = opendir(pasta);
+			if (!dir) {
+				continue;
+			}
+			struct dirent *e;
+			while ((e = readdir(dir))) {
+				size_t n = strlen(e->d_name);
+				if (n <= 8 || strcmp(e->d_name + n - 8, ".desktop")) {
+					continue;
+				}
+				bool pelo_nome = n - 8 == strlen(app_id) && !strncasecmp(e->d_name, app_id, n - 8);
+				if (volta == 0 && !pelo_nome) {
+					continue;
+				}
+				char caminho[1300];
+				snprintf(caminho, sizeof(caminho), "%s/%s", pasta, e->d_name);
+				if (ler_desktop(caminho, app_id, volta == 0, x)) {
+					closedir(dir);
+					return;
+				}
+			}
+			closedir(dir);
+		}
+	}
 }
 
 static void abrir(const char *comando) {
@@ -200,6 +335,78 @@ static bool item(Clay_ElementId id, const char *icone, bool app_do_tema, int jan
 	return tocado;
 }
 
+static void menu_abrir(Clay_ElementId ancora, const struct fixo *app, int fixo) {
+	menu.app = *app;
+	menu.fixo = fixo;
+	menu.ancora = ancora;
+	gv_popup_abrir(CLAY_ID("menu"));
+}
+
+static void menu_desenhar(const gv_janela **janelas, int n) {
+	int delas = 0;
+	for (int k = 0; k < n; k++) {
+		delas += do_app(janelas[k], menu.app.app_id);
+	}
+	GV_POPUP(CLAY_ID("menu"), menu.ancora, .lado = GV_POPUP_ACIMA, .alinhar = GV_ALINHAR_CENTRO, .largura = 270, .distancia = 10) {
+		CLAY(CLAY_ID("menu-topo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .padding = { 12, 12, 8, 8 }, .childGap = 2 } }) {
+			gv_texto(gv_str(menu.app.nome), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(delas ? gv_fmt("%d janela%s aberta%s", delas, delas > 1 ? "s" : "", delas > 1 ? "s" : "")
+				: CLAY_STRING("Não está aberto"), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		gv_separador(false, 0);
+		if (menu.app.comando[0] && gv_menu_item(CLAY_ID("m-nova"), "plus", delas ? "Abrir nova janela" : "Abrir", NULL)) {
+			printf("nova janela de %s: %s\n", menu.app.app_id, menu.app.comando);
+			abrir(menu.app.comando);
+			gv_popup_fechar(CLAY_ID("menu"));
+		}
+		if (menu.fixo >= 0) {
+			if (gv_menu_item(CLAY_ID("m-remover"), "minus", "Remover da dock", NULL)) {
+				printf("remover da dock: %s\n", menu.app.app_id);
+				memmove(&fixos[menu.fixo], &fixos[menu.fixo + 1], (nfixos - menu.fixo - 1) * sizeof(fixos[0]));
+				memmove(&abriu_em[menu.fixo], &abriu_em[menu.fixo + 1], (nfixos - menu.fixo - 1) * sizeof(abriu_em[0]));
+				nfixos--;
+				salvar();
+				gv_popup_fechar(CLAY_ID("menu"));
+			}
+		} else if (nfixos < MAX_FIXOS && gv_menu_item(CLAY_ID("m-fixar"), "pin", "Fixar na dock", NULL)) {
+			/* entra antes do separador da Emma (se houver), no fim dos apps */
+			int onde = nfixos;
+			for (int i = 0; i < nfixos; i++) {
+				if (fixos[i].separador) {
+					onde = i;
+					break;
+				}
+			}
+			memmove(&fixos[onde + 1], &fixos[onde], (nfixos - onde) * sizeof(fixos[0]));
+			memmove(&abriu_em[onde + 1], &abriu_em[onde], (nfixos - onde) * sizeof(abriu_em[0]));
+			fixos[onde] = menu.app;
+			abriu_em[onde] = 0;
+			nfixos++;
+			printf("fixar na dock: %s (%s, %s)\n", menu.app.app_id, menu.app.nome, menu.app.comando);
+			salvar();
+			gv_popup_fechar(CLAY_ID("menu"));
+		}
+		char fechar[48];
+		snprintf(fechar, sizeof(fechar), delas > 1 ? "Fechar %d janelas" : "Fechar", delas);
+		if (delas && gv_menu_item(CLAY_ID("m-fechar"), "close", fechar, NULL)) {
+			for (int k = 0; k < n; k++) {
+				if (do_app(janelas[k], menu.app.app_id)) {
+					gv_janela_fechar(janelas[k]->id);
+				}
+			}
+			printf("fechar: %s\n", menu.app.app_id);
+			gv_popup_fechar(CLAY_ID("menu"));
+		}
+		gv_separador(false, 0);
+		if (gv_menu_item(CLAY_ID("m-pref"), "settings", "Preferências da dock", NULL)) {
+			printf("preferências da dock\n");
+			abrir("lumna-painel");
+			gv_popup_fechar(CLAY_ID("menu"));
+		}
+	}
+	fflush(stdout);
+}
+
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
 	const gv_janela *janelas[MAX_JANELAS];
@@ -234,7 +441,11 @@ static void desenhar(gv_app *app, void *dados) {
 				if (abertas) {
 					abriu_em[i] = 0;
 				}
-				if (item(CLAY_IDI("fixo", i), x->icone, !tem_icone_lumna(x->icone), abertas, ativo, abriu_em[i])) {
+				Clay_ElementId id = CLAY_IDI("fixo", i);
+				if (gv_menu_contexto(id)) {
+					menu_abrir(id, x, i);
+				}
+				if (item(id, x->icone, !tem_icone_lumna(x->icone), abertas, ativo, abriu_em[i])) {
 					tocar(x->app_id, x->comando, janelas, n, &abriu_em[i]);
 				}
 			}
@@ -266,12 +477,19 @@ static void desenhar(gv_app *app, void *dados) {
 						ativo |= janelas[a]->ativa;
 					}
 				}
-				if (item(CLAY_IDI("aberto", (int)j->id), j->app_id, true, abertas, ativo, 0)) {
+				Clay_ElementId id = CLAY_IDI("aberto", (int)j->id);
+				if (gv_menu_contexto(id)) {
+					struct fixo x;
+					achar_app(j->app_id, &x);
+					menu_abrir(id, &x, -1);
+				}
+				if (item(id, j->app_id, true, abertas, ativo, 0)) {
 					tocar(j->app_id, NULL, janelas, n, NULL);
 				}
 			}
 		}
 	}
+	menu_desenhar(janelas, n);
 }
 
 int main(void) {

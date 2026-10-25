@@ -36,6 +36,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_lista_suspensa` | dropdown: a opção escolhida e as outras num popup da largura dela |
 | `gv_janelas`, `gv_janela_ativar/fechar` | as janelas abertas no compositor (wlr-foreign-toplevel), para a dock |
 | `gv_app_entrada_em` | só um elemento recebe o toque (a dock numa camada larga) |
+| `gv_menu_contexto` | pediram o menu deste elemento: botão direito, segurar o dedo, tecla Menu |
 | `gv_imagem` | PNG, JPEG, WebP, SVG: cobrir, conter ou esticar, nos cantos do elemento, esmaecendo ao chegar |
 | `gv_icone_app` | o ícone de um app pelo tema de ícones (o `Icon=` do .desktop) |
 | `gv_rolagem` | área que rola: dedo com inércia e elástico, roda do rato, barra que aparece e some |

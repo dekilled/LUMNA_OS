@@ -26,6 +26,11 @@ struct gv_entrada {
 	bool toque;         /* o último a mexer foi um dedo */
 	uint32_t ativo;     /* o id que recebeu o aperto (0: nenhum) */
 	bool travado;       /* uma rolagem ficou com o aperto: os de dentro não o tomam */
+	bool direito;       /* o botão direito desceu neste quadro */
+	bool segurou;       /* o dedo ficou meio segundo parado neste quadro (o "botão direito" do toque) */
+	bool segurar_cancelado; /* este aperto já segurou, ou o dedo andou */
+	double aperto_em;   /* quando e onde o último aperto desceu */
+	float aperto_x, aperto_y;
 	uint32_t teclas[GV_MAX_TECLAS]; /* keysyms carregados neste quadro (com as repetições) */
 	int nteclas;
 	char texto[128];    /* o texto escrito neste quadro (UTF-8, já com os acentos compostos) */

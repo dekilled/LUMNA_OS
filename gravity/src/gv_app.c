@@ -492,6 +492,17 @@ static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fix
 static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, uint32_t t, uint32_t botao,
 		uint32_t estado) {
 	gv_app *app = dados;
+	if (botao == BTN_RIGHT) {
+		if (estado == WL_POINTER_BUTTON_STATE_PRESSED) {
+			app->aperto_serial = serial; /* o popup do menu precisa do serial para o grab */
+			if (!app->ponteiro_no_popup) {
+				popups_fechar_fora(app);
+			}
+			gv__entrada.direito = true;
+			app->precisa = true;
+		}
+		return;
+	}
 	if (botao != BTN_LEFT) {
 		return;
 	}
@@ -556,6 +567,12 @@ static void toque_baixo(void *dados, struct wl_touch *t, uint32_t serial, uint32
 	gv__entrada.baixo = true;
 	gv__entrada.apertou = true;
 	gv__entrada.toque = true;
+	/* segurar meio segundo é o menu de contexto: acorda para ver se o dedo ficou */
+	gv__entrada.aperto_em = gv_agora();
+	gv__entrada.aperto_x = gv__entrada.x;
+	gv__entrada.aperto_y = gv__entrada.y;
+	gv__entrada.segurar_cancelado = false;
+	gv__app_acordar_em(0.5);
 	if (!app->dedo_no_popup) {
 		popups_fechar_fora(app);
 	}
@@ -580,6 +597,9 @@ static void toque_moveu(void *dados, struct wl_touch *t, uint32_t tempo, int32_t
 	}
 	gv__entrada.x = wl_fixed_to_double(x) + app->dedo_dx;
 	gv__entrada.y = wl_fixed_to_double(y) + app->dedo_dy;
+	if (fabsf(gv__entrada.x - gv__entrada.aperto_x) + fabsf(gv__entrada.y - gv__entrada.aperto_y) > 10) {
+		gv__entrada.segurar_cancelado = true; /* andou: é arrasto, não é segurar */
+	}
 	app->precisa = true;
 }
 
@@ -1401,6 +1421,11 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	}
 
 	gv__anim_quadro();
+	/* o dedo ficou meio segundo no mesmo sítio: segurou (uma vez por aperto) */
+	if (gv__entrada.baixo && gv__entrada.toque && !gv__entrada.segurar_cancelado && agora - gv__entrada.aperto_em >= 0.5) {
+		gv__entrada.segurou = true;
+		gv__entrada.segurar_cancelado = true;
+	}
 	Clay_SetLayoutDimensions((Clay_Dimensions){ app->largura, app->altura });
 	Clay_SetPointerState((Clay_Vector2){ gv__entrada.x, gv__entrada.y }, gv__entrada.baixo || gv__entrada.apertou);
 	/* a rolagem é do gv_rolagem (inércia e elástico): o Clay só corta e desloca */

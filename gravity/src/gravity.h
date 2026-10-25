@@ -296,6 +296,10 @@ bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const
 /* Uma lista suspensa (dropdown): mostra a opção escolhida e abre as outras num popup logo abaixo,
  * da largura dela. Devolve verdadeiro quando a escolha mudou. */
 bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int *escolhida);
+/* Pediram o menu deste elemento: botão direito do rato, o dedo parado meio segundo em cima (e o
+ * soltar já não conta como toque), ou a tecla Menu / Shift+F10 com ele focado. Abra um GV_POPUP
+ * preso a ele. Peça-o antes de declarar elementos de dentro (o de fora fica com o pedido). */
+bool gv_menu_contexto(Clay_ElementId id);
 /* (do GV_POPUP) */
 bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_opcoes *opcoes);
 Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id);
