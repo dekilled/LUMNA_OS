@@ -152,7 +152,7 @@ static void barra(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *e) {
 
 #define GV_MAX_CORTES 32
 
-void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos) {
+void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, int16_t zmax) {
 	struct {
 		Clay_BoundingBox caixa;
 		const struct gv_extra *rolagem;
@@ -161,6 +161,9 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos) {
 	for (int i = 0; i < comandos.length; i++) {
 		Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&comandos, i);
 		Clay_BoundingBox b = cmd->boundingBox;
+		if (cmd->zIndex < zmin || cmd->zIndex > zmax) {
+			continue; /* é de outra superfície (um popup) */
+		}
 		switch (cmd->commandType) {
 		case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
 			Clay_RectangleRenderData *r = &cmd->renderData.rectangle;

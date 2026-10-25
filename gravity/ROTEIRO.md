@@ -13,7 +13,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Botões, deslizante, interruptor, campo de texto, linha de ajuste, abas, barra da janela
 - [x] Rolagem: arrastar com o dedo, inércia, elástico nas pontas, roda do rato, barra que aparece
 - [x] Imagens: PNG/JPEG/WebP/SVG descodificadas em threads, no tamanho da tela, em cache
-- [ ] Popups e menus presos a um botão (xdg-popup), que fecham ao tocar fora
+- [x] Popups e menus presos a um botão (xdg-popup), que fecham ao tocar fora
 - [ ] Lista suspensa (dropdown), como na tela de Rede
 - [ ] Foco pelo teclado entre controles (Tab, setas, Enter) com o anel de foco
 - [ ] Texto que quebra em várias linhas e campo de várias linhas
@@ -22,9 +22,9 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 ## 2. O desktop no Orbit
 
 - [x] Papel de parede (camada de fundo) — exemplo `papel`; falta trocar ao vivo
-- [ ] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio
+- [~] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio — exemplo `barra`
 - [ ] Dock: apps fixos, abertos, indicador do ativo
-- [ ] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas)
+- [~] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas) — o do Bluetooth já abre (dados de mentira)
 - [~] Lançador (grade de apps com busca) — a lista dos .desktop já existe no exemplo `apps`
 - [ ] Notificações (servidor org.freedesktop.Notifications) e o centro delas
 - [ ] Tela de bloqueio com PIN

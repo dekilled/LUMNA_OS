@@ -414,3 +414,25 @@ void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const ch
 		gv_app_mover(app);
 	}
 }
+
+bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const char *detalhe) {
+	bool tocado;
+	float e = estado_de(id, &tocado);
+	CLAY(id, {
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 12, 14, 0, 0 }, .childGap = 14,
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = tres(gv_alfa(gv_t.sob_cursor, 0), gv_t.sob_cursor, gv_t.selecionado, e),
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+	}) {
+		if (icone) {
+			gv_icone(icone, 20, gv_t.texto_secundario);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			gv_texto(gv_str(texto), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+		}
+		if (detalhe) {
+			gv_texto(gv_str(detalhe), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+	}
+	return tocado;
+}

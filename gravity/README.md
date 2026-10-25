@@ -31,6 +31,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_linha` | linha de ajuste: ícone, título, subtítulo e › ou interruptor (como no Painel de controle) |
 | `gv_abas` | abas com o sublinhado do acento |
 | `gv_barra_janela` | a barra de título: ícone, título, minimizar, maximizar, fechar; arrastar move |
+| `GV_POPUP`, `gv_popup_*`, `gv_menu_item` | popup preso a um elemento, numa superfície própria (sai da janela ou da barra), com sombra; fecha ao tocar fora ou com Esc |
 | `gv_imagem` | PNG, JPEG, WebP, SVG: cobrir, conter ou esticar, nos cantos do elemento, esmaecendo ao chegar |
 | `gv_icone_app` | o ícone de um app pelo tema de ícones (o `Icon=` do .desktop) |
 | `gv_rolagem` | área que rola: dedo com inércia e elástico, roda do rato, barra que aparece e some |
@@ -116,6 +117,7 @@ make
 ./painel             # o Painel de controle das telas novas: abas, busca, atalhos em duas colunas
 ./apps               # os apps instalados (.desktop) com os ícones do tema, rolagem e busca; tocar abre
 ./papel [imagem]     # o papel de parede: uma camada no fundo da tela
+./barra              # a topbar do desktop novo; o Bluetooth abre o menu da tela nova
 ```
 
 Roda em qualquer compositor Wayland (Hyprland, Sway, Orbit...). Dentro do Orbit, o toque de teste

@@ -30,6 +30,9 @@
 
 #define GV_MAX_SAIDAS 8
 #define GV_MAX_VIGIAS 8
+#define GV_MAX_POPUPS 4
+#define GV_POPUP_MARGEM 28 /* à volta do popup, para a sombra */
+#define GV_POPUP_Z 100     /* o zIndex do primeiro popup; abaixo disto é a superfície principal */
 
 struct gv_buffer {
 	struct wl_buffer *wl;
@@ -44,6 +47,26 @@ struct gv_saida {
 	struct wl_output *wl;
 	int escala;
 	bool dentro; /* a nossa superfície está nela */
+};
+
+/* Um popup: o conteúdo é declarado no layout da app (GV_POPUP), num elemento flutuante com o
+ * seu zIndex; esses comandos de desenho vão para esta superfície em vez da principal. As
+ * coordenadas são as da superfície principal: o popup fica onde o compositor o pôs (x, y). */
+struct gv_popup {
+	uint32_t id;           /* 0: livre */
+	bool aberto;           /* a app quer-o aberto */
+	bool declarado;        /* apareceu no layout deste quadro */
+	bool configurado;
+	struct wl_surface *sup;
+	struct xdg_surface *xdg_sup;
+	struct xdg_popup *xdg_popup;
+	struct gv_buffer buffers[2];
+	int x, y;              /* onde está, em coordenadas da superfície principal */
+	int w, h;              /* o tamanho pedido ao compositor */
+	Clay_BoundingBox ancora;
+	gv_popup_opcoes opcoes;
+	double desde;          /* quando apareceu (para o esmaecer) */
+	uint32_t token;
 };
 
 struct gv_vigia {
@@ -100,6 +123,13 @@ struct gv_app {
 	struct gv_vigia vigias[GV_MAX_VIGIAS];
 	int nvigias;
 
+	struct gv_popup popups[GV_MAX_POPUPS];
+	float ponteiro_dx, ponteiro_dy; /* da superfície onde está o ponteiro à principal */
+	bool ponteiro_no_popup;
+	float dedo_dx, dedo_dy;
+	bool dedo_no_popup;
+	uint32_t xdg_versao;
+
 	Clay_Arena arena;
 	double ultimo_quadro;
 };
@@ -134,6 +164,10 @@ void gv__app_acordar_em(double segundos) {
 	if (atual->acordar <= 0 || quando < atual->acordar) {
 		atual->acordar = quando;
 	}
+}
+
+void gv_acordar_em(double segundos) {
+	gv__app_acordar_em(segundos);
 }
 
 int gv__app_escala(void) {
@@ -244,11 +278,10 @@ static bool buffer_criar(gv_app *app, struct gv_buffer *buffer, int largura, int
 	return true;
 }
 
-static struct gv_buffer *buffer_livre(gv_app *app) {
-	int largura = app->largura * app->escala;
-	int altura = app->altura * app->escala;
+/* Um dos dois buffers livre, no tamanho dado (pixels do ecrã). */
+static struct gv_buffer *buffer_livre_em(gv_app *app, struct gv_buffer *buffers, int largura, int altura) {
 	for (int i = 0; i < 2; i++) {
-		struct gv_buffer *buffer = &app->buffers[i];
+		struct gv_buffer *buffer = &buffers[i];
 		if (buffer->ocupado) {
 			continue;
 		}
@@ -263,6 +296,10 @@ static struct gv_buffer *buffer_livre(gv_app *app) {
 	return NULL;
 }
 
+static struct gv_buffer *buffer_livre(gv_app *app) {
+	return buffer_livre_em(app, app->buffers, app->largura * app->escala, app->altura * app->escala);
+}
+
 /* ---- escala: a maior das saídas onde a superfície está ---- */
 
 static void escala_rever(gv_app *app) {
@@ -275,6 +312,11 @@ static void escala_rever(gv_app *app) {
 	if (escala != app->escala) {
 		app->escala = escala;
 		wl_surface_set_buffer_scale(app->superficie, escala);
+		for (int i = 0; i < GV_MAX_POPUPS; i++) {
+			if (app->popups[i].sup) {
+				wl_surface_set_buffer_scale(app->popups[i].sup, escala);
+			}
+		}
 		if (app->cursores) {
 			wl_cursor_theme_destroy(app->cursores);
 			app->cursores = NULL;
@@ -328,6 +370,37 @@ static void sup_saiu(void *dados, struct wl_surface *s, struct wl_output *wl) {
 
 static const struct wl_surface_listener sup_ouvinte = { .enter = sup_entrou, .leave = sup_saiu };
 
+/* ---- popups: a entrada que chega a um popup vem nas coordenadas da principal ---- */
+
+static void popup_deslocamento(gv_app *app, struct wl_surface *s, float *dx, float *dy, bool *no_popup) {
+	*dx = *dy = 0;
+	*no_popup = false;
+	for (int i = 0; i < GV_MAX_POPUPS; i++) {
+		struct gv_popup *p = &app->popups[i];
+		if (p->sup && p->sup == s) {
+			*dx = p->x - GV_POPUP_MARGEM;
+			*dy = p->y - GV_POPUP_MARGEM;
+			*no_popup = true;
+		}
+	}
+}
+
+/* Um aperto na superfície principal com popups abertos fecha-os e não vale para mais nada
+ * (como tocar fora de um menu). Fora da app quem fecha é o compositor (o grab). */
+static void popups_fechar_fora(gv_app *app) {
+	bool fechou = false;
+	for (int i = 0; i < GV_MAX_POPUPS; i++) {
+		if (app->popups[i].id && app->popups[i].aberto) {
+			app->popups[i].aberto = false;
+			fechou = true;
+		}
+	}
+	if (fechou) {
+		gv__entrada.travado = true;
+		gv__entrada.ativo = 0xffffffffu; /* ninguém */
+	}
+}
+
 /* ---- ponteiro ---- */
 
 static void cursor_aplicar(gv_app *app) {
@@ -357,8 +430,9 @@ static void ponteiro_entrou(void *dados, struct wl_pointer *p, uint32_t serial, 
 		wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
 	app->ponteiro_serial = serial;
-	gv__entrada.x = wl_fixed_to_double(x);
-	gv__entrada.y = wl_fixed_to_double(y);
+	popup_deslocamento(app, s, &app->ponteiro_dx, &app->ponteiro_dy, &app->ponteiro_no_popup);
+	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
+	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
 	gv__entrada.toque = false;
 	cursor_aplicar(app);
 	app->precisa = true;
@@ -374,8 +448,8 @@ static void ponteiro_saiu(void *dados, struct wl_pointer *p, uint32_t serial, st
 
 static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
-	gv__entrada.x = wl_fixed_to_double(x);
-	gv__entrada.y = wl_fixed_to_double(y);
+	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
+	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
 	gv__entrada.toque = false;
 	app->precisa = true;
 }
@@ -390,6 +464,9 @@ static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, u
 		app->aperto_serial = serial;
 		gv__entrada.baixo = true;
 		gv__entrada.apertou = true;
+		if (!app->ponteiro_no_popup) {
+			popups_fechar_fora(app);
+		}
 	} else {
 		gv__entrada.baixo = false;
 		gv__entrada.soltou = true;
@@ -438,11 +515,15 @@ static void toque_baixo(void *dados, struct wl_touch *t, uint32_t serial, uint32
 	}
 	app->dedo = id;
 	app->aperto_serial = serial;
-	gv__entrada.x = wl_fixed_to_double(x);
-	gv__entrada.y = wl_fixed_to_double(y);
+	popup_deslocamento(app, s, &app->dedo_dx, &app->dedo_dy, &app->dedo_no_popup);
+	gv__entrada.x = wl_fixed_to_double(x) + app->dedo_dx;
+	gv__entrada.y = wl_fixed_to_double(y) + app->dedo_dy;
 	gv__entrada.baixo = true;
 	gv__entrada.apertou = true;
 	gv__entrada.toque = true;
+	if (!app->dedo_no_popup) {
+		popups_fechar_fora(app);
+	}
 	app->precisa = true;
 }
 
@@ -462,8 +543,8 @@ static void toque_moveu(void *dados, struct wl_touch *t, uint32_t tempo, int32_t
 	if (id != app->dedo) {
 		return;
 	}
-	gv__entrada.x = wl_fixed_to_double(x);
-	gv__entrada.y = wl_fixed_to_double(y);
+	gv__entrada.x = wl_fixed_to_double(x) + app->dedo_dx;
+	gv__entrada.y = wl_fixed_to_double(y) + app->dedo_dy;
 	app->precisa = true;
 }
 
@@ -715,7 +796,9 @@ static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, co
 		app->seat = wl_registry_bind(r, nome, &wl_seat_interface, versao < 8 ? versao : 8);
 		wl_seat_add_listener(app->seat, &seat_ouvinte, app);
 	} else if (!strcmp(iface, xdg_wm_base_interface.name)) {
-		app->xdg = wl_registry_bind(r, nome, &xdg_wm_base_interface, 1);
+		/* v3: popups que mudam de tamanho (reposition) e seguem a janela (reactive) */
+		app->xdg_versao = versao < 3 ? versao : 3;
+		app->xdg = wl_registry_bind(r, nome, &xdg_wm_base_interface, app->xdg_versao);
 		xdg_wm_base_add_listener(app->xdg, &xdg_ouvinte, app);
 	} else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name)) {
 		app->camadas = wl_registry_bind(r, nome, &zwlr_layer_shell_v1_interface, versao < 4 ? versao : 4);
@@ -889,8 +972,319 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	app->arena = Clay_CreateArenaWithCapacityAndMemory(memoria, malloc(memoria));
 	Clay_Initialize(app->arena, (Clay_Dimensions){ app->largura, app->altura }, (Clay_ErrorHandler){ .errorHandlerFunction = clay_erro });
 	Clay_SetMeasureTextFunction(gv__texto_medir, NULL);
+	/* um popup pode ficar fora da superfície principal (o menu da topbar): nada se corta */
+	Clay_SetCullingEnabled(false);
 	app->precisa = true;
 	return app;
+}
+
+/* ---- popups ---- */
+
+static struct gv_popup *popup_de(gv_app *app, uint32_t id, bool criar) {
+	struct gv_popup *livre = NULL;
+	for (int i = 0; i < GV_MAX_POPUPS; i++) {
+		if (app->popups[i].id == id) {
+			return &app->popups[i];
+		}
+		if (!app->popups[i].id && !app->popups[i].sup && !livre) {
+			livre = &app->popups[i];
+		}
+	}
+	if (!criar) {
+		return NULL;
+	}
+	if (!livre) {
+		fprintf(stderr, "gravity: mais de %d popups abertos\n", GV_MAX_POPUPS);
+		return NULL;
+	}
+	livre->id = id;
+	return livre;
+}
+
+void gv_popup_abrir(Clay_ElementId id) {
+	struct gv_popup *p = atual ? popup_de(atual, id.id, true) : NULL;
+	if (p && !p->aberto) {
+		p->aberto = true;
+		atual->precisa = true;
+	}
+}
+
+void gv_popup_fechar(Clay_ElementId id) {
+	struct gv_popup *p = atual ? popup_de(atual, id.id, false) : NULL;
+	if (p && p->aberto) {
+		p->aberto = false;
+		atual->precisa = true;
+	}
+}
+
+bool gv_popup_aberto(Clay_ElementId id) {
+	struct gv_popup *p = atual ? popup_de(atual, id.id, false) : NULL;
+	return p && p->aberto;
+}
+
+void gv_popup_alternar(Clay_ElementId id) {
+	if (gv_popup_aberto(id)) {
+		gv_popup_fechar(id);
+	} else {
+		gv_popup_abrir(id);
+	}
+}
+
+/* onde o popup deve ficar antes de o compositor dizer (e se ele não mexer) */
+static void popup_palpite(struct gv_popup *p, float w, float h) {
+	Clay_BoundingBox a = p->ancora;
+	float d = p->opcoes.distancia > 0 ? p->opcoes.distancia : 6;
+	float x, y;
+	switch (p->opcoes.lado) {
+	case GV_POPUP_ACIMA:
+	case GV_POPUP_ABAIXO:
+		y = p->opcoes.lado == GV_POPUP_ABAIXO ? a.y + a.height + d : a.y - d - h;
+		x = p->opcoes.alinhar == GV_ALINHAR_INICIO ? a.x
+			: p->opcoes.alinhar == GV_ALINHAR_FIM ? a.x + a.width - w : a.x + (a.width - w) / 2;
+		break;
+	default:
+		x = p->opcoes.lado == GV_POPUP_DIREITA ? a.x + a.width + d : a.x - d - w;
+		y = a.y;
+		break;
+	}
+	p->x = (int)roundf(x);
+	p->y = (int)roundf(y);
+}
+
+bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_opcoes *o) {
+	struct gv_popup *p = atual ? popup_de(atual, id.id, false) : NULL;
+	if (!p || !p->aberto) {
+		return false;
+	}
+	/* Esc fecha o de cima (e não chega à app) */
+	for (int i = 0; i < gv__entrada.nteclas; i++) {
+		if (gv__entrada.teclas[i] == 0xff1b /* XKB_KEY_Escape */) {
+			memmove(&gv__entrada.teclas[i], &gv__entrada.teclas[i + 1], (gv__entrada.nteclas - i - 1) * sizeof(uint32_t));
+			gv__entrada.nteclas--;
+			p->aberto = false;
+			atual->precisa = true;
+			return false;
+		}
+	}
+	p->declarado = true;
+	p->opcoes = *o;
+	Clay_ElementData a = Clay_GetElementData(ancora);
+	if (a.found) {
+		p->ancora = a.boundingBox;
+	}
+	if (!p->configurado) {
+		popup_palpite(p, p->w > 0 ? p->w : (o->largura > 0 ? o->largura : 200), p->h);
+	}
+	return true;
+}
+
+Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id) {
+	struct gv_popup *p = popup_de(atual, id.id, false);
+	int indice = p ? (int)(p - atual->popups) : 0;
+	return (Clay_ElementDeclaration){
+		.layout = {
+			.layoutDirection = CLAY_TOP_TO_BOTTOM,
+			.sizing = { p && p->opcoes.largura > 0 ? CLAY_SIZING_FIXED(p->opcoes.largura) : CLAY_SIZING_FIT(0) },
+			.padding = CLAY_PADDING_ALL(6),
+			.childGap = 2,
+		},
+		.backgroundColor = gv_t.superficie,
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
+		.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
+		.userData = gv_sombra(GV_POPUP_MARGEM - 6, 8, 0.55f),
+		.floating = {
+			.attachTo = CLAY_ATTACH_TO_ROOT,
+			.offset = { p ? p->x : 0, p ? p->y : 0 },
+			.zIndex = (int16_t)(GV_POPUP_Z + indice),
+			.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE,
+		},
+	};
+}
+
+static void popup_destruir(struct gv_popup *p) {
+	if (p->xdg_popup) {
+		xdg_popup_destroy(p->xdg_popup);
+	}
+	if (p->xdg_sup) {
+		xdg_surface_destroy(p->xdg_sup);
+	}
+	if (p->sup) {
+		wl_surface_destroy(p->sup);
+	}
+	for (int i = 0; i < 2; i++) {
+		buffer_destruir(&p->buffers[i]);
+	}
+	*p = (struct gv_popup){ 0 };
+}
+
+static void popup_xdg_configurar(void *dados, struct xdg_surface *s, uint32_t serial) {
+	struct gv_popup *p = dados;
+	xdg_surface_ack_configure(s, serial);
+	if (!p->configurado) {
+		p->desde = gv_agora();
+	}
+	p->configurado = true;
+	gv__app_pedir();
+}
+
+static const struct xdg_surface_listener popup_xdg_ouvinte = { .configure = popup_xdg_configurar };
+
+static void popup_configurar(void *dados, struct xdg_popup *x, int32_t px, int32_t py, int32_t w, int32_t h) {
+	struct gv_popup *p = dados;
+	/* o compositor pode tê-lo virado ou empurrado para caber na tela */
+	p->x = px;
+	p->y = py;
+}
+
+static void popup_acabou(void *dados, struct xdg_popup *x) {
+	struct gv_popup *p = dados;
+	p->aberto = false; /* tocaram fora (o grab do compositor) */
+	gv__app_pedir();
+}
+
+static void popup_reposto(void *dados, struct xdg_popup *x, uint32_t token) {}
+
+static const struct xdg_popup_listener popup_ouvinte = {
+	.configure = popup_configurar,
+	.popup_done = popup_acabou,
+	.repositioned = popup_reposto,
+};
+
+static struct xdg_positioner *popup_posicionador(gv_app *app, struct gv_popup *p) {
+	struct xdg_positioner *pos = xdg_wm_base_create_positioner(app->xdg);
+	Clay_BoundingBox a = p->ancora;
+	xdg_positioner_set_size(pos, p->w, p->h);
+	xdg_positioner_set_anchor_rect(pos, (int)a.x, (int)a.y, a.width >= 1 ? (int)a.width : 1, a.height >= 1 ? (int)a.height : 1);
+	int d = p->opcoes.distancia > 0 ? (int)p->opcoes.distancia : 6;
+	enum gv_alinhar al = p->opcoes.alinhar;
+	switch (p->opcoes.lado) {
+	case GV_POPUP_ABAIXO:
+	case GV_POPUP_ACIMA: {
+		bool baixo = p->opcoes.lado == GV_POPUP_ABAIXO;
+		uint32_t anc = baixo ? (al == GV_ALINHAR_INICIO ? XDG_POSITIONER_ANCHOR_BOTTOM_LEFT
+			: al == GV_ALINHAR_FIM ? XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT : XDG_POSITIONER_ANCHOR_BOTTOM)
+			: (al == GV_ALINHAR_INICIO ? XDG_POSITIONER_ANCHOR_TOP_LEFT
+			: al == GV_ALINHAR_FIM ? XDG_POSITIONER_ANCHOR_TOP_RIGHT : XDG_POSITIONER_ANCHOR_TOP);
+		uint32_t grav = baixo ? (al == GV_ALINHAR_INICIO ? XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT
+			: al == GV_ALINHAR_FIM ? XDG_POSITIONER_GRAVITY_BOTTOM_LEFT : XDG_POSITIONER_GRAVITY_BOTTOM)
+			: (al == GV_ALINHAR_INICIO ? XDG_POSITIONER_GRAVITY_TOP_RIGHT
+			: al == GV_ALINHAR_FIM ? XDG_POSITIONER_GRAVITY_TOP_LEFT : XDG_POSITIONER_GRAVITY_TOP);
+		xdg_positioner_set_anchor(pos, anc);
+		xdg_positioner_set_gravity(pos, grav);
+		xdg_positioner_set_offset(pos, 0, baixo ? d : -d);
+		break;
+	}
+	default: {
+		bool dir = p->opcoes.lado == GV_POPUP_DIREITA;
+		xdg_positioner_set_anchor(pos, dir ? XDG_POSITIONER_ANCHOR_TOP_RIGHT : XDG_POSITIONER_ANCHOR_TOP_LEFT);
+		xdg_positioner_set_gravity(pos, dir ? XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT : XDG_POSITIONER_GRAVITY_BOTTOM_LEFT);
+		xdg_positioner_set_offset(pos, dir ? d : -d, 0);
+		break;
+	}
+	}
+	xdg_positioner_set_constraint_adjustment(pos, XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X |
+		XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y | XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X |
+		XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y);
+	if (app->xdg_versao >= 3) {
+		xdg_positioner_set_reactive(pos);
+	}
+	return pos;
+}
+
+static void popup_criar(gv_app *app, struct gv_popup *p) {
+	struct xdg_positioner *pos = popup_posicionador(app, p);
+	p->sup = wl_compositor_create_surface(app->compositor);
+	wl_surface_set_buffer_scale(p->sup, app->escala);
+	p->xdg_sup = xdg_wm_base_get_xdg_surface(app->xdg, p->sup);
+	xdg_surface_add_listener(p->xdg_sup, &popup_xdg_ouvinte, p);
+	p->xdg_popup = xdg_surface_get_popup(p->xdg_sup, app->xdg_superficie, pos);
+	xdg_popup_add_listener(p->xdg_popup, &popup_ouvinte, p);
+	/* a geometria é o conteúdo; a margem à volta é da sombra (depois do papel de popup) */
+	xdg_surface_set_window_geometry(p->xdg_sup, GV_POPUP_MARGEM, GV_POPUP_MARGEM, p->w, p->h);
+	if (app->camada) {
+		zwlr_layer_surface_v1_get_popup(app->camada, p->xdg_popup);
+	}
+	/* o grab: tocar fora da app fecha (o compositor manda popup_done) */
+	if (app->seat && app->aperto_serial) {
+		xdg_popup_grab(p->xdg_popup, app->seat, app->aperto_serial);
+	}
+	xdg_positioner_destroy(pos);
+	wl_surface_commit(p->sup);
+}
+
+/* Depois do layout: cria, muda de tamanho ou fecha as superfícies dos popups. */
+static void popups_rever(gv_app *app) {
+	for (int i = 0; i < GV_MAX_POPUPS; i++) {
+		struct gv_popup *p = &app->popups[i];
+		if (!p->id) {
+			continue;
+		}
+		if (!p->aberto || !p->declarado) {
+			if (p->sup) {
+				popup_destruir(p);
+				app->precisa = true;
+			} else if (!p->aberto) {
+				p->id = 0;
+			}
+			if (p->id) {
+				p->declarado = false;
+			}
+			continue;
+		}
+		p->declarado = false;
+		Clay_ElementData d = Clay_GetElementData((Clay_ElementId){ .id = p->id });
+		if (!d.found) {
+			continue;
+		}
+		int w = (int)ceilf(d.boundingBox.width), h = (int)ceilf(d.boundingBox.height);
+		if (w < 1 || h < 1) {
+			continue;
+		}
+		if (!p->sup) {
+			p->w = w;
+			p->h = h;
+			popup_criar(app, p);
+		} else if ((w != p->w || h != p->h) && app->xdg_versao >= 3) {
+			p->w = w;
+			p->h = h;
+			struct xdg_positioner *pos = popup_posicionador(app, p);
+			xdg_surface_set_window_geometry(p->xdg_sup, GV_POPUP_MARGEM, GV_POPUP_MARGEM, w, h);
+			xdg_popup_reposition(p->xdg_popup, pos, ++p->token);
+			xdg_positioner_destroy(pos);
+		}
+	}
+}
+
+static void popup_desenhar(gv_app *app, struct gv_popup *p, Clay_RenderCommandArray comandos, int16_t z) {
+	int m = GV_POPUP_MARGEM;
+	struct gv_buffer *buffer = buffer_livre_em(app, p->buffers, (p->w + 2 * m) * app->escala, (p->h + 2 * m) * app->escala);
+	if (!buffer) {
+		return;
+	}
+	double t = gv_t.animacoes ? fmin(1, (gv_agora() - p->desde) / 0.14) : 1;
+	if (t < 1) {
+		app->precisa = true;
+	}
+	double e = 1 - (1 - t) * (1 - t);
+	cairo_t *cr = cairo_create(buffer->superficie);
+	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+	cairo_set_source_rgba(cr, 0, 0, 0, 0);
+	cairo_paint(cr);
+	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+	cairo_scale(cr, app->escala, app->escala);
+	/* chega descendo um pouco e esmaecendo (ou subindo, se abre para cima) */
+	double desliza = (1 - e) * (p->opcoes.lado == GV_POPUP_ACIMA ? 6 : -6);
+	cairo_translate(cr, m - p->x, m - p->y + desliza);
+	cairo_push_group(cr);
+	gv__desenhar(cr, comandos, z, z);
+	cairo_pop_group_to_source(cr);
+	cairo_paint_with_alpha(cr, e);
+	cairo_destroy(cr);
+	cairo_surface_flush(buffer->superficie);
+	wl_surface_attach(p->sup, buffer->wl, 0, 0);
+	wl_surface_damage_buffer(p->sup, 0, 0, INT32_MAX, INT32_MAX);
+	wl_surface_commit(p->sup);
+	buffer->ocupado = true;
 }
 
 /* ---- o quadro ---- */
@@ -913,6 +1307,7 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	Clay_BeginLayout();
 	desenhar(app, dados);
 	Clay_RenderCommandArray comandos = Clay_EndLayout(dt);
+	popups_rever(app);
 
 	cairo_t *cr = cairo_create(buffer->superficie);
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
@@ -920,9 +1315,15 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	cairo_paint(cr);
 	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 	cairo_scale(cr, app->escala, app->escala);
-	gv__desenhar(cr, comandos);
+	gv__desenhar(cr, comandos, INT16_MIN, GV_POPUP_Z - 1);
 	cairo_destroy(cr);
 	cairo_surface_flush(buffer->superficie);
+	for (int i = 0; i < GV_MAX_POPUPS; i++) {
+		struct gv_popup *p = &app->popups[i];
+		if (p->sup && p->configurado) {
+			popup_desenhar(app, p, comandos, (int16_t)(GV_POPUP_Z + i));
+		}
+	}
 
 	gv__escrita_fim_do_quadro();
 	gv__entrada_fim_do_quadro();

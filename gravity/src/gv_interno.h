@@ -139,7 +139,8 @@ const char *gv__icone_caminho(const char *nome);
 bool gv__svg_tracar(cairo_t *cr, const char *d);
 
 /* ---- desenho ---- */
-void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos);
+/* Desenha os comandos com zIndex entre zmin e zmax (os popups têm superfície própria). */
+void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, int16_t zmax);
 
 /* ---- animações ---- */
 void gv__anim_quadro(void);

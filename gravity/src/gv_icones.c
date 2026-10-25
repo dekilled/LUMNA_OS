@@ -76,6 +76,7 @@ static const struct icone icones[] = {
 	{ "link", "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" },
 	{ "list", "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" },
 	{ "lock", "M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3" },
+	{ "lumna", "M12 2.5l6.5 9.5-6.5 9.5-6.5-9.5zM12 2.5v19" },
 	{ "mail", "M3 6h18v12H3zM3 7l9 6 9-6" },
 	{ "maximize", "M6 6h12v12H6z" },
 	{ "media-play", "M7 4.5v15l12-7.5z" },

@@ -131,6 +131,8 @@ void gv_app_maximizar(gv_app *app);
 void gv_app_mover(gv_app *app);
 /* Pede outro quadro (os componentes e as animações já pedem sozinhos). NULL: a app actual. */
 void gv_app_redesenhar(gv_app *app);
+/* Pede um quadro daqui a uns segundos (um relógio, um aviso que some), sem desenhar até lá. */
+void gv_acordar_em(double segundos);
 /* Um descritor a vigiar no ciclo da app (um socket, um pipe); a função corre quando há o que ler. */
 void gv_app_vigiar(gv_app *app, int fd, void (*pronto)(gv_app *app, int fd, void *dados), void *dados);
 float gv_app_largura(gv_app *app);
@@ -233,6 +235,36 @@ bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const ch
 bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
 /* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
+
+/* ---- popups e menus ---- */
+enum gv_popup_lado { GV_POPUP_ABAIXO, GV_POPUP_ACIMA, GV_POPUP_DIREITA, GV_POPUP_ESQUERDA };
+enum gv_alinhar { GV_ALINHAR_INICIO, GV_ALINHAR_CENTRO, GV_ALINHAR_FIM };
+typedef struct gv_popup_opcoes {
+	enum gv_popup_lado lado;   /* de que lado da âncora abre */
+	enum gv_alinhar alinhar;   /* ao longo da âncora: início, centro ou fim */
+	float largura;             /* 0: a do conteúdo */
+	float distancia;           /* da âncora (0: 6 px) */
+} gv_popup_opcoes;
+/* Um popup preso a um elemento (a âncora): uma superfície própria, que pode sair da janela (o
+ * menu da topbar), com sombra, que chega esmaecendo. Fecha ao tocar fora (na app ou fora dela),
+ * com Esc ou com gv_popup_fechar. O conteúdo vai no bloco, como qualquer outro:
+ *   if (gv_botao(CLAY_ID("bt"), "bluetooth", NULL, GV_BOTAO_SIMPLES)) gv_popup_alternar(CLAY_ID("menu-bt"));
+ *   GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("bt"), .alinhar = GV_ALINHAR_FIM, .largura = 380) {
+ *       ...linhas do menu...
+ *   }
+ */
+#define GV_POPUP(id, ancora, ...) \
+	if (gv__popup_comecar((id), (ancora), &(gv_popup_opcoes){ __VA_ARGS__ })) CLAY((id), gv__popup_declaracao(id))
+void gv_popup_abrir(Clay_ElementId id);
+void gv_popup_fechar(Clay_ElementId id);
+void gv_popup_alternar(Clay_ElementId id);
+bool gv_popup_aberto(Clay_ElementId id);
+/* Uma linha de menu: ícone (NULL: sem), texto e, à direita, um atalho ou detalhe (NULL: sem).
+ * Devolve verdadeiro no toque. */
+bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const char *detalhe);
+/* (do GV_POPUP) */
+bool gv__popup_comecar(Clay_ElementId id, Clay_ElementId ancora, const gv_popup_opcoes *opcoes);
+Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id);
 
 /* ---- imagens ---- */
 enum gv_ajuste {
