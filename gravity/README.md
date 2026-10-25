@@ -194,3 +194,16 @@ int main(void) {
 - desenho na GPU quando o cairo não chegar.
 
 O Clay vem em `vendor/clay` (licença zlib), no commit `e6cc369` do repositório dele.
+
+### A tela de login
+
+Testar numa janela, sem mexer no login do PC: `./testar-login.sh` (ou `./testar-login.sh lateral`);
+a senha de teste é `lumna`. Para usar de verdade, com o greetd: instale `lumna-entrada`, `orbit` e
+os arquivos de `session/` (`lumna-orbit.desktop` em /usr/share/wayland-sessions, os scripts em
+/usr/bin), e no `/etc/greetd/config.toml`:
+
+    [default_session]
+    command = "lumna-entrada-greeter"
+    user = "greeter"
+
+O layout fica em `/etc/lumna/entrada.ini` (`layout = centro` ou `layout = lateral`).

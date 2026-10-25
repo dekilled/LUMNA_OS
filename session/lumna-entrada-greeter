@@ -1,0 +1,8 @@
+#!/bin/sh
+# A tela de login do desktop novo: o greetd corre isto como o usuário "greeter". Um Orbit só para
+# a tela de entrada; com a senha certa ela sai, o Orbit (-S) fecha com ela e o greetd abre a sessão.
+# No /etc/greetd/config.toml:  [default_session]  command = "lumna-entrada-greeter"  user = "greeter"
+export XDG_SESSION_TYPE=wayland
+export ORBIT_BORDA=0
+[ -f /usr/lib/lumna/gpu-env ] && . /usr/lib/lumna/gpu-env
+exec orbit -S lumna-entrada

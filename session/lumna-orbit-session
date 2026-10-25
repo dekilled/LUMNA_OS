@@ -1,0 +1,9 @@
+#!/bin/sh
+# A sessão LUMNA · Orbit: o Orbit com as peças do desktop novo (Gravity). O greetd corre isto como
+# a pessoa, depois do login.
+export XDG_CURRENT_DESKTOP=LUMNA
+export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP=lumna
+export ORBIT_BORDA=0
+[ -f /usr/lib/lumna/gpu-env ] && . /usr/lib/lumna/gpu-env
+exec dbus-run-session -- orbit -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos &'

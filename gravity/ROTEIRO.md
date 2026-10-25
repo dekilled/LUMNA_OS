@@ -45,7 +45,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
       Centralizado e Lateral, PIN ou senha (o mesmo PIN do celular), o que está tocando (MPRIS) e a Emma
       só para o simples
   - [ ] As outras telas no bloqueio (hoje ficam apagadas), bloquear sozinho quando parado, a voz da Emma
-- [ ] Tela de login (greetd): Centralizado ou Painel lateral, com as mesmas peças do bloqueio
+- [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
+- [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)
 - [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
       dock), ecrã inteiro por cima da barra e da dock, ponteiro virtual; falta as áreas
 

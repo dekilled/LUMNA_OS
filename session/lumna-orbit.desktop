@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=LUMNA · Orbit
+Comment=O desktop novo do LUMNA: o Orbit com o Gravity
+Exec=/usr/bin/lumna-orbit-session
+TryExec=/usr/bin/lumna-orbit-session
+Type=Application
+DesktopNames=LUMNA
