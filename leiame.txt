@@ -34,6 +34,7 @@ Compilar e arrancar
   cp makefile.txt Makefile
   make
   ./orbit -s 'foot'
+  ./orbit -S 'lumna-entrada'   (fecha quando o comando acaba: a tela de login)
 
   Um terminal depois de estar no ar: Alt+Enter (ou ORBIT_TERMINAL=alacritty).
 

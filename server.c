@@ -1,6 +1,8 @@
 #include "orbit.h"
 
 #include <getopt.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,14 +48,33 @@ static int fail(struct orbit_server *server, const char *msg) {
 	return 1;
 }
 
+/* -S: o comando acabou? então o Orbit também (os outros filhos que acabam não contam) */
+static pid_t comando_sessao;
+
+static int filho_acabou(int sinal, void *dados) {
+	int estado;
+	pid_t p;
+	while ((p = waitpid(-1, &estado, WNOHANG)) > 0) {
+		if (p == comando_sessao) {
+			wlr_log(WLR_INFO, "o comando da sessão acabou: o Orbit fecha");
+			wl_display_terminate(dados);
+		}
+	}
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	char *startup = NULL;
+	bool sessao = false;
 	int opt;
-	while ((opt = getopt(argc, argv, "s:h")) != -1) {
-		if (opt == 's') {
+	while ((opt = getopt(argc, argv, "s:S:h")) != -1) {
+		if (opt == 's' || opt == 'S') {
 			startup = optarg;
+			/* -S: o Orbit fecha quando o comando acaba (a tela de login: entrou, sai para o greetd
+			 * abrir a sessão) */
+			sessao = opt == 'S';
 		} else {
-			fprintf(stderr, "uso: %s [-s comando]\n", argv[0]);
+			fprintf(stderr, "uso: %s [-s comando | -S comando]\n", argv[0]);
 			return opt == 'h' ? 0 : 1;
 		}
 	}
@@ -164,11 +185,20 @@ int main(int argc, char *argv[]) {
 	orbit_ipc_bind(&server, socket);
 	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala %.2f arranjo %s",
 		socket, server.gap, server.master_pct, server.phone_scale, layout_name(server.arrangement));
-	if (startup && fork() == 0) {
+	pid_t filho = startup ? fork() : -1;
+	if (filho == 0) {
 		execl("/bin/sh", "/bin/sh", "-c", startup, (char *)NULL);
 		_exit(1);
 	}
+	struct wl_event_source *sinal = NULL;
+	if (sessao && filho > 0) {
+		comando_sessao = filho;
+		sinal = wl_event_loop_add_signal(wl_display_get_event_loop(server.display), SIGCHLD, filho_acabou, server.display);
+	}
 	wl_display_run(server.display);
+	if (sinal) {
+		wl_event_source_remove(sinal);
+	}
 	orbit_ipc_finish();
 	wl_display_destroy_clients(server.display);
 	wl_display_destroy(server.display);
