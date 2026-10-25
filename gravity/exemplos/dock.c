@@ -3,6 +3,8 @@
  * lançador, arquivos, navegador, loja, painel e, depois do separador, a Emma) e os apps abertos
  * que não estão fixos. Um ponto por baixo de quem tem janela aberta, violeta no app ativo.
  * Tocar abre o app, ou traz a janela para a frente; com várias janelas do mesmo app, alterna.
+ * Com o rato parado num app com várias janelas aparece a lista delas (ícone e título; tocar numa
+ * vai para ela, o ✕ fecha só essa).
  * Botão direito (ou segurar o dedo, ou a tecla Menu) abre o menu do app: abrir nova janela,
  * fixar ou remover da dock, fechar as janelas e as preferências da dock.
  *
@@ -335,6 +337,156 @@ static bool item(Clay_ElementId id, const char *icone, bool app_do_tema, int jan
 	return tocado;
 }
 
+/* ---- a lista das janelas de um app, ao passar o rato ---- */
+
+#define PREVIA_ESPERA 0.45 /* s parado no ícone até aparecer */
+#define PREVIA_SAIDA 0.3   /* s fora do ícone e da lista até sumir */
+
+static struct {
+	char app_id[96], nome[96], icone[64];
+	Clay_ElementId ancora;
+	double desde, saiu;
+	bool bloqueada;        /* tocou no ícone: só volta a aparecer depois de sair dele */
+} previa;
+
+/* chamado para cada ícone, depois de declarado: este é o que está debaixo do rato? */
+static Clay_ElementId previa_candidato;
+static const char *previa_cand_app, *previa_cand_nome, *previa_cand_icone;
+
+static bool tem_icone_lumna(const char *nome);
+
+static void previa_ver(Clay_ElementId id, const char *app_id, const char *nome, const char *icone, int abertas, bool tocado) {
+	if (!gv_por_cima(id)) {
+		return;
+	}
+	if (tocado) {
+		previa.bloqueada = true;
+	}
+	if (abertas >= 2) {
+		previa_candidato = id;
+		previa_cand_app = app_id;
+		previa_cand_nome = nome;
+		previa_cand_icone = icone;
+	}
+}
+
+static void previa_rever(void) {
+	Clay_ElementId lista = CLAY_ID("previa");
+	double agora = gv_agora();
+	bool aberta = gv_popup_aberto(lista);
+	bool no_icone = previa_candidato.id && previa_candidato.id == previa.ancora.id;
+	if (previa_candidato.id && !no_icone) {
+		/* um ícone novo debaixo do rato: começa a contar (e larga a lista do outro) */
+		previa.ancora = previa_candidato;
+		snprintf(previa.app_id, sizeof(previa.app_id), "%s", previa_cand_app);
+		snprintf(previa.nome, sizeof(previa.nome), "%s", previa_cand_nome);
+		snprintf(previa.icone, sizeof(previa.icone), "%s", previa_cand_icone);
+		previa.desde = agora;
+		previa.bloqueada = false;
+		no_icone = true;
+		if (aberta) {
+			gv_popup_fechar(lista);
+			aberta = false;
+		}
+	}
+	if (gv_popup_aberto(CLAY_ID("menu"))) {
+		/* o menu do botão direito manda */
+		gv_popup_fechar(lista);
+		return;
+	}
+	if (no_icone || (aberta && gv_por_cima(lista))) {
+		previa.saiu = 0;
+		if (!aberta && no_icone && !previa.bloqueada) {
+			if (agora - previa.desde >= PREVIA_ESPERA) {
+				gv_popup_abrir(lista);
+			} else {
+				gv_acordar_em(PREVIA_ESPERA - (agora - previa.desde) + 0.01);
+			}
+		}
+	} else {
+		if (!previa_candidato.id) {
+			previa.ancora = (Clay_ElementId){ 0 };
+			previa.bloqueada = false;
+		}
+		if (aberta) {
+			if (!previa.saiu) {
+				previa.saiu = agora;
+			}
+			if (agora - previa.saiu >= PREVIA_SAIDA) {
+				gv_popup_fechar(lista);
+				previa.saiu = 0;
+			} else {
+				gv_acordar_em(PREVIA_SAIDA - (agora - previa.saiu) + 0.01);
+			}
+		}
+	}
+	previa_candidato = (Clay_ElementId){ 0 };
+}
+
+/* títulos longos cortados com reticências (a lista tem largura fixa) */
+static const char *encurtar(const char *t, char *buf, size_t tam, int max) {
+	int n = 0;
+	const char *p = t;
+	while (*p && n < max) {
+		p++;
+		while ((*p & 0xc0) == 0x80) {
+			p++;
+		}
+		n++;
+	}
+	if (!*p) {
+		return t;
+	}
+	snprintf(buf, tam, "%.*s…", (int)(p - t), t);
+	return buf;
+}
+
+static void previa_desenhar(const gv_janela **janelas, int n) {
+	GV_POPUP(CLAY_ID("previa"), previa.ancora, .lado = GV_POPUP_ACIMA, .alinhar = GV_ALINHAR_CENTRO, .largura = 330,
+			.distancia = 10, .sem_grab = true) {
+		CLAY(CLAY_ID("previa-topo"), { .layout = { .padding = { 12, 12, 8, 6 } } }) {
+			gv_texto(gv_str(previa.nome), gv_t.tamanho_legenda + 1, gv_t.texto_secundario, GV_PESO_MEDIO);
+		}
+		for (int k = 0; k < n; k++) {
+			const gv_janela *j = janelas[k];
+			if (!do_app(j, previa.app_id)) {
+				continue;
+			}
+			Clay_ElementId linha = CLAY_IDI("previa-janela", (int)j->id);
+			Clay_ElementId fechar = CLAY_IDI("previa-fechar", (int)j->id);
+			bool tocou = gv_tocado(linha) && !gv_por_cima(fechar);
+			char buf[160];
+			CLAY(linha, {
+				.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 10, 4, 0, 0 }, .childGap = 12,
+					.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = j->ativa ? gv_t.selecionado : gv_por_cima(linha) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+			}) {
+				tocou |= gv_focavel(linha, gv_t.raio_medio);
+				if (tem_icone_lumna(previa.icone)) {
+					gv_icone(previa.icone, 22, gv_t.icone);
+				} else {
+					gv_icone_app(previa.icone, 24);
+				}
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(gv_str(encurtar(j->titulo[0] ? j->titulo : previa.nome, buf, sizeof(buf), 30)), gv_t.tamanho_corpo,
+						j->ativa ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (gv_botao_ext(fechar, &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 34 })) {
+					printf("fechar a janela \"%s\"\n", j->titulo);
+					gv_janela_fechar(j->id);
+				}
+			}
+			if (tocou) {
+				printf("ir para a janela \"%s\"\n", j->titulo);
+				gv_janela_ativar(j->id);
+				gv_popup_fechar(CLAY_ID("previa"));
+			}
+		}
+	}
+	fflush(stdout);
+}
+
 static void menu_abrir(Clay_ElementId ancora, const struct fixo *app, int fixo) {
 	menu.app = *app;
 	menu.fixo = fixo;
@@ -445,7 +597,9 @@ static void desenhar(gv_app *app, void *dados) {
 				if (gv_menu_contexto(id)) {
 					menu_abrir(id, x, i);
 				}
-				if (item(id, x->icone, !tem_icone_lumna(x->icone), abertas, ativo, abriu_em[i])) {
+				bool tocado = item(id, x->icone, !tem_icone_lumna(x->icone), abertas, ativo, abriu_em[i]);
+				previa_ver(id, x->app_id, x->nome, x->icone, abertas, tocado);
+				if (tocado) {
 					tocar(x->app_id, x->comando, janelas, n, &abriu_em[i]);
 				}
 			}
@@ -483,12 +637,16 @@ static void desenhar(gv_app *app, void *dados) {
 					achar_app(j->app_id, &x);
 					menu_abrir(id, &x, -1);
 				}
-				if (item(id, j->app_id, true, abertas, ativo, 0)) {
+				bool tocado = item(id, j->app_id, true, abertas, ativo, 0);
+				previa_ver(id, j->app_id, j->app_id, j->app_id, abertas, tocado);
+				if (tocado) {
 					tocar(j->app_id, NULL, janelas, n, NULL);
 				}
 			}
 		}
 	}
+	previa_rever();
+	previa_desenhar(janelas, n);
 	menu_desenhar(janelas, n);
 }
 

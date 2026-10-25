@@ -1312,7 +1312,7 @@ static void popup_criar(gv_app *app, struct gv_popup *p) {
 		zwlr_layer_surface_v1_get_popup(app->camada, p->xdg_popup);
 	}
 	/* o grab: tocar fora da app fecha (o compositor manda popup_done) */
-	if (app->seat && app->aperto_serial) {
+	if (app->seat && app->aperto_serial && !p->opcoes.sem_grab) {
 		xdg_popup_grab(p->xdg_popup, app->seat, app->aperto_serial);
 	}
 	xdg_positioner_destroy(pos);

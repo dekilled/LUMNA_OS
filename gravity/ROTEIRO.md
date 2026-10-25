@@ -25,8 +25,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [~] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio — exemplo `barra`
 - [x] Dock: apps fixos, abertos, indicador do ativo — exemplo `dock`
   - [x] Menu do botão direito (ou segurar): abrir nova janela, fixar/remover, fechar, preferências
-  - [ ] Lista das janelas ao passar o mouse num app com várias (título; miniaturas quando o Orbit
-        for para o wlroots 0.19, que captura janelas)
+  - [x] Lista das janelas ao passar o mouse num app com várias (ícone e título; tocar vai, ✕ fecha)
+  - [ ] Miniaturas na lista, quando o Orbit for para o wlroots 0.19 (que captura janelas)
   - [ ] Preferências: pílula ou barra de borda a borda; só no monitor principal ou em todos
   - [ ] Janela maximizada: ocultar (com a faixa que a traz de volta) ou esticar, por monitor —
         precisa do "maximizar" no Orbit

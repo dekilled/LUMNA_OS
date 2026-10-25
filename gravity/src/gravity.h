@@ -274,6 +274,8 @@ typedef struct gv_popup_opcoes {
 	enum gv_alinhar alinhar;   /* ao longo da âncora: início, centro ou fim */
 	float largura;             /* 0: a do conteúdo */
 	float distancia;           /* da âncora (0: 6 px) */
+	bool sem_grab;             /* de passar o rato (uma prévia, uma dica): não prende o ponteiro
+	                            * nem fecha ao tocar fora da app; quem o abre é que o fecha */
 } gv_popup_opcoes;
 /* Um popup preso a um elemento (a âncora): uma superfície própria, que pode sair da janela (o
  * menu da topbar), com sombra, que chega esmaecendo. Fecha ao tocar fora (na app ou fora dela),
