@@ -27,7 +27,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [x] Menu do botão direito (ou segurar): abrir nova janela, fixar/remover, fechar, preferências
   - [x] Lista das janelas ao passar o mouse num app com várias (ícone e título; tocar vai, ✕ fecha)
   - [ ] Miniaturas na lista, quando o Orbit for para o wlroots 0.19 (que captura janelas)
-  - [ ] Preferências: pílula ou barra de borda a borda; só no monitor principal ou em todos
+  - [x] Preferências (Painel → Aparência → Dock): pílula ou barra de borda a borda; só no monitor
+        principal ou em todos (uma dock por tela, também nas que ligarem depois); valem na hora
   - [ ] Janela maximizada: ocultar (com a faixa que a traz de volta) ou esticar, por monitor —
         precisa do "maximizar" no Orbit
   - [ ] Arrastar para reordenar

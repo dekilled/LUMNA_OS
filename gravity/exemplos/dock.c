@@ -15,10 +15,20 @@
  *   -
  *   mic ; Emma ; lumna-emma ; lumna-emma
  * O ícone é um do LUMNA (o desenho de linha) ou, se não houver, o do tema de ícones.
+ *
+ * As preferências vêm de ~/.config/lumna/dock.ini (o Painel de controle grava-o) e valem na
+ * hora, sem reiniciar:
+ *   formato = pilula | barra         a pílula ao centro, ou a barra de borda a borda
+ *   monitores = principal | todos    só na primeira tela, ou uma dock em cada
+ * Com "todos", esta dock (a da tela principal) abre as das outras telas (./dock --saida NOME) e
+ * fecha-as quando volta a "principal"; uma tela ligada depois também ganha a sua.
  *   ./dock
  */
 #define _GNU_SOURCE
 #include <ctype.h>
+#include <signal.h>
+#include <sys/inotify.h>
+#include <sys/prctl.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,7 +62,53 @@ static const struct fixo padrao[] = {
 	{ "mic", "Emma", "lumna-emma", "lumna-emma" },
 };
 
-static char caminho_config[1024];
+static char caminho_config[1100];
+static char pasta_config[1024];
+
+/* ---- as preferências (dock.ini) ---- */
+
+static struct {
+	bool barra;   /* de borda a borda */
+	bool todos;   /* uma dock em cada tela */
+} pref;
+
+static const char *minha_saida; /* NULL: a dock da tela principal (a que abre as outras) */
+static gv_app *app_dock;
+
+#define MAX_FILHAS 8
+static struct {
+	char saida[64];
+	pid_t pid;
+} filhas[MAX_FILHAS];
+static int nfilhas;
+
+static void ler_pref(void) {
+	char caminho[1100];
+	snprintf(caminho, sizeof(caminho), "%s/dock.ini", pasta_config);
+	pref.barra = pref.todos = false;
+	FILE *f = fopen(caminho, "r");
+	if (!f) {
+		return;
+	}
+	char linha[256];
+	while (fgets(linha, sizeof(linha), f)) {
+		char *igual = strchr(linha, '=');
+		if (linha[0] == '#' || !igual) {
+			continue;
+		}
+		*igual = '\0';
+		char chave[64], valor[64];
+		if (sscanf(linha, " %63s", chave) != 1 || sscanf(igual + 1, " %63s", valor) != 1) {
+			continue;
+		}
+		if (!strcmp(chave, "formato")) {
+			pref.barra = !strcmp(valor, "barra");
+		} else if (!strcmp(chave, "monitores")) {
+			pref.todos = !strcmp(valor, "todos");
+		}
+	}
+	fclose(f);
+}
 
 /* o menu do botão direito: de que app é, e o elemento onde se prende */
 static struct {
@@ -77,10 +133,12 @@ static void carregar(void) {
 	const char *config = getenv("XDG_CONFIG_HOME");
 	const char *casa = getenv("HOME");
 	if (config && *config) {
-		snprintf(caminho_config, sizeof(caminho_config), "%s/lumna/dock", config);
+		snprintf(pasta_config, sizeof(pasta_config), "%s/lumna", config);
 	} else {
-		snprintf(caminho_config, sizeof(caminho_config), "%s/.config/lumna/dock", casa ? casa : "");
+		snprintf(pasta_config, sizeof(pasta_config), "%s/.config/lumna", casa ? casa : "");
 	}
+	snprintf(caminho_config, sizeof(caminho_config), "%s/dock", pasta_config);
+	nfixos = 0;
 	FILE *f = fopen(caminho, "r");
 	if (!f) {
 		nfixos = sizeof(padrao) / sizeof(padrao[0]);
@@ -120,16 +178,10 @@ static void carregar(void) {
 
 /* grava os fixos (cria a pasta se for preciso) */
 static void salvar(void) {
-	char pasta[1024];
-	snprintf(pasta, sizeof(pasta), "%s", caminho_config);
-	char *barra = strrchr(pasta, '/');
-	if (barra) {
-		*barra = '\0';
-		char cmd[1100];
-		snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta);
-		if (system(cmd) != 0) {
-			fprintf(stderr, "dock: não deu para criar %s\n", pasta);
-		}
+	char cmd[1100];
+	snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta_config);
+	if (system(cmd) != 0) {
+		fprintf(stderr, "dock: não deu para criar %s\n", pasta_config);
 	}
 	FILE *f = fopen(caminho_config, "w");
 	if (!f) {
@@ -552,28 +604,127 @@ static void menu_desenhar(const gv_janela **janelas, int n) {
 		gv_separador(false, 0);
 		if (gv_menu_item(CLAY_ID("m-pref"), "settings", "Preferências da dock", NULL)) {
 			printf("preferências da dock\n");
-			abrir("lumna-painel");
+			abrir("lumna-painel --dock");
 			gv_popup_fechar(CLAY_ID("menu"));
 		}
 	}
 	fflush(stdout);
 }
 
+/* ---- uma dock por tela ---- */
+
+static void filha_abrir(const char *saida) {
+	pid_t p = fork();
+	if (p == 0) {
+		prctl(PR_SET_PDEATHSIG, SIGTERM); /* a principal fechou: esta também */
+		execl("/proc/self/exe", "dock", "--saida", saida, (char *)NULL);
+		_exit(127);
+	}
+	if (p > 0 && nfilhas < MAX_FILHAS) {
+		snprintf(filhas[nfilhas].saida, sizeof(filhas[0].saida), "%s", saida);
+		filhas[nfilhas++].pid = p;
+		printf("dock na tela %s (pid %d)\n", saida, (int)p);
+	}
+}
+
+/* Com "todos", uma filha em cada tela que não seja a principal; com "principal", nenhuma. */
+static void filhas_rever(void) {
+	const char *saidas[8];
+	int n = gv_saidas(app_dock, saidas, 8);
+	for (int i = 0; i < nfilhas; i++) {
+		bool fica = pref.todos;
+		bool existe = false;
+		for (int k = 1; k < n; k++) {
+			existe |= !strcmp(saidas[k], filhas[i].saida);
+		}
+		int estado;
+		bool morreu = waitpid(filhas[i].pid, &estado, WNOHANG) == filhas[i].pid;
+		if (!fica || !existe || morreu) {
+			if (!morreu) {
+				kill(filhas[i].pid, SIGTERM);
+				waitpid(filhas[i].pid, NULL, 0);
+			}
+			printf("dock da tela %s fechada\n", filhas[i].saida);
+			filhas[i--] = filhas[--nfilhas];
+		}
+	}
+	for (int k = 1; pref.todos && k < n; k++) {
+		bool tem = false;
+		for (int i = 0; i < nfilhas; i++) {
+			tem |= !strcmp(filhas[i].saida, saidas[k]);
+		}
+		if (!tem) {
+			filha_abrir(saidas[k]);
+		}
+	}
+	fflush(stdout);
+}
+
+/* a camada do formato: a pílula flutua (92 px, com margem), a barra cola em baixo (68 px) */
+static void aplicar_formato(void) {
+	int altura = pref.barra ? 68 : 92;
+	gv_app_camada(app_dock, 0, altura, altura);
+}
+
+/* o dock.ini ou a lista dos fixos mudou (o Painel, ou a dock de outra tela, gravou) */
+static void config_mudou(gv_app *app, int fd, void *dados) {
+	char buf[4096];
+	while (read(fd, buf, sizeof(buf)) > 0) {
+	}
+	bool barra = pref.barra, todos = pref.todos;
+	ler_pref();
+	carregar();
+	if (barra != pref.barra) {
+		aplicar_formato();
+	}
+	if (minha_saida && !pref.todos) {
+		gv_app_sair(app); /* só a da tela principal fica */
+	} else if (!minha_saida && todos != pref.todos) {
+		filhas_rever();
+	}
+	gv_app_redesenhar(app);
+}
+
+static void vigiar_config(gv_app *app) {
+	char cmd[1100];
+	snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta_config);
+	if (system(cmd) != 0) {
+		return;
+	}
+	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+	/* a pasta, não o ficheiro: quem grava pode trocar o ficheiro inteiro (rename) */
+	if (fd >= 0 && inotify_add_watch(fd, pasta_config, IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE) >= 0) {
+		gv_app_vigiar(app, fd, config_mudou, NULL);
+	}
+}
+
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
 	const gv_janela *janelas[MAX_JANELAS];
 	int n = gv_janelas(janelas, MAX_JANELAS);
+	if (!minha_saida && gv_saidas_mudaram(app)) {
+		filhas_rever(); /* uma tela ligou ou desligou */
+	}
 	Clay_ElementId pilula = CLAY_ID("pilula");
 	gv_app_entrada_em(app, pilula);
-	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
-		.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
-		CLAY(pilula, {
+	/* a pílula flutua ao centro; a barra vai de borda a borda, colada em baixo, ícones ao centro */
+	Clay_ElementDeclaration forma = pref.barra
+		? (Clay_ElementDeclaration){
+			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 10, 10, 4, 4 }, .childGap = 6,
+				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_t.fundo,
+			.border = { .color = gv_t.borda, .width = { .top = 1 } },
+		}
+		: (Clay_ElementDeclaration){
 			.layout = { .padding = { 10, 10, 6, 6 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.backgroundColor = gv_t.fundo,
 			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande + 4),
 			.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
 			.userData = gv_sombra(18, 6, 0.45f),
-		}) {
+		};
+	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+		.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY(pilula, forma) {
 			for (int i = 0; i < nfixos; i++) {
 				const struct fixo *x = &fixos[i];
 				if (x->separador) {
@@ -650,13 +801,24 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_desenhar(janelas, n);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+	if (argc >= 3 && !strcmp(argv[1], "--saida")) {
+		minha_saida = argv[2];
+	}
+	signal(SIGCHLD, SIG_DFL);
 	carregar();
+	ler_pref();
+	int altura = pref.barra ? 68 : 92;
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Dock", .app_id = "lumna-dock", .tipo = GV_CAMADA,
 		.nivel = GV_NIVEL_CIMA, .ancoras = GV_ANCORA_BAIXO | GV_ANCORA_ESQUERDA | GV_ANCORA_DIREITA,
-		.altura = 92, .zona_exclusiva = 92 });
+		.altura = altura, .zona_exclusiva = altura, .saida = minha_saida ? minha_saida : "@principal" });
 	if (!app) {
 		return 1;
+	}
+	app_dock = app;
+	vigiar_config(app);
+	if (!minha_saida) {
+		filhas_rever();
 	}
 	if (!gv_janelas_disponivel()) {
 		fprintf(stderr, "dock: o compositor não diz as janelas abertas (falta o wlr-foreign-toplevel)\n");

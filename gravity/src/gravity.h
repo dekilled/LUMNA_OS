@@ -116,6 +116,8 @@ typedef struct gv_opcoes {
 	uint32_t ancoras;
 	int zona_exclusiva;
 	bool teclado;            /* a camada quer o teclado */
+	const char *saida;       /* em que tela (o nome: "HDMI-A-1", ou "@principal": a primeira);
+	                          * NULL: a que o compositor escolher */
 } gv_opcoes;
 
 typedef struct gv_app gv_app;
@@ -265,6 +267,12 @@ void gv_janela_fechar(uint32_t id);
 /* Numa camada larga com um pedaço só à vista (a dock, que ocupa a largura toda mas só a pílula
  * se vê), só esse elemento recebe o ponteiro e o toque: o resto passa para as janelas de baixo. */
 void gv_app_entrada_em(gv_app *app, Clay_ElementId id);
+/* Uma camada muda de tamanho e de zona exclusiva com a app a correr (a dock que passa a barra). */
+void gv_app_camada(gv_app *app, int largura, int altura, int zona_exclusiva);
+/* As telas, pelo nome, na ordem em que o compositor as anunciou (a primeira é a principal). */
+int gv_saidas(gv_app *app, const char **nomes, int max);
+/* Uma tela entrou ou saiu desde a última vez que se perguntou. */
+bool gv_saidas_mudaram(gv_app *app);
 
 /* ---- popups e menus ---- */
 enum gv_popup_lado { GV_POPUP_ABAIXO, GV_POPUP_ACIMA, GV_POPUP_DIREITA, GV_POPUP_ESQUERDA };

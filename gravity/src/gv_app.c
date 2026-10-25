@@ -45,8 +45,10 @@ struct gv_buffer {
 
 struct gv_saida {
 	struct wl_output *wl;
+	uint32_t global;
 	int escala;
 	bool dentro; /* a nossa superfície está nela */
+	char nome[64]; /* "HDMI-A-1", "eDP-1"... (wl_output v4) */
 };
 
 /* Um popup: o conteúdo é declarado no layout da app (GV_POPUP), num elemento flutuante com o
@@ -139,6 +141,7 @@ struct gv_app {
 	bool dedo_no_popup;
 	uint32_t xdg_versao;
 	uint32_t entrada_id;          /* gv_app_entrada_em: o elemento que recebe a entrada */
+	bool saidas_mudaram;          /* uma tela entrou ou saiu desde o último gv_saidas_mudaram */
 	Clay_BoundingBox entrada_caixa;
 
 	Clay_Arena arena;
@@ -224,6 +227,34 @@ void gv_app_mover(gv_app *app) {
 	/* o compositor fica com o arrasto: o soltar não chega cá */
 	gv__entrada.baixo = false;
 	gv__entrada.ativo = 0;
+}
+
+int gv_saidas(gv_app *app, const char **nomes, int max) {
+	int n = 0;
+	for (int i = 0; i < app->nsaidas && n < max; i++) {
+		if (app->saidas[i].nome[0]) {
+			nomes[n++] = app->saidas[i].nome;
+		}
+	}
+	return n;
+}
+
+bool gv_saidas_mudaram(gv_app *app) {
+	bool m = app->saidas_mudaram;
+	app->saidas_mudaram = false;
+	return m;
+}
+
+void gv_app_camada(gv_app *app, int largura, int altura, int zona_exclusiva) {
+	if (!app->camada) {
+		return;
+	}
+	zwlr_layer_surface_v1_set_size(app->camada, largura > 0 ? largura : 0, altura > 0 ? altura : 0);
+	zwlr_layer_surface_v1_set_exclusive_zone(app->camada, zona_exclusiva);
+	app->opcoes.zona_exclusiva = zona_exclusiva;
+	/* vale no próximo commit; o configure traz o tamanho novo */
+	wl_surface_commit(app->superficie);
+	app->precisa = true;
 }
 
 void gv_app_entrada_em(gv_app *app, Clay_ElementId id) {
@@ -371,7 +402,10 @@ static void saida_escala(void *dados, struct wl_output *o, int32_t escala) {
 		escala_rever(atual);
 	}
 }
-static void saida_nome(void *d, struct wl_output *o, const char *n) {}
+static void saida_nome(void *dados, struct wl_output *o, const char *n) {
+	struct gv_saida *saida = dados;
+	snprintf(saida->nome, sizeof(saida->nome), "%s", n);
+}
 static void saida_descricao(void *d, struct wl_output *o, const char *n) {}
 
 static const struct wl_output_listener saida_ouvinte = {
@@ -908,12 +942,32 @@ static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, co
 	} else if (!strcmp(iface, wl_output_interface.name) && app->nsaidas < GV_MAX_SAIDAS) {
 		struct gv_saida *saida = &app->saidas[app->nsaidas++];
 		saida->escala = 1;
+		saida->global = nome;
+		if (app->a_correr) {
+			app->saidas_mudaram = true; /* uma tela ligada com a app a correr */
+		}
 		saida->wl = wl_registry_bind(r, nome, &wl_output_interface, versao < 4 ? versao : 4);
 		wl_output_add_listener(saida->wl, &saida_ouvinte, saida);
 	}
 }
 
-static void registo_saiu(void *d, struct wl_registry *r, uint32_t nome) {}
+static void registo_saiu(void *dados, struct wl_registry *r, uint32_t nome) {
+	gv_app *app = dados;
+	for (int i = 0; i < app->nsaidas; i++) {
+		if (app->saidas[i].global == nome) {
+			wl_output_release(app->saidas[i].wl);
+			memmove(&app->saidas[i], &app->saidas[i + 1], (app->nsaidas - i - 1) * sizeof(app->saidas[0]));
+			app->nsaidas--;
+			app->saidas_mudaram = true;
+			app->precisa = true;
+			/* a lista é por valor: os ouvintes das que ficaram apontam para o lugar antigo */
+			for (int k = i; k < app->nsaidas; k++) {
+				wl_output_set_user_data(app->saidas[k].wl, &app->saidas[k]);
+			}
+			return;
+		}
+	}
+}
 
 static const struct wl_registry_listener registo_ouvinte = { .global = registo_global, .global_remove = registo_saiu };
 
@@ -1033,7 +1087,17 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 			fprintf(stderr, "gravity: o compositor não tem layer-shell; abrindo como janela\n");
 			app->opcoes.tipo = GV_JANELA;
 		} else {
-			app->camada = zwlr_layer_shell_v1_get_layer_surface(app->camadas, app->superficie, NULL,
+			/* numa tela escolhida pelo nome (sem nome, ou se não houver: a que o compositor quiser) */
+			struct wl_output *saida = NULL;
+			for (int i = 0; opcoes->saida && i < app->nsaidas; i++) {
+				if (!strcmp(app->saidas[i].nome, opcoes->saida) || (!strcmp(opcoes->saida, "@principal") && i == 0)) {
+					saida = app->saidas[i].wl;
+				}
+			}
+			if (opcoes->saida && !saida) {
+				fprintf(stderr, "gravity: não há a tela %s; abrindo na que o compositor escolher\n", opcoes->saida);
+			}
+			app->camada = zwlr_layer_shell_v1_get_layer_surface(app->camadas, app->superficie, saida,
 				opcoes->nivel, opcoes->app_id ? opcoes->app_id : "gravity");
 			zwlr_layer_surface_v1_add_listener(app->camada, &camada_ouvinte, app);
 			zwlr_layer_surface_v1_set_size(app->camada, opcoes->largura > 0 ? opcoes->largura : 0,
