@@ -43,13 +43,22 @@ tamanhos de texto, durações, curva (`suave`, `mola`, `linear`) e animações l
 
 ## Compilar e testar
 
-Precisa de `wayland`, `wayland-protocols`, `libxkbcommon`, `cairo` e `pango` (no Arch:
-`sudo pacman -S --needed wayland wayland-protocols libxkbcommon cairo pango`).
+Precisa de `wayland`, `wayland-protocols`, `libxkbcommon`, `cairo` e `pango`, e o mixer do
+`libpulse` (no Arch: `sudo pacman -S --needed wayland wayland-protocols libxkbcommon cairo pango
+libpulse`). O som responde pelo `pipewire-pulse`.
+
+## Serviços
+
+Fora da interface, em `servicos/`, o que as peças do LUMNA usam do sistema:
+
+- `som.c` — saídas, volume e mudo de cada saída e de cada app tocando, a saída padrão; assina as
+  mudanças (as teclas, a topbar, outra app) e avisa a app por um descritor que o Gravity vigia
+  (`gv_app_vigiar`).
 
 ```
 cd gravity
 make
-./mixer              # o mixer de áudio do LUMNA, numa janela
+./mixer              # o mixer de áudio do LUMNA (som de verdade), numa janela
 ./mixer --camada     # como no celular: uma camada por cima de tudo
 ./galeria            # os componentes, com o tema mudando ao vivo
 ```
@@ -84,7 +93,7 @@ int main(void) {
 - campo de texto (cursor, seleção, o teclado do LUMNA pelo text-input);
 - listas que rolam com física de dedo e vários dedos (pinça, deslizar);
 - imagens (ícones das apps, capas de álbum);
-- o mixer ligado ao PipeWire de verdade, e depois outras peças do LUMNA em Gravity;
+- outras peças do LUMNA em Gravity (a barra de volume das teclas, a central);
 - desenho na GPU quando o cairo não chegar.
 
 O Clay vem em `vendor/clay` (licença zlib), no commit `e6cc369` do repositório dele.

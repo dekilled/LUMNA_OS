@@ -111,7 +111,7 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes);
 /* Corre até gv_app_sair (ou o compositor fechar a janela). Devolve o código de saída. */
 int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados);
 void gv_app_sair(gv_app *app);
-/* Pede outro quadro (os componentes e as animações já pedem sozinhos). */
+/* Pede outro quadro (os componentes e as animações já pedem sozinhos). NULL: a app actual. */
 void gv_app_redesenhar(gv_app *app);
 /* Um descritor a vigiar no ciclo da app (um socket, um pipe); a função corre quando há o que ler. */
 void gv_app_vigiar(gv_app *app, int fd, void (*pronto)(gv_app *app, int fd, void *dados), void *dados);

@@ -35,8 +35,10 @@ src/gv_clay.o: CFLAGS += -w
 libgravity.a: $(OBJS)
 	$(AR) rcs $@ $^
 
-mixer: exemplos/mixer.c libgravity.a
-	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+# o mixer usa o serviço de som (libpulse: o PipeWire responde pelo pipewire-pulse)
+mixer: exemplos/mixer.c servicos/som.c servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libpulse) -o $@ exemplos/mixer.c servicos/som.c \
+		libgravity.a $(LDLIBS) $(shell pkg-config --libs libpulse) -lpthread
 
 galeria: exemplos/galeria.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)

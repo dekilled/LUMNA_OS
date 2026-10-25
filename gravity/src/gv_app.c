@@ -109,7 +109,12 @@ double gv_agora(void) {
 }
 
 void gv_app_redesenhar(gv_app *app) {
-	app->precisa = true;
+	if (!app) {
+		app = atual;
+	}
+	if (app) {
+		app->precisa = true;
+	}
 }
 
 void gv__app_pedir(void) {
