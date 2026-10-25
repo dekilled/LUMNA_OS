@@ -238,6 +238,8 @@ struct orbit_view {
 	struct wlr_scene_rect *border;
 	struct wlr_foreign_toplevel_handle_v1 *foreign;
 	struct wlr_output *foreign_output;
+	struct wl_listener foreign_activate;
+	struct wl_listener foreign_close;
 	bool placed;
 	bool sliding;
 	int slide_x, slide_y;
