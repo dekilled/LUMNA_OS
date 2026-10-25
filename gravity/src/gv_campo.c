@@ -494,7 +494,7 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
 	};
 	bool com_botao = (tipo == GV_CAMPO_BUSCA && n > 0) || senha;
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(50) },
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) },
 			.padding = { tipo == GV_CAMPO_BUSCA ? 14 : 16, com_botao ? 6 : 16, 0, 0 }, .childGap = 10,
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = gv_t.elevada,

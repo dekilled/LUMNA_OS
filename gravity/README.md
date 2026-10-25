@@ -60,13 +60,13 @@ De fábrica é a paleta nova do LUMNA, token a token:
 
 | Token | Campo | Cor | Onde |
 |---|---|---|---|
-| bg | `fundo` | `#0C0B12` | fundo geral |
-| surface | `superficie` | `#14121D` | janelas e conteúdo |
-| raised | `elevada` | `#1C1928` | barras, menus, cartões, teclas, campos |
-| hover | `sob_cursor` | `#262236` | superfície sob o cursor |
+| bg | `fundo` | `#141518` | fundo geral |
+| surface | `superficie` | `#1D1E22` | janelas e conteúdo |
+| raised | `elevada` | `#25262A` | barras, menus, cartões, teclas, campos |
+| hover | `sob_cursor` | `#2D2E33` | superfície sob o cursor |
 | selected | `selecionado` | `#2B2340` | item selecionado |
-| border | `borda` | `#353044` | divisórias e bordas discretas |
-| border-control | `borda_controle` | `#746A8E` | contorno de controles |
+| border | `borda` | `#303238` | divisórias e bordas discretas |
+| border-control | `borda_controle` | `#4A4C53` | contorno de controles |
 | text | `texto` | `#F4F1FA` | texto principal e ícones |
 | text-secondary | `texto_secundario` | `#BCB5CE` | texto secundário |
 | text-muted | `texto_suave` | `#8E869F` | texto auxiliar, dicas |
@@ -78,6 +78,9 @@ De fábrica é a paleta nova do LUMNA, token a token:
 | success / warning / danger / info | `sucesso` / `aviso` / `perigo` / `info` | `#78C6A3` / `#E4BB77` / `#E58B98` / `#86B8E8` | estados |
 | disabled | `desativado` | `#625B70` | controles desativados |
 | grip-idle | `divisor` | `#8E869F` | divisor em repouso (ativo: acento) |
+
+As superfícies (bg, surface, raised, hover, border, border-control) são cinzas neutros, tirados
+das telas novas: o violeta fica só no acento, na seleção e no papel de parede.
 
 Mais `veu` (scrim, o escuro por trás de um diálogo) e `icone`. Cantos: 6 nos controles, 8 nas
 linhas, 12 nas janelas e cartões. Um `tema.ini` muda o que quiser

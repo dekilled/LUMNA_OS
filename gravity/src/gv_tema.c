@@ -33,14 +33,15 @@ Clay_Color gv_alfa(Clay_Color cor, float alfa) {
 
 void gv_tema_padrao(gv_tema *t) {
 	*t = (gv_tema){
-		/* a paleta da UI nova do LUMNA */
-		.fundo = gv_cor(0x0c0b12ff),
-		.superficie = gv_cor(0x14121dff),
-		.elevada = gv_cor(0x1c1928ff),
-		.sob_cursor = gv_cor(0x262236ff),
+		/* a paleta da UI nova do LUMNA: superfícies neutras (como nas telas novas; o violeta fica
+		 * para o acento e o papel de parede) */
+		.fundo = gv_cor(0x141518ff),
+		.superficie = gv_cor(0x1d1e22ff),
+		.elevada = gv_cor(0x25262aff),
+		.sob_cursor = gv_cor(0x2d2e33ff),
 		.selecionado = gv_cor(0x2b2340ff),
-		.borda = gv_cor(0x353044ff),
-		.borda_controle = gv_cor(0x746a8eff),
+		.borda = gv_cor(0x303238ff),
+		.borda_controle = gv_cor(0x4a4c53ff),
 		.texto = gv_cor(0xf4f1faff),
 		.texto_secundario = gv_cor(0xbcb5ceff),
 		.texto_suave = gv_cor(0x8e869fff),
@@ -55,7 +56,7 @@ void gv_tema_padrao(gv_tema *t) {
 		.info = gv_cor(0x86b8e8ff),
 		.desativado = gv_cor(0x625b70ff),
 		.divisor = gv_cor(0x8e869fff),
-		.veu = gv_cor(0x0c0b1299),
+		.veu = gv_cor(0x0b0c0e99),
 		.icone = gv_cor(0xf4f1faff),
 		/* cantos menores e superfícies sólidas, como nas telas novas */
 		.raio_pequeno = 6,

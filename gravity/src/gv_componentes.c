@@ -314,24 +314,24 @@ bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const ch
 	bool mudou = false;
 	Clay_ElementId chave = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 2000003u, id.baseId);
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(subtitulo ? 68 : 52) }, .padding = { 16, 16, 10, 10 },
-			.childGap = 18, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(subtitulo ? 76 : 56) }, .padding = { 18, 18, 14, 14 },
+			.childGap = 22, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = interruptor ? (Clay_Color){ 0 } : gv_alfa(gv_t.sob_cursor, fminf(e * 2, 1)),
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 	}) {
 		if (icone) {
-			gv_icone(icone, 28, gv_t.icone);
+			gv_icone(icone, 30, gv_t.icone);
 		}
-		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
-			gv_texto(gv_str(titulo), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
+			gv_texto(gv_str(titulo), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);
 			if (subtitulo) {
-				gv_texto(gv_str(subtitulo), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_texto(gv_str(subtitulo), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
 		}
 		if (interruptor) {
 			mudou = gv_interruptor(chave, interruptor);
 		} else {
-			gv_icone("forward", 18, gv_t.texto_secundario);
+			gv_icone("forward", 20, gv_t.texto_secundario);
 		}
 	}
 	if (interruptor) {
@@ -347,10 +347,7 @@ bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const ch
 
 bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa) {
 	bool mudou = false;
-	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 },
-		.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
-	}) {
+	CLAY(id, { .layout = { .childGap = 14 } }) {
 		for (int i = 0; i < n; i++) {
 			Clay_ElementId aba = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 3000017u + i, id.baseId);
 			if (gv_tocado(aba) && *ativa != i) {
@@ -361,7 +358,7 @@ bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa) {
 			bool sobre = gv_por_cima(aba) && !gv__entrada.toque;
 			float marca = gv_anim(aba.id, esta ? 1 : 0, gv_t.duracao_normal);
 			CLAY(aba, {
-				.layout = { .sizing = { .height = CLAY_SIZING_FIXED(48) }, .padding = { 16, 16, 0, 0 },
+				.layout = { .sizing = { .height = CLAY_SIZING_FIXED(56) }, .padding = { 10, 10, 0, 0 },
 					.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
 				.border = { .color = gv_alfa(gv_t.acento, marca), .width = { .bottom = 2 } },
 			}) {

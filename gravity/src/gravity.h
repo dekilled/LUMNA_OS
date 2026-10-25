@@ -228,7 +228,8 @@ bool gv_focado(Clay_ElementId id);
 /* Uma linha de ajuste: ícone, título, subtítulo (NULL: sem) e, à direita, um › (devolve
  * verdadeiro no toque) ou um interruptor (passe o bool; devolve verdadeiro quando mudou). */
 bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const char *subtitulo, bool *interruptor);
-/* Abas com o sublinhado do acento. Devolve verdadeiro quando a pessoa trocou de aba. */
+/* Abas com o sublinhado do acento (a linha de baixo, que vai de lado a lado, é de quem as põe:
+ * assim cabe uma busca à direita). Devolve verdadeiro quando a pessoa trocou de aba. */
 bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
 /* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
