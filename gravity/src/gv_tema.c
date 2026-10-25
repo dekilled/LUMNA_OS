@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 gv_tema gv_t;
 
@@ -75,6 +76,40 @@ void gv_tema_padrao(gv_tema *t) {
 		.curva = GV_CURVA_SUAVE,
 		.animacoes = true,
 	};
+}
+
+/* A paleta clara: superfícies claras e texto escuro; o acento fica o que estiver (o tema.ini
+ * pode trocá-lo depois desta linha). */
+static void paleta_clara(gv_tema *t) {
+	t->fundo = gv_cor(0xe9ebefff);
+	t->superficie = gv_cor(0xf6f6f8ff);
+	t->elevada = gv_cor(0xffffffff);
+	t->sob_cursor = gv_cor(0xeceef2ff);
+	t->selecionado = gv_cor(0xece6fdff);
+	t->borda = gv_cor(0xdcdfe5ff);
+	t->borda_controle = gv_cor(0xb8bcc6ff);
+	t->texto = gv_cor(0x1b1a22ff);
+	t->texto_secundario = gv_cor(0x4c4958ff);
+	t->texto_suave = gv_cor(0x777383ff);
+	t->sobre_acento = gv_cor(0xffffffff);
+	t->desativado = gv_cor(0xaaa7b4ff);
+	t->divisor = gv_cor(0x9a96a6ff);
+	t->veu = gv_cor(0x1b1a2255);
+	t->icone = gv_cor(0x2a2833ff);
+	t->sucesso = gv_cor(0x2f8f66ff);
+	t->aviso = gv_cor(0xb27a1eff);
+	t->perigo = gv_cor(0xc8475aff);
+	t->info = gv_cor(0x2f74b8ff);
+}
+
+/* O contraste alto: o texto secundário perto do principal e as bordas bem marcadas. */
+static void contraste_alto(gv_tema *t) {
+	bool claro = t->superficie.r > 128;
+	t->texto_secundario = t->texto;
+	t->texto_suave = claro ? gv_cor(0x3a3846ff) : gv_cor(0xd8d3e4ff);
+	t->borda = claro ? gv_cor(0x8f93a0ff) : gv_cor(0x6a6d76ff);
+	t->borda_controle = claro ? gv_cor(0x55596480) : gv_cor(0xa4a7b0ff);
+	t->borda_controle.a = 255;
 }
 
 static bool ler_cor(const char *texto, Clay_Color *cor) {
@@ -160,6 +195,22 @@ static void aplicar(gv_tema *t, const char *chave, const char *valor, const char
 	} else if (!strcmp(chave, "curva")) {
 		t->curva = !strcasecmp(valor, "mola") ? GV_CURVA_MOLA
 			: !strcasecmp(valor, "linear") ? GV_CURVA_LINEAR : GV_CURVA_SUAVE;
+	} else if (!strcmp(chave, "estilo")) {
+		/* escuro (o de fábrica), claro, ou automático: claro das 7h às 19h */
+		bool claro = !strcasecmp(valor, "claro");
+		if (!strcasecmp(valor, "automatico") || !strcasecmp(valor, "automático")) {
+			time_t agora = time(NULL);
+			struct tm tm;
+			localtime_r(&agora, &tm);
+			claro = tm.tm_hour >= 7 && tm.tm_hour < 19;
+		}
+		if (claro) {
+			paleta_clara(t);
+		}
+	} else if (!strcmp(chave, "contraste")) {
+		if (!strcasecmp(valor, "alto")) {
+			contraste_alto(t);
+		}
 	} else if (!strcmp(chave, "animacoes")) {
 		t->animacoes = !strcasecmp(valor, "sim") || !strcmp(valor, "1") || !strcasecmp(valor, "true");
 	} else {

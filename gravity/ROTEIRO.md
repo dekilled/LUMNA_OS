@@ -21,7 +21,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 
 ## 2. O desktop no Orbit
 
-- [x] Papel de parede (camada de fundo) — exemplo `papel`; falta trocar ao vivo
+- [x] Papel de parede (camada de fundo) — exemplo `papel`: um por tela e por modo, troca na hora e
+      sozinho pela coleção (papel.ini), o menu do botão direito
 - [~] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio — exemplo `barra`
 - [x] Dock: apps fixos, abertos, indicador do ativo — exemplo `dock`
   - [x] Menu do botão direito (ou segurar): abrir nova janela, fixar/remover, fechar, preferências

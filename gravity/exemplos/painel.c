@@ -22,7 +22,8 @@
 
 #define MAX_RECENTES 4
 
-static gv_app *app_painel;
+gv_app *pn_app;
+#define app_painel pn_app
 static int aba;                 /* a aba do início */
 static int cat = -1, sec;       /* a categoria aberta (-1: o início) e a seção dela */
 static char busca[64], filtro[64];
@@ -420,7 +421,8 @@ static void categoria(void) {
 	CLAY(CLAY_ID("categoria"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 		lateral();
 		CLAY(CLAY_ID("lado-direito"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
-			Clay_ElementId conteudo = CLAY_ID("secao-conteudo");
+			/* uma rolagem por seção: cada uma abre no topo e lembra onde ficou */
+			Clay_ElementId conteudo = CLAY_IDI("secao-conteudo", (uint32_t)(cat * 64 + sec));
 			CLAY(conteudo, gv_rolagem(conteudo, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
 				.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
 					.padding = { 30, 26, 24, 16 } } })) {

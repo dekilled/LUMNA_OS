@@ -6,7 +6,12 @@
  * Os aparelhos ainda são de mentira: o BlueZ vem com os serviços do sistema.
  *   ./barra
  */
+#include <glib.h>
+#include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/inotify.h>
 #include <time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -14,6 +19,48 @@
 #include "gravity.h"
 
 static int area;
+/* o que a barra mostra (~/.config/lumna/barra.ini, gravado pelo Painel; vigiado) */
+static bool segundos, com_data, areas = true;
+
+static char *barra_ini(void) {
+	const char *config = getenv("XDG_CONFIG_HOME");
+	return config && *config ? g_build_filename(config, "lumna", "barra.ini", NULL)
+				 : g_build_filename(g_get_home_dir(), ".config", "lumna", "barra.ini", NULL);
+}
+
+static void ler_ajustes(void) {
+	segundos = com_data = false;
+	areas = true;
+	char *caminho = barra_ini();
+	FILE *f = fopen(caminho, "r");
+	g_free(caminho);
+	if (!f) {
+		return;
+	}
+	char linha[256];
+	while (fgets(linha, sizeof(linha), f)) {
+		char chave[64], valor[64];
+		if (sscanf(linha, " %63[^= ] = %63s", chave, valor) == 2) {
+			bool sim = !strcmp(valor, "sim");
+			if (!strcmp(chave, "segundos")) {
+				segundos = sim;
+			} else if (!strcmp(chave, "data")) {
+				com_data = sim;
+			} else if (!strcmp(chave, "areas")) {
+				areas = sim;
+			}
+		}
+	}
+	fclose(f);
+}
+
+static void ajustes_mudaram(gv_app *app, int fd, void *dados) {
+	char buf[4096];
+	while (read(fd, buf, sizeof(buf)) > 0) {
+	}
+	ler_ajustes();
+	gv_app_redesenhar(app);
+}
 static bool bluetooth = true;
 
 static const struct {
@@ -165,7 +212,7 @@ static void desenhar(gv_app *app, void *dados) {
 		}
 		/* meio: as áreas de trabalho */
 		CLAY(CLAY_ID("areas"), { .layout = { .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-			for (int i = 0; i < 3; i++) {
+			for (int i = 0; areas && i < 3; i++) {
 				Clay_ElementId id = CLAY_IDI("area", i);
 				if (gv_tocado(id)) {
 					area = i;
@@ -191,11 +238,21 @@ static void desenhar(gv_app *app, void *dados) {
 			time_t agora = time(NULL);
 			struct tm t;
 			localtime_r(&agora, &t);
-			CLAY(CLAY_ID("relogio"), { .layout = { .padding = { 10, 4, 0, 0 } } }) {
-				gv_texto(gv_fmt("%02d:%02d", t.tm_hour, t.tm_min), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+			CLAY(CLAY_ID("relogio"), { .layout = { .padding = { 10, 4, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				if (com_data) {
+					static const char *const dias[] = { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
+					static const char *const meses[] = { "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez" };
+					gv_texto(gv_fmt("%s, %d de %s", dias[t.tm_wday], t.tm_mday, meses[t.tm_mon]), gv_t.tamanho_corpo,
+						gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (segundos) {
+					gv_texto(gv_fmt("%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+				} else {
+					gv_texto(gv_fmt("%02d:%02d", t.tm_hour, t.tm_min), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+				}
 			}
-			/* acorda na virada do minuto */
-			gv_acordar_em(60 - t.tm_sec + 0.05);
+			/* acorda na virada do segundo (com os segundos) ou do minuto */
+			gv_acordar_em(segundos ? 1.0 - fmod(gv_agora(), 1.0) + 0.01 : 60 - t.tm_sec + 0.05);
 		}
 	}
 	menu_bluetooth();
@@ -209,5 +266,15 @@ int main(void) {
 	if (!app) {
 		return 1;
 	}
+	ler_ajustes();
+	char *ini = barra_ini();
+	char *pasta = g_path_get_dirname(ini);
+	g_mkdir_with_parents(pasta, 0755);
+	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+	if (fd >= 0 && inotify_add_watch(fd, pasta, IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE) >= 0) {
+		gv_app_vigiar(app, fd, ajustes_mudaram, NULL);
+	}
+	g_free(pasta);
+	g_free(ini);
 	return gv_app_correr(app, desenhar, NULL);
 }

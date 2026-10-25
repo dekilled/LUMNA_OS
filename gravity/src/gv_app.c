@@ -16,7 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/inotify.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/timerfd.h>
 #include <time.h>
 #include <unistd.h>
@@ -1080,6 +1082,44 @@ static void clay_erro(Clay_ErrorData erro) {
 	fprintf(stderr, "gravity: layout: %.*s\n", erro.errorText.length, erro.errorText.chars);
 }
 
+/* O tema muda com a app a correr: o Painel grava o tema.ini e todas as apps se repintam na hora.
+ * Vigia-se a pasta (o arquivo é trocado por outro ao gravar). Com GRAVITY_TEMA, fica o de lá. */
+static void tema_mudou(gv_app *app, int fd, void *dados) {
+	char buf[4096];
+	while (read(fd, buf, sizeof(buf)) > 0) {
+	}
+	gv_tema_padrao(&gv_t);
+	gv_tema_carregar(NULL);
+	Clay_ResetMeasureTextCache(); /* a fonte ou os tamanhos podem ter mudado */
+	app->precisa = true;
+}
+
+static void tema_vigiar(gv_app *app) {
+	if (getenv("GRAVITY_TEMA")) {
+		return;
+	}
+	char pasta[512];
+	const char *config = getenv("XDG_CONFIG_HOME");
+	const char *casa = getenv("HOME");
+	if (config && *config) {
+		snprintf(pasta, sizeof(pasta), "%s/gravity", config);
+	} else if (casa) {
+		snprintf(pasta, sizeof(pasta), "%s/.config/gravity", casa);
+	} else {
+		return;
+	}
+	mkdir(pasta, 0755);
+	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+	if (fd < 0) {
+		return;
+	}
+	if (inotify_add_watch(fd, pasta, IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE) < 0) {
+		close(fd);
+		return;
+	}
+	gv_app_vigiar(app, fd, tema_mudou, NULL);
+}
+
 gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	gv_app *app = calloc(1, sizeof(*app));
 	if (!app) {
@@ -1176,6 +1216,7 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	Clay_SetMeasureTextFunction(gv__texto_medir, NULL);
 	/* um popup pode ficar fora da superfície principal (o menu da topbar): nada se corta */
 	Clay_SetCullingEnabled(false);
+	tema_vigiar(app);
 	app->precisa = true;
 	return app;
 }

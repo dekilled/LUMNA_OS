@@ -76,19 +76,19 @@ Legenda: ✅ feito · 🔨 a seguir · ⏳ depois (depende de um serviço)
 ### Geral
 
 **Aparência**
-- 🔨 **Tema:**
+- ✅ **Tema:**
   - estilo Escuro, Claro ou Automático (pelo horário);
   - densidade Compacta ou Confortável;
   - cantos das janelas Suaves ou Retos;
   - animações;
   - o tema atual.
-- 🔨 **Cores:**
+- ✅ **Cores:**
   - a cor de destaque (6 do LUMNA, um #hex e o conta-gotas);
   - prévia ao vivo;
   - usar as cores do papel de parede (a cor dominante da imagem vira o acento);
   - destaque na janela ativa;
   - contraste (Padrão ou Alto).
-- 🔨 **Papel de parede:**
+- ✅ **Papel de parede:**
   - *O mesmo em todas as telas* ou *um por tela*: com "um por tela", o seletor de Monitor escolhe qual se edita.
   - Modo: Desktop, Gaming ou Mídia, e "Todos os modos".
   - Prévia grande, o nome, a coleção e "Escolher arquivo".
@@ -96,14 +96,14 @@ Legenda: ✅ feito · 🔨 a seguir · ⏳ depois (depende de um serviço)
   - A Coleção LUMNA em miniaturas, mais "Ver todos".
   - Trocar automaticamente, com o intervalo.
   - ⏳ Vídeo e página web como papel de parede.
-- ✅ **Dock:** formato, monitores e o que fazer com uma janela maximizada (já existe; passa para este padrão).
-- 🔨 **Barra superior:** relógio (segundos, data), os ícones que aparecem e o indicador das áreas.
+- ✅ **Dock:** formato, monitores e o que fazer com uma janela maximizada.
+- ✅ **Barra superior:** relógio (segundos, data), os ícones que aparecem e o indicador das áreas.
 - 🔨 **Tela de bloqueio:**
   - papel de parede próprio ou o mesmo;
   - mostrar avisos;
   - relógio grande;
   - bloquear depois de X minutos.
-- 🔨 **Tamanho e textos:**
+- ✅ **Tamanho e textos:**
   - a escala da interface;
   - o tamanho do texto;
   - a fonte;
@@ -204,6 +204,21 @@ Pelo BlueZ.
   - 🔨 histórico e recentes (limpar os recentes do lançador);
   - ⏳ diagnóstico.
 
+## Como a Aparência aplica
+
+- **Tema, Cores e Tamanho:** geram `~/.config/gravity/tema.ini`, com `estilo` (escuro, claro ou
+  automático), o acento e as cores derivadas dele, `contraste`, os raios, o espaço, a fonte e os
+  tamanhos. Todas as apps Gravity vigiam a pasta e se repintam na hora. O que se escolheu fica em
+  `~/.config/lumna/aparencia.ini`.
+- **Cor do papel de parede:** a matiz que mais aparece no papel da tela principal, clareada para o
+  tom de um acento. É calculada no Aplicar.
+- **O que ficou para depois:**
+  - destaque na janela ativa (é do Orbit);
+  - a escala da interface (é do Orbit, por tela);
+  - texto em negrito;
+  - o conta-gotas;
+  - centralizar como ajuste do papel.
+
 ## O papel de parede: o arquivo
 
 `~/.config/lumna/papel.ini`, que o `papel` vigia e aplica na hora:
@@ -230,7 +245,7 @@ não existe.
 
 1. ✅ A estrutura (em `exemplos/painel/`, um arquivo por categoria): as abas novas, a grade com "Usados recentemente", a vista da categoria com a
    barra lateral, o rodapé Restaurar | Aplicar, o `--secao` e a busca.
-2. Aparência:
+2. ✅ Aparência (menos a Tela de bloqueio, que espera o bloqueio):
    - Papel de parede (com uma camada por tela no `papel`);
    - Cores (com as cores do papel de parede);
    - Tema;

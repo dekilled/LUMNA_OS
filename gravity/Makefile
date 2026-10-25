@@ -60,15 +60,17 @@ wifi: exemplos/wifi.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
-PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c
-painel: $(PAINEL) exemplos/painel/painel.h libgravity.a
-	$(CC) $(CFLAGS) -Iexemplos/painel -o $@ $(PAINEL) libgravity.a $(LDLIBS)
+PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
+	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c \
+	servicos/papelini.c
+painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h libgravity.a
+	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos -o $@ $(PAINEL) libgravity.a $(LDLIBS)
 
 apps: exemplos/apps.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
-papel: exemplos/papel.c libgravity.a
-	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 barra: exemplos/barra.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
