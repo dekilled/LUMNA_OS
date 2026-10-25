@@ -72,5 +72,6 @@ ln -sf "$O/orbit-msg" "$BIN/orbit-msg"
 
 echo "Abrindo o desktop novo numa janela (feche-a para sair)..."
 export PATH="$BIN:$PATH"
+export ORBIT_BORDA=0 # as janelas desenham a própria moldura, de cantos redondos
 exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos &
 	sleep 1; notify-send -a LUMNA "Bem-vindo ao desktop novo" "Os avisos chegam aqui. O sino na topbar abre a central." 2>/dev/null'

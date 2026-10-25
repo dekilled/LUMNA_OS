@@ -174,6 +174,8 @@ bool gv_por_cima(Clay_ElementId id);     /* o ponteiro (ou o dedo) está sobre e
 bool gv_premido(Clay_ElementId id);      /* começou nele e ainda não soltou */
 bool gv_tocado(Clay_ElementId id);       /* começou e acabou nele: um clique, um toque */
 Clay_BoundingBox gv_caixa(Clay_ElementId id);
+/* Onde está o ponteiro (ou o dedo) na superfície, em pixels lógicos; -1, -1 fora dela. */
+Clay_Vector2 gv_ponteiro(void);
 /* A tecla carregada neste quadro (um keysym do xkbcommon), ou 0. */
 uint32_t gv_tecla(void);
 /* Se esta tecla foi carregada neste quadro (com repetição, pode vir mais de uma). */

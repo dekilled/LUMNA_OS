@@ -34,6 +34,10 @@ bool gv_tocado(Clay_ElementId id) {
 	return gv__entrada.soltou && gv__entrada.ativo == id.id && Clay_PointerOver(id);
 }
 
+Clay_Vector2 gv_ponteiro(void) {
+	return (Clay_Vector2){ gv__entrada.x, gv__entrada.y };
+}
+
 Clay_BoundingBox gv_caixa(Clay_ElementId id) {
 	Clay_ElementData dados = Clay_GetElementData(id);
 	return dados.found ? dados.boundingBox : (Clay_BoundingBox){ 0 };
