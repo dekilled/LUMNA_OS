@@ -1,283 +1,260 @@
 /*
- * O Painel de controle do LUMNA, em Gravity, como na tela nova: abas com a busca à direita, a
- * grade de atalhos em duas colunas e as atualizações no rodapé. Serve para conferir a paleta e
- * os componentes; os ajustes ainda não mexem no sistema: cada toque sai no terminal.
- *   ./painel
+ * O Painel de controle do LUMNA (lumna-painel), como nos esboços (docs/visual/04 e as telas de
+ * Tema, Cores e Papel de parede). O plano inteiro está em PAINEL.md.
+ *
+ * - O início: as abas Geral, Inicialização e Sistema, a busca em tudo, os usados recentemente e
+ *   a grade das categorias.
+ * - Uma categoria: a barra lateral com as seções dela (e o filtro), o conteúdo da seção e, se ela
+ *   tem ajustes, o rodapé Restaurar padrão | Aplicar. Sair com algo por aplicar pergunta antes.
+ * - As categorias e as seções ficam em exemplos/painel/ (uma categoria por arquivo).
+ *
+ *   ./painel                       o início
+ *   ./painel --secao aparencia/dock   direto numa seção (--dock e --papel são atalhos)
  */
 #define _GNU_SOURCE
+#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-#include "gravity.h"
+#include "painel.h"
 
-struct atalho {
-	const char *icone, *titulo, *subtitulo;
-};
+#define MAX_RECENTES 4
 
-/* em cada aba, a coluna da esquerda e depois a da direita */
-static const struct atalho geral[] = {
-	{ "brush", "Aparência", "Cores, tema e papel de parede" },
-	{ "wifi", "Rede e internet", "Wi-Fi, cabo e conexões" },
-	{ "bluetooth", "Bluetooth", "Dispositivos e acessórios" },
-	{ "grid", "Aplicativos", "Instalação e permissões" },
-	{ "desktop", "Telas e modos", "Monitores, Desktop, Gaming e Mídia" },
-	{ "volume", "Som", "Saída, microfone e volume" },
-	{ "phone", "Celular Connect", "Conecte seu celular" },
-	{ "mic", "Emma", "Voz e preferências" },
-};
-static const struct atalho sistema[] = {
-	{ "info", "Sobre", "LUMNA OS 1.0.0 neste computador" },
-	{ "drive", "Armazenamento", "Espaço usado e limpeza" },
-	{ "battery", "Energia", "Bateria e suspensão" },
-	{ "keyboard", "Teclado e mouse", "Layout, atalhos e ponteiro" },
-	{ "clock", "Data e hora", "Fuso horário e formato" },
-	{ "globe", "Idioma e região", "Português (Brasil)" },
-	{ "users", "Usuários", "Contas e senhas" },
-	{ "shield", "Privacidade", "Permissões e segurança" },
-};
-#define N 8
+static gv_app *app_painel;
+static int aba;                 /* a aba do início */
+static int cat = -1, sec;       /* a categoria aberta (-1: o início) e a seção dela */
+static char busca[64], filtro[64];
+static char recentes[MAX_RECENTES][64]; /* "categoria/seção", o mais recente primeiro */
 
-static int aba;
-static char busca[64];
-static bool escuro = true, transparencia = true, animacoes = true;
-static float escala = 0.25f;
+/* o destino guardado enquanto se pergunta o que fazer com o que está por aplicar */
+enum { DESTINO_INICIO = -1, DESTINO_SAIR = -2 };
+static bool perguntando;
+static int destino_cat, destino_sec, destino_aba;
 
-static bool combina(const struct atalho *a) {
-	return !busca[0] || strcasestr(a->titulo, busca) || strcasestr(a->subtitulo, busca);
+static const pn_secao *secao_aberta(void) {
+	return cat >= 0 ? &pn_categorias[cat]->secoes[sec] : NULL;
 }
 
-/* uma coluna de atalhos, com a linha entre eles */
-static void coluna(Clay_ElementId id, const struct atalho *lista, int de, int ate) {
-	CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
-		bool primeiro = true;
-		for (int i = de; i < ate; i++) {
-			if (!combina(&lista[i])) {
-				continue;
-			}
-			if (!primeiro) {
-				gv_separador(false, 0);
-			}
-			primeiro = false;
-			if (gv_linha(CLAY_IDI("atalho", aba * 100 + i), lista[i].icone, lista[i].titulo, lista[i].subtitulo, NULL)) {
-				printf("abrir: %s\n", lista[i].titulo);
-			}
-		}
-	}
-}
+/* ---- os recentes (~/.config/lumna/painel-recentes) ---- */
 
-static void grade(const struct atalho *lista) {
-	int achados = 0;
-	for (int i = 0; i < N; i++) {
-		achados += combina(&lista[i]);
-	}
-	if (!achados) {
-		CLAY(CLAY_ID("nada"), { .layout = { .padding = { 18, 18, 20, 20 } } }) {
-			gv_texto(gv_fmt("Nada encontrado para “%s”.", busca), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
-		}
-		return;
-	}
-	CLAY(CLAY_ID("grade"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 20 } }) {
-		coluna(CLAY_ID("col-esq"), lista, 0, N / 2);
-		gv_separador(true, 0);
-		coluna(CLAY_ID("col-dir"), lista, N / 2, N);
-	}
-}
-
-/* ---- a página da Dock: grava ~/.config/lumna/dock.ini, que a dock vigia e aplica na hora ---- */
-
-static bool na_dock;
-static struct {
-	int formato;    /* 0 pílula, 1 barra */
-	int monitores;  /* 0 só no principal, 1 em todos */
-	int maximizar;  /* 0 ocultar, 1 esticar */
-} dock;
-
-static void dock_caminho(char *buf, size_t tam, const char *nome) {
-	const char *config = getenv("XDG_CONFIG_HOME");
-	const char *casa = getenv("HOME");
-	if (config && *config) {
-		snprintf(buf, tam, "%s/lumna%s%s", config, nome ? "/" : "", nome ? nome : "");
-	} else {
-		snprintf(buf, tam, "%s/.config/lumna%s%s", casa ? casa : "", nome ? "/" : "", nome ? nome : "");
-	}
-}
-
-static void dock_ler(void) {
+static void recentes_ler(void) {
 	char caminho[1024];
-	dock_caminho(caminho, sizeof(caminho), "dock.ini");
+	pn_caminho(caminho, sizeof(caminho), "painel-recentes");
 	FILE *f = fopen(caminho, "r");
 	if (!f) {
 		return;
 	}
-	char linha[256];
-	while (fgets(linha, sizeof(linha), f)) {
-		char chave[64], valor[64];
-		if (sscanf(linha, " %63[^= ] = %63s", chave, valor) != 2) {
+	for (int i = 0; i < MAX_RECENTES && fgets(recentes[i], sizeof(recentes[i]), f); i++) {
+		recentes[i][strcspn(recentes[i], "\r\n")] = '\0';
+	}
+	fclose(f);
+}
+
+static void recentes_marcar(const char *id) {
+	char novos[MAX_RECENTES][64] = { { 0 } };
+	snprintf(novos[0], sizeof(novos[0]), "%s", id);
+	for (int i = 0, n = 1; i < MAX_RECENTES && n < MAX_RECENTES; i++) {
+		if (recentes[i][0] && strcmp(recentes[i], id)) {
+			snprintf(novos[n++], sizeof(novos[0]), "%.63s", recentes[i]);
+		}
+	}
+	memcpy(recentes, novos, sizeof(recentes));
+	char texto[MAX_RECENTES * 70] = "";
+	for (int i = 0; i < MAX_RECENTES && recentes[i][0]; i++) {
+		strcat(texto, recentes[i]);
+		strcat(texto, "\n");
+	}
+	pn_gravar("painel-recentes", texto);
+}
+
+/* "aparencia/dock" → a categoria e a seção */
+static bool achar(const char *id, int *c, int *s) {
+	for (int i = 0; i < pn_ncategorias; i++) {
+		size_t l = strlen(pn_categorias[i]->id);
+		if (strncmp(id, pn_categorias[i]->id, l) || (id[l] != '/' && id[l] != '\0')) {
 			continue;
 		}
-		if (!strcmp(chave, "formato")) {
-			dock.formato = !strcmp(valor, "barra");
-		} else if (!strcmp(chave, "monitores")) {
-			dock.monitores = !strcmp(valor, "todos");
-		} else if (!strcmp(chave, "ao_maximizar")) {
-			dock.maximizar = !strcmp(valor, "esticar");
+		*c = i;
+		*s = 0;
+		for (int k = 0; id[l] == '/' && k < pn_categorias[i]->nsecoes; k++) {
+			if (!strcmp(id + l + 1, pn_categorias[i]->secoes[k].id)) {
+				*s = k;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+/* ---- navegar ---- */
+
+static void ir_agora(int c, int s, int a) {
+	if (c == DESTINO_SAIR) {
+		gv_app_sair(app_painel);
+		return;
+	}
+	cat = c;
+	sec = s;
+	if (c == DESTINO_INICIO) {
+		aba = a;
+		return;
+	}
+	filtro[0] = '\0';
+	const pn_secao *x = secao_aberta();
+	if (x->abrir) {
+		x->abrir();
+	}
+	char id[64];
+	snprintf(id, sizeof(id), "%s/%s", pn_categorias[c]->id, x->id);
+	recentes_marcar(id);
+}
+
+/* sair da seção com algo por aplicar pergunta antes */
+static void ir(int c, int s, int a) {
+	const pn_secao *x = secao_aberta();
+	if (x && x->pendente && x->pendente() && !(c == cat && s == sec)) {
+		perguntando = true;
+		destino_cat = c;
+		destino_sec = s;
+		destino_aba = a;
+		return;
+	}
+	ir_agora(c, s, a);
+}
+
+/* ---- a busca: em todas as categorias, seções e no que cada uma vai ter ---- */
+
+static bool combina(const char *texto, const char *procura) {
+	return texto && strcasestr(texto, procura);
+}
+
+static void resultados(void) {
+	int n = 0;
+	for (int c = 0; c < pn_ncategorias; c++) {
+		const pn_categoria *k = pn_categorias[c];
+		for (int s = 0; s < k->nsecoes; s++) {
+			const pn_secao *x = &k->secoes[s];
+			if (!combina(k->nome, busca) && !combina(x->nome, busca) && !combina(x->descricao, busca) &&
+				!combina(x->planos, busca)) {
+				continue;
+			}
+			if (n++) {
+				gv_separador(false, 0);
+			}
+			if (gv_linha(CLAY_IDI("achado", (uint32_t)(c * 64 + s)), x->icone, gv_fmt("%s  ›  %s", k->nome, x->nome).chars,
+				    x->descricao, NULL)) {
+				busca[0] = '\0';
+				ir(c, s, aba);
+			}
 		}
 	}
-	fclose(f);
+	if (!n) {
+		CLAY(CLAY_ID("nada"), { .layout = { .padding = { 18, 18, 20, 20 } } }) {
+			gv_texto(gv_fmt("Nada encontrado para “%s”.", busca), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+	}
 }
 
-/* grava inteiro num temporário e troca (a dock nunca lê um ficheiro a meio) */
-static void dock_gravar(void) {
-	char pasta[1024], caminho[1100], temp[1100], cmd[1100];
-	dock_caminho(pasta, sizeof(pasta), NULL);
-	snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta);
-	if (system(cmd) != 0) {
-		return;
+/* ---- o início ---- */
+
+static void cabeca(const char *titulo, const char *sub) {
+	CLAY(CLAY_ID("cabeca"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .padding = { 12, 12, 0, 16 }, .childGap = 8 } }) {
+		gv_texto(gv_str(titulo), 28, gv_t.texto, GV_PESO_NORMAL);
+		gv_texto(gv_str(sub), gv_t.tamanho_destaque, gv_t.texto_secundario, GV_PESO_NORMAL);
 	}
-	snprintf(caminho, sizeof(caminho), "%s/dock.ini", pasta);
-	snprintf(temp, sizeof(temp), "%s/.dock.ini.novo", pasta);
-	FILE *f = fopen(temp, "w");
-	if (!f) {
-		return;
-	}
-	fprintf(f, "# A dock do LUMNA (o Painel de controle grava este ficheiro)\n");
-	fprintf(f, "formato = %s\n", dock.formato ? "barra" : "pilula");
-	fprintf(f, "monitores = %s\n", dock.monitores ? "todos" : "principal");
-	fprintf(f, "ao_maximizar = %s\n", dock.maximizar ? "esticar" : "ocultar");
-	fclose(f);
-	rename(temp, caminho);
-	printf("dock: formato %s, monitores %s, ao maximizar %s\n", dock.formato ? "barra" : "pílula",
-		dock.monitores ? "todos" : "principal", dock.maximizar ? "esticar" : "ocultar");
 }
 
-/* um cartão de escolha com o desenho da dock numa telinha */
-static bool cartao_formato(Clay_ElementId id, const char *nome, const char *descricao, bool barra, bool escolhido) {
-	bool tocado = gv_tocado(id);
-	CLAY(id, {
-		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(14),
-			.childGap = 12 },
-		.backgroundColor = escolhido ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : gv_t.elevada,
-		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
-		.border = { .color = escolhido ? gv_t.acento : gv_t.borda, .width = GV_BORDA(escolhido ? 2 : 1) },
-	}) {
-		tocado |= gv_focavel(id, gv_t.raio_grande);
-		/* a telinha: o fundo e, em baixo, a pílula ou a barra */
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(120) },
-			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM }, .padding = { 0, 0, 0, barra ? 0 : 10 } },
-			.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
-			CLAY_AUTO_ID({ .layout = { .sizing = { barra ? CLAY_SIZING_GROW(0) : CLAY_SIZING_FIXED(120), CLAY_SIZING_FIXED(barra ? 20 : 22) },
-				.childGap = 7, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = gv_t.sob_cursor,
-				.cornerRadius = barra ? (Clay_CornerRadius){ 0, 0, gv_t.raio_medio, gv_t.raio_medio } : CLAY_CORNER_RADIUS(8) }) {
-				for (int i = 0; i < 5; i++) {
-					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(10), CLAY_SIZING_FIXED(10) } },
-						.backgroundColor = i == 0 ? gv_t.acento : gv_t.texto_suave, .cornerRadius = CLAY_CORNER_RADIUS(3) }) {}
+static void usados_recentemente(void) {
+	if (!recentes[0][0]) {
+		return;
+	}
+	CLAY(CLAY_ID("recentes-t"), { .layout = { .padding = { 12, 12, 0, 10 } } }) {
+		gv_texto(CLAY_STRING("Usados recentemente"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_MEDIO);
+	}
+	CLAY(CLAY_ID("recentes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .padding = { 12, 12, 0, 18 } } }) {
+		for (int i = 0; i < MAX_RECENTES; i++) {
+			int c, s;
+			if (!recentes[i][0] || !achar(recentes[i], &c, &s)) {
+				continue;
+			}
+			const pn_secao *x = &pn_categorias[c]->secoes[s];
+			Clay_ElementId id = CLAY_IDI("recente", (uint32_t)i);
+			bool tocado = gv_tocado(id);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_PERCENT(0.25f) }, .padding = { 14, 14, 12, 12 }, .childGap = 12,
+					.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = gv_por_cima(id) ? gv_t.sob_cursor : gv_t.elevada,
+				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+				tocado |= gv_focavel(id, gv_t.raio_medio);
+				gv_icone(x->icone, 22, gv_t.acento);
+				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 2 } }) {
+					gv_texto(gv_str(x->nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+					gv_texto(gv_str(pn_categorias[c]->nome), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
 				}
 			}
-		}
-		CLAY_AUTO_ID({ .layout = { .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
-				gv_texto(gv_str(nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);
-				gv_texto(gv_str(descricao), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
-			}
-		}
-	}
-	return tocado;
-}
-
-static void secao(Clay_ElementId id, const char *titulo) {
-	CLAY(id, { .layout = { .padding = { 4, 4, 18, 8 } } }) {
-		gv_texto(gv_str(titulo), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_MEDIO);
-	}
-}
-
-static void ajuste_lista(Clay_ElementId id, const char *nome, const char *sub, const char *const *opcoes, int n, int *escolha) {
-	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 18, 4, 10, 10 }, .childGap = 18,
-		.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
-			gv_texto(gv_str(nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);
-			if (sub) {
-				gv_texto(gv_str(sub), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
-			}
-		}
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(330) } } }) {
-			if (gv_lista_suspensa(Clay__HashStringWithOffset(id.stringId, 9000001u, id.baseId), opcoes, n, escolha)) {
-				dock_gravar();
+			if (tocado) {
+				ir(c, s, aba);
 			}
 		}
 	}
 }
 
-static void pagina_dock(void) {
-	CLAY(CLAY_ID("dock-topo"), { .layout = { .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER }, .padding = { 0, 0, 0, 6 } } }) {
-		if (gv_botao(CLAY_ID("dock-voltar"), "back", NULL, GV_BOTAO_SIMPLES)) {
-			na_dock = false;
+/* a grade em duas colunas: metade à esquerda, o resto à direita */
+static void grade(const char *const *icones, const char *const *nomes, const char *const *subs, const int *alvo_c,
+	const int *alvo_s, int n) {
+	CLAY(CLAY_ID("grade"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 20 } }) {
+		int metade = (n + 1) / 2;
+		for (int col = 0; col < 2; col++) {
+			CLAY(CLAY_IDI("coluna", (uint32_t)col), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				for (int i = col ? metade : 0; i < (col ? n : metade); i++) {
+					if (i != (col ? metade : 0)) {
+						gv_separador(false, 0);
+					}
+					if (gv_linha(CLAY_IDI("item", (uint32_t)(aba * 100 + i)), icones[i], nomes[i], subs[i], NULL)) {
+						ir(alvo_c[i], alvo_s[i], aba);
+					}
+				}
+			}
+			if (col == 0) {
+				gv_separador(true, 0);
+			}
 		}
-		gv_texto(CLAY_STRING("Dock"), 26, gv_t.texto, GV_PESO_NORMAL);
 	}
-	secao(CLAY_ID("dock-s1"), "Formato");
-	CLAY(CLAY_ID("dock-formatos"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 16 } }) {
-		if (cartao_formato(CLAY_ID("dock-pilula"), "Flutuante", "Pequena e ao centro, com os cantos redondos", false,
-				dock.formato == 0) && dock.formato != 0) {
-			dock.formato = 0;
-			dock_gravar();
-		}
-		if (cartao_formato(CLAY_ID("dock-barra"), "Barra inteira", "De borda a borda, com os ícones ao centro", true,
-				dock.formato == 1) && dock.formato != 1) {
-			dock.formato = 1;
-			dock_gravar();
-		}
-	}
-	secao(CLAY_ID("dock-s2"), "Comportamento");
-	static const char *const monitores[] = { "Só no monitor principal", "Em todos os monitores" };
-	ajuste_lista(CLAY_ID("dock-monitores"), "Monitores", "Onde a dock aparece", monitores, 2, &dock.monitores);
-	gv_separador(false, 0);
-	static const char *const maximizar[] = { "Ocultar (volta com o mouse)", "Esticar de borda a borda" };
-	ajuste_lista(CLAY_ID("dock-maximizar"), "Com uma janela maximizada", "Em cada monitor, conforme a janela dele",
-		maximizar, 2, &dock.maximizar);
 }
 
-static void aparencia(void) {
-	if (gv_linha(CLAY_ID("dock"), "dock", "Dock", "Formato, monitores e janelas maximizadas", NULL)) {
-		na_dock = true;
-	}
-	gv_separador(false, 0);
-	if (gv_linha(CLAY_ID("escuro"), "moon", "Tema escuro", "Superfícies escuras em todo o sistema", &escuro)) {
-		printf("tema escuro: %s\n", escuro ? "sim" : "não");
-	}
-	gv_separador(false, 0);
-	if (gv_linha(CLAY_ID("transp"), "window", "Transparência", "Painéis e menus deixam o fundo aparecer", &transparencia)) {
-		printf("transparência: %s\n", transparencia ? "sim" : "não");
-	}
-	gv_separador(false, 0);
-	if (gv_linha(CLAY_ID("anim"), "sparkle", "Animações", "Movimento ao abrir, fechar e trocar de tela", &animacoes)) {
-		gv_t.animacoes = animacoes;
-		printf("animações: %s\n", animacoes ? "sim" : "não");
-	}
-	gv_separador(false, 0);
-	CLAY(CLAY_ID("escala"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) },
-		.padding = { 18, 18, 16, 12 }, .childGap = 8 } }) {
-		CLAY(CLAY_ID("escala-topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-			CLAY(CLAY_ID("escala-nome"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				gv_texto(CLAY_STRING("Tamanho do texto e dos itens"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_NORMAL);
+static void grade_da_aba(void) {
+	const char *icones[32], *nomes[32], *subs[32];
+	int alvo_c[32], alvo_s[32], n = 0;
+	if (aba == PN_INICIALIZACAO) {
+		/* a Inicialização é uma categoria só: a grade mostra as seções dela */
+		for (int c = 0; c < pn_ncategorias; c++) {
+			const pn_categoria *k = pn_categorias[c];
+			for (int s = 0; k->aba == PN_INICIALIZACAO && s < k->nsecoes && n < 32; s++, n++) {
+				icones[n] = k->secoes[s].icone;
+				nomes[n] = k->secoes[s].nome;
+				subs[n] = k->secoes[s].descricao;
+				alvo_c[n] = c;
+				alvo_s[n] = s;
 			}
-			gv_texto(gv_fmt("%d%%", 100 + (int)(escala * 4 + 0.5f) * 25), gv_t.tamanho_corpo, gv_t.texto_secundario,
-				GV_PESO_NORMAL);
 		}
-		gv_deslizante(CLAY_ID("escala-valor"), &escala, 0, 0);
+	} else {
+		for (int c = 0; c < pn_ncategorias && n < 32; c++) {
+			if ((int)pn_categorias[c]->aba == aba) {
+				icones[n] = pn_categorias[c]->icone;
+				nomes[n] = pn_categorias[c]->nome;
+				subs[n] = pn_categorias[c]->subtitulo;
+				alvo_c[n] = c;
+				alvo_s[n++] = 0;
+			}
+		}
 	}
-	gv_separador(false, 0);
-	if (gv_linha(CLAY_ID("papel"), "image", "Papel de parede", "Aurora violeta", NULL)) {
-		printf("abrir: papel de parede\n");
-	}
+	grade(icones, nomes, subs, alvo_c, alvo_s, n);
 }
 
 static void atualizacoes(void) {
-	gv_separador(false, 0);
 	CLAY(CLAY_ID("atualizacoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 18, 12, 16, 4 },
-		.childGap = 22, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		.childGap = 22, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } }, .border = { .color = gv_t.borda, .width = { .top = 1 } } }) {
 		gv_icone("refresh", 30, gv_t.icone);
 		CLAY(CLAY_ID("atualizacoes-texto"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM,
 			.sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
@@ -286,10 +263,225 @@ static void atualizacoes(void) {
 				GV_PESO_NORMAL);
 		}
 		if (gv_botao(CLAY_ID("verificar"), NULL, "Verificar", GV_BOTAO_ELEVADO)) {
-			printf("verificar atualizações\n");
+			int c, s;
+			if (achar("sobre/atualizacoes", &c, &s)) {
+				ir(c, s, aba);
+			}
 		}
 		gv_separador(true, 44);
 		gv_texto(CLAY_STRING("LUMNA OS 1.0.0"), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
+	}
+}
+
+static void inicio(void) {
+	Clay_ElementId conteudo = CLAY_ID("conteudo");
+	CLAY(conteudo, gv_rolagem(conteudo, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
+		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+			.padding = { 22, 22, 26, 14 } } })) {
+		if (busca[0]) {
+			resultados();
+		} else {
+			if (aba == PN_GERAL) {
+				cabeca("Tudo no seu lugar", "Personalize o seu LUMNA e deixe tudo do seu jeito.");
+				usados_recentemente();
+			} else if (aba == PN_INICIALIZACAO) {
+				cabeca("Ao ligar e ao entrar", "O que abre sozinho e como o LUMNA começa.");
+			} else {
+				cabeca("O seu sistema", "O computador, a energia, o teclado, a hora e as contas.");
+			}
+			grade_da_aba();
+		}
+		CLAY(CLAY_ID("espaco"), { .layout = { .sizing = { .height = CLAY_SIZING_GROW(0) } } }) {}
+		atualizacoes();
+	}
+}
+
+/* ---- uma categoria: a barra lateral e a seção ---- */
+
+static void item_lateral(Clay_ElementId id, const char *icone, const char *nome, bool ativo, bool *tocado) {
+	*tocado = gv_tocado(id);
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(52) }, .childGap = 14,
+			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = ativo ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+		.cornerRadius = { 0, gv_t.raio_pequeno, 0, gv_t.raio_pequeno } }) {
+		*tocado |= gv_focavel(id, gv_t.raio_pequeno);
+		/* a faixa do acento à esquerda do escolhido */
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(4), CLAY_SIZING_GROW(0) } },
+			.backgroundColor = ativo ? gv_t.acento : (Clay_Color){ 0 } }) {}
+		CLAY_AUTO_ID({ .layout = { .padding = { 12, 0, 0, 0 } } }) {
+			gv_icone(icone, 24, ativo ? gv_t.texto : gv_t.icone);
+		}
+		gv_texto(gv_str(nome), gv_t.tamanho_corpo + 1, gv_t.texto, ativo ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+	}
+}
+
+static void lateral(void) {
+	const pn_categoria *k = pn_categorias[cat];
+	CLAY(CLAY_ID("lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(310), CLAY_SIZING_GROW(0) },
+			.padding = { 0, 12, 18, 14 }, .childGap = 6 },
+		.border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
+		Clay_ElementId voltar = CLAY_ID("voltar");
+		bool tocado = gv_tocado(voltar);
+		CLAY(voltar, { .layout = { .padding = { 22, 12, 8, 8 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_por_cima(voltar) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+			tocado |= gv_focavel(voltar, gv_t.raio_pequeno);
+			gv_icone("back", 20, gv_t.texto);
+			gv_texto(CLAY_STRING("Todas as categorias"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+		}
+		if (tocado) {
+			ir(DESTINO_INICIO, 0, (int)k->aba);
+		}
+		CLAY(CLAY_ID("filtro-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 22, 0, 8, 12 } } }) {
+			gv_campo(CLAY_ID("filtro"), filtro, sizeof(filtro), "Filtrar painéis", GV_CAMPO_BUSCA);
+		}
+		CLAY(CLAY_ID("lateral-titulo"), { .layout = { .padding = { 22, 0, 10, 6 } } }) {
+			char *maiusculas = g_utf8_strup(k->nome, -1);
+			gv_texto(gv_str(maiusculas), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_MEDIO);
+			g_free(maiusculas);
+		}
+		/* as seções rolam se não couberem (numa janela baixa) */
+		Clay_ElementId lista = CLAY_ID("lateral-lista");
+		CLAY(lista, gv_rolagem(lista, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
+			.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 6 } })) {
+			for (int s = 0; s < k->nsecoes; s++) {
+				const pn_secao *x = &k->secoes[s];
+				if (filtro[0] && !combina(x->nome, filtro) && !combina(x->descricao, filtro) && !combina(x->planos, filtro)) {
+					continue;
+				}
+				bool t;
+				item_lateral(CLAY_IDI("secao", (uint32_t)s), x->icone, x->nome, s == sec, &t);
+				if (t && s != sec) {
+					ir(cat, s, aba);
+				}
+			}
+		}
+		CLAY(CLAY_ID("lateral-pe"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 18, 0, 10, 0 } },
+			.border = { .color = gv_t.borda, .width = { .top = 1 } } }) {
+			if (gv_botao(CLAY_ID("emma"), "mic", "Perguntar à Emma", GV_BOTAO_SIMPLES)) {
+				pn_executar("lumna-emma");
+			}
+		}
+	}
+}
+
+/* uma seção ainda por fazer: o que ela vai ter */
+static void em_breve(const pn_secao *x) {
+	CLAY(CLAY_ID("breve"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 18, 0 },
+		.childGap = 12 } }) {
+		CLAY(CLAY_ID("breve-selo"), { .layout = { .padding = { 10, 10, 4, 4 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_t.selecionado, .cornerRadius = CLAY_CORNER_RADIUS(10) }) {
+			gv_icone("clock", 14, gv_t.acento);
+			gv_texto(CLAY_STRING("Em construção"), gv_t.tamanho_legenda, gv_t.acento, GV_PESO_MEDIO);
+		}
+		gv_texto(CLAY_STRING("O que vai ter aqui:"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+		const char *p = x->planos ? x->planos : "";
+		for (int i = 0; *p; i++) {
+			size_t l = strcspn(p, ";");
+			char item[256];
+			snprintf(item, sizeof(item), "%.*s", (int)(l < 255 ? l : 255), p);
+			CLAY(CLAY_IDI("plano", (uint32_t)i), { .layout = { .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(6), CLAY_SIZING_FIXED(6) } }, .backgroundColor = gv_t.acento,
+					.cornerRadius = CLAY_CORNER_RADIUS(3) }) {}
+				gv_texto(gv_str(item), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+			}
+			p += l;
+			if (*p == ';') {
+				p++;
+			}
+		}
+	}
+}
+
+static void rodape(const pn_secao *x) {
+	if (!x->aplicar) {
+		return;
+	}
+	bool pendente = x->pendente && x->pendente();
+	CLAY(CLAY_ID("rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 30, 26, 12, 16 }, .childGap = 12,
+		.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
+		if (pendente) {
+			CLAY(CLAY_ID("rodape-aviso"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(CLAY_STRING("Há mudanças por aplicar"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+		if (x->restaurar && gv_botao(CLAY_ID("restaurar"), NULL, "Restaurar padrão", GV_BOTAO_ELEVADO)) {
+			x->restaurar();
+		}
+		if (gv_botao_ext(CLAY_ID("aplicar"), &(gv_botao_opcoes){ .texto = "Aplicar", .estilo = GV_BOTAO_CHEIO, .desativado = !pendente })) {
+			x->aplicar();
+		}
+	}
+}
+
+static void categoria(void) {
+	const pn_categoria *k = pn_categorias[cat];
+	const pn_secao *x = secao_aberta();
+	CLAY(CLAY_ID("categoria"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+		lateral();
+		CLAY(CLAY_ID("lado-direito"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+			Clay_ElementId conteudo = CLAY_ID("secao-conteudo");
+			CLAY(conteudo, gv_rolagem(conteudo, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
+				.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+					.padding = { 30, 26, 24, 16 } } })) {
+				CLAY(CLAY_ID("secao-cabeca"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) },
+					.padding = { 0, 0, 0, 16 }, .childGap = 6 }, .border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
+					gv_texto(gv_str(k->nome), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+					gv_texto(gv_str(x->nome), 30, gv_t.texto, GV_PESO_MEDIO);
+					gv_texto(gv_str(x->descricao), gv_t.tamanho_corpo + 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				CLAY(CLAY_ID("secao-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) },
+					.padding = { 0, 0, 10, 0 } } }) {
+					if (x->desenhar) {
+						x->desenhar();
+					} else {
+						em_breve(x);
+					}
+				}
+			}
+			rodape(x);
+		}
+	}
+}
+
+/* ---- a pergunta antes de sair com algo por aplicar ---- */
+
+static void pergunta(void) {
+	if (!perguntando) {
+		return;
+	}
+	const pn_secao *x = secao_aberta();
+	CLAY(CLAY_ID("veu"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_t.veu, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
+		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 50 } }) {
+		CLAY(CLAY_ID("pergunta"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(460) },
+				.padding = CLAY_PADDING_ALL(24), .childGap = 12 },
+			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
+			.border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .userData = gv_sombra(30, 10, 0.4f) }) {
+			gv_texto(CLAY_STRING("Aplicar as mudanças?"), gv_t.tamanho_destaque + 2, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_fmt("Há mudanças em %s que ainda não foram aplicadas.", x->nome), gv_t.tamanho_corpo, gv_t.texto_secundario,
+				GV_PESO_NORMAL);
+			CLAY(CLAY_ID("pergunta-botoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .padding = { 0, 0, 10, 0 },
+				.childAlignment = { .x = CLAY_ALIGN_X_RIGHT } } }) {
+				if (gv_botao(CLAY_ID("p-descartar"), NULL, "Descartar", GV_BOTAO_SIMPLES)) {
+					x->descartar();
+					perguntando = false;
+					ir_agora(destino_cat, destino_sec, destino_aba);
+				}
+				if (gv_botao(CLAY_ID("p-continuar"), NULL, "Continuar a editar", GV_BOTAO_ELEVADO)) {
+					perguntando = false;
+				}
+				if (gv_botao(CLAY_ID("p-aplicar"), NULL, "Aplicar", GV_BOTAO_CHEIO)) {
+					x->aplicar();
+					perguntando = false;
+					ir_agora(destino_cat, destino_sec, destino_aba);
+				}
+			}
+		}
+	}
+	if (gv_tecla() == XKB_KEY_Escape) {
+		perguntando = false;
 	}
 }
 
@@ -302,61 +494,65 @@ static void desenhar(gv_app *app, void *dados) {
 		.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
 	}) {
 		gv_barra_janela(app, CLAY_ID("barra"), "settings", "Painel de controle");
-		/* as abas e a busca na mesma faixa, com a linha de lado a lado em baixo */
+		/* as abas e a busca na mesma faixa; dentro de uma categoria, fica marcada a aba dela */
 		CLAY(CLAY_ID("faixa"), {
-			.layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 28, 20, 0, 0 },
-				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 28, 20, 0, 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
 		}) {
-			static const char *const abas[] = { "Geral", "Aparência", "Sistema" };
-			if (gv_abas(CLAY_ID("abas"), abas, 3, &aba)) {
+			static const char *const abas[] = { "Geral", "Inicialização", "Sistema" };
+			int marcada = cat >= 0 ? (int)pn_categorias[cat]->aba : aba;
+			int antes = marcada;
+			if (gv_abas(CLAY_ID("abas"), abas, PN_NABAS, &marcada) || (cat >= 0 && marcada != antes)) {
 				busca[0] = '\0';
+				ir(DESTINO_INICIO, 0, marcada);
 			}
 			CLAY(CLAY_ID("faixa-meio"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
-			CLAY(CLAY_ID("faixa-busca"), { .layout = { .sizing = { CLAY_SIZING_FIXED(314) } } }) {
-				gv_campo(CLAY_ID("busca"), busca, sizeof(busca), "Buscar uma configuração", GV_CAMPO_BUSCA);
+			CLAY(CLAY_ID("faixa-busca"), { .layout = { .sizing = { CLAY_SIZING_FIXED(320) } } }) {
+				if (gv_campo(CLAY_ID("busca"), busca, sizeof(busca), "Buscar uma configuração", GV_CAMPO_BUSCA) && busca[0] &&
+					cat >= 0) {
+					/* começar a buscar dentro de uma categoria volta ao início com os resultados */
+					ir(DESTINO_INICIO, 0, (int)pn_categorias[cat]->aba);
+				}
 			}
 		}
-		Clay_ElementId conteudo = CLAY_ID("conteudo");
-		CLAY(conteudo, gv_rolagem(conteudo, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
-			.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
-				.padding = { 22, 22, 26, 14 } },
-		})) {
-			if (na_dock) {
-				pagina_dock();
-			} else if (aba == 0) {
-				CLAY(CLAY_ID("cabeca"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .padding = { 12, 12, 0, 18 },
-					.childGap = 8 } }) {
-					gv_texto(CLAY_STRING("Tudo no seu lugar"), 28, gv_t.texto, GV_PESO_NORMAL);
-					gv_texto(CLAY_STRING("Personalize o seu LUMNA e deixe tudo do seu jeito."), gv_t.tamanho_destaque,
-						gv_t.texto_secundario, GV_PESO_NORMAL);
-				}
-				grade(geral);
-			} else if (aba == 1) {
-				aparencia();
-			} else {
-				grade(sistema);
-			}
-			CLAY(CLAY_ID("espaco"), { .layout = { .sizing = { .height = CLAY_SIZING_GROW(0) } } }) {}
-			atualizacoes();
+		if (cat >= 0) {
+			categoria();
+		} else {
+			inicio();
 		}
 	}
+	pergunta();
 	fflush(stdout);
-	if (gv_tecla() == XKB_KEY_Escape && !gv_focado(CLAY_ID("busca"))) {
-		gv_app_sair(app);
+	if (!perguntando && gv_tecla() == XKB_KEY_Escape && !gv_focado(CLAY_ID("busca")) && !gv_focado(CLAY_ID("filtro"))) {
+		if (cat >= 0) {
+			ir(DESTINO_INICIO, 0, (int)pn_categorias[cat]->aba);
+		} else {
+			ir(DESTINO_SAIR, 0, 0);
+		}
 	}
 }
 
 int main(int argc, char **argv) {
-	dock_ler();
-	if (argc > 1 && !strcmp(argv[1], "--dock")) {
-		na_dock = true; /* aberto pelo menu da dock: direto na página dela */
-		aba = 1;
+	recentes_ler();
+	const char *abrir = NULL;
+	for (int i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "--dock")) {
+			abrir = "aparencia/dock";
+		} else if (!strcmp(argv[i], "--papel")) {
+			abrir = "aparencia/papel";
+		} else if (!strcmp(argv[i], "--secao") && i + 1 < argc) {
+			abrir = argv[++i];
+		}
+	}
+	int c, s;
+	if (abrir && achar(abrir, &c, &s)) {
+		ir_agora(c, s, 0);
 	}
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Painel de controle", .app_id = "lumna-painel",
-		.largura = 1060, .altura = 720 });
+		.largura = 1160, .altura = 740 });
 	if (!app) {
 		return 1;
 	}
+	app_painel = app;
 	return gv_app_correr(app, desenhar, NULL);
 }

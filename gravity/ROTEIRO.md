@@ -54,7 +54,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 
 ## 4. Apps
 
-- [~] Painel de controle (o layout da tela nova já está no exemplo `painel`)
+- [~] Painel de controle — a estrutura do PAINEL.md: abas Geral, Inicialização e Sistema, busca em tudo,
+      usados recentemente, a barra lateral por categoria e Restaurar | Aplicar (a Dock já aplica)
 - [~] Rede — a janela da tela nova no exemplo `rede` (falta o NetworkManager)
 - [~] Celular Connect — a área de transferência no exemplo `transferencia` (falta a ligação ao celular)
 - [ ] Mixer como app e como camada (já existe no exemplo `mixer`)

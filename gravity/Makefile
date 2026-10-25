@@ -59,8 +59,10 @@ galeria: exemplos/galeria.c libgravity.a
 wifi: exemplos/wifi.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
-painel: exemplos/painel.c libgravity.a
-	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+# o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
+PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c
+painel: $(PAINEL) exemplos/painel/painel.h libgravity.a
+	$(CC) $(CFLAGS) -Iexemplos/painel -o $@ $(PAINEL) libgravity.a $(LDLIBS)
 
 apps: exemplos/apps.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)

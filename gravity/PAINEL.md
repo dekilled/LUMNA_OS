@@ -24,7 +24,7 @@ No pé de cada menu dela, um **"Mais configurações"** abre o Painel direto na 
 (`lumna-painel --secao rede/wifi`). O mixer continua a existir como camada de volume no celular
 (as teclas de volume), mas sem ajustes próprios.
 
-O código das telas fica em funções por seção dentro do Painel (`painel/*.c`, uma por categoria),
+O código das telas fica em funções por seção dentro do Painel (`exemplos/painel/*.c`, uma por categoria),
 para o `painel.c` não virar um arquivo gigante. Os serviços (`servicos/som.c`, e depois a rede e o
 Bluetooth) são os mesmos para o Painel e para a topbar.
 
@@ -228,7 +228,7 @@ não existe.
 
 ## A ordem
 
-1. A estrutura (já em `painel/`, um arquivo por categoria): as abas novas, a grade com "Usados recentemente", a vista da categoria com a
+1. ✅ A estrutura (em `exemplos/painel/`, um arquivo por categoria): as abas novas, a grade com "Usados recentemente", a vista da categoria com a
    barra lateral, o rodapé Restaurar | Aplicar, o `--secao` e a busca.
 2. Aparência:
    - Papel de parede (com uma camada por tela no `papel`);
