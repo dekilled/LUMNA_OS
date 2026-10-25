@@ -43,6 +43,9 @@ extern const int pn_ncategorias;
 /* a janela do Painel (para as telas, gv_saidas) */
 extern gv_app *pn_app;
 
+/* o modo desenvolvedor → aplicar em tempo real (desenvolvedor.c) */
+bool pn_ao_vivo(void);
+
 /* ---- ajudas para as seções (comum.c) ---- */
 
 /* ~/.config/lumna/<nome> (ou em $XDG_CONFIG_HOME) */

@@ -7,6 +7,7 @@
 #define N(lista) (int)(sizeof(lista) / sizeof(lista[0]))
 
 extern const pn_categoria pn_aparencia;
+extern const pn_categoria pn_desenvolvedor;
 
 /* ---- Geral ---- */
 
@@ -157,5 +158,6 @@ const pn_categoria *const pn_categorias[] = {
 	&pn_aparencia, &pn_rede, &pn_bluetooth, &pn_aplicativos, &pn_telas, &pn_som, &pn_celular, &pn_emma,
 	&pn_inicializacao,
 	&pn_sobre, &pn_armazenamento, &pn_energia, &pn_teclado, &pn_data, &pn_idioma, &pn_usuarios, &pn_privacidade,
+	&pn_desenvolvedor,
 };
 const int pn_ncategorias = N(pn_categorias);

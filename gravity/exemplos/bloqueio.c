@@ -6,7 +6,8 @@
  *
  * Tranca a sessão de verdade (ext-session-lock): se esta app cair, a sessão fica trancada. Para
  * entrar: tocar no cadeado, em qualquer lugar ou começar a digitar; o PIN (se houver) ou a senha
- * do Linux (servicos/entrar.h). A Emma daqui só faz o simples (a hora, a data, a música, a
+ * do Linux (servicos/entrar.h). O PIN se digita no teclado; o teclado de números na tela só
+ * aparece com o modo desenvolvedor → toque (um desktop com tela de toque). A Emma daqui só faz o simples (a hora, a data, a música, a
  * bateria); o resto pede para desbloquear.
  *   ./bloqueio
  */
@@ -20,6 +21,7 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "desenvolvedor.h"
 #include "entrar.h"
 #include "gravity.h"
 #include "mpris.h"
@@ -30,6 +32,7 @@ enum tela { RELOGIO, ENTRAR, EMMA };
 static gv_app *app_bloqueio;
 static enum tela tela = RELOGIO;
 static bool lateral;           /* o layout */
+static bool toque;             /* o teclado de números na tela (modo desenvolvedor) */
 static bool mostrar_player = true, mostrar_emma = true;
 static char papel[1024];
 static struct mpris_estado musica;
@@ -108,6 +111,7 @@ static void musica_mudou(gv_app *app, int fd, void *dados) {
 
 static void ir_entrar(void) {
 	tela = ENTRAR;
+	toque = dev_ler().toque;
 	usar_senha = entrar_pin_tamanho() == 0;
 	pin[0] = senha[0] = erro[0] = '\0';
 	mexeu = gv_agora();
@@ -346,41 +350,52 @@ static void entrar_pin(void) {
 				.border = { .color = branco(0.8f), .width = GV_BORDA(2) } }) {}
 		}
 	}
-	static const char *const teclas[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "senha", "0", "apagar" };
-	for (int linha = 0; linha < 4; linha++) {
-		CLAY(CLAY_IDI("teclas", (uint32_t)linha), { .layout = { .childGap = 18 } }) {
-			for (int c = 0; c < 3; c++) {
-				int k = linha * 3 + c;
-				Clay_ElementId id = CLAY_IDI("tecla", (uint32_t)k);
-				bool tocado = gv_tocado(id);
-				bool numero = k != 9 && k != 11;
-				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(76), CLAY_SIZING_FIXED(76) },
-						.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-					.backgroundColor = numero ? (gv_premido(id) ? branco(0.28f) : gv_por_cima(id) ? branco(0.2f) : branco(0.1f))
-						: (gv_por_cima(id) ? branco(0.1f) : (Clay_Color){ 0 }),
-					.cornerRadius = CLAY_CORNER_RADIUS(38) }) {
-					if (k == 11) {
-						gv_icone("backspace", 26, branco(0.9f));
-					} else if (k == 9) {
-						texto(CLAY_STRING("Senha"), gv_t.tamanho_corpo, 0.85f, GV_PESO_NORMAL);
-					} else {
-						texto(gv_str(teclas[k]), 30, 1, GV_PESO_NORMAL);
-					}
-				}
-				if (tocado) {
-					mexeu = gv_agora();
-					if (k == 11) {
-						size_t l = strlen(pin);
-						if (l) {
-							pin[l - 1] = '\0';
+	if (!toque) {
+		/* sem toque: os pontos, o teclado e a troca para a senha */
+		CLAY_AUTO_ID({ .layout = { .padding = { 0, 0, 8, 0 } } }) {
+			if (gv_botao(CLAY_ID("usar-senha"), NULL, "Usar a senha", GV_BOTAO_SIMPLES)) {
+				usar_senha = true;
+				erro[0] = '\0';
+				gv_focar(CLAY_ID("senha"));
+			}
+		}
+	} else {
+		static const char *const teclas[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "senha", "0", "apagar" };
+		for (int linha = 0; linha < 4; linha++) {
+			CLAY(CLAY_IDI("teclas", (uint32_t)linha), { .layout = { .childGap = 18 } }) {
+				for (int c = 0; c < 3; c++) {
+					int k = linha * 3 + c;
+					Clay_ElementId id = CLAY_IDI("tecla", (uint32_t)k);
+					bool tocado = gv_tocado(id);
+					bool numero = k != 9 && k != 11;
+					CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(76), CLAY_SIZING_FIXED(76) },
+							.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+						.backgroundColor = numero ? (gv_premido(id) ? branco(0.28f) : gv_por_cima(id) ? branco(0.2f) : branco(0.1f))
+							: (gv_por_cima(id) ? branco(0.1f) : (Clay_Color){ 0 }),
+						.cornerRadius = CLAY_CORNER_RADIUS(38) }) {
+						if (k == 11) {
+							gv_icone("backspace", 26, branco(0.9f));
+						} else if (k == 9) {
+							texto(CLAY_STRING("Senha"), gv_t.tamanho_corpo, 0.85f, GV_PESO_NORMAL);
+						} else {
+							texto(gv_str(teclas[k]), 30, 1, GV_PESO_NORMAL);
 						}
-					} else if (k == 9) {
-						usar_senha = true;
-						erro[0] = '\0';
-						gv_focar(CLAY_ID("senha"));
-					} else if (strlen(pin) < sizeof(pin) - 1) {
-						strcat(pin, teclas[k]);
-						erro[0] = '\0';
+					}
+					if (tocado) {
+						mexeu = gv_agora();
+						if (k == 11) {
+							size_t l = strlen(pin);
+							if (l) {
+								pin[l - 1] = '\0';
+							}
+						} else if (k == 9) {
+							usar_senha = true;
+							erro[0] = '\0';
+							gv_focar(CLAY_ID("senha"));
+						} else if (strlen(pin) < sizeof(pin) - 1) {
+							strcat(pin, teclas[k]);
+							erro[0] = '\0';
+						}
 					}
 				}
 			}

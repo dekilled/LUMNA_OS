@@ -76,3 +76,4 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [ ] Gestos de borda, teclado na tela (já há o relay do input-method), rotação
 - [ ] Medir memória e CPU lá (cada app Gravity usa uns 16 MB aqui no PC)
 - [ ] Trocar a sessão do celular pelo Orbit + desktop novo
+- [x] Modo desenvolvedor (Painel → Sistema → Desenvolvedor): tela de toque no desktop (teclado de números no PIN) e aplicar o Painel em tempo real

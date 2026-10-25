@@ -399,6 +399,28 @@ static void rodape(const pn_secao *x) {
 		return;
 	}
 	bool pendente = x->pendente && x->pendente();
+	if (pn_ao_vivo()) {
+		/* em tempo real: aplica sozinho (no máximo umas 6 vezes por segundo, ao arrastar) */
+		static double ultima;
+		if (pendente) {
+			double agora = gv_agora();
+			if (agora - ultima >= 0.15) {
+				x->aplicar();
+				ultima = agora;
+			} else {
+				gv_acordar_em(0.15 - (agora - ultima) + 0.01);
+			}
+		}
+		if (x->restaurar) {
+			CLAY(CLAY_ID("rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 30, 26, 12, 16 },
+				.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
+				if (gv_botao(CLAY_ID("restaurar"), NULL, "Restaurar padrão", GV_BOTAO_ELEVADO)) {
+					x->restaurar();
+				}
+			}
+		}
+		return;
+	}
 	CLAY(CLAY_ID("rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 30, 26, 12, 16 }, .childGap = 12,
 		.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
 		if (pendente) {

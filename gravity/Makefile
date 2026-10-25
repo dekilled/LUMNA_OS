@@ -67,8 +67,8 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	servicos/papelini.c servicos/entrar.c
-painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h libgravity.a
+	exemplos/painel/desenvolvedor.c servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c
+painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos -o $@ $(PAINEL) libgravity.a $(LDLIBS)
 
 apps: exemplos/apps.c libgravity.a
@@ -98,9 +98,9 @@ avisos: exemplos/avisos.c servicos/avisos.c servicos/avisos.h libgravity.a
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
 # a tela de bloqueio: o PIN e a senha (servicos/entrar.c), o que toca (servicos/mpris.c) e o papel
-bloqueio: exemplos/bloqueio.c servicos/entrar.c servicos/mpris.c servicos/papelini.c libgravity.a
+bloqueio: exemplos/bloqueio.c servicos/entrar.c servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/bloqueio.c servicos/entrar.c \
-		servicos/mpris.c servicos/papelini.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+		servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
 # a tela de login (o greetd corre-a dentro de um Orbit só dela: orbit -S lumna-entrada)
 entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
