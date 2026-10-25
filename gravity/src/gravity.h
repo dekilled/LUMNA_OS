@@ -7,13 +7,14 @@
  * ou camada do LUMNA), do toque, do rato e do teclado, do texto (pango), dos ícones do LUMNA e
  * das animações; o visual sai do tema (gv_t), que um tema.ini muda sem recompilar.
  *
+ *   static bool lanterna;
  *   static void desenhar(gv_app *app, void *dados) {
  *       CLAY(CLAY_ID("raiz"), { .layout = { .padding = CLAY_PADDING_ALL(16) } }) {
- *           if (gv_botao(CLAY_ID("ola"), "check", "Olá", GV_BOTAO_CHEIO)) gv_app_sair(app);
+ *           if (gv_botao_redondo(CLAY_ID("lanterna"), "flashlight", 64, lanterna, false)) lanterna = !lanterna;
  *       }
  *   }
  *   int main(void) {
- *       gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Olá", .largura = 360, .altura = 200 });
+ *       gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Lanterna", .largura = 200, .altura = 200 });
  *       return gv_app_correr(app, desenhar, NULL);
  *   }
  *

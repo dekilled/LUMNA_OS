@@ -86,25 +86,31 @@ dele também serve: `orbit-msg toque baixo 0 X Y`.
 
 ## Uma app mínima
 
+A lanterna: um botão redondo que acende (e o ícone acende junto).
+
 ```c
 #include "gravity.h"
 
+static bool acesa;
+
 static void desenhar(gv_app *app, void *dados) {
-    CLAY(CLAY_ID("raiz"), { .layout = { .padding = CLAY_PADDING_ALL(24), .childGap = 12 } }) {
-        gv_texto(CLAY_STRING("Olá, LUMNA"), gv_t.tamanho_titulo, gv_t.texto, GV_PESO_SEMINEGRITO);
-        if (gv_botao(CLAY_ID("sair"), "close", "Sair", GV_BOTAO_CHEIO)) {
-            gv_app_sair(app);
+    CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 16,
+        .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
+        if (gv_botao_redondo(CLAY_ID("lanterna"), "flashlight", 72, acesa, false)) {
+            acesa = !acesa;
         }
+        gv_texto(acesa ? CLAY_STRING("Lanterna acesa") : CLAY_STRING("Lanterna apagada"),
+            gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
     }
 }
 
 int main(void) {
-    gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Olá", .largura = 360, .altura = 200 });
+    gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Lanterna", .largura = 240, .altura = 240 });
     return app ? gv_app_correr(app, desenhar, NULL) : 1;
 }
 ```
 
-`cc ola.c -Isrc -Ivendor/clay libgravity.a $(pkg-config --cflags --libs wayland-client wayland-cursor xkbcommon cairo pangocairo) -lm`
+`cc lanterna.c -Isrc -Ivendor/clay libgravity.a $(pkg-config --cflags --libs wayland-client wayland-cursor xkbcommon cairo pangocairo glib-2.0) -lm`
 
 ## O que vem a seguir
 
