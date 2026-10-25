@@ -273,9 +273,15 @@ bool orbit_im_bind(struct orbit_server *server) {
 		return false;
 	}
 	relay.new_text_input.notify = new_text_input;
-	wl_signal_add(&text_inputs->events.text_input, &relay.new_text_input);
 	relay.new_input_method.notify = new_input_method;
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR < 20
+	wl_signal_add(&text_inputs->events.text_input, &relay.new_text_input);
 	wl_signal_add(&methods->events.input_method, &relay.new_input_method);
+#else
+	/* o 0.20 renomeou os sinais */
+	wl_signal_add(&text_inputs->events.new_text_input, &relay.new_text_input);
+	wl_signal_add(&methods->events.new_input_method, &relay.new_input_method);
+#endif
 	relay.new_virtual_keyboard.notify = new_virtual_keyboard;
 	wl_signal_add(&virtuals->events.new_virtual_keyboard, &relay.new_virtual_keyboard);
 	relay.new_virtual_pointer.notify = new_virtual_pointer;

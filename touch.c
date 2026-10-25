@@ -88,7 +88,12 @@ void orbit_touch_down(struct orbit_server *server, uint32_t time, int32_t id, do
 	}
 	point->ox = lx - sx;
 	point->oy = ly - sy;
-	if (wlr_surface_accepts_touch(server->seat, surface)) {
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR < 19
+	bool aceita = wlr_surface_accepts_touch(server->seat, surface);
+#else
+	bool aceita = wlr_surface_accepts_touch(surface, server->seat); /* o 0.19 trocou a ordem */
+#endif
+	if (aceita) {
 		wlr_seat_touch_notify_down(server->seat, surface, time, id, sx, sy);
 		return;
 	}

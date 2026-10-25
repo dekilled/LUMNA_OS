@@ -11,7 +11,9 @@ Dependências
   Debian/Ubuntu: libwlroots-dev, libwayland-dev, libxkbcommon-dev
   O módulo pkg-config em 0.18 chama-se wlroots-0.18 no Arch (o Makefile já
   usa esse); noutras distros, wlroots: make PKGS="wlroots wayland-server
-  xkbcommon". Em 0.19: PKGS="wlroots-0.19 wayland-server xkbcommon".
+  xkbcommon". Em 0.19: PKGS="wlroots-0.19 wayland-server xkbcommon"; em 0.20 (o
+  único no Arch de hoje), PKGS="wlroots-0.20 wayland-server xkbcommon". As poucas diferenças
+  de API (o toque no 0.19, os sinais do texto no 0.20) estão em #if WLR_VERSION_MINOR.
   O make gera os cabeçalhos do xdg-shell (do wayland-protocols) e do layer
   shell (o XML está em protocolos/) com o wayland-scanner.
   O fonte segue a API 0.18, que a 0.19 mantém nestes pontos: backend com

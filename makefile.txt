@@ -1,4 +1,5 @@
-# Orbit — wlroots 0.18. O Arch chama o módulo de "wlroots-0.18"; noutras distros é "wlroots"
+# Orbit — wlroots 0.18, 0.19 ou 0.20 (o Arch de hoje só tem o 0.20: PKGS="wlroots-0.20 ...").
+# O Arch chama o módulo de "wlroots-0.18"; noutras distros é "wlroots"
 # (make PKGS="wlroots wayland-server xkbcommon"). wlroots 0.19: PKGS="wlroots-0.19 ...".
 PKGS ?= wlroots-0.18 wayland-server xkbcommon
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
