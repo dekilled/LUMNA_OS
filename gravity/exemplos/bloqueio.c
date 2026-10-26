@@ -583,6 +583,7 @@ int main(int argc, char **argv) {
 	}
 	app_bloqueio = app;
 	ler_ajustes();
+	gv_app_bloqueio_fundo(app, papel); /* as outras telas trancam junto, com o mesmo papel */
 	int fd = mpris_iniciar();
 	if (fd >= 0) {
 		gv_app_vigiar(app, fd, musica_mudou, NULL);

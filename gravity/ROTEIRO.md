@@ -44,7 +44,9 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Tela de bloqueio — exemplo `bloqueio` (lumna-bloqueio): tranca a sessão (ext-session-lock), layouts
       Centralizado e Lateral, PIN ou senha (o mesmo PIN do celular), o que está tocando (MPRIS) e a Emma
       só para o simples
-  - [ ] As outras telas no bloqueio (hoje ficam apagadas), bloquear sozinho quando parado, a voz da Emma
+  - [x] Todas as telas trancam juntas (o papel nas outras), e sozinho: parado (lumna-ocioso, ext-idle-notify) e antes de suspender (logind)
+  - [x] O papel do bloqueio pode ser uma imagem sua; o layout vale também para a tela de login (Painel, com pkexec)
+  - [ ] A voz da Emma no bloqueio
 - [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
 - [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)
 - [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da

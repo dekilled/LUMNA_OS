@@ -181,4 +181,7 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, i
 /* ---- animações ---- */
 void gv__anim_quadro(void);
 
+/* uma imagem inteira, já no formato do cairo (NULL: não abriu); o bloqueio das outras telas */
+cairo_surface_t *gv__imagem_carregar(const char *caminho);
+
 #endif

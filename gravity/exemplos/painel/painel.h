@@ -63,6 +63,12 @@ bool pn_ajuste_lista(Clay_ElementId id, const char *icone, const char *nome, con
 	int n, int *escolha);
 /* uma escolha em segmentos ("Compacta | Confortável"); devolve verdadeiro quando mudou */
 bool pn_segmentos(Clay_ElementId id, const char *const *opcoes, int n, int *escolha);
+/* uma miniatura de imagem que se toca (com o visto se escolhida e a legenda embaixo, NULL: sem) */
+bool pn_miniatura(Clay_ElementId id, const char *caminho, float largura, float altura, bool escolhida, const char *legenda);
+/* as imagens da pessoa (Imagens e Downloads): reler a lista, e o popup que as mostra todas (devolve
+ * a escolhida no quadro em que se tocou, senão NULL) */
+void pn_suas_carregar(void);
+const char *pn_suas_popup(Clay_ElementId popup, Clay_ElementId ancora, const char *atual);
 /* abrir outro programa sem esperar */
 void pn_executar(const char *comando);
 

@@ -206,4 +206,6 @@ os arquivos de `session/` (`lumna-orbit.desktop` em /usr/share/wayland-sessions,
     command = "lumna-entrada-greeter"
     user = "greeter"
 
-O layout fica em `/etc/lumna/entrada.ini` (`layout = centro` ou `layout = lateral`).
+O layout fica em `/etc/lumna/entrada.ini` (`layout = centro` ou `layout = lateral`); crie-o ao instalar
+(`echo "layout = centro" | sudo tee /etc/lumna/entrada.ini`) e o Painel passa a mudar o login junto com o
+bloqueio (Aparência → Tela de bloqueio, pede a senha de administrador).

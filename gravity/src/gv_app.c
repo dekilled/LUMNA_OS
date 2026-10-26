@@ -100,6 +100,18 @@ struct gv_app {
 	struct ext_session_lock_manager_v1 *bloqueios;
 	struct ext_session_lock_v1 *bloqueio;
 	struct ext_session_lock_surface_v1 *bloqueio_sup;
+	struct wl_output *bloqueio_saida; /* a tela da superfície principal */
+	/* as outras telas: só o fundo (gv_app_bloqueio_fundo) */
+	struct gv_bloqueio_extra {
+		struct wl_output *saida;
+		struct wl_surface *sup;
+		struct ext_session_lock_surface_v1 *bloq;
+		struct gv_buffer buffers[2];
+		int largura, altura, escala;
+		bool configurado;
+	} extras[GV_MAX_SAIDAS];
+	cairo_surface_t *fundo;
+	bool principal_desenhada; /* as outras só aparecem depois (o teclado fica na principal) */
 	bool trancado;
 	struct wl_callback *quadro_cb;
 
@@ -960,6 +972,10 @@ static void xdg_ping(void *d, struct xdg_wm_base *xdg, uint32_t serial) {
 
 static const struct xdg_wm_base_listener xdg_ouvinte = { .ping = xdg_ping };
 
+/* o bloqueio nas outras telas (mais abaixo) */
+static void extra_criar(gv_app *app, struct wl_output *saida);
+static void extra_saiu(gv_app *app, struct wl_output *saida);
+
 static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, const char *iface, uint32_t versao) {
 	gv_app *app = dados;
 	if (!strcmp(iface, wl_compositor_interface.name)) {
@@ -991,6 +1007,7 @@ static void registo_global(void *dados, struct wl_registry *r, uint32_t nome, co
 		}
 		saida->wl = wl_registry_bind(r, nome, &wl_output_interface, versao < 4 ? versao : 4);
 		wl_output_add_listener(saida->wl, &saida_ouvinte, saida);
+		extra_criar(app, saida->wl); /* trancado: a tela nova também */
 	}
 }
 
@@ -998,6 +1015,7 @@ static void registo_saiu(void *dados, struct wl_registry *r, uint32_t nome) {
 	gv_app *app = dados;
 	for (int i = 0; i < app->nsaidas; i++) {
 		if (app->saidas[i].global == nome) {
+			extra_saiu(app, app->saidas[i].wl);
 			wl_output_release(app->saidas[i].wl);
 			memmove(&app->saidas[i], &app->saidas[i + 1], (app->nsaidas - i - 1) * sizeof(app->saidas[0]));
 			app->nsaidas--;
@@ -1106,8 +1124,128 @@ static void bloqueio_acabou(void *dados, struct ext_session_lock_v1 *b) {
 
 static const struct ext_session_lock_v1_listener bloqueio_ouvinte = { .locked = bloqueio_trancou, .finished = bloqueio_acabou };
 
+static int escala_de(gv_app *app, struct wl_output *wl) {
+	for (int i = 0; i < app->nsaidas; i++) {
+		if (app->saidas[i].wl == wl) {
+			return app->saidas[i].escala > 0 ? app->saidas[i].escala : 1;
+		}
+	}
+	return 1;
+}
+
+static void extra_desenhar(gv_app *app, struct gv_bloqueio_extra *e) {
+	if (!e->sup || !e->configurado || !app->principal_desenhada) {
+		return;
+	}
+	int escala = escala_de(app, e->saida);
+	struct gv_buffer *buffer = buffer_livre_em(app, e->buffers, e->largura * escala, e->altura * escala);
+	if (!buffer) {
+		return;
+	}
+	if (escala != e->escala) {
+		e->escala = escala;
+		wl_surface_set_buffer_scale(e->sup, escala);
+	}
+	cairo_t *cr = cairo_create(buffer->superficie);
+	cairo_set_source_rgb(cr, 0x0b / 255.0, 0x0a / 255.0, 0x12 / 255.0);
+	cairo_paint(cr);
+	if (app->fundo) {
+		/* cobrir: a imagem enche a tela, cortando o que sobra */
+		double w = cairo_image_surface_get_width(app->fundo), h = cairo_image_surface_get_height(app->fundo);
+		double bw = buffer->largura, bh = buffer->altura;
+		double f = fmax(bw / w, bh / h);
+		cairo_save(cr);
+		cairo_translate(cr, (bw - w * f) / 2, (bh - h * f) / 2);
+		cairo_scale(cr, f, f);
+		cairo_set_source_surface(cr, app->fundo, 0, 0);
+		cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_GOOD);
+		cairo_paint(cr);
+		cairo_restore(cr);
+	}
+	cairo_set_source_rgba(cr, 5 / 255.0, 4 / 255.0, 10 / 255.0, 0.45);
+	cairo_paint(cr);
+	cairo_destroy(cr);
+	cairo_surface_flush(buffer->superficie);
+	wl_surface_attach(e->sup, buffer->wl, 0, 0);
+	wl_surface_damage_buffer(e->sup, 0, 0, INT32_MAX, INT32_MAX);
+	wl_surface_commit(e->sup);
+	buffer->ocupado = true;
+}
+
+static void extra_configurar(void *dados, struct ext_session_lock_surface_v1 *s, uint32_t serial, uint32_t largura,
+		uint32_t altura) {
+	gv_app *app = dados;
+	ext_session_lock_surface_v1_ack_configure(s, serial);
+	for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+		struct gv_bloqueio_extra *e = &app->extras[i];
+		if (e->bloq == s) {
+			e->largura = (int)largura;
+			e->altura = (int)altura;
+			e->configurado = true;
+			extra_desenhar(app, e);
+		}
+	}
+}
+
+static const struct ext_session_lock_surface_v1_listener extra_ouvinte = { .configure = extra_configurar };
+
+static void extra_criar(gv_app *app, struct wl_output *saida) {
+	if (!app->bloqueio || !saida || saida == app->bloqueio_saida) {
+		return;
+	}
+	for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+		struct gv_bloqueio_extra *e = &app->extras[i];
+		if (e->sup) {
+			continue;
+		}
+		e->saida = saida;
+		e->sup = wl_compositor_create_surface(app->compositor);
+		/* sem entrada: o rato e os dedos por cima destas não chegam à app */
+		struct wl_region *nada = wl_compositor_create_region(app->compositor);
+		wl_surface_set_input_region(e->sup, nada);
+		wl_region_destroy(nada);
+		e->bloq = ext_session_lock_v1_get_lock_surface(app->bloqueio, e->sup, saida);
+		ext_session_lock_surface_v1_add_listener(e->bloq, &extra_ouvinte, app);
+		return;
+	}
+}
+
+static void extra_destruir(struct gv_bloqueio_extra *e) {
+	if (e->bloq) {
+		ext_session_lock_surface_v1_destroy(e->bloq);
+	}
+	if (e->sup) {
+		wl_surface_destroy(e->sup);
+	}
+	for (int k = 0; k < 2; k++) {
+		buffer_destruir(&e->buffers[k]);
+	}
+	*e = (struct gv_bloqueio_extra){ 0 };
+}
+
+static void extra_saiu(gv_app *app, struct wl_output *saida) {
+	for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+		if (app->extras[i].sup && app->extras[i].saida == saida) {
+			extra_destruir(&app->extras[i]);
+		}
+	}
+}
+
+void gv_app_bloqueio_fundo(gv_app *app, const char *imagem) {
+	if (app->fundo) {
+		cairo_surface_destroy(app->fundo);
+	}
+	app->fundo = gv__imagem_carregar(imagem);
+	for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+		extra_desenhar(app, &app->extras[i]);
+	}
+}
+
 void gv_app_desbloquear(gv_app *app) {
 	if (app->bloqueio) {
+		for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+			extra_destruir(&app->extras[i]);
+		}
 		if (app->bloqueio_sup) {
 			ext_session_lock_surface_v1_destroy(app->bloqueio_sup);
 			app->bloqueio_sup = NULL;
@@ -1221,6 +1359,10 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 		ext_session_lock_v1_add_listener(app->bloqueio, &bloqueio_ouvinte, app);
 		app->bloqueio_sup = ext_session_lock_v1_get_lock_surface(app->bloqueio, app->superficie, saida);
 		ext_session_lock_surface_v1_add_listener(app->bloqueio_sup, &bloqueio_sup_ouvinte, app);
+		app->bloqueio_saida = saida;
+		for (int i = 0; i < app->nsaidas; i++) {
+			extra_criar(app, app->saidas[i].wl);
+		}
 	}
 	if (opcoes->tipo == GV_CAMADA) {
 		if (!app->camadas) {
@@ -1673,6 +1815,12 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	wl_callback_add_listener(app->quadro_cb, &quadro_ouvinte, app);
 	wl_surface_commit(app->superficie);
 	buffer->ocupado = true;
+	if (app->bloqueio && !app->principal_desenhada) {
+		app->principal_desenhada = true;
+		for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+			extra_desenhar(app, &app->extras[i]);
+		}
+	}
 }
 
 int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {

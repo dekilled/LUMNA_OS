@@ -156,6 +156,20 @@ static cairo_surface_t *para_cairo(GdkPixbuf *pb) {
 	return sup;
 }
 
+cairo_surface_t *gv__imagem_carregar(const char *caminho) {
+	GdkPixbuf *pb = caminho && *caminho ? gdk_pixbuf_new_from_file(caminho, NULL) : NULL;
+	if (!pb) {
+		return NULL;
+	}
+	GdkPixbuf *direito = gdk_pixbuf_apply_embedded_orientation(pb);
+	cairo_surface_t *sup = para_cairo(direito ? direito : pb);
+	if (direito) {
+		g_object_unref(direito);
+	}
+	g_object_unref(pb);
+	return sup;
+}
+
 static gpointer trabalhar(gpointer dados) {
 	(void)dados;
 	for (;;) {

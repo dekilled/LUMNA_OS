@@ -1,12 +1,15 @@
 /*
- * Aparência → Tela de bloqueio: o layout (Centralizado ou Lateral), o papel (o do desktop ou um da
- * Coleção), o que aparece (o que está tocando, a Emma) e o PIN. O layout e o resto vão para
- * ~/.config/lumna/bloqueio.ini no Aplicar; o PIN grava-se na hora, com a senha (servicos/entrar.h).
+ * Aparência → Tela de bloqueio: o layout (Centralizado ou Lateral, o mesmo na tela de login), o papel
+ * (o do desktop, um da Coleção ou uma imagem sua), o que aparece (o que está tocando, a Emma),
+ * quando tranca sozinha (o lumna-ocioso) e o PIN. Vai para ~/.config/lumna/bloqueio.ini no
+ * Aplicar; o layout também para /etc/lumna/entrada.ini (pede a senha de administrador, pkexec).
+ * O PIN grava-se na hora, com a senha (servicos/entrar.h).
  */
 #include "painel.h"
 
 #include <glib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "entrar.h"
@@ -17,8 +20,16 @@ struct bloqueio_ajustes {
 	bool mesmo_papel;
 	char papel[512];
 	bool player, emma;
+	int apos; /* minutos sem mexer até trancar (0: nunca) */
+	bool suspender;
 };
-static const struct bloqueio_ajustes fabrica = { .mesmo_papel = true, .player = true, .emma = true };
+static const struct bloqueio_ajustes fabrica = { .mesmo_papel = true, .player = true, .emma = true, .apos = 5, .suspender = true };
+static const char *const apos_nomes[] = { "Nunca", "1 minuto", "2 minutos", "5 minutos", "10 minutos", "15 minutos", "30 minutos", "1 hora" };
+static const int apos_minutos[] = { 0, 1, 2, 5, 10, 15, 30, 60 };
+#define NAPOS 8
+/* o layout da tela de login (/etc/lumna/entrada.ini): -1 se não deu para ler */
+static int login_lateral = -1;
+static char login_msg[160];
 static struct bloqueio_ajustes b, gravado;
 static char colecao[PAPEL_COLECAO_MAX][512];
 static int ncolecao;
@@ -51,6 +62,10 @@ void pn_bloqueio_abrir(void) {
 				gravado.player = strcmp(valor, "nao") != 0;
 			} else if (!strcmp(chave, "emma")) {
 				gravado.emma = strcmp(valor, "nao") != 0;
+			} else if (!strcmp(chave, "bloquear_apos")) {
+				gravado.apos = atoi(valor);
+			} else if (!strcmp(chave, "bloquear_suspender")) {
+				gravado.suspender = strcmp(valor, "nao") != 0;
 			}
 		}
 		g_strfreev(linhas);
@@ -58,22 +73,44 @@ void pn_bloqueio_abrir(void) {
 	}
 	b = gravado;
 	ncolecao = papel_colecao(colecao, PAPEL_COLECAO_MAX);
+	pn_suas_carregar();
+	login_lateral = -1;
+	login_msg[0] = '\0';
+	char *login = NULL;
+	if (g_file_get_contents("/etc/lumna/entrada.ini", &login, NULL, NULL)) {
+		login_lateral = strstr(login, "lateral") != NULL;
+		g_free(login);
+	}
 	pin_aberto = false;
 	pin_msg[0] = '\0';
 }
 
 bool pn_bloqueio_pendente(void) {
 	return b.lateral != gravado.lateral || b.mesmo_papel != gravado.mesmo_papel || b.player != gravado.player ||
-		b.emma != gravado.emma || (!b.mesmo_papel && strcmp(b.papel, gravado.papel));
+		b.emma != gravado.emma || b.apos != gravado.apos || b.suspender != gravado.suspender || (!b.mesmo_papel && strcmp(b.papel, gravado.papel));
 }
 
 void pn_bloqueio_aplicar(void) {
-	char texto[1024];
+	char texto[1400];
 	snprintf(texto, sizeof(texto),
-		"# A tela de bloqueio (o Painel de controle grava este arquivo)\nlayout = %s\npapel = %s\nplayer = %s\nemma = %s\n",
-		b.lateral ? "lateral" : "centro", b.mesmo_papel ? "" : b.papel, b.player ? "sim" : "nao", b.emma ? "sim" : "nao");
+		"# A tela de bloqueio (o Painel de controle grava este arquivo)\nlayout = %s\npapel = %s\nplayer = %s\nemma = %s\n"
+		"bloquear_apos = %d\nbloquear_suspender = %s\n",
+		b.lateral ? "lateral" : "centro", b.mesmo_papel ? "" : b.papel, b.player ? "sim" : "nao", b.emma ? "sim" : "nao", b.apos,
+		b.suspender ? "sim" : "nao");
 	if (pn_gravar("bloqueio.ini", texto)) {
 		gravado = b;
+	}
+	/* a tela de login tem o mesmo layout (só se o login do LUMNA estiver instalado) */
+	if (login_lateral >= 0 && login_lateral != b.lateral) {
+		char cmd[256];
+		snprintf(cmd, sizeof(cmd), "printf 'layout = %s\\n' | pkexec tee /etc/lumna/entrada.ini >/dev/null",
+			b.lateral ? "lateral" : "centro");
+		if (system(cmd) == 0) {
+			login_lateral = b.lateral;
+			snprintf(login_msg, sizeof(login_msg), "A tela de login também ficou %s.", b.lateral ? "Lateral" : "Centralizada");
+		} else {
+			snprintf(login_msg, sizeof(login_msg), "A tela de login continua como estava (sem a senha de administrador).");
+		}
 	}
 }
 
@@ -197,7 +234,13 @@ void pn_bloqueio_desenhar(void) {
 			b.lateral = 1;
 		}
 	}
-	pn_linha_comecar(CLAY_ID("bl-papel"), "image", "O mesmo papel de parede do desktop", "Desligado: escolha um da Coleção LUMNA");
+	if (login_msg[0]) {
+		gv_texto(gv_str(login_msg), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+	} else if (login_lateral >= 0) {
+		gv_texto(CLAY_STRING("A tela de login usa o mesmo layout (o Aplicar pede a senha de administrador)."), gv_t.tamanho_corpo - 1,
+			gv_t.texto_secundario, GV_PESO_NORMAL);
+	}
+	pn_linha_comecar(CLAY_ID("bl-papel"), "image", "O mesmo papel de parede do desktop", "Desligado: um da Coleção LUMNA ou uma imagem sua");
 	gv_interruptor(CLAY_ID("bl-papel-v"), &b.mesmo_papel);
 	pn_linha_acabar();
 	if (!b.mesmo_papel) {
@@ -220,6 +263,23 @@ void pn_bloqueio_desenhar(void) {
 				}
 			}
 		}
+		/* uma imagem sua: a escolhida aparece aqui, e o botão abre todas */
+		bool da_colecao = false;
+		for (int i = 0; i < ncolecao; i++) {
+			da_colecao |= !strcmp(b.papel, colecao[i]);
+		}
+		CLAY(CLAY_ID("bl-sua"), { .layout = { .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER }, .padding = { 0, 0, 0, 12 } } }) {
+			if (b.papel[0] && !da_colecao) {
+				pn_miniatura(CLAY_ID("bl-sua-img"), b.papel, 140, 80, true, NULL);
+			}
+			if (gv_botao(CLAY_ID("bl-arquivo"), "folder", "Escolher arquivo", GV_BOTAO_ELEVADO)) {
+				gv_popup_alternar(CLAY_ID("bl-suas"));
+			}
+		}
+		const char *sua = pn_suas_popup(CLAY_ID("bl-suas"), CLAY_ID("bl-arquivo"), b.papel);
+		if (sua) {
+			snprintf(b.papel, sizeof(b.papel), "%.511s", sua);
+		}
 	}
 	pn_linha_comecar(CLAY_ID("bl-player"), "music", "Mostrar o que está tocando", "Com os botões de tocar, pausar e passar");
 	gv_interruptor(CLAY_ID("bl-player-v"), &b.player);
@@ -227,6 +287,22 @@ void pn_bloqueio_desenhar(void) {
 	pn_linha_comecar(CLAY_ID("bl-emma"), "emma", "Fale com a Emma",
 		"Bloqueada, ela só diz a hora e a data, cuida da música e da bateria");
 	gv_interruptor(CLAY_ID("bl-emma-v"), &b.emma);
+	pn_linha_acabar();
+	pn_subtitulo(CLAY_ID("bl-s3"), "Trancar sozinha");
+	{
+		int escolha = 3;
+		for (int i = 0; i < NAPOS; i++) {
+			if (apos_minutos[i] == b.apos) {
+				escolha = i;
+			}
+		}
+		if (pn_ajuste_lista(CLAY_ID("bl-apos"), "clock", "Depois de ficar parado", "Todas as telas trancam juntas; um vídeo tocando segura",
+			    apos_nomes, NAPOS, &escolha)) {
+			b.apos = apos_minutos[escolha];
+		}
+	}
+	pn_linha_comecar(CLAY_ID("bl-susp"), "moon", "Trancar antes de suspender", "Ao acordar, o computador já está trancado");
+	gv_interruptor(CLAY_ID("bl-susp-v"), &b.suspender);
 	pn_linha_acabar();
 	pn_subtitulo(CLAY_ID("bl-s2"), "Desbloquear");
 	secao_pin();

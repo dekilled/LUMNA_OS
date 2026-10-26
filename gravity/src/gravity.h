@@ -133,6 +133,10 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados);
 void gv_app_sair(gv_app *app);
 /* GV_BLOQUEIO: destranca a sessão (a senha conferiu) e sai. */
 void gv_app_desbloquear(gv_app *app);
+/* GV_BLOQUEIO: a tela de bloqueio fica na tela escolhida (opcoes.saida, ou a primeira); as outras
+ * telas ficam trancadas junto, com esta imagem por trás de um véu escuro (NULL: só a cor). Telas
+ * ligadas com a sessão trancada também. */
+void gv_app_bloqueio_fundo(gv_app *app, const char *imagem);
 /* Janelas: minimizar, maximizar (ou voltar) e começar a arrastar (num aperto do ponteiro ou do dedo). */
 void gv_app_minimizar(gv_app *app);
 void gv_app_maximizar(gv_app *app);

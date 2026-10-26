@@ -6,4 +6,4 @@ export XDG_SESSION_TYPE=wayland
 export XDG_SESSION_DESKTOP=lumna
 export ORBIT_BORDA=0
 [ -f /usr/lib/lumna/gpu-env ] && . /usr/lib/lumna/gpu-env
-exec dbus-run-session -- orbit -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos &'
+exec dbus-run-session -- orbit -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso &'
