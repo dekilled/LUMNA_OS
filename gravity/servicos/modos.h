@@ -16,6 +16,7 @@
 #define LUMNA_MODOS_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 enum { MODO_DESKTOP, MODO_GAMING, MODO_MIDIA, MODO_N };
 #define MODOS_MAX_SAIDAS 8
@@ -50,6 +51,9 @@ const char *modos_id(int modo);     /* "desktop", "gaming", "midia" */
 const char *modos_icone(int modo);  /* o ícone do Gravity */
 const char *modos_descricao(int modo);
 int modos_de_id(const char *id);    /* -1 se não for um modo */
+
+/* um pedido qualquer ao Orbit (como o orbit-msg) e a linha de resposta */
+bool orbit_pedido(const char *pedido, char *resposta, size_t tam);
 
 bool modos_ler(struct modos_estado *e);
 /* a área útil de uma saída (o que sobra depois da barra e da dock), em pixels lógicos; NULL: a primeira */

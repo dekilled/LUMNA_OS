@@ -32,5 +32,7 @@ int64_t mpris_posicao(const struct mpris_estado *e);
 void mpris_tocar_pausar(void);
 void mpris_proxima(void);
 void mpris_anterior(void);
+/* anda (ou volta, se negativo) a posição, em microssegundos */
+void mpris_buscar(int64_t delta_us);
 
 #endif

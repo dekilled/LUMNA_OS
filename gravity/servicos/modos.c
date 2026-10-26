@@ -85,6 +85,10 @@ static bool pedir(const char *pedido, char *resposta, size_t tam) {
 	return ok && len > 0;
 }
 
+bool orbit_pedido(const char *pedido, char *resposta, size_t tam) {
+	return pedir(pedido, resposta, tam);
+}
+
 bool modos_ler(struct modos_estado *e) {
 	memset(e, 0, sizeof(*e));
 	char r[2048];

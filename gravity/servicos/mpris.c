@@ -214,3 +214,14 @@ void mpris_proxima(void) {
 void mpris_anterior(void) {
 	chamar("Previous");
 }
+
+void mpris_buscar(int64_t delta_us) {
+	char nome[256];
+	g_mutex_lock(&trinco);
+	snprintf(nome, sizeof(nome), "%s", nome_atual);
+	g_mutex_unlock(&trinco);
+	if (ligacao && nome[0]) {
+		g_dbus_connection_call(ligacao, nome, CAMINHO, "org.mpris.MediaPlayer2.Player", "Seek", g_variant_new("(x)", delta_us), NULL,
+			G_DBUS_CALL_FLAGS_NONE, 1000, NULL, NULL, NULL);
+	}
+}
