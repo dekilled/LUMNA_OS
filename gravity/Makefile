@@ -67,7 +67,7 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos -o $@ $(PAINEL) libgravity.a $(LDLIBS)
 

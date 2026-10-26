@@ -9,6 +9,14 @@
 extern const pn_categoria pn_aparencia;
 extern const pn_categoria pn_desenvolvedor;
 
+/* Sistema → Teclado e mouse → Atalhos (atalhos.c) */
+void pn_atalhos_desenhar(void);
+bool pn_atalhos_pendente(void);
+void pn_atalhos_aplicar(void);
+void pn_atalhos_descartar(void);
+void pn_atalhos_restaurar(void);
+void pn_atalhos_abrir(void);
+
 /* ---- Geral ---- */
 
 static const pn_secao rede[] = {
@@ -117,7 +125,8 @@ const pn_categoria pn_energia = { "energia", "battery", "Energia", "Bateria e su
 
 static const pn_secao teclado[] = {
 	{ "teclado", "keyboard", "Teclado", "Layout e repetição.", NULL, "O layout;A repetição das teclas" },
-	{ "atalhos", "keyboard", "Atalhos", "As teclas que fazem as coisas.", NULL, "Ver e trocar os atalhos" },
+	{ "atalhos", "keyboard", "Atalhos", "As teclas que fazem as coisas.", pn_atalhos_desenhar, NULL, pn_atalhos_pendente,
+		pn_atalhos_aplicar, pn_atalhos_descartar, pn_atalhos_restaurar, pn_atalhos_abrir },
 	{ "mouse", "mouse", "Mouse e touchpad", "O ponteiro.", NULL, "Velocidade;Toque para clicar;Rolagem natural" },
 	{ "tela", "keyboard", "Teclado na tela", "Escrever sem teclado.", NULL, "Ligar;O tamanho" },
 };

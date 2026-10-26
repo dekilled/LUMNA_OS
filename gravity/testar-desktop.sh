@@ -69,6 +69,7 @@ for p in papel barra dock lancador avisos bloqueio entrada ocioso painel apps re
 	[ -x "$AQUI/$p" ] && ln -sf "$AQUI/$p" "$BIN/lumna-$p"
 done
 ln -sf "$O/orbit-msg" "$BIN/orbit-msg"
+ln -sf "$AQUI/../session/lumna-modo" "$BIN/lumna-modo"
 
 echo "Abrindo o desktop novo numa janela (feche-a para sair)..."
 export PATH="$BIN:$PATH"
