@@ -154,6 +154,9 @@ static void atualizar(void) {
 }
 
 static gboolean tic(gpointer d) {
+	if (!bus) {
+		return G_SOURCE_CONTINUE; /* sem D-Bus do sistema (um teste, um contêiner) */
+	}
 	atualizar();
 	return G_SOURCE_CONTINUE;
 }
@@ -231,6 +234,10 @@ static void erro_guardar(const char *prefixo, GError *e) {
 
 static gboolean executar(gpointer dados) {
 	struct comando *c = dados;
+	if (!bus) {
+		g_free(c);
+		return G_SOURCE_REMOVE;
+	}
 	GError *e = NULL;
 	GVariant *r = NULL;
 	const char *prefixo = "Bluetooth";

@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos
 
 xdg-shell-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
@@ -67,8 +67,8 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c \
-	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c \
+	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c servicos/modos.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
@@ -78,8 +78,8 @@ apps: exemplos/apps.c libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/bandeja.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c \
+barra: exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a
@@ -88,16 +88,20 @@ rede: exemplos/rede.c libgravity.a
 transferencia: exemplos/transferencia.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
-dock: exemplos/dock.c libgravity.a
-	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+dock: exemplos/dock.c servicos/modos.c servicos/modos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/dock.c servicos/modos.c libgravity.a $(LDLIBS)
 
 lancador: exemplos/lancador.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
 # os avisos: o servidor org.freedesktop.Notifications (GDBus) e o canto e a central
-avisos: exemplos/avisos.c servicos/avisos.c servicos/avisos.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/avisos.c servicos/avisos.c \
+avisos: exemplos/avisos.c servicos/avisos.c servicos/avisos.h servicos/modos.c servicos/modos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/avisos.c servicos/avisos.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+
+# o seletor de modo (Desktop, Gaming, Mídia) e o serviço dos modos (servicos/modos.c)
+modos: exemplos/modos.c servicos/modos.c servicos/modos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/modos.c servicos/modos.c libgravity.a $(LDLIBS)
 
 # trancar sozinho: sem mexer (ext-idle-notify) e antes de dormir (logind); não usa o Gravity
 ext-idle-notify-v1-client-protocol.h:
@@ -118,6 +122,6 @@ entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean

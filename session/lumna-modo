@@ -1,31 +1,11 @@
 #!/bin/sh
-# lumna-modo: o modo do desktop (Desktop, Gaming ou Mídia), em ~/.config/lumna/modo. Quem vigia o
-# arquivo segue o modo (o papel de parede de cada modo, por enquanto). O Super+Tab chama
-# "lumna-modo seguinte".
-#   lumna-modo                  diz o modo de agora
-#   lumna-modo seguinte         passa ao próximo (Desktop → Gaming → Mídia → Desktop)
+# lumna-modo: o modo do desktop (Desktop, Gaming ou Mídia), pelo Orbit. Cada saída tem o seu; o Super+Tab
+# e o seletor da topbar usam o mesmo caminho.
+#   lumna-modo                  o modo da saída em foco
+#   lumna-modo seguinte|anterior
 #   lumna-modo desktop|gaming|midia
-PASTA="${XDG_CONFIG_HOME:-$HOME/.config}/lumna"
-ARQ="$PASTA/modo"
-agora=$(cat "$ARQ" 2>/dev/null)
-[ -n "$agora" ] || agora=desktop
 case "$1" in
-"") echo "$agora"; exit 0 ;;
-seguinte)
-	case "$agora" in
-	desktop) novo=gaming ;;
-	gaming) novo=midia ;;
-	*) novo=desktop ;;
-	esac ;;
-desktop | gaming | midia) novo=$1 ;;
-*) echo "uso: lumna-modo [seguinte|desktop|gaming|midia]" >&2; exit 1 ;;
+"") orbit-msg modo | sed -n 's/.*"ponteiro":true.*/&/p' | head -n1 | grep -o '"modo":"[a-z]*"' | cut -d'"' -f4 | head -n1 ;;
+seguinte | anterior | desktop | gaming | midia) exec orbit-msg modo "$1" >/dev/null ;;
+*) echo "uso: lumna-modo [seguinte|anterior|desktop|gaming|midia]" >&2; exit 1 ;;
 esac
-mkdir -p "$PASTA"
-printf '%s\n' "$novo" > "$ARQ.tmp" && mv "$ARQ.tmp" "$ARQ"
-case "$novo" in
-desktop) nome=Desktop ;;
-gaming) nome=Gaming ;;
-midia) nome=Mídia ;;
-esac
-notify-send -a LUMNA -h string:x-canonical-private-synchronous:lumna-modo "Modo $nome" 2>/dev/null
-exit 0

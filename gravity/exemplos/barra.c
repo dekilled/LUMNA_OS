@@ -21,6 +21,7 @@
 #include "bandeja.h"
 #include "bluetooth.h"
 #include "gravity.h"
+#include "modos.h"
 #include "rede.h"
 #include "som.h"
 
@@ -65,14 +66,13 @@ static void ler_ajustes(void) {
 	fclose(f);
 }
 
-static void ler_modo(void);
+static void modos_atualizar(void);
 
 static void ajustes_mudaram(gv_app *app, int fd, void *dados) {
 	char buf[4096];
 	while (read(fd, buf, sizeof(buf)) > 0) {
 	}
 	ler_ajustes();
-	ler_modo();
 	gv_app_redesenhar(app);
 }
 
@@ -83,24 +83,20 @@ static void servico_mudou(gv_app *app, int fd, void *dados) {
 	}
 	gv_app_redesenhar(app);
 }
-static char modo_nome[16] = "Desktop";
 
-static void ler_modo(void) {
-	const char *config = getenv("XDG_CONFIG_HOME");
-	char *caminho = config && *config ? g_build_filename(config, "lumna", "modo", NULL)
-					  : g_build_filename(g_get_home_dir(), ".config", "lumna", "modo", NULL);
-	char *texto = NULL;
-	snprintf(modo_nome, sizeof(modo_nome), "Desktop");
-	if (g_file_get_contents(caminho, &texto, NULL, NULL)) {
-		g_strstrip(texto);
-		if (!strcmp(texto, "gaming")) {
-			snprintf(modo_nome, sizeof(modo_nome), "Gaming");
-		} else if (!strcmp(texto, "midia")) {
-			snprintf(modo_nome, sizeof(modo_nome), "Mídia");
-		}
-		g_free(texto);
-	}
-	g_free(caminho);
+/* o Orbit trocou um modo (de qualquer jeito: Super+Tab, este menu, o Painel) */
+static void modo_mudou(gv_app *app, int fd, void *dados) {
+	modos_assinar_ler(fd);
+	modos_atualizar();
+	gv_app_redesenhar(app);
+}
+/* ---- os modos (Orbit) ---- */
+
+static struct modos_estado modos_est;
+static int modos_fd = -1;
+
+static void modos_atualizar(void) {
+	modos_ler(&modos_est);
 }
 
 /* corre sem esperar (o filho do filho fica com o init: sem zumbis na barra) */
@@ -455,6 +451,60 @@ static const char *icone_bt(void) {
 	return bt.nadapt && bt.adapt[0].ligado ? "bluetooth" : "bluetooth";
 }
 
+static void menu_modo(void) {
+	GV_POPUP(CLAY_ID("menu-modo"), CLAY_ID("modo"), .alinhar = GV_ALINHAR_INICIO, .largura = 360, .distancia = POPUP_GAP) {
+		int atual = modos_em_foco(&modos_est);
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 12, 6 } } }) {
+			gv_texto(CLAY_STRING("Alternar modo"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+		}
+		if (!modos_est.orbit) {
+			mensagem("O Orbit não respondeu.");
+		}
+		for (int m = 0; modos_est.orbit && m < MODO_N; m++) {
+			Clay_ElementId id = CLAY_IDI("md", (uint32_t)m);
+			bool tocado = gv_tocado(id);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 10, 10 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = m == atual ? gv_alfa(gv_t.acento, 0.12f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 } }) {
+				tocado |= gv_focavel(id, 0);
+				gv_icone(modos_icone(m), 26, m == atual ? gv_t.acento : gv_t.icone);
+				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
+					gv_texto(gv_str(modos_nome(m)), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+					gv_texto(gv_str(modos_descricao(m)), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (m == atual) {
+					gv_icone("check", 20, gv_t.acento);
+				}
+			}
+			if (tocado && m != atual) {
+				modos_definir(m, NULL);
+				gv_popup_fechar(CLAY_ID("menu-modo"));
+			}
+		}
+		if (modos_est.orbit && modos_est.n > 1) {
+			gv_separador(false, 0);
+			CLAY(CLAY_ID("md-ext"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 10, 10 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
+					gv_texto(CLAY_STRING("Estender o modo"), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+					gv_texto(CLAY_STRING("Todas as telas trocam juntas"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				bool ext = modos_est.estender;
+				if (gv_interruptor(CLAY_ID("md-ext-v"), &ext)) {
+					modos_definir_layout(ext);
+					struct modos_cfg c;
+					modos_cfg_ler(&c);
+					c.estender = ext;
+					modos_cfg_gravar(&c);
+				}
+			}
+		}
+		gv_separador(false, 0);
+		if (gv_menu_item(CLAY_ID("md-config"), "settings", "Configurações de modos", NULL)) {
+			executar("lumna-painel", "--secao", "telas/modos");
+			gv_popup_fechar(CLAY_ID("menu-modo"));
+		}
+	}
+}
+
 /* ---- a bandeja: os apps em segundo plano (StatusNotifierItem) ---- */
 
 static struct bandeja_estado tray;
@@ -673,7 +723,18 @@ static void desenhar(gv_app *app, void *dados) {
 			gv_icone("lumna", 20, gv_t.acento);
 			gv_texto(CLAY_STRING("L U M N A"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
 			gv_separador(true, 18);
-			gv_texto(gv_str(modo_nome), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+			Clay_ElementId rotulo = CLAY_ID("modo");
+			if (gv_tocado(rotulo)) {
+				gv_popup_alternar(CLAY_ID("menu-modo"));
+			}
+			CLAY(rotulo, { .layout = { .padding = { 10, 8, 0, 0 }, .sizing = { .height = CLAY_SIZING_FIXED(32) }, .childGap = 6,
+					.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = gv_popup_aberto(CLAY_ID("menu-modo")) ? gv_t.selecionado : gv_por_cima(rotulo) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+				gv_focavel(rotulo, gv_t.raio_pequeno);
+				gv_texto(gv_str(modos_nome(modos_em_foco(&modos_est))), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_icone("chevron-down", 14, gv_t.texto_suave);
+			}
 		}
 		/* meio: as áreas de trabalho */
 		CLAY(CLAY_ID("areas"), { .layout = { .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
@@ -734,6 +795,7 @@ static void desenhar(gv_app *app, void *dados) {
 			gv_acordar_em(segundos ? 1.0 - fmod(gv_agora(), 1.0) + 0.01 : 60 - t.tm_sec + 0.05);
 		}
 	}
+	menu_modo();
 	menu_wifi();
 	menu_som();
 	menu_bluetooth();
@@ -753,12 +815,16 @@ int main(void) {
 		return 1;
 	}
 	ler_ajustes();
-	ler_modo();
+	modos_atualizar();
 	int fds[4] = { rede_iniciar(), bt_iniciar(), som_iniciar("Barra"), bandeja_iniciar() };
 	for (int i = 0; i < 4; i++) {
 		if (fds[i] >= 0) {
 			gv_app_vigiar(app, fds[i], servico_mudou, NULL);
 		}
+	}
+	modos_fd = modos_assinar();
+	if (modos_fd >= 0) {
+		gv_app_vigiar(app, modos_fd, modo_mudou, NULL);
 	}
 	char *ini = barra_ini();
 	char *pasta = g_path_get_dirname(ini);

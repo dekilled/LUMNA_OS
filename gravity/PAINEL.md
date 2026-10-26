@@ -152,7 +152,11 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 
   Pelo Orbit (`orbit-msg` / wlr-output-management).
 - ⏳ Luz noturna;
-- 🔨 Modos (Desktop, Gaming, Mídia: o que cada um mostra);
+- ✅ Modos (Desktop, Gaming, Mídia): o modo ao ligar, estender o modo às telas (ou um por tela) e, por modo,
+  esconder a dock e o "não perturbe" (`modos.ini`). A base está no Orbit (um espaço por modo e por saída:
+  trocar nunca fecha nem move janela; `orbit-msg modo`, o evento `modo`, Super+Tab e Super+Shift+Tab);
+  a topbar tem o seletor (o nome do modo), o `lumna-modos` mostra o seletor no meio da tela a cada troca, a
+  dock some e os avisos só deixam passar os urgentes. As telas de Gaming (biblioteca) e Mídia vêm depois;
 - ⏳ Áreas de trabalho.
 
 **Som**

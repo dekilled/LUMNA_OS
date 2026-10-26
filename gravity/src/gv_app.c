@@ -33,7 +33,7 @@
 #include "xdg-shell-client-protocol.h"
 
 #define GV_MAX_SAIDAS 8
-#define GV_MAX_VIGIAS 8
+#define GV_MAX_VIGIAS 16
 #define GV_MAX_POPUPS 4
 #define GV_POPUP_MARGEM 28 /* à volta do popup, para a sombra */
 

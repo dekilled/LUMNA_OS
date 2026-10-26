@@ -43,6 +43,7 @@
 #include <unistd.h>
 
 #include "gravity.h"
+#include "modos.h"
 
 #define MAX_FIXOS 24
 #define MAX_JANELAS 64
@@ -711,6 +712,23 @@ static bool maximizada_aqui(gv_app *app, const gv_janela **janelas, int n) {
 	return false;
 }
 
+/* o modo desta tela pede a dock escondida (Gaming, Mídia), pelo modos.ini */
+static bool modo_esconde;
+
+static void modo_rever(gv_app *app) {
+	bool antes = modo_esconde;
+	modo_esconde = modos_esconde_dock(minha_tela(app));
+	if (antes != modo_esconde) {
+		gv_app_redesenhar(app);
+	}
+}
+
+/* o Orbit trocou um modo */
+static void modo_mudou(gv_app *app, int fd, void *dados) {
+	modos_assinar_ler(fd);
+	modo_rever(app);
+}
+
 /* o dock.ini ou a lista dos fixos mudou (o Painel, ou a dock de outra tela, gravou) */
 static void config_mudou(gv_app *app, int fd, void *dados) {
 	char buf[4096];
@@ -719,6 +737,7 @@ static void config_mudou(gv_app *app, int fd, void *dados) {
 	bool todos = pref.todos;
 	ler_pref();
 	carregar();
+	modo_rever(app);
 	if (minha_saida && !pref.todos) {
 		gv_app_sair(app); /* só a da tela principal fica */
 	} else if (!minha_saida && todos != pref.todos) {
@@ -754,7 +773,7 @@ static void desenhar(gv_app *app, void *dados) {
 	 * baixo, e a faixa na borda chama-a de volta por cima dela) */
 	bool maximizada = maximizada_aqui(app, janelas, n);
 	bool barra = pref.barra || (maximizada && pref.esticar);
-	bool ocultar = maximizada && !pref.esticar;
+	bool ocultar = (maximizada && !pref.esticar) || modo_esconde;
 	int altura = barra ? 68 : 92;
 	camada_quer(altura, ocultar ? 0 : altura);
 	bool popup = gv_popup_aberto(CLAY_ID("menu")) || gv_popup_aberto(CLAY_ID("previa"));
@@ -897,6 +916,11 @@ int main(int argc, char **argv) {
 	}
 	app_dock = app;
 	vigiar_config(app);
+	int fd_modos = modos_assinar();
+	if (fd_modos >= 0) {
+		gv_app_vigiar(app, fd_modos, modo_mudou, NULL);
+	}
+	modo_rever(app);
 	if (!minha_saida) {
 		filhas_rever();
 	}

@@ -66,7 +66,7 @@ fi
 
 # os nomes que as peças chamam umas às outras (a dock abre o lumna-lancador, o sino o lumna-avisos...)
 mkdir -p "$BIN"
-for p in papel barra dock lancador avisos bloqueio entrada ocioso painel apps rede transferencia mixer wifi galeria; do
+for p in papel barra dock lancador avisos bloqueio entrada ocioso modos painel apps rede transferencia mixer wifi galeria; do
 	[ -x "$AQUI/$p" ] && ln -sf "$AQUI/$p" "$BIN/lumna-$p"
 done
 ln -sf "$O/orbit-msg" "$BIN/orbit-msg"

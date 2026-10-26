@@ -23,6 +23,7 @@
 
 #include "avisos.h"
 #include "gravity.h"
+#include "modos.h"
 
 #define MAX_ITENS 100
 #define MAX_NO_CANTO 4
@@ -39,7 +40,14 @@ struct item {
 	double saida;    /* quando começou a sair */
 };
 
+static bool modo_silencio; /* o modo de agora (Gaming, Mídia) pede só os urgentes */
 static gv_app *app_avisos;
+
+/* o Orbit trocou um modo: Gaming e Mídia deixam passar só os urgentes (modos.ini) */
+static void modo_mudou(gv_app *app, int fd, void *dados) {
+	modos_assinar_ler(fd);
+	modo_silencio = modos_nao_perturbe();
+}
 static struct item itens[MAX_ITENS]; /* do mais antigo ao mais novo */
 static int nitens;
 static bool centro;
@@ -126,7 +134,7 @@ static void chegou_aviso(const struct aviso *a) {
 	struct item *it = &itens[nitens++];
 	memset(it, 0, sizeof(*it));
 	it->a = *a;
-	it->no_canto = !centro && (!nao_perturbe || a->urgencia == AVISO_CRITICA);
+	it->no_canto = !centro && ((!nao_perturbe && !modo_silencio) || a->urgencia == AVISO_CRITICA);
 	it->novo = i < 0; /* uma atualização (a música seguinte) não volta a entrar a deslizar */
 	double d = duracao(a);
 	it->sai_em = d > 0 ? gv_agora() + d : 0;
@@ -595,6 +603,11 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	app_avisos = app;
+	modo_silencio = modos_nao_perturbe();
+	int fd_modos = modos_assinar();
+	if (fd_modos >= 0) {
+		gv_app_vigiar(app, fd_modos, modo_mudou, NULL);
+	}
 	gv_app_entrada_em(app, CLAY_ID("pilha"));
 	gv_app_vigiar(app, fd, eventos, NULL);
 	return gv_app_correr(app, desenhar, NULL);
