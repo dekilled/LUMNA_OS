@@ -16,6 +16,12 @@ void pn_modos_aplicar(void);
 void pn_modos_descartar(void);
 void pn_modos_restaurar(void);
 void pn_modos_abrir(void);
+void pn_areas_desenhar(void);
+bool pn_areas_pendente(void);
+void pn_areas_aplicar(void);
+void pn_areas_descartar(void);
+void pn_areas_restaurar(void);
+void pn_areas_abrir(void);
 
 /* Sistema → Teclado e mouse → Atalhos (atalhos.c) */
 void pn_atalhos_desenhar(void);
@@ -48,7 +54,8 @@ static const pn_secao telas[] = {
 	{ "luz", "moon", "Luz noturna", "Cores mais quentes à noite.", NULL, "Ligar, intensidade e horário" },
 	{ "modos", "desktop", "Modos", "Desktop, Gaming e Mídia: o modo ao ligar e o que cada um faz.", pn_modos_desenhar, NULL, pn_modos_pendente,
 		pn_modos_aplicar, pn_modos_descartar, pn_modos_restaurar, pn_modos_abrir },
-	{ "areas", "stack", "Áreas de trabalho", "As áreas e como se troca entre elas.", NULL, "Quantas;Atalhos e gestos" },
+	{ "areas", "stack", "Áreas de trabalho", "Quantas áreas o Desktop usa e como se troca entre elas.", pn_areas_desenhar, NULL, pn_areas_pendente,
+		pn_areas_aplicar, pn_areas_descartar, pn_areas_restaurar, pn_areas_abrir },
 };
 const pn_categoria pn_telas = { "telas", "desktop", "Telas e modos", "Monitores, Desktop, Gaming e Mídia", PN_GERAL, telas,
 	N(telas) };

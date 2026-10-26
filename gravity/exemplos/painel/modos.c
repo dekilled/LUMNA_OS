@@ -23,6 +23,10 @@ bool pn_modos_pendente(void) {
 }
 
 void pn_modos_aplicar(void) {
+	/* a quantidade de áreas é da seção Áreas de trabalho: o que ela gravou vale */
+	struct modos_cfg atual;
+	modos_cfg_ler(&atual);
+	cfg.areas = gravada.areas = atual.areas;
 	if (modos_cfg_gravar(&cfg)) {
 		if (cfg.estender != gravada.estender) {
 			modos_definir_layout(cfg.estender);
@@ -38,6 +42,7 @@ void pn_modos_descartar(void) {
 void pn_modos_restaurar(void) {
 	struct modos_cfg padrao;
 	memset(&padrao, 0, sizeof(padrao));
+	padrao.areas = cfg.areas;
 	for (int i = 1; i < MODO_N; i++) {
 		padrao.m[i].esconder_dock = padrao.m[i].nao_perturbe = true;
 	}

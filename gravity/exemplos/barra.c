@@ -43,8 +43,6 @@ static void popup_medir(void) {
 	}
 }
 
-static int area;
-
 /* abre um menu do sistema e fecha os outros (um só de cada vez); tocar no que está aberto fecha-o */
 static void menu_alternar(Clay_ElementId id) {
 	bool estava = gv_popup_aberto(id);
@@ -804,17 +802,26 @@ static void desenhar(gv_app *app, void *dados) {
 				gv_icone("chevron-down", 14, gv_t.texto_suave);
 			}
 		}
-		/* meio: as áreas de trabalho */
+		/* meio: os espaços de trabalho (só no Desktop, e só se há mais de um) */
 		CLAY(CLAY_ID("areas"), { .layout = { .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-			for (int i = 0; areas && i < 3; i++) {
-				Clay_ElementId id = CLAY_IDI("area", i);
-				if (gv_tocado(id)) {
-					area = i;
+			const struct modos_saida *foco = NULL;
+			for (int i = 0; i < modos_est.n; i++) {
+				if (!foco || modos_est.saidas[i].ponteiro) {
+					foco = &modos_est.saidas[i];
 				}
-				float w = gv_anim(id.id, area == i ? 34 : 22, gv_t.duracao_normal);
+			}
+			bool ver = areas && foco && modos_est.orbit && foco->modo == MODO_DESKTOP && modos_est.areas > 1;
+			for (int i = 0; ver && i < modos_est.areas; i++) {
+				Clay_ElementId id = CLAY_IDI("area", i);
+				bool ativa = foco->espaco == i + 1;
+				if (gv_tocado(id) && !ativa) {
+					modos_definir_espaco(i + 1, foco->nome);
+				}
+				float w = gv_anim(id.id, ativa ? 34 : 22, gv_t.duracao_normal);
 				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(w), CLAY_SIZING_FIXED(16) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(4) } },
-						.backgroundColor = area == i ? gv_t.acento : gv_t.borda_controle, .cornerRadius = CLAY_CORNER_RADIUS(2) }) {}
+						.backgroundColor = ativa ? gv_t.acento : gv_por_cima(id) ? gv_t.texto_suave : gv_t.borda_controle,
+						.cornerRadius = CLAY_CORNER_RADIUS(2) }) {}
 				}
 			}
 		}

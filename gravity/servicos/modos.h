@@ -3,6 +3,7 @@
  * configuração fica em ~/.config/lumna/modos.ini, que o Painel grava:
  *
  *   [geral]    layout = tela | estender       um modo por tela, ou todas as telas juntas
+ *              areas = 1 a 3                  quantos espaços de trabalho o Desktop usa
  *              ao_ligar = desktop|gaming|midia
  *   [desktop] [gaming] [midia]
  *              esconder_dock = sim|nao        a dock some nesse modo
@@ -18,22 +19,26 @@
 
 enum { MODO_DESKTOP, MODO_GAMING, MODO_MIDIA, MODO_N };
 #define MODOS_MAX_SAIDAS 8
+#define MODOS_AREAS_MAX 3
 
 struct modos_saida {
 	char nome[32];
 	int modo;
+	int espaco; /* o espaço do Desktop (1 a areas) em que a saída está, ou esteve, se o modo é outro */
 	bool ponteiro; /* o cursor está nesta saída */
 };
 
 struct modos_estado {
 	bool orbit; /* o Orbit respondeu */
 	bool estender;
+	int areas; /* quantos espaços o Desktop usa (1 a MODOS_AREAS_MAX) */
 	struct modos_saida saidas[MODOS_MAX_SAIDAS];
 	int n;
 };
 
 struct modos_cfg {
 	int ao_ligar;
+	int areas;
 	bool estender;
 	struct {
 		bool esconder_dock, nao_perturbe;
@@ -56,6 +61,8 @@ int modos_da_saida(const struct modos_estado *e, const char *saida);
 /* troca o modo (da saída dada, ou da em foco se NULL; todas, no layout "estender") */
 bool modos_definir(int modo, const char *saida);
 bool modos_definir_layout(bool estender);
+bool modos_definir_areas(int areas);              /* liga/desliga espaços do Desktop; as janelas dos desligados vão para o último */
+bool modos_definir_espaco(int espaco, const char *saida); /* 1 a areas; NULL: a saída em foco */
 
 int modos_assinar(void);
 void modos_assinar_ler(int fd);
