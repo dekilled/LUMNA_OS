@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 #include "firefox.h"
 #include "midia.h"
+#include <glib.h>
 #include <assert.h>
 #include <poll.h>
 #include <stdio.h>
@@ -20,6 +21,9 @@ static bool tem_netflix_carregado(void) { for (int i = 0; i < e.n; i++) if (!str
 static bool tem_dois(void) { return e.n == 2 && !e.abas[0].carregando && !e.abas[1].carregando; }
 static bool youtube_ativo(void) { return !strcmp(e.ativo, "youtube"); }
 static bool netflix_ativo(void) { return !strcmp(e.ativo, "netflix"); }
+static bool em_login(void) { return e.login && !e.ligado && e.lancado; }
+static bool ligado_sem_login(void) { return e.ligado && !e.login && !strcmp(e.ativo, "youtube"); }
+static bool nao_lancado(void) { return !e.lancado && !e.login; }
 static bool tem_um(void) { return e.n == 1; }
 int main(void) {
 	int fd = ff_iniciar();
@@ -46,6 +50,30 @@ int main(void) {
 	ff_fechar("youtube");
 	assert(espera(tem_um, 3000));
 	puts("firefox ok");
+	/* entrar numa conta: um Firefox comum, sem o controle remoto */
+	char args[1024];
+	snprintf(args, sizeof(args), "%s/args.txt", getenv("HOME"));
+	setenv("LUMNA_FF_ARGS", args, 1);
+	ff_entrar("https://accounts.exemplo.com/entrar");
+	assert(espera(em_login, 15000));
+	usleep(300000);
+	char *conteudo = NULL;
+	assert(g_file_get_contents(args, &conteudo, NULL, NULL));
+	assert(strstr(conteudo, "accounts.exemplo.com/entrar") && !strstr(conteudo, "remote-debugging-port") && strstr(conteudo, "--kiosk"));
+	g_free(conteudo);
+	puts("login ok (sem controle remoto)");
+	/* terminar o login sem abrir nada */
+	ff_sair_login();
+	assert(espera(nao_lancado, 8000));
+	puts("sair do login ok");
+	ff_entrar("https://accounts.exemplo.com/entrar");
+	assert(espera(em_login, 15000));
+	/* abrir um serviço fecha o de login e volta ao controlado */
+	ff_abrir("youtube", "https://www.youtube.com/tv");
+	assert(espera(ligado_sem_login, 20000));
+	assert(g_file_get_contents(args, &conteudo, NULL, NULL) && strstr(conteudo, "remote-debugging-port"));
+	g_free(conteudo);
+	puts("volta ao controlado ok");
 	ff_encerrar();
 	usleep(300000);
 	ff_ler(&e);

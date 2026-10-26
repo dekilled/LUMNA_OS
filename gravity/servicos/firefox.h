@@ -34,6 +34,7 @@ struct ff_aba {
 struct ff_estado {
 	bool lancado;   /* o processo existe */
 	bool ligado;    /* o controle respondeu: dá para mandar abas */
+	bool login;     /* o Firefox está aberto SEM controle, para entrar numa conta (ver ff_entrar) */
 	struct ff_aba abas[FF_MAX_ABAS];
 	int n;
 	char ativo[32]; /* o serviço da aba à frente, ou "" */
@@ -52,6 +53,15 @@ void ff_fechar(const char *servico);
  * sozinho a cada 20 segundos enquanto o serviço está à frente.
  */
 void ff_salvar(const char *servico, bool miniatura);
+/*
+ * Entrar numa conta. O Firefox controlado por BiDi avisa os sites de que é um navegador automatizado
+ * (navigator.webdriver), e o Google recusa o login ("este navegador pode não ser seguro"). Então o
+ * login é feito num Firefox comum, sem controle, no mesmo perfil: o que ele guardar (cookies) vale
+ * depois no controlado. Não dá para controlar nem ver as abas nesse modo; ff_sair_login() (ou abrir
+ * um serviço) fecha esse Firefox e volta ao normal.
+ */
+void ff_entrar(const char *url);
+void ff_sair_login(void);
 void ff_encerrar(void);             /* fecha o Firefox */
 
 #endif

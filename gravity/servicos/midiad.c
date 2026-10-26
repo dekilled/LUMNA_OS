@@ -45,7 +45,7 @@ static void abrir_tela(struct filho *f, const char *papel, const char *extra) {
 	if (f->pid) {
 		return;
 	}
-	char *argv[] = { (char *)este_programa, (char *)papel, (char *)extra, NULL };
+	char *argv[] = { (char *)este_programa, "tela", (char *)papel, (char *)extra, NULL };
 	GError *erro = NULL;
 	if (g_spawn_async(NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, &f->pid, &erro)) {
 		g_child_watch_add(f->pid, filho_saiu, f);
@@ -102,7 +102,7 @@ static void estado_json(GString *s) {
 	int n = midia_servicos_ler(serv, MIDIA_MAX_SERVICOS);
 	struct midia_recente rec[MIDIA_MAX_RECENTES];
 	int nr = midia_recentes_ler(rec, MIDIA_MAX_RECENTES);
-	g_string_append_printf(s, "{\"ok\":true,\"firefox\":%s,\"ativo\":", fe.ligado ? "true" : "false");
+	g_string_append_printf(s, "{\"ok\":true,\"firefox\":%s,\"login\":%s,\"ativo\":", fe.ligado ? "true" : "false", fe.login ? "true" : "false");
 	json_escrever_texto(s, fe.ativo);
 	g_string_append(s, ",\"servicos\":[");
 	for (int i = 0; i < n; i++) {
@@ -231,6 +231,16 @@ static void guardar_o_que_passava(void) {
 	}
 }
 
+/* o Firefox de login abre devagar: tenta trazê-lo para a frente até a janela existir */
+static gboolean login_trazer_firefox(gpointer dados) {
+	static int tentativas;
+	if (trazer_janela(FF_APP_ID) || ++tentativas > 25) {
+		tentativas = 0;
+		return G_SOURCE_REMOVE;
+	}
+	return G_SOURCE_CONTINUE;
+}
+
 static void pedido(const char *linha, GString *r) {
 	char **p = g_strsplit(g_strstrip(g_strdup(linha)), " ", 3);
 	const char *cmd = p[0] ? p[0] : "";
@@ -259,7 +269,25 @@ static void pedido(const char *linha, GString *r) {
 			}
 			g_string_assign(r, "{\"ok\":true}");
 		}
+	} else if (!strcmp(cmd, "entrar") && p[1]) {
+		/* um Firefox comum, sem controle, na página de entrada do serviço (o Google não deixa entrar no controlado) */
+		struct midia_servico serv[MIDIA_MAX_SERVICOS];
+		int n = midia_servicos_ler(serv, MIDIA_MAX_SERVICOS);
+		const struct midia_servico *s = midia_servico_achar(serv, n, p[1]);
+		if (!s || !s->ativo) {
+			g_string_assign(r, "{\"ok\":false,\"erro\":\"serviço desconhecido ou desligado\"}");
+		} else {
+			guardar_o_que_passava();
+			garantir_modo_midia();
+			fe.ativo[0] = '\0';
+			ff_entrar(s->login);
+			g_timeout_add(400, login_trazer_firefox, NULL);
+			g_string_assign(r, "{\"ok\":true}");
+		}
 	} else if (!strcmp(cmd, "inicio")) {
+		if (fe.login) {
+			ff_sair_login(); /* acabou de entrar: o Firefox comum fecha, o controlado volta quando abrir um serviço */
+		}
 		guardar_o_que_passava();
 		garantir_modo_midia();
 		if (!trazer_janela(MIDIA_APP_INICIO)) {

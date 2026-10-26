@@ -51,6 +51,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [ ] O app do celular: touchpad (pointer/click/scroll já aceitos pelo serviço) e o teclado
   - [ ] Os recursos do Connect (arquivos, área de transferência, avisos, Emma, energia) ainda moram no shell antigo
 - [x] Mídia (lumna-midia): o Firefox em kiosk é o player web (um perfil, uma aba por serviço, controle por WebDriver BiDi); o serviço guarda o catálogo editável (midia.ini) e os recentes (URL, título, miniatura); Início, capa de loading com fade e seletor (Super+M) conforme os mockups; Home e abrir serviço também pelo celular; testes com um Firefox de mentira (`testes/midia.sh`)
+- [x] Entrar nas contas (Início > "Entrar nas contas"): um Firefox comum, sem controle remoto, no mesmo perfil, porque o Google recusa o navegador controlado (navigator.webdriver); `lumna-midia entrar ID`; sair pelo Início ou abrindo um serviço
+- [x] `LUMNA_TEMPO=1 lumna-lancador` mostra o tempo de cada etapa da abertura do launcher
   - [ ] Testar no Firefox de verdade: app_id da janela (--name/--class), Widevine (o CDM baixa na primeira vez), `navigator.webdriver` ligado pelo controle remoto (login do Google pode reclamar: YouTube TV entra por código)
 - [x] Telas em Gaming/Mídia como ilhas no Orbit (fora do Alt+Tab e da dock, sem janelas entrando ou saindo) e "Trocar telas" (Super+Shift+O, botão no Início da Mídia, item no menu de modo da topbar, `swap-screens` no celular)
   - [ ] Conferir na dock de verdade que as janelas das ilhas não aparecem; arrastar com o mouse passando pela ilha; janelas de jogos que o Gaming abre com outro app_id

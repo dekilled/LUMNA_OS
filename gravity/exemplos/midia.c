@@ -1,10 +1,11 @@
 /*
  * lumna-midia: a Mídia do LUMNA. Um programa, vários papéis:
  *   lumna-midia servico        o serviço (dono do Firefox, do catálogo e dos recentes); sobe com a sessão
- *   lumna-midia inicio         a tela de Início: serviços e recentes
- *   lumna-midia capa ID        a capa de loading sobre o serviço que está abrindo (some com fade)
- *   lumna-midia seletor        o seletor de serviços (Super+M) sobre o que estiver passando
- *   lumna-midia <pedido>       qualquer pedido do serviço pela linha de comando (midiac.h)
+ *   lumna-midia tela inicio    a tela de Início: serviços e recentes
+ *   lumna-midia tela capa ID   a capa de loading sobre o serviço que está abrindo (some com fade)
+ *   lumna-midia tela seletor   o seletor de serviços (Super+M) sobre o que estiver passando
+ *   lumna-midia <pedido>       qualquer pedido do serviço pela linha de comando (midiac.h): estado, abrir ID,
+ *                              inicio, seletor, entrar ID, fechar ID...
  *
  * As telas só desenham o estado que o serviço manda e pedem coisas a ele: quem abre o Firefox, traz
  * a janela para a frente e tira a capa é o serviço. Teclado (setas, Enter, Esc) e toque funcionam;
@@ -39,6 +40,8 @@ static struct midia_estado est;
 static int telas = 1; /* quantas telas o Orbit tem: com mais de uma aparece "Trocar telas" */
 static const char *papel;     /* "inicio", "capa" ou "seletor" */
 static char capa_servico[32]; /* o serviço da capa, pelo argumento */
+
+static bool enter_gasto; /* o Enter deste quadro já abriu algo: não vale de novo para o que acabou de abrir */
 
 static void estado_rever(void) {
 	if (!midiac_estado(&est)) {
@@ -110,7 +113,8 @@ static void marca(const struct midia_servico *s, float tamanho, float alfa) {
 
 enum { LINHA_CONTROLE, LINHA_SERVICOS, LINHA_RECENTES };
 static int foco_linha = LINHA_SERVICOS, foco_col;
-static bool modal_pareamento, modal_adicionar;
+static bool modal_pareamento, modal_adicionar, modal_contas;
+static int contas_sel;
 static char adic_nome[48], adic_url[300], adic_erro[80];
 static char pareamento_json[512];
 static double pareamento_em;
@@ -313,7 +317,7 @@ static void modal_pareamento_desenhar(gv_app *app) {
 				gv_texto(CLAY_STRING("O serviço do controle (lumna-controle) não está rodando."), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
 			json_liberar(j);
-			if (gv_botao(CLAY_ID("pareamento-fechar"), NULL, "Fechar", GV_BOTAO_ELEVADO) || tecla(XKB_KEY_Escape) || tecla(XKB_KEY_Return)) {
+			if (gv_botao(CLAY_ID("pareamento-fechar"), NULL, "Fechar", GV_BOTAO_ELEVADO) || tecla(XKB_KEY_Escape) || (!enter_gasto && tecla(XKB_KEY_Return))) {
 				modal_pareamento = false;
 			}
 		}
@@ -368,15 +372,16 @@ static void modal_adicionar_desenhar(gv_app *app) {
 }
 
 static void inicio_navegar(int nserv, int nrec) {
-	if (modal_pareamento || modal_adicionar) {
+	if (modal_pareamento || modal_adicionar || modal_contas) {
 		return;
 	}
+	int topo = (telas > 1 ? 1 : 0) + 2; /* Trocar telas (se há mais de uma), Entrar nas contas, Controle pelo celular */
 	int cols = nserv + 1; /* + o "adicionar" */
 	if (tecla(XKB_KEY_Left)) {
 		foco_col = foco_col > 0 ? foco_col - 1 : foco_col;
 	}
 	if (tecla(XKB_KEY_Right)) {
-		int max = foco_linha == LINHA_SERVICOS ? cols - 1 : foco_linha == LINHA_RECENTES ? nrec - 1 : telas > 1 ? 1 : 0;
+		int max = foco_linha == LINHA_SERVICOS ? cols - 1 : foco_linha == LINHA_RECENTES ? nrec - 1 : topo - 1;
 		foco_col = foco_col < max ? foco_col + 1 : foco_col;
 	}
 	if (tecla(XKB_KEY_Down)) {
@@ -393,15 +398,20 @@ static void inicio_navegar(int nserv, int nrec) {
 			foco_linha = LINHA_SERVICOS;
 		} else if (foco_linha == LINHA_SERVICOS) {
 			foco_linha = LINHA_CONTROLE;
-			foco_col = telas > 1 ? 1 : 0; /* o botão do celular, que fica mais perto do canto */
+			foco_col = topo - 1; /* o botão do celular, que fica mais perto do canto */
 		}
 	}
 	if (tecla(XKB_KEY_Return) || tecla(XKB_KEY_KP_Enter)) {
+		enter_gasto = true;
 		int idx[MIDIA_MAX_SERVICOS];
 		int n = servicos_ativos(idx);
 		if (foco_linha == LINHA_CONTROLE) {
-			if (telas > 1 && foco_col == 0) {
+			int k = foco_col;
+			if (telas > 1 && k-- == 0) {
 				modos_trocar_telas();
+			} else if (k == 0) {
+				modal_contas = true;
+				contas_sel = 0;
 			} else {
 				modal_pareamento = true;
 				pareamento_pedir();
@@ -419,8 +429,69 @@ static void inicio_navegar(int nserv, int nrec) {
 	}
 }
 
+/* um botão da faixa de cima do Início (Trocar telas, Entrar nas contas, Controle pelo celular); devolve o toque */
+static bool botao_topo(Clay_ElementId id, const char *icone, const char *texto, bool em_foco) {
+	bool tocado = gv_tocado(id);
+	CLAY(id, { .layout = { .padding = { U(24), U(24), U(16), U(16) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, em_foco || gv_por_cima(id) ? 0.10f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(14)),
+		.border = { .color = em_foco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(em_foco ? 3 : 1) } }) {
+		gv_icone(icone, U(26), gv_t.texto);
+		gv_texto(gv_str(texto), U(21), gv_t.texto, GV_PESO_MEDIO);
+	}
+	return tocado;
+}
+
+static void modal_contas_desenhar(gv_app *app, int *idx, int n) {
+	CLAY(CLAY_ID("veu3"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+		.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP }, .zIndex = 50,
+			.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE },
+		.backgroundColor = { 6, 5, 16, 215 } }) {
+		CLAY(CLAY_ID("cartao-contas"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(U(640)), CLAY_SIZING_FIT(0) },
+				.padding = CLAY_PADDING_ALL(U(36)), .childGap = U(14) },
+			.backgroundColor = { 22, 20, 44, 255 }, .cornerRadius = CLAY_CORNER_RADIUS(U(22)), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+			gv_texto(CLAY_STRING("Entrar nas contas"), U(28), gv_t.texto, GV_PESO_SEMINEGRITO);
+			gv_texto(CLAY_STRING("Abre um Firefox comum na página de entrada do serviço. Entre com o teclado ou pelo celular e, quando "
+				"terminar, volte ao Início (Super + M, ou Home no celular). O Google não deixa entrar no navegador controlado, por isso o passo à parte."),
+				U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+			for (int i = 0; i < n; i++) {
+				const struct midia_vivo *v = &est.serv[idx[i]];
+				Clay_ElementId id = CLAY_IDI("conta", (uint32_t)i);
+				bool em_foco = i == contas_sel;
+				if (gv_por_cima(id) && gv_ponteiro().x >= 0) {
+					contas_sel = i;
+				}
+				if (gv_tocado(id)) {
+					char pedido[80], r[256];
+					snprintf(pedido, sizeof(pedido), "entrar %s", v->s.id);
+					midiac_pedido(pedido, r, sizeof(r));
+					modal_contas = false;
+				}
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { U(20), U(20), U(14), U(14) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, em_foco ? 0.12f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(12)),
+					.border = { .color = em_foco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(em_foco ? 3 : 1) } }) {
+					gv_texto(gv_str(v->s.nome), U(22), cor_hex(v->s.cor, 1), GV_PESO_SEMINEGRITO);
+				}
+			}
+			gv_texto(CLAY_STRING("↑ ↓ escolher · Enter entrar · Esc fechar"), U(16), gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+	}
+	if (tecla(XKB_KEY_Escape)) {
+		modal_contas = false;
+	} else if (tecla(XKB_KEY_Up) && contas_sel > 0) {
+		contas_sel--;
+	} else if (tecla(XKB_KEY_Down) && contas_sel < n - 1) {
+		contas_sel++;
+	} else if (!enter_gasto && (tecla(XKB_KEY_Return) || tecla(XKB_KEY_KP_Enter)) && contas_sel < n) {
+		char pedido[80], r[256];
+		snprintf(pedido, sizeof(pedido), "entrar %s", est.serv[idx[contas_sel]].s.id);
+		midiac_pedido(pedido, r, sizeof(r));
+		modal_contas = false;
+	}
+}
+
 static void desenhar_inicio(gv_app *app, void *dados) {
 	escala_rever(app);
+	enter_gasto = false;
 	int idx[MIDIA_MAX_SERVICOS];
 	int n = servicos_ativos(idx);
 	/* só os recentes de serviços que ainda estão no catálogo */
@@ -443,30 +514,17 @@ static void desenhar_inicio(gv_app *app, void *dados) {
 					gv_texto(CLAY_STRING("Seus serviços e últimas páginas, em um só lugar."), U(22), gv_t.texto_secundario, GV_PESO_NORMAL);
 				}
 				CLAY_AUTO_ID({ .layout = { .childGap = U(14) } }) {
-					if (telas > 1) {
-						Clay_ElementId tt = CLAY_ID("trocar-telas");
-						bool tfoco = foco_linha == LINHA_CONTROLE && foco_col == 0;
-						if (gv_tocado(tt)) {
-							modos_trocar_telas();
-						}
-						CLAY(tt, { .layout = { .padding = { U(24), U(24), U(16), U(16) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-							.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, tfoco || gv_por_cima(tt) ? 0.10f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(14)),
-							.border = { .color = tfoco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(tfoco ? 3 : 1) } }) {
-							gv_icone("screens", U(26), gv_t.texto);
-							gv_texto(CLAY_STRING("Trocar telas"), U(21), gv_t.texto, GV_PESO_MEDIO);
-						}
+					int c = 0;
+					if (telas > 1 && botao_topo(CLAY_ID("trocar-telas"), "screens", "Trocar telas", foco_linha == LINHA_CONTROLE && foco_col == c++)) {
+						modos_trocar_telas();
 					}
-					Clay_ElementId bt = CLAY_ID("controle-celular");
-					bool em_foco = foco_linha == LINHA_CONTROLE && foco_col == (telas > 1 ? 1 : 0);
-					if (gv_tocado(bt)) {
+					if (botao_topo(CLAY_ID("entrar-contas"), "user", "Entrar nas contas", foco_linha == LINHA_CONTROLE && foco_col == c++)) {
+						modal_contas = true;
+						contas_sel = 0;
+					}
+					if (botao_topo(CLAY_ID("controle-celular"), "phone", "Controle pelo celular", foco_linha == LINHA_CONTROLE && foco_col == c++)) {
 						modal_pareamento = true;
 						pareamento_pedir();
-					}
-					CLAY(bt, { .layout = { .padding = { U(24), U(24), U(16), U(16) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-						.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, em_foco || gv_por_cima(bt) ? 0.10f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(14)),
-						.border = { .color = em_foco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(em_foco ? 3 : 1) } }) {
-						gv_icone("phone", U(26), gv_t.texto);
-						gv_texto(CLAY_STRING("Controle pelo celular"), U(21), gv_t.texto, GV_PESO_MEDIO);
 					}
 				}
 			}
@@ -507,6 +565,9 @@ static void desenhar_inicio(gv_app *app, void *dados) {
 		}
 		if (modal_adicionar) {
 			modal_adicionar_desenhar(app);
+		}
+		if (modal_contas) {
+			modal_contas_desenhar(app, idx, n);
 		}
 	}
 }
@@ -682,13 +743,16 @@ int main(int argc, char **argv) {
 	ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
 	exe[n > 0 ? n : 0] = '\0';
 	if (argc < 2) {
-		fprintf(stderr, "uso: lumna-midia servico | inicio | capa ID | seletor | <pedido>\n");
+		fprintf(stderr, "uso: lumna-midia servico | tela inicio|seletor|capa ID | <pedido ao serviço>\n");
 		return 1;
 	}
-	papel = argv[1];
-	if (!strcmp(papel, "servico")) {
+	if (!strcmp(argv[1], "servico")) {
 		return midiad_correr(n > 0 ? exe : "lumna-midia");
 	}
+	if (strcmp(argv[1], "tela") != 0 || argc < 3) {
+		return pedido_cli(argc, argv);
+	}
+	papel = argv[2];
 	gv_opcoes o = { 0 };
 	gv_desenho desenho = NULL;
 	if ((!strcmp(papel, "inicio") || !strcmp(papel, "seletor")) && !primeira_instancia(papel)) {
@@ -697,8 +761,8 @@ int main(int argc, char **argv) {
 	if (!strcmp(papel, "inicio")) {
 		o = (gv_opcoes){ .titulo = "Mídia", .app_id = MIDIA_APP_INICIO, .largura = 1280, .altura = 720 };
 		desenho = desenhar_inicio;
-	} else if (!strcmp(papel, "capa") && argc > 2) {
-		g_strlcpy(capa_servico, argv[2], sizeof(capa_servico));
+	} else if (!strcmp(papel, "capa") && argc > 3) {
+		g_strlcpy(capa_servico, argv[3], sizeof(capa_servico));
 		o = (gv_opcoes){ .titulo = "Abrindo", .app_id = "lumna-midia-capa", .tipo = GV_CAMADA, .nivel = GV_NIVEL_OVERLAY, .ancoras = GV_ANCORA_TUDO,
 			.zona_exclusiva = -1 };
 		desenho = desenhar_capa;
@@ -707,7 +771,8 @@ int main(int argc, char **argv) {
 			.ancoras = GV_ANCORA_BAIXO | GV_ANCORA_ESQUERDA | GV_ANCORA_DIREITA, .altura = 250, .teclado = true, .teclado_exclusivo = true };
 		desenho = desenhar_seletor;
 	} else {
-		return pedido_cli(argc, argv);
+		fprintf(stderr, "lumna-midia: tela desconhecida: %s\n", papel);
+		return 1;
 	}
 	estado_rever();
 	gv_app *app = gv_app_criar(&o);

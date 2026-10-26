@@ -25,6 +25,7 @@ struct midia_servico {
 	char id[32];
 	char nome[48];
 	char url[512];
+	char login[512]; /* onde se entra na conta, se não for o próprio endereço (vazio: o endereço) */
 	char cor[8];     /* "#E50914": a cor da marca, para o cartão sem ícone */
 	bool padrao;     /* vem com o sistema (dá para desligar, não para apagar) */
 	bool ativo;

@@ -7,14 +7,15 @@
 #include "json.h"
 
 static const struct {
-	const char *id, *nome, *url, *cor;
+	const char *id, *nome, *url, *cor, *login;
 } padroes[] = {
-	{ "youtube", "YouTube", "https://www.youtube.com/tv", "#FF0033" },
-	{ "netflix", "Netflix", "https://www.netflix.com/browse", "#E50914" },
-	{ "prime", "Prime Video", "https://www.primevideo.com/", "#1A98FF" },
-	{ "disney", "Disney+", "https://www.disneyplus.com/", "#113CCF" },
-	{ "max", "HBO Max", "https://play.max.com/", "#7B2FF7" },
-	{ "paramount", "Paramount+", "https://www.paramountplus.com/", "#0064FF" },
+	{ "youtube", "YouTube", "https://www.youtube.com/tv", "#FF0033",
+		"https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2Ftv" },
+	{ "netflix", "Netflix", "https://www.netflix.com/browse", "#E50914", NULL },
+	{ "prime", "Prime Video", "https://www.primevideo.com/", "#1A98FF", NULL },
+	{ "disney", "Disney+", "https://www.disneyplus.com/", "#113CCF", NULL },
+	{ "max", "HBO Max", "https://play.max.com/", "#7B2FF7", NULL },
+	{ "paramount", "Paramount+", "https://www.paramountplus.com/", "#0064FF", NULL },
 };
 #define N_PADROES ((int)(sizeof(padroes) / sizeof(padroes[0])))
 
@@ -154,6 +155,7 @@ int midia_servicos_ler(struct midia_servico *saida, int max) {
 		g_strlcpy(s->nome, padroes[p].nome, sizeof(s->nome));
 		g_strlcpy(s->url, padroes[p].url, sizeof(s->url));
 		g_strlcpy(s->cor, padroes[p].cor, sizeof(s->cor));
+		g_strlcpy(s->login, padroes[p].login ? padroes[p].login : padroes[p].url, sizeof(s->login));
 		s->padrao = true;
 		s->ativo = true;
 		for (int i = 0; i < ne; i++) {
@@ -172,6 +174,7 @@ int midia_servicos_ler(struct midia_servico *saida, int max) {
 		g_strlcpy(s->nome, e[i].nome, sizeof(s->nome));
 		g_strlcpy(s->url, e[i].url, sizeof(s->url));
 		g_strlcpy(s->cor, "#8B7CF6", sizeof(s->cor));
+		g_strlcpy(s->login, e[i].url, sizeof(s->login));
 		s->ativo = e[i].ativo;
 	}
 	return n;

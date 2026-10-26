@@ -29,6 +29,8 @@ static GHashTable *pendentes; /* id -> struct rpc */
 static int proximo_id = 1;
 static int tentativas;
 static bool conectando;
+static bool modo_login;       /* o processo atual é o de login (sem controle) */
+static struct acao *depois;   /* o que fazer quando o processo atual terminar de sair */
 static GPtrArray *fila; /* ações que chegaram antes do controle ligar: struct acao */
 
 struct rpc {
@@ -37,7 +39,7 @@ struct rpc {
 };
 
 struct acao {
-	enum { ACAO_ABRIR, ACAO_ATIVAR, ACAO_FECHAR, ACAO_SALVAR } tipo;
+	enum { ACAO_ABRIR, ACAO_ATIVAR, ACAO_FECHAR, ACAO_SALVAR, ACAO_ENTRAR, ACAO_SAIR_LOGIN } tipo;
 	char servico[32];
 	char url[1024];
 	bool miniatura;
@@ -397,6 +399,9 @@ static void executar(const struct acao *a) {
 			salvar_agora(a->servico, a->miniatura);
 		}
 		break;
+	case ACAO_ENTRAR:
+	case ACAO_SAIR_LOGIN:
+		break;
 	}
 }
 
@@ -539,27 +544,38 @@ static void ao_conectar(GObject *origem, GAsyncResult *r, gpointer dados) {
 
 /* ---- o processo ---- */
 
+static gboolean na_linha(gpointer dados);
+
 static void ao_sair(GPid p, gint status, gpointer dados) {
 	g_spawn_close_pid(p);
 	pid = 0;
+	modo_login = false;
 	g_mutex_lock(&trinco);
 	estado.lancado = false;
+	estado.login = false;
 	g_mutex_unlock(&trinco);
 	if (ws) {
 		soup_websocket_connection_close(ws, SOUP_WEBSOCKET_CLOSE_NORMAL, NULL);
 	}
 	desligar();
+	if (depois) {
+		struct acao *a = depois;
+		depois = NULL;
+		na_linha(a); /* o que esperava o outro modo sair */
+	}
 }
 
-static bool lancar(void) {
+static bool lancar(bool login, const char *url) {
 	if (pid) {
 		return true;
 	}
 	char *perfil = pasta_perfil();
 	const char *programa = g_getenv("LUMNA_FIREFOX");
-	char *porta = g_strdup_printf("--remote-debugging-port=%d", PORTA_BIDI);
+	/* o de login não leva o controle remoto: sem ele o navigator.webdriver fica desligado e o Google deixa entrar */
+	char *porta = login ? NULL : g_strdup_printf("--remote-debugging-port=%d", PORTA_BIDI);
 	char *argv[] = { (char *)(programa && *programa ? programa : "firefox"), "--kiosk", "--no-remote", "--profile", perfil, "--name", FF_APP_ID,
-		"--class", FF_APP_ID, porta, "about:blank", NULL };
+		"--class", FF_APP_ID, login ? (char *)url : porta, login ? NULL : "about:blank", NULL };
+	modo_login = login;
 	GError *erro = NULL;
 	bool ok = g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
 		NULL, NULL, &pid, &erro);
@@ -568,6 +584,7 @@ static bool lancar(void) {
 	g_free(perfil);
 	if (!ok) {
 		pid = 0;
+		modo_login = false;
 		return false;
 	}
 	GSource *w = g_child_watch_source_new(pid);
@@ -576,12 +593,15 @@ static bool lancar(void) {
 	g_source_unref(w);
 	g_mutex_lock(&trinco);
 	estado.lancado = true;
+	estado.login = login;
 	g_mutex_unlock(&trinco);
 	tentativas = 0;
-	GSource *s = g_timeout_source_new(250);
-	g_source_set_callback(s, tentar_ligar, NULL, NULL);
-	g_source_attach(s, ctx);
-	g_source_unref(s);
+	if (!login) {
+		GSource *s = g_timeout_source_new(250);
+		g_source_set_callback(s, tentar_ligar, NULL, NULL);
+		g_source_attach(s, ctx);
+		g_source_unref(s);
+	}
 	avisar();
 	return true;
 }
@@ -590,7 +610,29 @@ static bool lancar(void) {
 
 static gboolean na_linha(gpointer dados) {
 	struct acao *a = dados;
-	if (!lancar()) {
+	if (a->tipo == ACAO_SAIR_LOGIN) {
+		if (pid && modo_login) {
+			kill(pid, SIGTERM);
+		}
+		g_free(a);
+		return G_SOURCE_REMOVE;
+	}
+	bool quer_login = a->tipo == ACAO_ENTRAR;
+	if (pid && modo_login != quer_login) {
+		/* o Firefox que está aí é do outro modo: sai primeiro, e a ação roda quando ele terminar */
+		g_free(depois);
+		depois = a;
+		kill(pid, SIGTERM);
+		return G_SOURCE_REMOVE;
+	}
+	if (quer_login) {
+		if (!pid) {
+			lancar(true, a->url);
+		}
+		g_free(a);
+		return G_SOURCE_REMOVE;
+	}
+	if (!lancar(false, NULL)) {
 		g_free(a);
 		return G_SOURCE_REMOVE;
 	}
@@ -619,7 +661,7 @@ static void pedir(int tipo, const char *servico, const char *url, bool miniatura
 	}
 	a->miniatura = miniatura;
 	/* salvar, ativar e fechar sem Firefox não fazem nada: não vale subir um só para isso */
-	if (tipo != ACAO_ABRIR) {
+	if (tipo != ACAO_ABRIR && tipo != ACAO_ENTRAR) {
 		bool vivo;
 		g_mutex_lock(&trinco);
 		vivo = estado.lancado;
@@ -646,6 +688,14 @@ void ff_fechar(const char *servico) {
 
 void ff_salvar(const char *servico, bool miniatura) {
 	pedir(ACAO_SALVAR, servico, NULL, miniatura);
+}
+
+void ff_entrar(const char *url) {
+	pedir(ACAO_ENTRAR, "", url, false);
+}
+
+void ff_sair_login(void) {
+	pedir(ACAO_SAIR_LOGIN, "", NULL, false);
 }
 
 void ff_ler(struct ff_estado *e) {

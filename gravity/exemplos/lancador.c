@@ -797,7 +797,14 @@ static void detalhes(void) {
 
 /* ---- a tela ---- */
 
+static void marca_tempo(const char *etapa);
+
 static void desenhar(gv_app *app, void *dados) {
+	static int quadros;
+	if (quadros < 3) {
+		quadros++;
+		marca_tempo(quadros == 1 ? "primeiro quadro" : quadros == 2 ? "segundo quadro" : "terceiro quadro");
+	}
 	(void)dados;
 	static int lista[MAX_APPS];
 	int n = 0;
@@ -986,20 +993,39 @@ static void ao_terminar(int s) {
 	}
 }
 
+/* LUMNA_TEMPO=1: quanto leva cada etapa da abertura, no terminal (para achar o que deixa o launcher lento) */
+static double t_inicio;
+static bool medir;
+static double agora_ms(void) {
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1e6;
+}
+static void marca_tempo(const char *etapa) {
+	if (medir) {
+		fprintf(stderr, "lumna-lancador: %-24s %7.1f ms\n", etapa, agora_ms() - t_inicio);
+	}
+}
+
 int main(void) {
+	t_inicio = agora_ms();
+	medir = getenv("LUMNA_TEMPO") != NULL;
 	if (alternar_instancia()) {
 		return 0;
 	}
 	snprintf(pasta_config, sizeof(pasta_config), "%s/lumna", g_get_user_config_dir());
 	carregar_apps();
+	marca_tempo("apps lidos");
 	carregar_favoritos();
 	carregar_recentes();
+	marca_tempo("favoritos e recentes");
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Início", .app_id = "lumna-lancador", .tipo = GV_CAMADA,
 		.nivel = GV_NIVEL_CIMA, .ancoras = GV_ANCORA_TUDO, .zona_exclusiva = -1, .teclado_exclusivo = true,
 		.margens = { 40, 0, 0, 0 } });
 	if (!app) {
 		return 1;
 	}
+	marca_tempo("janela criada");
 	app_lancador = app;
 	signal(SIGTERM, ao_terminar);
 	ao_abrir();
