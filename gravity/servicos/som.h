@@ -28,7 +28,7 @@ struct som_no {
 	int canais;
 	float volume;        /* 0..1,5 */
 	bool mudo;
-	bool padrao;         /* a saída padrão */
+	bool padrao;         /* a saída (ou a entrada) padrão */
 };
 
 struct som_estado {
@@ -37,6 +37,8 @@ struct som_estado {
 	int nsaidas;
 	struct som_no apps[SOM_MAX_APPS];
 	int napps;
+	struct som_no entradas[SOM_MAX_SAIDAS]; /* os microfones (sem os "monitores" das saídas) */
+	int nentradas;
 };
 
 /* Liga ao servidor de som numa linha à parte. Devolve o descritor de aviso (ou -1). */
@@ -48,10 +50,15 @@ void som_parar(void);
 void som_volume_saida(uint32_t indice, float volume);
 void som_mudo_saida(uint32_t indice, bool mudo);
 void som_saida_padrao(const char *nome);
+void som_volume_entrada(uint32_t indice, float volume);
+void som_mudo_entrada(uint32_t indice, bool mudo);
+void som_entrada_padrao(const char *nome);
 void som_volume_app(uint32_t indice, float volume);
 void som_mudo_app(uint32_t indice, bool mudo);
 
 /* A saída padrão do estado (ou NULL). */
 const struct som_no *som_saida_atual(const struct som_estado *estado);
+/* O microfone padrão do estado (ou NULL). */
+const struct som_no *som_entrada_atual(const struct som_estado *estado);
 
 #endif

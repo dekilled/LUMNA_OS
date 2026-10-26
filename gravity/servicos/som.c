@@ -22,6 +22,7 @@ static struct {
 	struct som_estado publicado;
 	struct som_estado rascunho;
 	char padrao[128];
+	char padrao_entrada[128];
 	int faltam;    /* listas ainda a chegar nesta leitura */
 	bool de_novo;  /* mudou durante uma leitura: lê outra vez no fim */
 } s = { .aviso = -1, .trava = PTHREAD_MUTEX_INITIALIZER };
@@ -50,6 +51,9 @@ static void lista_chegou(void) {
 	for (int i = 0; i < s.rascunho.nsaidas; i++) {
 		s.rascunho.saidas[i].padrao = !strcmp(s.rascunho.saidas[i].nome, s.padrao);
 	}
+	for (int i = 0; i < s.rascunho.nentradas; i++) {
+		s.rascunho.entradas[i].padrao = !strcmp(s.rascunho.entradas[i].nome, s.padrao_entrada);
+	}
 	s.rascunho.ligado = true;
 	pthread_mutex_lock(&s.trava);
 	s.publicado = s.rascunho;
@@ -64,6 +68,7 @@ static void lista_chegou(void) {
 static void servidor_cb(pa_context *c, const pa_server_info *info, void *dados) {
 	if (info) {
 		copiar(s.padrao, sizeof(s.padrao), info->default_sink_name);
+		copiar(s.padrao_entrada, sizeof(s.padrao_entrada), info->default_source_name);
 	}
 	lista_chegou();
 }
@@ -77,6 +82,23 @@ static void saida_cb(pa_context *c, const pa_sink_info *info, int fim, void *dad
 		return;
 	}
 	struct som_no *n = &s.rascunho.saidas[s.rascunho.nsaidas++];
+	*n = (struct som_no){ .indice = info->index, .canais = info->volume.channels, .volume = media(&info->volume),
+		.mudo = info->mute };
+	copiar(n->nome, sizeof(n->nome), info->name);
+	copiar(n->descricao, sizeof(n->descricao), info->description ? info->description : info->name);
+	copiar(n->icone, sizeof(n->icone), pa_proplist_gets(info->proplist, PA_PROP_DEVICE_ICON_NAME));
+}
+
+static void entrada_cb(pa_context *c, const pa_source_info *info, int fim, void *dados) {
+	if (fim) {
+		lista_chegou();
+		return;
+	}
+	/* o "monitor" de uma saída (o que está tocando) não é um microfone */
+	if (!info || info->monitor_of_sink != PA_INVALID_INDEX || s.rascunho.nentradas >= SOM_MAX_SAIDAS) {
+		return;
+	}
+	struct som_no *n = &s.rascunho.entradas[s.rascunho.nentradas++];
 	*n = (struct som_no){ .indice = info->index, .canais = info->volume.channels, .volume = media(&info->volume),
 		.mudo = info->mute };
 	copiar(n->nome, sizeof(n->nome), info->name);
@@ -119,10 +141,11 @@ static void ler_tudo(void) {
 		return;
 	}
 	memset(&s.rascunho, 0, sizeof(s.rascunho));
-	s.faltam = 3;
+	s.faltam = 4;
 	soltar(pa_context_get_server_info(s.ctx, servidor_cb, NULL));
 	soltar(pa_context_get_sink_info_list(s.ctx, saida_cb, NULL));
 	soltar(pa_context_get_sink_input_info_list(s.ctx, app_cb, NULL));
+	soltar(pa_context_get_source_info_list(s.ctx, entrada_cb, NULL));
 }
 
 static void mudou_cb(pa_context *c, pa_subscription_event_type_t tipo, uint32_t indice, void *dados) {
@@ -133,7 +156,7 @@ static void estado_cb(pa_context *c, void *dados) {
 	switch (pa_context_get_state(c)) {
 	case PA_CONTEXT_READY:
 		pa_context_set_subscribe_callback(c, mudou_cb, NULL);
-		soltar(pa_context_subscribe(c, PA_SUBSCRIPTION_MASK_SINK | PA_SUBSCRIPTION_MASK_SINK_INPUT |
+		soltar(pa_context_subscribe(c, PA_SUBSCRIPTION_MASK_SINK | PA_SUBSCRIPTION_MASK_SINK_INPUT | PA_SUBSCRIPTION_MASK_SOURCE |
 			PA_SUBSCRIPTION_MASK_SERVER, NULL, NULL));
 		ler_tudo();
 		break;
@@ -201,11 +224,11 @@ static pa_cvolume volume_de(int canais, float volume) {
 	return v;
 }
 
-static int canais_de(uint32_t indice, bool app) {
+static int canais_de(uint32_t indice, int tipo) { /* 0 saída, 1 app, 2 entrada */
 	int canais = 2;
 	pthread_mutex_lock(&s.trava);
-	const struct som_no *lista = app ? s.publicado.apps : s.publicado.saidas;
-	int n = app ? s.publicado.napps : s.publicado.nsaidas;
+	const struct som_no *lista = tipo == 1 ? s.publicado.apps : tipo == 2 ? s.publicado.entradas : s.publicado.saidas;
+	int n = tipo == 1 ? s.publicado.napps : tipo == 2 ? s.publicado.nentradas : s.publicado.nsaidas;
 	for (int i = 0; i < n; i++) {
 		if (lista[i].indice == indice) {
 			canais = lista[i].canais;
@@ -226,7 +249,7 @@ static int canais_de(uint32_t indice, bool app) {
 	} while (0)
 
 void som_volume_saida(uint32_t indice, float volume) {
-	pa_cvolume v = volume_de(canais_de(indice, false), volume);
+	pa_cvolume v = volume_de(canais_de(indice, 0), volume);
 	PEDIDO(pa_context_set_sink_volume_by_index(s.ctx, indice, &v, NULL, NULL));
 }
 
@@ -238,8 +261,21 @@ void som_saida_padrao(const char *nome) {
 	PEDIDO(pa_context_set_default_sink(s.ctx, nome, NULL, NULL));
 }
 
+void som_volume_entrada(uint32_t indice, float volume) {
+	pa_cvolume v = volume_de(canais_de(indice, 2), volume);
+	PEDIDO(pa_context_set_source_volume_by_index(s.ctx, indice, &v, NULL, NULL));
+}
+
+void som_mudo_entrada(uint32_t indice, bool mudo) {
+	PEDIDO(pa_context_set_source_mute_by_index(s.ctx, indice, mudo, NULL, NULL));
+}
+
+void som_entrada_padrao(const char *nome) {
+	PEDIDO(pa_context_set_default_source(s.ctx, nome, NULL, NULL));
+}
+
 void som_volume_app(uint32_t indice, float volume) {
-	pa_cvolume v = volume_de(canais_de(indice, true), volume);
+	pa_cvolume v = volume_de(canais_de(indice, 1), volume);
 	PEDIDO(pa_context_set_sink_input_volume(s.ctx, indice, &v, NULL, NULL));
 }
 
@@ -254,4 +290,13 @@ const struct som_no *som_saida_atual(const struct som_estado *estado) {
 		}
 	}
 	return estado->nsaidas ? &estado->saidas[0] : NULL;
+}
+
+const struct som_no *som_entrada_atual(const struct som_estado *estado) {
+	for (int i = 0; i < estado->nentradas; i++) {
+		if (estado->entradas[i].padrao) {
+			return &estado->entradas[i];
+		}
+	}
+	return estado->nentradas ? &estado->entradas[0] : NULL;
 }

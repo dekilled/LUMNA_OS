@@ -29,8 +29,24 @@
  * direito da barra (o grupo "dir"), com o mesmo vão para a borda e para a barra; os da bandeja ficam
  * junto do ícone de cada app */
 #define POPUP_GAP 8
+/* a largura é a mesma em todos os menus do sistema; só a altura muda com o conteúdo */
+#define POPUP_LARGURA 440
 
 static int area;
+
+/* abre um menu do sistema e fecha os outros (um só de cada vez); tocar no que está aberto fecha-o */
+static void menu_alternar(Clay_ElementId id) {
+	bool estava = gv_popup_aberto(id);
+	gv_popup_fechar(CLAY_ID("menu-modo"));
+	gv_popup_fechar(CLAY_ID("menu-wifi"));
+	gv_popup_fechar(CLAY_ID("menu-som"));
+	gv_popup_fechar(CLAY_ID("menu-bt"));
+	gv_popup_fechar(CLAY_ID("menu-cal"));
+	gv_popup_fechar(CLAY_ID("menu-tray"));
+	if (!estava) {
+		gv_popup_abrir(id);
+	}
+}
 /* o que a barra mostra (~/.config/lumna/barra.ini, gravado pelo Painel; vigiado) */
 static bool segundos, com_data, areas = true;
 
@@ -159,7 +175,7 @@ static const struct rede_disp *wifi_principal(void) {
 }
 
 static void menu_wifi(void) {
-	GV_POPUP(CLAY_ID("menu-wifi"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-wifi"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
 		bool ligado = rede.wifi_ligado;
 		if (topo_menu(1, "wifi", "Wi-Fi", rede.nm ? &ligado : NULL)) {
 			rede_wifi_ligar(ligado);
@@ -272,33 +288,67 @@ static const char *icone_rede(void) {
 
 static struct som_estado som;
 
-static void menu_som(void) {
-	GV_POPUP(CLAY_ID("menu-som"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 420, .distancia = POPUP_GAP) {
-		const struct som_no *atual = som_saida_atual(&som);
-		topo_menu(2, "volume", "Som", NULL);
-		if (!som.ligado || !atual) {
-			mensagem(som.ligado ? "Nenhuma saída de som encontrada. Conecte um alto-falante ou fone." : "O servidor de som não está respondendo.");
-		} else {
-			CLAY(CLAY_ID("sm-vol"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 16, 12, 12 }, .childGap = 14,
-				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-				if (gv_botao_redondo(CLAY_ID("sm-mudo"), atual->mudo ? "volume-off" : "volume", 40, atual->mudo, false)) {
-					som_mudo_saida(atual->indice, !atual->mudo);
+/* uma linha de volume: o botão de mudo, o deslizante e a porcentagem */
+static void linha_volume(int base, const struct som_no *no, bool entrada) {
+	CLAY(CLAY_IDI("sm-vol", (uint32_t)base), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 16, 8, 12 }, .childGap = 14,
+		.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		const char *icone = entrada ? (no->mudo ? "mic-off" : "mic") : (no->mudo ? "volume-off" : "volume");
+		if (gv_botao_redondo(CLAY_IDI("sm-mudo", (uint32_t)base), icone, 40, no->mudo, false)) {
+			if (entrada) {
+				som_mudo_entrada(no->indice, !no->mudo);
+			} else {
+				som_mudo_saida(no->indice, !no->mudo);
+			}
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			float v = no->volume > 1 ? 1 : no->volume;
+			if (gv_deslizante(CLAY_IDI("sm-desl", (uint32_t)base), &v, 8, 22)) {
+				if (entrada) {
+					som_volume_entrada(no->indice, v);
+				} else {
+					som_volume_saida(no->indice, v);
 				}
-				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-					float v = atual->volume > 1 ? 1 : atual->volume;
-					if (gv_deslizante(CLAY_ID("sm-desl"), &v, 8, 22)) {
-						som_volume_saida(atual->indice, v);
+			}
+		}
+		gv_texto(gv_fmt("%d%%", (int)(no->volume * 100 + 0.5f)), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+	}
+}
+
+static void menu_som(void) {
+	GV_POPUP(CLAY_ID("menu-som"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
+		const struct som_no *atual = som_saida_atual(&som);
+		const struct som_no *mic = som_entrada_atual(&som);
+		topo_menu(2, "volume", "Som", NULL);
+		if (!som.ligado) {
+			mensagem("O servidor de som não está respondendo.");
+		}
+		if (som.ligado) {
+			titulo_secao(CLAY_ID("sm-s1"), "Saída");
+			if (!atual) {
+				mensagem("Nenhuma saída de som encontrada. Conecte um alto-falante ou fone.");
+			} else {
+				linha_volume(0, atual, false);
+				if (som.nsaidas > 1) {
+					for (int i = 0; i < som.nsaidas; i++) {
+						const struct som_no *o = &som.saidas[i];
+						if (gv_menu_item(CLAY_IDI("sm-saida", i), o->padrao ? "check" : NULL, o->descricao[0] ? o->descricao : o->nome, NULL)) {
+							som_saida_padrao(o->nome);
+						}
 					}
 				}
-				gv_texto(gv_fmt("%d%%", (int)(atual->volume * 100 + 0.5f)), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
-			if (som.nsaidas > 1) {
-				gv_separador(false, 0);
-				titulo_secao(CLAY_ID("sm-s1"), "Saída");
-				for (int i = 0; i < som.nsaidas; i++) {
-					const struct som_no *o = &som.saidas[i];
-					if (gv_menu_item(CLAY_IDI("sm-saida", i), o->padrao ? "check" : NULL, o->descricao[0] ? o->descricao : o->nome, NULL)) {
-						som_saida_padrao(o->nome);
+			gv_separador(false, 0);
+			titulo_secao(CLAY_ID("sm-e1"), "Entrada");
+			if (!mic) {
+				mensagem("Nenhum microfone encontrado. Conecte um microfone ou fone com microfone.");
+			} else {
+				linha_volume(1, mic, true);
+				if (som.nentradas > 1) {
+					for (int i = 0; i < som.nentradas; i++) {
+						const struct som_no *o = &som.entradas[i];
+						if (gv_menu_item(CLAY_IDI("sm-entrada", i), o->padrao ? "check" : NULL, o->descricao[0] ? o->descricao : o->nome, NULL)) {
+							som_entrada_padrao(o->nome);
+						}
 					}
 				}
 			}
@@ -362,7 +412,7 @@ static const char *bt_icone(const char *icone) {
 }
 
 static void menu_bluetooth(void) {
-	GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
 		const struct bt_adapt *a = bt.nadapt ? &bt.adapt[0] : NULL;
 		bool ligado = a && a->ligado;
 		if (topo_menu(3, "bluetooth", "Bluetooth", a ? &ligado : NULL) && a) {
@@ -452,7 +502,7 @@ static const char *icone_bt(void) {
 }
 
 static void menu_modo(void) {
-	GV_POPUP(CLAY_ID("menu-modo"), CLAY_ID("modo"), .alinhar = GV_ALINHAR_INICIO, .largura = 360, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-modo"), CLAY_ID("modo"), .alinhar = GV_ALINHAR_INICIO, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
 		int atual = modos_em_foco(&modos_est);
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 12, 6 } } }) {
 			gv_texto(CLAY_STRING("Alternar modo"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
@@ -601,7 +651,7 @@ static void menu_tray(void) {
 static int cal_mes_desloc; /* 0: o mês de hoje */
 
 static void menu_calendario(const struct tm *hoje) {
-	GV_POPUP(CLAY_ID("menu-cal"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 380, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-cal"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
 		static const char *const meses[] = { "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro",
 			"Outubro", "Novembro", "Dezembro" };
 		static const char *const dias_sem[] = { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
@@ -707,6 +757,11 @@ static void desenhar(gv_app *app, void *dados) {
 		for (int i = 0; i < tray.n; i++) {
 			if (!strcmp(tray.itens[i].chave, tray_menu.chave)) {
 				tray_ancora = i;
+				gv_popup_fechar(CLAY_ID("menu-modo"));
+				gv_popup_fechar(CLAY_ID("menu-wifi"));
+				gv_popup_fechar(CLAY_ID("menu-som"));
+				gv_popup_fechar(CLAY_ID("menu-bt"));
+				gv_popup_fechar(CLAY_ID("menu-cal"));
 				gv_popup_abrir(CLAY_ID("menu-tray"));
 			}
 		}
@@ -725,7 +780,7 @@ static void desenhar(gv_app *app, void *dados) {
 			gv_separador(true, 18);
 			Clay_ElementId rotulo = CLAY_ID("modo");
 			if (gv_tocado(rotulo)) {
-				gv_popup_alternar(CLAY_ID("menu-modo"));
+				menu_alternar(CLAY_ID("menu-modo"));
 			}
 			CLAY(rotulo, { .layout = { .padding = { 10, 8, 0, 0 }, .sizing = { .height = CLAY_SIZING_FIXED(32) }, .childGap = 6,
 					.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
@@ -755,14 +810,14 @@ static void desenhar(gv_app *app, void *dados) {
 			.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
 			bandeja_na_barra();
 			if (icone_barra(CLAY_ID("wifi"), icone_rede(), gv_popup_aberto(CLAY_ID("menu-wifi")))) {
-				gv_popup_alternar(CLAY_ID("menu-wifi"));
+				menu_alternar(CLAY_ID("menu-wifi"));
 				rede_varrer("");
 			}
 			if (icone_barra(CLAY_ID("som"), icone_som(), gv_popup_aberto(CLAY_ID("menu-som")))) {
-				gv_popup_alternar(CLAY_ID("menu-som"));
+				menu_alternar(CLAY_ID("menu-som"));
 			}
 			if (icone_barra(CLAY_ID("bt"), icone_bt(), gv_popup_aberto(CLAY_ID("menu-bt")))) {
-				gv_popup_alternar(CLAY_ID("menu-bt"));
+				menu_alternar(CLAY_ID("menu-bt"));
 			}
 			if (icone_barra(CLAY_ID("avisos"), "bell", false)) {
 				executar("lumna-avisos", "--centro", NULL);
@@ -773,7 +828,7 @@ static void desenhar(gv_app *app, void *dados) {
 			Clay_ElementId rel = CLAY_ID("relogio");
 			if (gv_tocado(rel)) {
 				cal_mes_desloc = 0;
-				gv_popup_alternar(CLAY_ID("menu-cal"));
+				menu_alternar(CLAY_ID("menu-cal"));
 			}
 			CLAY(rel, { .layout = { .padding = { 10, 10, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 				.backgroundColor = gv_popup_aberto(CLAY_ID("menu-cal")) ? gv_t.selecionado : gv_por_cima(rel) ? gv_t.sob_cursor : (Clay_Color){ 0 },
