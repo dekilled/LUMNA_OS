@@ -47,6 +47,8 @@ const char *modos_descricao(int modo);
 int modos_de_id(const char *id);    /* -1 se não for um modo */
 
 bool modos_ler(struct modos_estado *e);
+/* a área útil de uma saída (o que sobra depois da barra e da dock), em pixels lógicos; NULL: a primeira */
+bool orbit_area_util(const char *saida, int *x, int *y, int *largura, int *altura);
 /* o modo da saída com o cursor (ou da primeira) */
 int modos_em_foco(const struct modos_estado *e);
 /* o modo de uma saída pelo nome (-1 se não houver) */

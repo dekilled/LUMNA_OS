@@ -31,12 +31,24 @@
 #define POPUP_GAP 8
 /* a largura é a mesma em todos os menus do sistema; só a altura muda com o conteúdo */
 #define POPUP_LARGURA 440
+/* a altura nunca passa da área útil: do vão debaixo da barra até a linha de cima da dock, com a margem das notificações */
+#define POPUP_MARGEM_BAIXO 12
+
+static float popup_altura_max = 560; /* até saber a da tela */
+
+static void popup_medir(void) {
+	int h;
+	if (orbit_area_util(NULL, NULL, NULL, NULL, &h) && h > 0) {
+		popup_altura_max = (float)(h - POPUP_GAP - POPUP_MARGEM_BAIXO);
+	}
+}
 
 static int area;
 
 /* abre um menu do sistema e fecha os outros (um só de cada vez); tocar no que está aberto fecha-o */
 static void menu_alternar(Clay_ElementId id) {
 	bool estava = gv_popup_aberto(id);
+	popup_medir(); /* a dock pode ter mudado de altura ou sumido */
 	gv_popup_fechar(CLAY_ID("menu-modo"));
 	gv_popup_fechar(CLAY_ID("menu-wifi"));
 	gv_popup_fechar(CLAY_ID("menu-som"));
@@ -104,6 +116,7 @@ static void servico_mudou(gv_app *app, int fd, void *dados) {
 static void modo_mudou(gv_app *app, int fd, void *dados) {
 	modos_assinar_ler(fd);
 	modos_atualizar();
+	popup_medir();
 	gv_app_redesenhar(app);
 }
 /* ---- os modos (Orbit) ---- */
@@ -175,7 +188,7 @@ static const struct rede_disp *wifi_principal(void) {
 }
 
 static void menu_wifi(void) {
-	GV_POPUP(CLAY_ID("menu-wifi"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-wifi"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		bool ligado = rede.wifi_ligado;
 		if (topo_menu(1, "wifi", "Wi-Fi", rede.nm ? &ligado : NULL)) {
 			rede_wifi_ligar(ligado);
@@ -315,7 +328,7 @@ static void linha_volume(int base, const struct som_no *no, bool entrada) {
 }
 
 static void menu_som(void) {
-	GV_POPUP(CLAY_ID("menu-som"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-som"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		const struct som_no *atual = som_saida_atual(&som);
 		const struct som_no *mic = som_entrada_atual(&som);
 		topo_menu(2, "volume", "Som", NULL);
@@ -412,7 +425,7 @@ static const char *bt_icone(const char *icone) {
 }
 
 static void menu_bluetooth(void) {
-	GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		const struct bt_adapt *a = bt.nadapt ? &bt.adapt[0] : NULL;
 		bool ligado = a && a->ligado;
 		if (topo_menu(3, "bluetooth", "Bluetooth", a ? &ligado : NULL) && a) {
@@ -502,7 +515,7 @@ static const char *icone_bt(void) {
 }
 
 static void menu_modo(void) {
-	GV_POPUP(CLAY_ID("menu-modo"), CLAY_ID("modo"), .alinhar = GV_ALINHAR_INICIO, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-modo"), CLAY_ID("modo"), .alinhar = GV_ALINHAR_INICIO, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		int atual = modos_em_foco(&modos_est);
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 12, 6 } } }) {
 			gv_texto(CLAY_STRING("Alternar modo"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
@@ -615,7 +628,7 @@ static void menu_tray(void) {
 	if (tray_ancora < 0 || tray_ancora >= tray.n) {
 		return;
 	}
-	GV_POPUP(CLAY_ID("menu-tray"), CLAY_IDI("tray", (uint32_t)tray_ancora), .alinhar = GV_ALINHAR_FIM, .largura = 300, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-tray"), CLAY_IDI("tray", (uint32_t)tray_ancora), .alinhar = GV_ALINHAR_FIM, .largura = 300, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		struct bandeja_menu *m = &tray_menu;
 		if (strcmp(m->chave, tray.itens[tray_ancora].chave)) {
 			mensagem("Abrindo...");
@@ -651,7 +664,7 @@ static void menu_tray(void) {
 static int cal_mes_desloc; /* 0: o mês de hoje */
 
 static void menu_calendario(const struct tm *hoje) {
-	GV_POPUP(CLAY_ID("menu-cal"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP) {
+	GV_POPUP(CLAY_ID("menu-cal"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		static const char *const meses[] = { "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro",
 			"Outubro", "Novembro", "Dezembro" };
 		static const char *const dias_sem[] = { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
@@ -871,6 +884,7 @@ int main(void) {
 	}
 	ler_ajustes();
 	modos_atualizar();
+	popup_medir();
 	int fds[4] = { rede_iniciar(), bt_iniciar(), som_iniciar("Barra"), bandeja_iniciar() };
 	for (int i = 0; i < 4; i++) {
 		if (fds[i] >= 0) {

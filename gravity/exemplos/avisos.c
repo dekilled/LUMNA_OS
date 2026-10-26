@@ -459,7 +459,8 @@ static void desenhar_centro(void) {
 	}
 	float entrada = gv_anim(CLAY_ID("painel").id, 1, gv_t.duracao_normal);
 	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(MARGEM) },
-		.backgroundColor = gv_alfa(gv_t.veu, gv_t.veu.a / 255.0f * 0.6f * entrada) }) {
+		/* sem véu escuro por trás: o painel ocupa só o canto (tocar fora dele fecha) */
+		}) {
 		/* tocar fora do painel fecha */
 		Clay_ElementId fora = CLAY_ID("fora");
 		if (gv_tocado(fora)) {

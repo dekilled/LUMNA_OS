@@ -1541,10 +1541,12 @@ void gv__popup_fim(void) {
 Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id) {
 	struct gv_popup *p = popup_de(atual, id.id, false);
 	int indice = p ? (int)(p - atual->popups) : 0;
-	return (Clay_ElementDeclaration){
+	float max = p ? p->opcoes.altura_max : 0;
+	Clay_ElementDeclaration d = {
 		.layout = {
 			.layoutDirection = CLAY_TOP_TO_BOTTOM,
-			.sizing = { p && p->opcoes.largura > 0 ? CLAY_SIZING_FIXED(p->opcoes.largura) : CLAY_SIZING_FIT(0) },
+			.sizing = { p && p->opcoes.largura > 0 ? CLAY_SIZING_FIXED(p->opcoes.largura) : CLAY_SIZING_FIT(0),
+				max > 0 ? CLAY_SIZING_FIT(0, max) : CLAY_SIZING_FIT(0) },
 			.padding = CLAY_PADDING_ALL(6),
 			.childGap = 2,
 		},
@@ -1559,6 +1561,8 @@ Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id) {
 			.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE,
 		},
 	};
+	/* com altura máxima, o conteúdo que não cabe rola (com a barra e o arrastar do Gravity) */
+	return max > 0 ? gv_rolagem(id, GV_ROLAGEM_VERTICAL, d) : d;
 }
 
 static void popup_destruir(struct gv_popup *p) {

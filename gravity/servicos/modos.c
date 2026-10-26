@@ -120,6 +120,35 @@ bool modos_ler(struct modos_estado *e) {
 	return true;
 }
 
+bool orbit_area_util(const char *saida, int *x, int *y, int *largura, int *altura) {
+	char r[4096];
+	if (!pedir("saidas", r, sizeof(r)) || !strstr(r, "\"ok\":true")) {
+		return false;
+	}
+	const char *p = r;
+	while ((p = strstr(p, "{\"nome\":\""))) {
+		p += 9;
+		const char *fim = strchr(p, '"');
+		const char *u = fim ? strstr(fim, "\"util\":{") : NULL;
+		if (!u) {
+			return false;
+		}
+		if (!saida || !*saida || (!strncmp(p, saida, strlen(saida)) && (size_t)(fim - p) == strlen(saida))) {
+			int vx = 0, vy = 0, vl = 0, va = 0;
+			if (sscanf(u, "\"util\":{\"x\":%d,\"y\":%d,\"largura\":%d,\"altura\":%d", &vx, &vy, &vl, &va) != 4) {
+				return false;
+			}
+			if (x) *x = vx;
+			if (y) *y = vy;
+			if (largura) *largura = vl;
+			if (altura) *altura = va;
+			return true;
+		}
+		p = fim;
+	}
+	return false;
+}
+
 int modos_em_foco(const struct modos_estado *e) {
 	for (int i = 0; i < e->n; i++) {
 		if (e->saidas[i].ponteiro) {
