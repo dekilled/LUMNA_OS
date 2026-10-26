@@ -19,25 +19,9 @@ void pn_atalhos_abrir(void);
 
 /* ---- Geral ---- */
 
-static const pn_secao rede[] = {
-	{ "wifi", "wifi", "Wi-Fi", "As redes sem fio por perto e as que já conhece.", NULL,
-		"Ligar e desligar;As redes por perto, com o sinal;Conectar com senha;As redes guardadas;Detalhes: IP, DNS e proxy" },
-	{ "cabo", "ethernet", "Cabo", "A ligação por cabo de rede.", NULL, "Estado e velocidade;IP automático ou fixo;DNS" },
-	{ "vpn", "shield", "VPN", "Redes privadas.", NULL, "Adicionar uma VPN (WireGuard, OpenVPN);Ligar e desligar" },
-	{ "proxy", "globe", "Proxy", "Um proxy para a internet.", NULL, "Automático, manual ou nenhum" },
-	{ "ponto", "signal", "Ponto de acesso", "Partilhar a internet deste aparelho.", NULL, "Nome e senha;Ligar e desligar" },
-};
-const pn_categoria pn_rede = { "rede", "wifi", "Rede e internet", "Wi-Fi, cabo e conexões", PN_GERAL, rede, N(rede) };
-
-static const pn_secao bluetooth[] = {
-	{ "dispositivos", "bluetooth", "Dispositivos", "Os aparelhos pareados e os que estão por perto.", NULL,
-		"Ligar e desligar o Bluetooth;Parear, conectar e esquecer;A bateria dos fones e controles" },
-	{ "visibilidade", "eye", "Nome e visibilidade", "Como os outros aparelhos veem este.", NULL,
-		"O nome deste aparelho;Visível para parear" },
-	{ "arquivos", "download", "Receber arquivos", "Arquivos mandados por Bluetooth.", NULL, "Aceitar e onde guardar" },
-};
-const pn_categoria pn_bluetooth = { "bluetooth", "bluetooth", "Bluetooth", "Dispositivos e acessórios", PN_GERAL, bluetooth,
-	N(bluetooth) };
+/* Rede e internet e Bluetooth: rede.c e bluetooth.c */
+extern const pn_categoria pn_rede;
+extern const pn_categoria pn_bluetooth;
 
 static const pn_secao aplicativos[] = {
 	{ "instalados", "grid", "Instalados", "Os apps deste computador.", NULL,

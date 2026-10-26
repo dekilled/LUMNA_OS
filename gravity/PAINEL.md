@@ -111,21 +111,32 @@ Legenda: ✅ feito · 🔨 a seguir · ⏳ depois (depende de um serviço)
   - texto em negrito.
 
 **Rede e internet**
-- ⏳ Wi-Fi;
-- ⏳ Cabo;
+- ✅ Wi-Fi: liga/desliga o rádio, procura, conecta (com senha), desconecta, as redes guardadas com o
+  histórico (última vez), DNS por rede, conectar sozinho, esquecer, adicionar manualmente (aberta, WPA2,
+  WPA3, oculta). Com duas antenas, escolhe qual usar;
+- ✅ Cabo: placas, estado, IP, gateway, DNS, velocidade, conectar/desconectar, conexões guardadas;
+- ✅ Adaptadores: lista as placas e antenas com o modelo, o driver, o MAC e de onde vêm (Onboard/PCI ou
+  Antena USB), e liga ou desativa cada uma;
+- ✅ Proxy: nenhum, manual (HTTP/HTTPS/SOCKS, não usar para) ou automático (PAC); vale para a sessão
+  (environment.d) e para o GNOME (gsettings);
+- ✅ Várias conexões: Dividir (rota multipath pelo `lumna-rede-mesclar`, na proporção escolhida),
+  Redundância (principal e reserva, pelas métricas do NetworkManager) e Somar (⏳ precisa de um servidor,
+  MPTCP);
 - ⏳ VPN;
-- ⏳ Proxy;
 - ⏳ Ponto de acesso;
 - ⏳ Dados móveis (no celular).
 
-O NetworkManager por D-Bus; as telas da `rede` já existem.
+O NetworkManager por D-Bus (`servicos/rede.c`: uma linha de fundo guarda o estado, o Painel copia). Sem
+placa ou sem o NetworkManager, a seção avisa e diz como instalar. Para testar sem hardware:
+`testes/rede-falsa.sh` (python-dbusmock).
 
 **Bluetooth**
-- ⏳ Dispositivos (parear, conectar, bateria);
-- ⏳ Nome e visibilidade;
+- ✅ Dispositivos: ligar/desligar, procurar, parear (agente sem PIN: Just Works), conectar, desconectar,
+  esquecer, bateria e sinal;
+- ✅ Nome e visibilidade: o nome, visível ou não, e o adaptador (Onboard ou USB);
 - ⏳ Receber arquivos.
 
-Pelo BlueZ.
+Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.sh`.
 
 **Aplicativos**
 - 🔨 Instalados (a lista do lançador, com desinstalar pelo `lumna-pkg`);

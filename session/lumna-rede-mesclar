@@ -1,0 +1,78 @@
+#!/bin/sh
+# lumna-rede-mesclar: usar duas conexoes ao mesmo tempo (precisa de root: o Painel chama com pkexec).
+#
+#   lumna-rede-mesclar divisao IF1 IF2 [PESO1 PESO2]   divide as conexoes entre as duas redes
+#   lumna-rede-mesclar aplicar                         refaz o que esta em /etc/lumna/mesclar.conf
+#   lumna-rede-mesclar desligar                        volta ao normal (a rede de menor metrica)
+#   lumna-rede-mesclar estado                          mostra as rotas de saida de agora
+#   lumna-rede-mesclar instalar                        poe o gancho no NetworkManager (dispatcher)
+#   lumna-rede-mesclar ativar IF1 IF2 [P1 P2]          instalar e dividir de uma vez (uma senha so)
+#
+# Divisao = rota multipath do kernel: cada conexao nova (de um site, um download) sai por uma das
+# duas redes, na proporcao dos pesos. Um download so continua por uma rede; varios juntos usam as duas.
+# O que manda os pacotes por uma ou outra e o hash de camada 4 (IP e porta). Para somar a velocidade
+# de UMA conexao e preciso um servidor do outro lado (MPTCP), que fica para depois.
+#
+# LUMNA_MESCLAR_SECO=1 so mostra os comandos de `ip` (para testar sem root).
+CONF=/etc/lumna/mesclar.conf
+HOOK=/etc/NetworkManager/dispatcher.d/90-lumna-mesclar
+IP=ip
+[ -n "$LUMNA_MESCLAR_SECO" ] && IP="echo ip"
+
+gateway() { # a gateway de uma interface, pelas rotas ou pelo NetworkManager
+	if [ -n "$LUMNA_MESCLAR_GW" ]; then
+		echo "$LUMNA_MESCLAR_GW" | tr ',' '\n' | grep "^$1=" | cut -d= -f2
+		return
+	fi
+	ip -4 route show default dev "$1" 2>/dev/null | sed -n 's/.* via \([0-9.]*\).*/\1/p' | head -n1
+}
+
+limpar() {
+	# tira a rota de varios caminhos (a de uma rede so, do NetworkManager, fica)
+	ip -4 route show default | grep -q nexthop && $IP route del default metric 50 2>/dev/null
+	return 0
+}
+
+divisao() {
+	IF1=$1 IF2=$2 P1=${3:-1} P2=${4:-1}
+	[ -n "$IF1" ] && [ -n "$IF2" ] && [ "$IF1" != "$IF2" ] || { echo "uso: divisao IF1 IF2 [PESO1 PESO2]" >&2; exit 2; }
+	G1=$(gateway "$IF1")
+	G2=$(gateway "$IF2")
+	[ -n "$G1" ] || { echo "$IF1 nao tem gateway (esta conectada?)" >&2; exit 3; }
+	[ -n "$G2" ] || { echo "$IF2 nao tem gateway (esta conectada?)" >&2; exit 3; }
+	mkdir -p "$(dirname "$CONF")"
+	printf 'modo=divisao\nif1=%s\nif2=%s\npeso1=%s\npeso2=%s\n' "$IF1" "$IF2" "$P1" "$P2" > "$CONF.novo" && mv "$CONF.novo" "$CONF"
+	# hash por IP e porta (senao todas as conexoes para um mesmo servidor sairiam pela mesma rede)
+	[ -n "$LUMNA_MESCLAR_SECO" ] && echo "sysctl net.ipv4.fib_multipath_hash_policy=1" || sysctl -qw net.ipv4.fib_multipath_hash_policy=1 2>/dev/null
+	$IP route replace default scope global metric 50 \
+		nexthop via "$G1" dev "$IF1" weight "$P1" \
+		nexthop via "$G2" dev "$IF2" weight "$P2"
+}
+
+aplicar() {
+	[ -f "$CONF" ] || exit 0
+	# shellcheck disable=SC1090
+	. "$CONF"
+	[ "$modo" = divisao ] || exit 0
+	divisao "$if1" "$if2" "$peso1" "$peso2"
+}
+
+case "$1" in
+divisao) shift; divisao "$@" ;;
+ativar) shift; "$0" instalar && divisao "$@" ;;
+aplicar) aplicar ;;
+desligar)
+	rm -f "$CONF"
+	limpar
+	;;
+estado) ip -4 route show default ;;
+instalar)
+	cat > "$HOOK" <<'H'
+#!/bin/sh
+# gerado pelo lumna-rede-mesclar: refaz a divisao quando uma rede sobe ou desce
+case "$2" in up|down|dhcp4-change) /usr/bin/lumna-rede-mesclar aplicar >/dev/null 2>&1 ;; esac
+H
+	chmod 755 "$HOOK"
+	;;
+*) echo "uso: lumna-rede-mesclar divisao|ativar|aplicar|desligar|estado|instalar" >&2; exit 2 ;;
+esac

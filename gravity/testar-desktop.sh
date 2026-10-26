@@ -21,7 +21,8 @@ BIN=$CACHE/bin
 falta() {
 	echo "Falta: $1"
 	echo "No Arch: sudo pacman -S --needed base-devel git wayland wayland-protocols libxkbcommon cairo pango \\"
-	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.20 dbus foot libnotify"
+	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.20 dbus foot libnotify \\"
+	echo "         networkmanager bluez bluez-utils polkit"
 	exit 1
 }
 

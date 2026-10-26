@@ -45,6 +45,8 @@ extern gv_app *pn_app;
 
 /* o modo desenvolvedor → aplicar em tempo real (desenvolvedor.c) */
 bool pn_ao_vivo(void);
+/* liga o serviço da rede uma vez (rede.c) */
+void pn_rede_servico(void);
 
 /* ---- ajudas para as seções (comum.c) ---- */
 
