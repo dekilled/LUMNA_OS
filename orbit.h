@@ -221,6 +221,7 @@ struct orbit_server {
 	bool mode_booted;
 	char launcher[ORBIT_CMD_LEN];
 	char media_menu[ORBIT_CMD_LEN]; /* o seletor de serviços da Mídia */
+	bool inhibit_host_shortcuts;    /* aninhado: pede ao Wayland de fora que deixe os atalhos (o Super) com o Orbit */
 	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
 	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
 	/* o Alt+Tab em curso: a lista pela ordem de uso, fixa até soltar o modificador */

@@ -1,4 +1,7 @@
 #include "orbit.h"
+#include "nested.h"
+
+#include <wlr/backend/wayland.h>
 #include <wlr/backend.h>
 
 #include <stdlib.h>
@@ -209,6 +212,14 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->layout, wlr);
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
+	/* aninhado: o Wayland de fora deixa os atalhos (o Super) para nós enquanto a janela do Orbit tem o foco */
+	if (server->inhibit_host_shortcuts && wlr_output_is_wl(wlr)) {
+		if (orbit_nested_inhibit(wlr_wl_backend_get_remote_display(wlr->backend), wlr_wl_output_get_surface(wlr))) {
+			wlr_log(WLR_INFO, "%s: pedi ao compositor de fora que deixe os atalhos (o Super) comigo enquanto a janela tem o foco", wlr->name);
+		} else {
+			wlr_log(WLR_INFO, "%s: o compositor de fora não sabe inibir atalhos: o Super vai ser dele (use outro modificador em [atalho])", wlr->name);
+		}
+	}
 	orbit_outputs_publish(server);
 	wlr_log(WLR_INFO, "saída %s %dx%d scale %.2f%s", wlr->name, wlr->width, wlr->height, wlr->scale,
 		output_is_phone(wlr) ? " telemóvel" : "");

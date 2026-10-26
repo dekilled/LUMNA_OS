@@ -252,3 +252,11 @@ não há modos.
   [geral] modo_seletor = lumna-modos       o programa que mostra o seletor a cada troca
                                            (LUMNA_SAIDA e LUMNA_MODO no ambiente)
   O Orbit também escreve o modo da saída que trocou em ~/.config/lumna/modo.
+
+Rodando dentro de outro Linux (o Orbit como uma janela de um GNOME, KDE, Hyprland...)
+O compositor de fora recebe o Super antes e fica com os atalhos dele. O Orbit pede a ele, pelo protocolo
+keyboard-shortcuts-inhibit, que deixe os atalhos para esta janela enquanto ela tem o foco ([geral]
+inibir_atalhos = sim, o padrão; nao desliga). O GNOME pergunta uma vez, e Super+Esc devolve os atalhos a ele.
+No log aparece "pedi ao compositor de fora que deixe os atalhos" ou, se ele não sabe o protocolo (o Weston
+não sabe), "o Super vai ser dele": aí troque o modificador em [atalho] (Alt+..., Ctrl+Alt+...). Numa máquina
+virtual (QEMU, VirtualBox, WSL) o Super é do sistema de fora e o protocolo não chega lá: use outro modificador.

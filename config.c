@@ -170,6 +170,9 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		copy_cmd(server->brightness_down, value);
 	} else if (strcasecmp(key, "lancador") == 0) {
 		copy_cmd(server->launcher, value);
+	} else if (strcasecmp(key, "atalhos_do_sistema") == 0 || strcasecmp(key, "inibir_atalhos") == 0) {
+		server->inhibit_host_shortcuts = strcasecmp(value, "nao") != 0 && strcasecmp(value, "não") != 0 && strcasecmp(value, "no") != 0 &&
+			strcmp(value, "0") != 0;
 	} else if (strcasecmp(key, "seletor_midia") == 0) {
 		copy_cmd(server->media_menu, value);
 	} else if (strcasecmp(key, "modo_seletor") == 0) {
@@ -322,6 +325,7 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->mode_osd, "lumna-modos");
 	copy_cmd(server->launcher, "pkill -x lumna-lancador || lumna-lancador");
 	copy_cmd(server->media_menu, "lumna-midia seletor");
+	server->inhibit_host_shortcuts = true;
 	orbit_mode_config_load(server);
 	orbit_binds_reset(server);
 	char path[512];
