@@ -381,11 +381,14 @@ void orbit_arrange(struct orbit_server *server) {
 			continue;
 		}
 
+		orbit_mode_sync_output(output);
 		orbit_lock_configure(output);
 		/* a troca de espaço (ou de modo) desliza: para a direita se o novo vem depois do que estava */
 		int dir = output->tag == output->shown_tag ? 0 : output->tag > output->shown_tag ? 1 : -1;
 		output->shown_tag = output->tag;
 		bool animate = dir != 0 && server->anim_ms > 0 && !output_is_phone(output->wlr);
+		/* Gaming e Mídia são de tela cheia: toda janela do modo ocupa a tela, e só a que tem o foco aparece */
+		bool kiosk = output->mode != ORBIT_MODE_DESKTOP && !output_is_phone(output->wlr);
 		struct wlr_box usable = orbit_layer_usable(output, &box);
 
 		struct orbit_view *tiled[ORBIT_MAX_VIEWS];
@@ -411,8 +414,11 @@ void orbit_arrange(struct orbit_server *server) {
 			if (animate && !view->scene_tree->node.enabled) {
 				view->enter_dx = dir * box.width;
 			}
-			if (view->fullscreen) {
-				full = view;
+			if (kiosk) {
+				view->fullscreen = true;
+			}
+			if (view->fullscreen && (!full || full != server->focused)) {
+				full = view; /* a que tem o foco fica com a tela; senão, a última */
 			}
 			if (view->maximized && !view->fullscreen && nmax < ORBIT_MAX_VIEWS) {
 				maxed[nmax++] = view; /* fora do mosaico: ocupa a área útil, por cima dele */

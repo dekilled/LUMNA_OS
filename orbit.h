@@ -119,6 +119,7 @@ enum orbit_action {
 	ORBIT_SNAP_UP,
 	ORBIT_SNAP_DOWN,
 	ORBIT_LAUNCHER,   /* abrir ou fechar o lançador (o Super sozinho) */
+	ORBIT_MEDIA_MENU, /* Super+M: o seletor de serviços, só no modo Mídia */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 	ORBIT_MODE_PREV,
 };
@@ -218,6 +219,7 @@ struct orbit_server {
 	int mode_boot;                /* o modo da primeira saída ao ligar */
 	bool mode_booted;
 	char launcher[ORBIT_CMD_LEN];
+	char media_menu[ORBIT_CMD_LEN]; /* o seletor de serviços da Mídia */
 	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
 	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
 	/* o Alt+Tab em curso: a lista pela ordem de uso, fixa até soltar o modificador */
@@ -432,6 +434,7 @@ void orbit_config_load(struct orbit_server *server);
 const char *orbit_mode_name(int mode);
 int orbit_mode_parse(const char *text);
 void orbit_mode_follow(struct orbit_server *server);
+void orbit_mode_sync_output(struct orbit_output *output);
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode);
 void orbit_mode_step(struct orbit_server *server, int dir);
 void orbit_mode_set_extend(struct orbit_server *server, bool extend);

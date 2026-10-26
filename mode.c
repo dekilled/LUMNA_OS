@@ -49,14 +49,19 @@ static int tag_of_mode(struct orbit_output *output, int mode) {
 	return mode == ORBIT_MODE_DESKTOP ? output->desktop_tag : ORBIT_TAGS + mode - 1;
 }
 
-/* o modo acompanha o espaço (depois de cada arranjo, pelo orbit_ipc_sync) */
+/* o modo de uma saída acompanha o espaço dela (o arranjo precisa dele já: Gaming e Mídia são de tela cheia) */
+void orbit_mode_sync_output(struct orbit_output *output) {
+	if (output->tag < ORBIT_TAGS) {
+		output->desktop_tag = output->tag;
+	}
+	output->mode = mode_of_tag(output->tag);
+}
+
+/* e o evento "modo" sai depois de cada arranjo, pelo orbit_ipc_sync */
 void orbit_mode_follow(struct orbit_server *server) {
 	struct orbit_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
-		if (output->tag < ORBIT_TAGS) {
-			output->desktop_tag = output->tag;
-		}
-		output->mode = mode_of_tag(output->tag);
+		orbit_mode_sync_output(output);
 	}
 }
 

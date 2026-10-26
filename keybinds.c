@@ -239,6 +239,13 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_SNAP_DOWN:
 		orbit_snap_key(server, 4);
 		break;
+	case ORBIT_MEDIA_MENU: {
+		struct orbit_output *output = cursor_output(server);
+		if (output && output->mode == ORBIT_MODE_MEDIA) {
+			spawn(server->media_menu);
+		}
+		break;
+	}
 	case ORBIT_LAUNCHER:
 		spawn(server->launcher);
 		break;
@@ -345,6 +352,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Tab, ORBIT_MODE, 0);
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_Tab, ORBIT_MODE_PREV, 0);
 	bind_put(server, 0, XKB_KEY_Super_L, ORBIT_LAUNCHER, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_m, ORBIT_MEDIA_MENU, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Left, ORBIT_SNAP_LEFT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Up, ORBIT_SNAP_UP, 0);
@@ -395,6 +403,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "modo", ORBIT_MODE, 0 },
 	{ "modo_anterior", ORBIT_MODE_PREV, 0 },
 	{ "lancador", ORBIT_LAUNCHER, 0 },
+	{ "seletor_midia", ORBIT_MEDIA_MENU, 0 },
 	{ "encaixar_esquerda", ORBIT_SNAP_LEFT, 0 },
 	{ "encaixar_direita", ORBIT_SNAP_RIGHT, 0 },
 	{ "maximizar", ORBIT_SNAP_UP, 0 },

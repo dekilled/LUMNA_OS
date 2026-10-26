@@ -202,6 +202,7 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Super+H          minimizar a janela focada
   Super+Tab        o modo seguinte (Desktop, Gaming, Mídia); Super+Shift+Tab, o anterior
   Super            abrir / fechar o lançador ([geral] lancador)
+  Super+M          o seletor de serviços, só no modo Mídia ([geral] seletor_midia)
   Super+← / →      encaixar na metade (de novo no mesmo lado solta)
   Super+↑ / ↓      maximizar / desfazer (numa janela livre, minimiza)
 
@@ -237,6 +238,8 @@ não há modos.
   orbit-msg areas [N]                      quantos espaços o Desktop usa (1-3); as janelas dos desligados
                                            vão para o último que ficou ligado
   [geral] areas = 3                        o mesmo, em modos.ini
+  Gaming e Mídia são de tela cheia: toda janela desses modos ocupa a tela, e só a que tem o foco aparece
+  (`orbit-msg foco ID` troca; o Início, o Firefox e os jogos se revezam).
   evento "areas" ({"areas"})               quando a contagem muda
   A troca de espaço ou de modo desliza (para a direita se o novo vem depois), em 2x o tempo de "animacao".
   evento "modo" ({"saida","modo","layout"}) a cada troca, para quem assina
