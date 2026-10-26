@@ -39,13 +39,14 @@
 #include "json.h"
 #include "mdns.h"
 #include "modos.h"
+#include "midiac.h"
 #include "mpris.h"
 #include "ponteiro.h"
 
 #define PORTA 47800
 #define SERVICO "_lumna-remote._tcp"
 #define CODIGO_VALE_US (5 * 60 * G_USEC_PER_SEC)
-#define APP_ID_SHELL "lumna-midia" /* o app_id da janela do shell da Mídia */
+#define APP_ID_SHELL "lumna-midia-inicio" /* o app_id da janela de Início da Mídia */
 
 /* ---- celulares pareados ---- */
 
@@ -309,8 +310,14 @@ static void volume_mudar(const char *acao, GString *r) {
 	g_string_printf(r, "{\"type\":\"volume\",\"value\":%d,\"muted\":%s}", v, mudo ? "true" : "false");
 }
 
-/* Home: o shell da Mídia na frente, sem fechar o que estava aberto */
+/* Home: a tela de Início da Mídia na frente, sem fechar o que estava aberto (o serviço da Mídia cuida) */
 static void ir_para_inicio(GString *r) {
+	char resp[256];
+	if (midiac_pedido("inicio", resp, sizeof(resp)) && strstr(resp, "\"ok\":true")) {
+		ok(r);
+		return;
+	}
+	/* sem o serviço da Mídia: ao menos o modo Mídia e a janela do Início, se houver */
 	struct modos_estado e;
 	if (!modos_ler(&e)) {
 		erro(r, "o Orbit não respondeu", false);

@@ -66,7 +66,7 @@ fi
 
 # os nomes que as peças chamam umas às outras (a dock abre o lumna-lancador, o sino o lumna-avisos...)
 mkdir -p "$BIN"
-for p in papel barra dock lancador avisos bloqueio entrada ocioso modos controle painel apps rede transferencia mixer wifi galeria; do
+for p in papel barra dock lancador avisos bloqueio entrada ocioso modos controle midia painel apps rede transferencia mixer wifi galeria; do
 	[ -x "$AQUI/$p" ] && ln -sf "$AQUI/$p" "$BIN/lumna-$p"
 done
 ln -sf "$O/orbit-msg" "$BIN/orbit-msg"
@@ -75,5 +75,5 @@ ln -sf "$AQUI/../session/lumna-modo" "$BIN/lumna-modo"
 echo "Abrindo o desktop novo numa janela (feche-a para sair)..."
 export PATH="$BIN:$PATH"
 export ORBIT_BORDA=0 # as janelas desenham a própria moldura, de cantos redondos
-exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-controle &
+exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-controle & lumna-midia servico &
 	sleep 1; notify-send -a LUMNA "Bem-vindo ao desktop novo" "Os avisos chegam aqui. O sino na topbar abre a central." 2>/dev/null'

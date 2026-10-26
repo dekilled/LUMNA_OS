@@ -50,6 +50,9 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Controle pelo celular (lumna-controle, serviço da sessão): protocolo do LUMNA Controle (porta 47800, mDNS, pareamento por código), sistema (volume, modo, Home) e serviço (teclado e ponteiro virtuais, MPRIS) sem depender de qual janela está na frente; `lumna-controle parear|estado|esquecer`
   - [ ] O app do celular: touchpad (pointer/click/scroll já aceitos pelo serviço) e o teclado
   - [ ] Os recursos do Connect (arquivos, área de transferência, avisos, Emma, energia) ainda moram no shell antigo
+- [x] Mídia (lumna-midia): o Firefox em kiosk é o player web (um perfil, uma aba por serviço, controle por WebDriver BiDi); o serviço guarda o catálogo editável (midia.ini) e os recentes (URL, título, miniatura); Início, capa de loading com fade e seletor (Super+M) conforme os mockups; Home e abrir serviço também pelo celular; testes com um Firefox de mentira (`testes/midia.sh`)
+  - [ ] Testar no Firefox de verdade: app_id da janela (--name/--class), Widevine (o CDM baixa na primeira vez), `navigator.webdriver` ligado pelo controle remoto (login do Google pode reclamar: YouTube TV entra por código)
+  - [ ] Ícones das marcas (~/.local/share/lumna/midia/icones/ID.svg), Música e Vídeos locais no Início, editar/remover serviços pela tela, LRU de abas vivas
 - [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
 - [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)
 - [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da

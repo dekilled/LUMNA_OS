@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -127,14 +127,20 @@ entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
 # o controle do celular (servicos/json.c, mdns.c, ponteiro.c): um serviço da sessão, sem a biblioteca de interface
-controle: exemplos/controle.c servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
+controle: exemplos/controle.c servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
 		servicos/modos.c servicos/modos.h servicos/mpris.c servicos/mpris.h wlr-virtual-pointer-unstable-v1-client-protocol.h \
 		wlr-virtual-pointer-unstable-v1-protocol.c
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/controle.c servicos/json.c servicos/mdns.c \
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/controle.c servicos/midiac.c servicos/json.c servicos/mdns.c \
 		servicos/ponteiro.c servicos/modos.c servicos/mpris.c wlr-virtual-pointer-unstable-v1-protocol.c \
 		$(shell pkg-config --libs libsoup-3.0 gio-2.0 wayland-client) -lm
+
+# a Mídia: o serviço (Firefox em kiosk, catálogo, recentes) e as telas (Início, capa, seletor)
+midia: exemplos/midia.c servicos/midiad.c servicos/midiad.h servicos/midiac.c servicos/midiac.h servicos/midia.c servicos/midia.h \
+		servicos/firefox.c servicos/firefox.h servicos/json.c servicos/json.h servicos/modos.c servicos/modos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/midia.c servicos/midiad.c servicos/midiac.c \
+		servicos/midia.c servicos/firefox.c servicos/json.c servicos/modos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs libsoup-3.0 gio-2.0) -lpthread

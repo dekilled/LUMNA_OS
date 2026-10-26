@@ -1,4 +1,5 @@
-import asyncio, json, base64, websockets
+import asyncio, json, base64, os, websockets
+ATRASO = float(os.environ.get("BIDI_ATRASO", "0.4"))
 ctxs = {}      # id -> url
 n = 0
 async def handler(ws, path=None):
@@ -14,7 +15,7 @@ async def handler(ws, path=None):
             cid, url = p["context"], p["url"]; ctxs[cid] = url; r = {"navigation":"nav","url":url}
             async def depois(cid=cid, url=url):
                 await ev("browsingContext.navigationStarted", {"context":cid,"url":url})
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(ATRASO)
                 await ev("browsingContext.load", {"context":cid,"url":url})
             asyncio.ensure_future(depois())
         elif meth == "browsingContext.getTree":
