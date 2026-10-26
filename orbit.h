@@ -105,6 +105,11 @@ enum orbit_action {
 	ORBIT_VOLUME_DOWN,
 	ORBIT_BRIGHTNESS_UP,
 	ORBIT_BRIGHTNESS_DOWN,
+	ORBIT_CYCLE,      /* Alt+Tab: a janela usada antes (segurando o Alt, as outras) */
+	ORBIT_CYCLE_BACK, /* Alt+Shift+Tab: ao contrário */
+	ORBIT_MINIMIZE,
+	ORBIT_LAUNCHER,   /* abrir ou fechar o lançador (o Super sozinho) */
+	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 };
 
 struct orbit_bind {
@@ -192,6 +197,17 @@ struct orbit_server {
 	char volume_down[ORBIT_CMD_LEN];
 	char brightness_up[ORBIT_CMD_LEN];
 	char brightness_down[ORBIT_CMD_LEN];
+	char mode_next[ORBIT_CMD_LEN];
+	char launcher[ORBIT_CMD_LEN];
+	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
+	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
+	/* o Alt+Tab em curso: a lista pela ordem de uso, fixa até soltar o modificador */
+	bool cycling;
+	uint32_t cycle_mods;
+	int cycle_n, cycle_i;
+	uint32_t cycle_ids[64];
+	uint32_t focus_seq;
+	int config_watch;
 	struct orbit_bind binds[ORBIT_MAX_BINDS];
 	int nbinds;
 	bool phone_split;
@@ -236,6 +252,7 @@ struct orbit_view {
 	int tag;
 	bool floating;
 	bool fullscreen;
+	uint32_t focus_seq; /* quando teve o foco por último (o Alt+Tab vai por esta ordem) */
 	bool minimized;  /* escondida até a dock (ou o foco) a trazer de volta */
 	bool maximized;  /* ocupa a área útil da saída (sem a barra e a dock); as outras ficam por baixo */
 	bool mapped;
@@ -379,5 +396,13 @@ void orbit_binds_reset(struct orbit_server *server);
 bool orbit_bind_set(struct orbit_server *server, const char *action, const char *chord);
 
 void orbit_config_load(struct orbit_server *server);
+/* relê o orbit.ini e o atalhos.ini quando mudam (o Painel grava os atalhos) */
+void orbit_config_watch(struct orbit_server *server);
+/* o Super sozinho: chamado em cada tecla (carregar e soltar) */
+bool orbit_keybinding_tap(struct orbit_server *server, xkb_keysym_t sym, bool pressed, uint32_t mods);
+/* o Painel grava um atalho: os atalhos param uns segundos (ou até retomar) */
+void orbit_binds_pause(struct orbit_server *server, bool on);
+/* o modificador do Alt+Tab foi solto: acaba a volta */
+void orbit_cycle_end(struct orbit_server *server, uint32_t mods);
 
 #endif

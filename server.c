@@ -87,6 +87,7 @@ int main(int argc, char *argv[]) {
 		wlr_log(WLR_ERROR, "falha ao criar o display Wayland");
 		return 1;
 	}
+	orbit_config_watch(&server);
 
 	struct wlr_session *session = NULL;
 	server.backend = wlr_backend_autocreate(wl_display_get_event_loop(server.display), &session);

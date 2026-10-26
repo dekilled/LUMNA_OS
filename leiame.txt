@@ -75,7 +75,11 @@ Configuração
   [atalho] troca uma acção. Alt+Shift+q, Super+Return, Ctrl+Alt+Left.
   "-" desliga. captura, volume_subir, volume_descer, brilho_subir
   e brilho_descer correm o comando de [geral] e não têm tecla
-  até o ficheiro lhes dar uma.
+  até o ficheiro lhes dar uma. "Super" sozinho é carregar e soltar o
+  Super sem mais nada (o lançador). Um atalhos.ini ao lado do orbit.ini
+  (o que o Painel de controle grava) ganha a este; os dois são relidos
+  quando mudam. orbit-msg atalhos pausar|retomar desliga os atalhos uns
+  segundos (no máximo 30) para o Painel gravar um novo.
 
 Protocolos
   foreign toplevel anuncia título, app id, saída, foco e ecrã inteiro.
@@ -192,6 +196,11 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Alt+← / Alt+→    mudar a janela de saída
   Alt+1–4          espaço da saída sob o ponteiro
   Alt+Shift+1–4    mover a janela focada para esse espaço
+  Alt+Tab          a janela usada antes; segurando o Alt, as outras
+                   (as minimizadas também voltam); Alt+Shift+Tab ao contrário
+  Super+H          minimizar a janela focada
+  Super+Tab        o modo seguinte do desktop ([geral] modo)
+  Super            abrir / fechar o lançador ([geral] lancador)
   Alt+botão        arrastar; ao largar noutra saída, a janela muda de mãe
 
 seat0 anuncia pointer e keyboard desde o arranque (no telemóvel o único

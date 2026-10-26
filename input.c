@@ -171,6 +171,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
 	orbit_idle_activity(server);
+	server->super_tap = false; /* Super+clique não é o Super sozinho */
 
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		struct orbit_view *view = server->grabbed;
@@ -253,6 +254,9 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 	bool handled = false;
 	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 	orbit_idle_activity(server);
+	for (int i = 0; i < count; i++) {
+		handled = orbit_keybinding_tap(server, syms[i], event->state == WL_KEYBOARD_KEY_STATE_PRESSED, mods) || handled;
+	}
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && count > 0) {
 		for (int i = 0; i < count; i++) {
 			handled = orbit_keybinding(server, syms[i], mods) || handled;
@@ -277,6 +281,7 @@ static void keyboard_modifiers(struct wl_listener *listener, void *data) {
 	if (orbit_im_forward_modifiers(keyboard->server, keyboard->wlr_keyboard)) {
 		return;
 	}
+	orbit_cycle_end(keyboard->server, wlr_keyboard_get_modifiers(keyboard->wlr_keyboard));
 	wlr_seat_set_keyboard(keyboard->server->seat, keyboard->wlr_keyboard);
 	wlr_seat_keyboard_notify_modifiers(keyboard->server->seat, &keyboard->wlr_keyboard->modifiers);
 }

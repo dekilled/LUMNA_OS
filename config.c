@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/inotify.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <wlr/util/log.h>
 
 static void copy_cmd(char *dest, const char *src) {
@@ -161,6 +164,10 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		copy_cmd(server->brightness_up, value);
 	} else if (strcasecmp(key, "brilho_descer") == 0 || strcasecmp(key, "brightness_down") == 0) {
 		copy_cmd(server->brightness_down, value);
+	} else if (strcasecmp(key, "lancador") == 0) {
+		copy_cmd(server->launcher, value);
+	} else if (strcasecmp(key, "modo") == 0) {
+		copy_cmd(server->mode_next, value);
 	} else {
 		wlr_log(WLR_ERROR, "config linha %d: chave %s desconhecida", line, key);
 	}
@@ -306,11 +313,72 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->volume_down, "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-");
 	copy_cmd(server->brightness_up, "brightnessctl set 5%+");
 	copy_cmd(server->brightness_down, "brightnessctl set 5%-");
+	copy_cmd(server->mode_next, "lumna-modo seguinte");
+	copy_cmd(server->launcher, "pkill -x lumna-lancador || lumna-lancador");
 	orbit_binds_reset(server);
 	char path[512];
 	config_path(path, sizeof(path));
 	if (path[0]) {
 		read_file(server, path);
+		/* os atalhos do Painel de controle, ao lado (ganham aos do orbit.ini) */
+		char extra[600];
+		char *slash = strrchr(path, '/');
+		if (slash) {
+			snprintf(extra, sizeof(extra), "%.*s/atalhos.ini", (int)(slash - path), path);
+			read_file(server, extra);
+		}
 	}
 	apply_env(server);
+}
+
+static int config_changed(int fd, uint32_t mask, void *data) {
+	struct orbit_server *server = data;
+	char buf[4096];
+	bool ours = false;
+	ssize_t n;
+	while ((n = read(fd, buf, sizeof(buf))) > 0) {
+		for (char *p = buf; p < buf + n;) {
+			struct inotify_event *event = (struct inotify_event *)p;
+			if (event->len && (!strcmp(event->name, "orbit.ini") || !strcmp(event->name, "atalhos.ini"))) {
+				ours = true;
+			}
+			p += sizeof(*event) + event->len;
+		}
+	}
+	if (ours) {
+		wlr_log(WLR_INFO, "a configuração mudou: relida");
+		orbit_config_load(server);
+		orbit_arrange(server);
+	}
+	return 0;
+}
+
+void orbit_config_watch(struct orbit_server *server) {
+	char path[512];
+	config_path(path, sizeof(path));
+	char *slash = strrchr(path, '/');
+	if (!path[0] || !slash) {
+		return;
+	}
+	*slash = '\0';
+	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+	if (fd < 0) {
+		return;
+	}
+	/* a pasta pode ainda não existir: o Painel cria-a ao gravar o primeiro atalho */
+	char cmd_dir[600];
+	snprintf(cmd_dir, sizeof(cmd_dir), "%s", path);
+	for (char *p = cmd_dir + 1; *p; p++) {
+		if (*p == '/') {
+			*p = '\0';
+			mkdir(cmd_dir, 0755);
+			*p = '/';
+		}
+	}
+	mkdir(cmd_dir, 0755);
+	if (inotify_add_watch(fd, path, IN_CLOSE_WRITE | IN_MOVED_TO) < 0) {
+		close(fd);
+		return;
+	}
+	wl_event_loop_add_fd(wl_display_get_event_loop(server->display), fd, WL_EVENT_READABLE, config_changed, server);
 }

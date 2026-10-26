@@ -346,6 +346,14 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 	} else if (!strcmp(cmd, "dividir")) {
 		orbit_action_named(server, "dividir");
 		put(b, "{\"ok\":true,\"dividido\":%s}", server->phone_split ? "true" : "false");
+	} else if (!strcmp(cmd, "atalhos")) {
+		/* atalhos pausar|retomar: o Painel grava um atalho novo (Alt+Tab tem de chegar a ele) */
+		if (!arg1 || (strcmp(arg1, "pausar") && strcmp(arg1, "retomar"))) {
+			fail(b, "atalhos pausar|retomar");
+			return;
+		}
+		orbit_binds_pause(server, !strcmp(arg1, "pausar"));
+		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "acao")) {
 		if (!arg1 || !orbit_action_named(server, arg1)) {
 			fail(b, "acção desconhecida");

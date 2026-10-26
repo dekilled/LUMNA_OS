@@ -23,6 +23,7 @@ void orbit_focus(struct orbit_view *view) {
 		}
 	}
 	server->focused = view;
+	view->focus_seq = ++server->focus_seq;
 	wlr_scene_node_raise_to_top(&view->scene_tree->node);
 	if (view->border && view->border->node.enabled) {
 		wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
