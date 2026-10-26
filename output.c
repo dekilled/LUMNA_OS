@@ -4,6 +4,7 @@
 #include <wlr/backend/wayland.h>
 #include <wlr/backend.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -213,6 +214,13 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 	/* aninhado: o Wayland de fora deixa os atalhos (o Super) para nós enquanto a janela do Orbit tem o foco */
+	if (wlr_output_is_wl(wlr)) {
+		/* um nome que dê para casar numa regra de janela do compositor de fora (KDE: Regras de janela) */
+		char titulo[96];
+		snprintf(titulo, sizeof(titulo), "LUMNA (Orbit) - %s", wlr->name);
+		wlr_wl_output_set_title(wlr, titulo);
+		wlr_wl_output_set_app_id(wlr, "lumna-orbit");
+	}
 	if (server->inhibit_host_shortcuts && wlr_output_is_wl(wlr)) {
 		if (orbit_nested_inhibit(wlr_wl_backend_get_remote_display(wlr->backend), wlr_wl_output_get_surface(wlr))) {
 			wlr_log(WLR_INFO, "%s: pedi ao compositor de fora que deixe os atalhos (o Super) comigo enquanto a janela tem o foco", wlr->name);

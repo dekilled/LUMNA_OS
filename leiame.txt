@@ -257,6 +257,9 @@ Rodando dentro de outro Linux (o Orbit como uma janela de um GNOME, KDE, Hyprlan
 O compositor de fora recebe o Super antes e fica com os atalhos dele. O Orbit pede a ele, pelo protocolo
 keyboard-shortcuts-inhibit, que deixe os atalhos para esta janela enquanto ela tem o foco ([geral]
 inibir_atalhos = sim, o padrão; nao desliga). O GNOME pergunta uma vez, e Super+Esc devolve os atalhos a ele.
+A janela do Orbit se chama "LUMNA (Orbit) - <saída>" e tem app_id lumna-orbit (para regras de janela do compositor
+de fora; no KDE: Configurações > Gerenciamento de janelas > Regras de janela > classe da janela lumna-orbit >
+"Ignorar atalhos globais" = Forçar Sim, se o pedido sozinho não bastar).
 No log aparece "pedi ao compositor de fora que deixe os atalhos" ou, se ele não sabe o protocolo (o Weston
 não sabe), "o Super vai ser dele": aí troque o modificador em [atalho] (Alt+..., Ctrl+Alt+...). Numa máquina
 virtual (QEMU, VirtualBox, WSL) o Super é do sistema de fora e o protocolo não chega lá: use outro modificador.
