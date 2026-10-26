@@ -229,6 +229,7 @@ modo de uma saída é o espaço em que ela está, então trocar de espaço por f
 mantém o modo certo. O layout "tela" troca só a saída em foco; "estender" troca todas juntas. Vêm do
 ~/.config/lumna/modos.ini ([geral] layout = tela|estender, ao_ligar = desktop|gaming|midia). No telemóvel
 não há modos.
+  orbit-msg saidas                         inclui "util": a área que sobra depois da barra e da dock
   orbit-msg modo                           o modo de cada saída e o layout
   orbit-msg modo gaming [SAIDA]            troca (seguinte e anterior também)
   orbit-msg modo_layout estender           todas as saídas juntas

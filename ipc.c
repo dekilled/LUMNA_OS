@@ -222,13 +222,16 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			struct wlr_box box;
 			wlr_output_layout_get_box(server->layout, output->wlr, &box);
 			int hz = output->wlr->refresh > 0 ? (output->wlr->refresh + 500) / 1000 : 0;
+			/* a área útil: o que sobra depois da barra e da dock (relativa à saída) */
+			struct wlr_box util = orbit_layer_usable(output, &box);
 			put(b, "%s{\"nome\":", first ? "" : ",");
 			put_str(b, output->wlr->name);
 			put(b, ",\"largura\":%d,\"altura\":%d,\"escala\":%.2f,\"hz\":%d,\"x\":%d,\"y\":%d,"
-				"\"espaco\":%d,\"telemovel\":%s,\"ponteiro\":%s}",
+				"\"espaco\":%d,\"telemovel\":%s,\"ponteiro\":%s,"
+				"\"util\":{\"x\":%d,\"y\":%d,\"largura\":%d,\"altura\":%d}}",
 				output->wlr->width, output->wlr->height, output->wlr->scale, hz, box.x, box.y,
 				output->tag + 1, output_is_phone(output->wlr) ? "true" : "false",
-				output == under ? "true" : "false");
+				output == under ? "true" : "false", util.x - box.x, util.y - box.y, util.width, util.height);
 			first = false;
 		}
 		put(b, "]}");
