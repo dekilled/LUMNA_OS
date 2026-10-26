@@ -120,6 +120,7 @@ enum orbit_action {
 	ORBIT_SNAP_DOWN,
 	ORBIT_LAUNCHER,   /* abrir ou fechar o lançador (o Super sozinho) */
 	ORBIT_MEDIA_MENU, /* Super+M: o seletor de serviços, só no modo Mídia */
+	ORBIT_SWAP_OUTPUTS, /* trocar os espaços de trabalho entre as telas */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 	ORBIT_MODE_PREV,
 };
@@ -357,7 +358,8 @@ bool output_is_phone(struct wlr_output *output);
 struct orbit_output *output_from_wlr(struct orbit_server *server, struct wlr_output *wlr);
 struct orbit_output *output_at(struct orbit_server *server, double lx, double ly);
 struct orbit_output *cursor_output(struct orbit_server *server);
-struct orbit_output *adjacent_output(struct orbit_server *server, struct orbit_output *from, int dir);
+/* a tela ao lado (dir -1 esquerda, 1 direita); saltar_ilhas ignora as que estão em Gaming ou Mídia */
+struct orbit_output *adjacent_output(struct orbit_server *server, struct orbit_output *from, int dir, bool saltar_ilhas);
 void orbit_outputs_bind(struct orbit_server *server);
 
 void orbit_views_bind(struct orbit_server *server);
@@ -435,6 +437,17 @@ const char *orbit_mode_name(int mode);
 int orbit_mode_parse(const char *text);
 void orbit_mode_follow(struct orbit_server *server);
 void orbit_mode_sync_output(struct orbit_output *output);
+/* uma saída em Gaming ou Mídia é uma ilha: as janelas dela não aparecem no Alt+Tab nem na dock, não saem
+ * dela e nenhuma janela de outra saída entra nela. A ponte é só orbit_outputs_swap (trocar as telas). */
+bool orbit_output_isolated(const struct orbit_output *output);
+bool orbit_view_isolated(const struct orbit_view *view);
+/* onde abre uma janela nova: as da Mídia e dos jogos vão para a tela do modo delas; as outras não entram numa tela
+ * em Gaming ou Mídia (vão para a de Desktop mais à mão), a não ser que seja a única */
+struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id);
+/* troca os espaços de trabalho (e as janelas deles) entre duas telas */
+bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, struct orbit_output *b);
+/* "trocar as telas" a partir de uma (a do cursor): com a vizinha, ou a única outra */
+bool orbit_outputs_swap_from(struct orbit_server *server, struct orbit_output *from);
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode);
 void orbit_mode_step(struct orbit_server *server, int dir);
 void orbit_mode_set_extend(struct orbit_server *server, bool extend);

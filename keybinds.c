@@ -20,10 +20,10 @@ static void spawn(const char *command) {
 }
 
 static void move_output(struct orbit_server *server, struct orbit_view *focused, int dir) {
-	if (!focused || !focused->output) {
-		return;
+	if (!focused || !focused->output || orbit_view_isolated(focused)) {
+		return; /* a janela de uma tela em Gaming ou Mídia fica nela */
 	}
-	struct orbit_output *dest = adjacent_output(server, focused->output, dir);
+	struct orbit_output *dest = adjacent_output(server, focused->output, dir, true); /* e nenhuma entra nelas */
 	if (!dest) {
 		return;
 	}
@@ -43,7 +43,7 @@ static void go_tag(struct orbit_server *server, struct orbit_view *focused, int 
 	if (output->tag >= ORBIT_TAGS) {
 		return; /* Gaming e Mídia têm um espaço só: o Alt+número é do Desktop */
 	}
-	if (move && focused) {
+	if (move && focused && !orbit_view_isolated(focused)) {
 		focused->tag = tag;
 		focused->fullscreen = false;
 	}
@@ -66,9 +66,20 @@ static struct orbit_view *view_by_id(struct orbit_server *server, uint32_t id) {
 
 /* as janelas do espaço à vista, a mais recente primeiro (as minimizadas também: o Alt+Tab traz) */
 static void cycle_begin(struct orbit_server *server, uint32_t mods) {
-	struct orbit_output *output = server->focused && server->focused->output ? server->focused->output : cursor_output(server);
+	/* a tela do Alt+Tab: a da janela com foco, ou a do cursor; as telas em Gaming ou Mídia são ilhas e não respondem */
+	struct orbit_output *output = NULL;
+	if (server->focused && server->focused->output && !orbit_output_isolated(server->focused->output)) {
+		output = server->focused->output;
+	} else if (cursor_output(server) && !orbit_output_isolated(cursor_output(server))) {
+		output = cursor_output(server);
+	}
 	server->cycle_n = 0;
 	server->cycle_i = 0;
+	if (!output) {
+		server->cycling = true;
+		server->cycle_mods = mods & (WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_CTRL);
+		return;
+	}
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
 		if (!view->mapped || (output && (view->output != output || view->tag != output->tag)) || server->cycle_n >= 64) {
@@ -239,6 +250,9 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_SNAP_DOWN:
 		orbit_snap_key(server, 4);
 		break;
+	case ORBIT_SWAP_OUTPUTS:
+		orbit_outputs_swap_from(server, cursor_output(server));
+		break;
 	case ORBIT_MEDIA_MENU: {
 		struct orbit_output *output = cursor_output(server);
 		if (output && output->mode == ORBIT_MODE_MEDIA) {
@@ -353,6 +367,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_Tab, ORBIT_MODE_PREV, 0);
 	bind_put(server, 0, XKB_KEY_Super_L, ORBIT_LAUNCHER, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_m, ORBIT_MEDIA_MENU, 0);
+	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_o, ORBIT_SWAP_OUTPUTS, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Left, ORBIT_SNAP_LEFT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Up, ORBIT_SNAP_UP, 0);
@@ -404,6 +419,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "modo_anterior", ORBIT_MODE_PREV, 0 },
 	{ "lancador", ORBIT_LAUNCHER, 0 },
 	{ "seletor_midia", ORBIT_MEDIA_MENU, 0 },
+	{ "trocar_telas", ORBIT_SWAP_OUTPUTS, 0 },
 	{ "encaixar_esquerda", ORBIT_SNAP_LEFT, 0 },
 	{ "encaixar_direita", ORBIT_SNAP_RIGHT, 0 },
 	{ "maximizar", ORBIT_SNAP_UP, 0 },

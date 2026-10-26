@@ -183,7 +183,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 			server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
 			server->grabbed = NULL;
 			struct orbit_output *dest = output_at(server, server->cursor->x, server->cursor->y);
-			if (dest && dest != view->output) {
+			if (dest && dest != view->output && !orbit_output_isolated(dest) && !orbit_view_isolated(view)) {
 				orbit_split_release(server, view);
 				view->output = dest;
 				view->tag = dest->tag;

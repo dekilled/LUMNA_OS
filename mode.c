@@ -99,6 +99,14 @@ static void spawn(const char *command) {
 	}
 }
 
+bool orbit_output_isolated(const struct orbit_output *output) {
+	return output && output->mode != ORBIT_MODE_DESKTOP && !output_is_phone(output->wlr);
+}
+
+bool orbit_view_isolated(const struct orbit_view *view) {
+	return view && orbit_output_isolated(view->output);
+}
+
 static bool is_mode_output(struct orbit_output *output) {
 	return output && !output_is_phone(output->wlr);
 }
@@ -249,4 +257,90 @@ void orbit_mode_init_output(struct orbit_server *server, struct orbit_output *ou
 	output->shown_tag = output->tag; /* a saída nova aparece no lugar, sem deslizar */
 	server->mode_booted = true;
 	output->mode = mode_of_tag(output->tag);
+}
+
+/* as janelas que pertencem a um modo pelo app_id (começa por): a Mídia do LUMNA, e os jogos e lançadores do Gaming */
+static int family_mode(const char *app_id) {
+	static const char *const midia[] = { "lumna-midia", NULL };
+	static const char *const gaming[] = { "lumna-jogos", "lumna-gaming", "steam", "gamescope", "heroic", "lutris", "net.lutris", "com.heroicgameslauncher", NULL };
+	if (!app_id || !*app_id) {
+		return -1;
+	}
+	for (int i = 0; midia[i]; i++) {
+		if (!strncasecmp(app_id, midia[i], strlen(midia[i]))) {
+			return ORBIT_MODE_MEDIA;
+		}
+	}
+	for (int i = 0; gaming[i]; i++) {
+		if (!strncasecmp(app_id, gaming[i], strlen(gaming[i]))) {
+			return ORBIT_MODE_GAMING;
+		}
+	}
+	return -1;
+}
+
+struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id) {
+	struct orbit_output *cursor = cursor_output(server);
+	int mode = family_mode(app_id);
+	struct orbit_output *output;
+	if (mode >= 0) {
+		if (cursor && cursor->mode == mode && !output_is_phone(cursor->wlr)) {
+			return cursor;
+		}
+		wl_list_for_each(output, &server->outputs, link) {
+			if (output->mode == mode && !output_is_phone(output->wlr)) {
+				return output;
+			}
+		}
+		return cursor;
+	}
+	if (!cursor || !orbit_output_isolated(cursor)) {
+		return cursor;
+	}
+	wl_list_for_each(output, &server->outputs, link) {
+		if (!orbit_output_isolated(output) && !output_is_phone(output->wlr)) {
+			return output;
+		}
+	}
+	return cursor;
+}
+
+/*
+ * Trocar as telas: o espaço de trabalho de cada uma (com o modo e as janelas) passa para a outra.
+ * É a única ponte entre uma tela em Gaming ou Mídia e o resto: a pessoa pede, e o filme que passava
+ * na TV passa para o monitor, e o que estava no monitor vai para a TV.
+ */
+bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, struct orbit_output *b) {
+	if (!a || !b || a == b || output_is_phone(a->wlr) || output_is_phone(b->wlr)) {
+		return false;
+	}
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->output == a || view->output == b) {
+			orbit_split_release(server, view);
+			view->output = view->output == a ? b : a; /* o espaço (tag) vai junto: é o da janela */
+		}
+	}
+	int tag = a->tag, desktop = a->desktop_tag;
+	a->tag = b->tag;
+	a->desktop_tag = b->desktop_tag;
+	b->tag = tag;
+	b->desktop_tag = desktop;
+	a->shown_tag = a->tag; /* sem deslizar: o que muda é a tela, não o espaço */
+	b->shown_tag = b->tag;
+	orbit_arrange(server);
+	focus_top(server, a);
+	focus_top(server, b);
+	return true;
+}
+
+bool orbit_outputs_swap_from(struct orbit_server *server, struct orbit_output *from) {
+	if (!from) {
+		return false;
+	}
+	struct orbit_output *other = adjacent_output(server, from, 1, false);
+	if (!other) {
+		other = adjacent_output(server, from, -1, false);
+	}
+	return orbit_outputs_swap(server, from, other);
 }

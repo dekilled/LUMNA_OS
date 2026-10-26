@@ -240,6 +240,12 @@ não há modos.
   [geral] areas = 3                        o mesmo, em modos.ini
   Gaming e Mídia são de tela cheia: toda janela desses modos ocupa a tela, e só a que tem o foco aparece
   (`orbit-msg foco ID` troca; o Início, o Firefox e os jogos se revezam).
+  Uma tela em Gaming ou Mídia é uma ilha: as janelas dela não entram no Alt+Tab (que nem responde com o
+  foco ou o cursor nela), não aparecem na dock, não saem dela (Alt+Esquerda/Direita, arrastar, `mover`) e
+  nenhuma janela das outras telas entra nela. Janelas novas: as da Mídia (app_id lumna-midia*) e as dos
+  jogos (steam*, gamescope, heroic, lutris...) abrem na tela do modo delas; as outras fogem das ilhas.
+  A única ponte é trocar as telas (Super+Shift+O, `orbit-msg trocar_telas [A B]`, o botão na Mídia e na
+  topbar): o espaço de trabalho de cada tela, com o modo e as janelas, passa para a outra.
   evento "areas" ({"areas"})               quando a contagem muda
   A troca de espaço ou de modo desliza (para a direita se o novo vem depois), em 2x o tempo de "animacao".
   evento "modo" ({"saida","modo","layout"}) a cada troca, para quem assina

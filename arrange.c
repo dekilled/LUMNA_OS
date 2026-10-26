@@ -499,7 +499,7 @@ void orbit_borders_sync(struct orbit_server *server) {
 
 void orbit_focus_step(struct orbit_server *server, int dir) {
 	struct orbit_output *output = cursor_output(server);
-	if (!output) {
+	if (!output || orbit_output_isolated(output)) {
 		return;
 	}
 	struct orbit_view *list[ORBIT_MAX_VIEWS];

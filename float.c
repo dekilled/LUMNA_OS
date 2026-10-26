@@ -214,6 +214,9 @@ static void preview(struct orbit_server *server, struct wlr_box *box) {
 }
 
 void orbit_move_begin(struct orbit_server *server, struct orbit_view *view) {
+	if (orbit_view_isolated(view)) {
+		return; /* a janela de uma tela em Gaming ou Mídia não se arrasta */
+	}
 	if (!view || !view->mapped || view->fullscreen || server->session_locked) {
 		return;
 	}
@@ -251,6 +254,10 @@ void orbit_move_begin(struct orbit_server *server, struct orbit_view *view) {
 /* o cursor mexeu a arrastar: a janela segue, e nas bordas aparece a prévia do encaixe */
 void orbit_move_motion(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
+	struct orbit_output *sob = output_at(server, server->cursor->x, server->cursor->y);
+	if (sob && sob != view->output && orbit_output_isolated(sob)) {
+		return; /* não se passa a janela para uma tela em Gaming ou Mídia: ela espera na borda */
+	}
 	view->x = server->grab_gx + (int)(server->cursor->x - server->grab_x);
 	view->y = server->grab_gy + (int)(server->cursor->y - server->grab_y);
 	view->sliding = false;
@@ -303,7 +310,7 @@ void orbit_move_end(struct orbit_server *server) {
 		return;
 	}
 	struct orbit_output *dest = output_at(server, server->cursor->x, server->cursor->y);
-	if (dest && dest != view->output) {
+	if (dest && dest != view->output && !orbit_output_isolated(dest) && !orbit_view_isolated(view)) {
 		orbit_split_release(server, view);
 		view->output = dest;
 		view->tag = dest->tag;

@@ -223,7 +223,7 @@ static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
 
 static void xdg_map(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, map);
-	struct orbit_output *output = cursor_output(view->server);
+	struct orbit_output *output = orbit_output_for_new_view(view->server, view->toplevel->app_id);
 	view->mapped = true;
 	view->output = output;
 	view->tag = output ? output->tag : 0;

@@ -58,7 +58,7 @@ bool orbit_foreign_bind(struct orbit_server *server) {
 }
 
 void orbit_foreign_map(struct orbit_view *view) {
-	if (!view->server->foreign_manager || view->foreign) {
+	if (!view->server->foreign_manager || view->foreign || orbit_view_isolated(view)) {
 		return;
 	}
 	view->foreign = wlr_foreign_toplevel_handle_v1_create(view->server->foreign_manager);
@@ -81,7 +81,19 @@ void orbit_foreign_map(struct orbit_view *view) {
 }
 
 void orbit_foreign_sync(struct orbit_view *view) {
-	if (!view->foreign || !view->mapped) {
+	if (!view->mapped) {
+		return;
+	}
+	/* as janelas de uma tela em Gaming ou Mídia não aparecem na dock nem no alternador; ao voltar, reaparecem */
+	if (orbit_view_isolated(view) != (view->foreign == NULL)) {
+		if (view->foreign) {
+			orbit_foreign_destroy(view);
+		} else {
+			orbit_foreign_map(view);
+		}
+		return;
+	}
+	if (!view->foreign) {
 		return;
 	}
 	const char *title = view->toplevel->title ? view->toplevel->title : "";

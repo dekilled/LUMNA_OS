@@ -44,7 +44,7 @@ struct orbit_output *cursor_output(struct orbit_server *server) {
 	return wl_container_of(server->outputs.next, output, link);
 }
 
-struct orbit_output *adjacent_output(struct orbit_server *server, struct orbit_output *from, int dir) {
+struct orbit_output *adjacent_output(struct orbit_server *server, struct orbit_output *from, int dir, bool saltar_ilhas) {
 	struct wlr_box from_box;
 	wlr_output_layout_get_box(server->layout, from->wlr, &from_box);
 	int from_cx = from_box.x + from_box.width / 2;
@@ -52,7 +52,7 @@ struct orbit_output *adjacent_output(struct orbit_server *server, struct orbit_o
 	int best_dx = 0;
 	struct orbit_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
-		if (output == from) {
+		if (output == from || (saltar_ilhas && orbit_output_isolated(output))) {
 			continue;
 		}
 		struct wlr_box box;

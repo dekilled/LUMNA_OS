@@ -25,6 +25,8 @@
  *   espaco N [SAIDA]            mostra o espaço N (1 até `areas`) na saída (sem ela, a do ponteiro)
  *   areas [N]                   quantos espaços o Desktop usa (1-3); o dos desligados vai para o último
  *   mover ID N                  leva a janela para o espaço N
+ *   trocar_telas [A B]          os espaços de trabalho (com as janelas) de duas telas trocam de lugar; sem nomes,
+ *                               a do cursor com a vizinha. As telas em Gaming ou Mídia só se abrem assim
  *   ecra [ID] | flutuar [ID]    ecrã inteiro / flutuante, alterna
  *   maximizar [ID]              maximizada (a área útil, sem a barra e a dock), alterna
  *   dividir                     liga ou desliga o par no telemóvel
@@ -357,11 +359,24 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		orbit_arrange(server);
 		focus_top(server, output);
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "trocar_telas")) {
+		/* trocar_telas [A B]: os espaços de trabalho (e as janelas) de duas telas trocam de lugar */
+		struct orbit_output *a = arg1 ? output_by_name(arg1) : cursor_output(server);
+		bool ok = arg2 ? orbit_outputs_swap(server, a, output_by_name(arg2)) : orbit_outputs_swap_from(server, a);
+		if (!ok) {
+			fail(b, "sem outra tela para trocar");
+			return;
+		}
+		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "mover")) {
 		struct orbit_view *view = arg1 ? view_by_id((uint32_t)strtoul(arg1, NULL, 10)) : NULL;
 		int n = arg2 ? atoi(arg2) : 0;
 		if (!view || n < 1 || n > server->areas) {
 			fail(b, "uso: mover ID 1-N");
+			return;
+		}
+		if (orbit_view_isolated(view)) {
+			fail(b, "a janela é de uma tela em Gaming ou Mídia: fica nela");
 			return;
 		}
 		orbit_split_release(server, view);
