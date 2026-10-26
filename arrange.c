@@ -86,7 +86,7 @@ static void hide_view(struct orbit_view *view) {
 }
 
 static bool split_candidate(struct orbit_view *view, struct orbit_output *output) {
-	return view->mapped && view->output == output && view->tag == output->tag && !view->floating &&
+	return view->mapped && !view->minimized && view->output == output && view->tag == output->tag && !view->floating &&
 		!view->fullscreen;
 }
 
@@ -377,7 +377,7 @@ void orbit_arrange(struct orbit_server *server) {
 			if (!view->mapped || view->output != output) {
 				continue;
 			}
-			if (view->tag != output->tag) {
+			if (view->tag != output->tag || view->minimized) {
 				hide_view(view);
 				continue;
 			}
@@ -472,7 +472,7 @@ void orbit_focus_step(struct orbit_server *server, int dir) {
 	bool capped = false;
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
-		if (!view->mapped || view->output != output || view->tag != output->tag) {
+		if (!view->mapped || view->minimized || view->output != output || view->tag != output->tag) {
 			continue;
 		}
 		if (n < ORBIT_MAX_VIEWS) {

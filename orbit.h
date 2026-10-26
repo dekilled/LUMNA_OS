@@ -236,6 +236,7 @@ struct orbit_view {
 	int tag;
 	bool floating;
 	bool fullscreen;
+	bool minimized;  /* escondida até a dock (ou o foco) a trazer de volta */
 	bool maximized;  /* ocupa a área útil da saída (sem a barra e a dock); as outras ficam por baixo */
 	bool mapped;
 	struct wlr_scene_rect *border;
@@ -245,8 +246,10 @@ struct orbit_view {
 	struct wl_listener foreign_close;
 	struct wl_listener foreign_maximize;
 	struct wl_listener foreign_fullscreen;
+	struct wl_listener foreign_minimize;
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
+	struct wl_listener request_minimize;
 	bool placed;
 	bool sliding;
 	int slide_x, slide_y;
@@ -311,6 +314,7 @@ void orbit_outputs_bind(struct orbit_server *server);
 
 void orbit_views_bind(struct orbit_server *server);
 void orbit_view_set_maximized(struct orbit_view *view, bool on);
+void orbit_view_set_minimized(struct orbit_view *view, bool on);
 void orbit_view_set_fullscreen(struct orbit_view *view, bool on);
 void orbit_focus(struct orbit_view *view);
 void orbit_unfocus(struct orbit_server *server);

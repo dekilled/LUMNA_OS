@@ -9,6 +9,11 @@ void orbit_focus(struct orbit_view *view) {
 		return; /* trancado, o teclado é só da tela de bloqueio */
 	}
 	struct orbit_server *server = view->server;
+	if (view->minimized) {
+		/* dar o foco a uma minimizada (a dock, o alt-tab, o orbit-msg) traz ela de volta */
+		view->minimized = false;
+		orbit_arrange(server);
+	}
 	struct orbit_view *previous_view = server->focused;
 	struct wlr_surface *prev = server->seat->keyboard_state.focused_surface;
 	if (prev && prev != view->toplevel->base->surface) {
@@ -59,7 +64,7 @@ void orbit_unfocus(struct orbit_server *server) {
 void focus_top(struct orbit_server *server, struct orbit_output *output) {
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
-		if (view->mapped && view->output == output && view->tag == output->tag) {
+		if (view->mapped && !view->minimized && view->output == output && view->tag == output->tag) {
 			orbit_focus(view);
 			if (output_is_phone(output->wlr)) {
 				orbit_arrange(server);
@@ -156,6 +161,37 @@ static void xdg_request_maximize(struct wl_listener *listener, void *data) {
 	orbit_view_set_maximized(view, view->toplevel->requested.maximized);
 }
 
+void orbit_view_set_minimized(struct orbit_view *view, bool on) {
+	if (!view->mapped || view->minimized == on) {
+		return;
+	}
+	struct orbit_server *server = view->server;
+	if (!on) {
+		orbit_focus(view); /* desfaz o minimizar e traz para a frente */
+		return;
+	}
+	view->minimized = true;
+	orbit_split_release(server, view);
+	if (server->grabbed == view) {
+		server->grabbed = NULL;
+		server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
+	}
+	bool was_focused = server->focused == view;
+	if (was_focused) {
+		orbit_unfocus(server);
+	}
+	orbit_arrange(server);
+	if (was_focused && view->output) {
+		focus_top(server, view->output);
+	}
+	orbit_foreign_sync(view);
+}
+
+static void xdg_request_minimize(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, request_minimize);
+	orbit_view_set_minimized(view, true);
+}
+
 static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, request_fullscreen);
 	orbit_view_set_fullscreen(view, view->toplevel->requested.fullscreen);
@@ -226,6 +262,7 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&view->destroy.link);
 	wl_list_remove(&view->request_maximize.link);
 	wl_list_remove(&view->request_fullscreen.link);
+	wl_list_remove(&view->request_minimize.link);
 	if (view->mapped) {
 		orbit_split_release(view->server, view);
 		wl_list_remove(&view->link);
@@ -296,6 +333,8 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&toplevel->events.request_maximize, &view->request_maximize);
 	view->request_fullscreen.notify = xdg_request_fullscreen;
 	wl_signal_add(&toplevel->events.request_fullscreen, &view->request_fullscreen);
+	view->request_minimize.notify = xdg_request_minimize;
+	wl_signal_add(&toplevel->events.request_minimize, &view->request_minimize);
 }
 
 static struct orbit_view *popup_root_view(struct wlr_xdg_popup *popup) {

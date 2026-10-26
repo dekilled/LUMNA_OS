@@ -9,7 +9,7 @@
  * espaço visível dela: a dock esconde-se pela janela maximizada que
  * está à vista, não pela de outro espaço). Atende activar (como o
  * "foco" do orbit-msg: vai para o espaço da janela), fechar,
- * maximizar e ecrã inteiro.
+ * maximizar, minimizar e ecrã inteiro.
  */
 
 static void handle_activate(struct wl_listener *listener, void *data) {
@@ -35,6 +35,12 @@ static void handle_fullscreen(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, foreign_fullscreen);
 	struct wlr_foreign_toplevel_handle_v1_fullscreen_event *event = data;
 	orbit_view_set_fullscreen(view, event->fullscreen);
+}
+
+static void handle_minimize(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, foreign_minimize);
+	struct wlr_foreign_toplevel_handle_v1_minimized_event *event = data;
+	orbit_view_set_minimized(view, event->minimized);
 }
 
 static void handle_close(struct wl_listener *listener, void *data) {
@@ -69,6 +75,8 @@ void orbit_foreign_map(struct orbit_view *view) {
 	wl_signal_add(&view->foreign->events.request_maximize, &view->foreign_maximize);
 	view->foreign_fullscreen.notify = handle_fullscreen;
 	wl_signal_add(&view->foreign->events.request_fullscreen, &view->foreign_fullscreen);
+	view->foreign_minimize.notify = handle_minimize;
+	wl_signal_add(&view->foreign->events.request_minimize, &view->foreign_minimize);
 	orbit_foreign_sync(view);
 }
 
@@ -83,7 +91,7 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	wlr_foreign_toplevel_handle_v1_set_activated(view->foreign, view->server->focused == view);
 	wlr_foreign_toplevel_handle_v1_set_fullscreen(view->foreign, view->fullscreen);
 	wlr_foreign_toplevel_handle_v1_set_maximized(view->foreign, view->maximized && !view->fullscreen);
-	wlr_foreign_toplevel_handle_v1_set_minimized(view->foreign, false);
+	wlr_foreign_toplevel_handle_v1_set_minimized(view->foreign, view->minimized);
 	/* a saída só enquanto se vê nela (o espaço dela é o visível) */
 	struct wlr_output *output = view->output && view->tag == view->output->tag ? view->output->wlr : NULL;
 	if (view->foreign_output != output) {
@@ -105,6 +113,7 @@ void orbit_foreign_destroy(struct orbit_view *view) {
 	wl_list_remove(&view->foreign_close.link);
 	wl_list_remove(&view->foreign_maximize.link);
 	wl_list_remove(&view->foreign_fullscreen.link);
+	wl_list_remove(&view->foreign_minimize.link);
 	wlr_foreign_toplevel_handle_v1_destroy(view->foreign);
 	view->foreign = NULL;
 	view->foreign_output = NULL;
