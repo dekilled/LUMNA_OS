@@ -31,7 +31,9 @@
 #define ORBIT_BORDER_MAX 8
 #define ORBIT_ANIM_DEFAULT 120
 #define ORBIT_ANIM_MAX 400
-#define ORBIT_TAGS 4
+#define ORBIT_TAGS 4 /* os espaços numerados do Desktop; Gaming e Mídia têm um espaço cada logo depois */
+#define ORBIT_MODES 3
+enum { ORBIT_MODE_DESKTOP, ORBIT_MODE_GAMING, ORBIT_MODE_MEDIA };
 
 /*
  * Registos do binário em português. O wlroots continua a escrever os dele
@@ -116,6 +118,7 @@ enum orbit_action {
 	ORBIT_SNAP_DOWN,
 	ORBIT_LAUNCHER,   /* abrir ou fechar o lançador (o Super sozinho) */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
+	ORBIT_MODE_PREV,
 };
 
 struct orbit_bind {
@@ -207,7 +210,10 @@ struct orbit_server {
 	char volume_down[ORBIT_CMD_LEN];
 	char brightness_up[ORBIT_CMD_LEN];
 	char brightness_down[ORBIT_CMD_LEN];
-	char mode_next[ORBIT_CMD_LEN];
+	char mode_osd[ORBIT_CMD_LEN]; /* o seletor que aparece ao trocar de modo */
+	bool mode_extend;             /* os modos trocam em todas as saídas juntas */
+	int mode_boot;                /* o modo da primeira saída ao ligar */
+	bool mode_booted;
 	char launcher[ORBIT_CMD_LEN];
 	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
 	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
@@ -242,6 +248,8 @@ struct orbit_output {
 	struct wl_listener request_state;
 	struct wl_listener destroy;
 	int tag;
+	int desktop_tag; /* o espaço numerado em que o Desktop estava */
+	int mode;        /* acompanha o espaço (mode.c) */
 	bool warned_near;
 	bool warned_cap;
 };
@@ -410,6 +418,15 @@ void orbit_binds_reset(struct orbit_server *server);
 bool orbit_bind_set(struct orbit_server *server, const char *action, const char *chord);
 
 void orbit_config_load(struct orbit_server *server);
+/* mode.c: Desktop, Gaming e Mídia */
+const char *orbit_mode_name(int mode);
+int orbit_mode_parse(const char *text);
+void orbit_mode_follow(struct orbit_server *server);
+void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode);
+void orbit_mode_step(struct orbit_server *server, int dir);
+void orbit_mode_set_extend(struct orbit_server *server, bool extend);
+void orbit_mode_config_load(struct orbit_server *server);
+void orbit_mode_init_output(struct orbit_server *server, struct orbit_output *output);
 /* float.c: as janelas livres do desktop */
 bool orbit_free_desktop(struct orbit_server *server, struct orbit_output *output);
 void orbit_float_save(struct orbit_view *view);

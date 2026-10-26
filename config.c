@@ -170,8 +170,8 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		copy_cmd(server->brightness_down, value);
 	} else if (strcasecmp(key, "lancador") == 0) {
 		copy_cmd(server->launcher, value);
-	} else if (strcasecmp(key, "modo") == 0) {
-		copy_cmd(server->mode_next, value);
+	} else if (strcasecmp(key, "modo_seletor") == 0) {
+		copy_cmd(server->mode_osd, value);
 	} else {
 		wlr_log(WLR_ERROR, "config linha %d: chave %s desconhecida", line, key);
 	}
@@ -317,8 +317,9 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->volume_down, "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-");
 	copy_cmd(server->brightness_up, "brightnessctl set 5%+");
 	copy_cmd(server->brightness_down, "brightnessctl set 5%-");
-	copy_cmd(server->mode_next, "lumna-modo seguinte");
+	copy_cmd(server->mode_osd, "lumna-modos");
 	copy_cmd(server->launcher, "pkill -x lumna-lancador || lumna-lancador");
+	orbit_mode_config_load(server);
 	orbit_binds_reset(server);
 	char path[512];
 	config_path(path, sizeof(path));

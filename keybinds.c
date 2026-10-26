@@ -210,7 +210,10 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 		}
 		break;
 	case ORBIT_MODE:
-		spawn(server->mode_next);
+		orbit_mode_step(server, 1);
+		break;
+	case ORBIT_MODE_PREV:
+		orbit_mode_step(server, -1);
 		break;
 	case ORBIT_SNAP_LEFT:
 		orbit_snap_key(server, 1);
@@ -328,6 +331,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, alt_shift, XKB_KEY_Tab, ORBIT_CYCLE_BACK, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_h, ORBIT_MINIMIZE, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Tab, ORBIT_MODE, 0);
+	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_Tab, ORBIT_MODE_PREV, 0);
 	bind_put(server, 0, XKB_KEY_Super_L, ORBIT_LAUNCHER, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Left, ORBIT_SNAP_LEFT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
@@ -375,6 +379,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "alternar_voltar", ORBIT_CYCLE_BACK, 0 },
 	{ "minimizar", ORBIT_MINIMIZE, 0 },
 	{ "modo", ORBIT_MODE, 0 },
+	{ "modo_anterior", ORBIT_MODE_PREV, 0 },
 	{ "lancador", ORBIT_LAUNCHER, 0 },
 	{ "encaixar_esquerda", ORBIT_SNAP_LEFT, 0 },
 	{ "encaixar_direita", ORBIT_SNAP_RIGHT, 0 },

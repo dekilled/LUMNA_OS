@@ -189,6 +189,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	}
 	output->server = server;
 	output->wlr = wlr;
+	orbit_mode_init_output(server, output);
 	if (!configure_output(output)) {
 		free(output);
 		return;

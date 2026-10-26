@@ -21,6 +21,7 @@ static void usage(const char *self) {
 		"uso: %s [-s socket] pedido [argumentos]\n"
 		"  saidas | janelas | espacos | foco ID | fechar [ID] | espaco N [SAIDA] | mover ID N\n"
 		"  ecra [ID] | flutuar [ID] | dividir | acao NOME | exec COMANDO\n"
+		"  modo [seguinte|anterior|desktop|gaming|midia [SAIDA]] | modo_layout tela|estender\n"
 		"  toque baixo|move|cima DEDO X Y | subscrever\n"
 		"  (também -t get_outputs, -t get_tree, -t get_workspaces)\n",
 		self);

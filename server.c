@@ -27,6 +27,8 @@
 
 static const char *layout_name(enum orbit_layout layout) {
 	switch (layout) {
+	case ORBIT_LAYOUT_FREE:
+		return "livre";
 	case ORBIT_LAYOUT_MONOCLE:
 		return "monóculo";
 	case ORBIT_LAYOUT_SPIRAL:

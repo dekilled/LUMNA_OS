@@ -58,6 +58,7 @@ static struct {
 	/* o último estado anunciado, para os eventos de foco e espaço */
 	uint32_t focused_id;
 	int tags[16];
+	int modes[16];
 	char tag_names[16][32];
 	int ntags;
 } ipc = { .fd = -1 };
@@ -290,6 +291,43 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			return;
 		}
 		wlr_xdg_toplevel_send_close(view->toplevel);
+		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "modo")) {
+		/* modo [seguinte|anterior|desktop|gaming|midia [saida]] */
+		if (arg1) {
+			struct orbit_output *output = arg2 ? output_by_name(arg2) : cursor_output(server);
+			if (!output) {
+				fail(b, "saída não encontrada");
+				return;
+			}
+			if (!strcmp(arg1, "seguinte") || !strcmp(arg1, "anterior")) {
+				orbit_mode_set(server, output, (output->mode + (arg1[0] == 's' ? 1 : ORBIT_MODES - 1)) % ORBIT_MODES);
+			} else {
+				int m = orbit_mode_parse(arg1);
+				if (m < 0) {
+					fail(b, "uso: modo [seguinte|anterior|desktop|gaming|midia [saida]]");
+					return;
+				}
+				orbit_mode_set(server, output, m);
+			}
+		}
+		struct orbit_output *output;
+		put(b, "{\"ok\":true,\"layout\":\"%s\",\"saidas\":[", server->mode_extend ? "estender" : "tela");
+		bool first = true;
+		struct orbit_output *under = cursor_output(server);
+		wl_list_for_each_reverse(output, &server->outputs, link) {
+			put(b, "%s{\"saida\":", first ? "" : ",");
+			put_str(b, output->wlr->name);
+			put(b, ",\"modo\":\"%s\",\"ponteiro\":%s}", orbit_mode_name(output->mode), output == under ? "true" : "false");
+			first = false;
+		}
+		put(b, "]}");
+	} else if (!strcmp(cmd, "modo_layout")) {
+		if (!arg1 || (strcmp(arg1, "tela") && strcmp(arg1, "estender"))) {
+			fail(b, "uso: modo_layout tela|estender");
+			return;
+		}
+		orbit_mode_set_extend(server, !strcmp(arg1, "estender"));
 		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "espaco")) {
 		int n = arg1 ? atoi(arg1) : 0;
@@ -538,6 +576,7 @@ void orbit_ipc_sync(struct orbit_server *server) {
 			free(b.data);
 		}
 	}
+	orbit_mode_follow(server);
 	struct orbit_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
 		int i;
@@ -552,7 +591,19 @@ void orbit_ipc_sync(struct orbit_server *server) {
 			}
 			snprintf(ipc.tag_names[i], sizeof(ipc.tag_names[i]), "%s", output->wlr->name);
 			ipc.tags[i] = -1;
+			ipc.modes[i] = -1;
 			ipc.ntags++;
+		}
+		if (ipc.modes[i] != output->mode) {
+			ipc.modes[i] = output->mode;
+			if (listening) {
+				struct ipc_buf b = { 0 };
+				put(&b, "{\"evento\":\"modo\",\"saida\":");
+				put_str(&b, output->wlr->name);
+				put(&b, ",\"modo\":\"%s\",\"layout\":\"%s\"}", orbit_mode_name(output->mode), server->mode_extend ? "estender" : "tela");
+				broadcast(&b);
+				free(b.data);
+			}
 		}
 		if (ipc.tags[i] == output->tag) {
 			continue;

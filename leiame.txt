@@ -199,7 +199,7 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Alt+Tab          a janela usada antes; segurando o Alt, as outras
                    (as minimizadas também voltam); Alt+Shift+Tab ao contrário
   Super+H          minimizar a janela focada
-  Super+Tab        o modo seguinte do desktop ([geral] modo)
+  Super+Tab        o modo seguinte (Desktop, Gaming, Mídia); Super+Shift+Tab, o anterior
   Super            abrir / fechar o lançador ([geral] lancador)
   Super+← / →      encaixar na metade (de novo no mesmo lado solta)
   Super+↑ / ↓      maximizar / desfazer (numa janela livre, minimiza)
@@ -221,3 +221,18 @@ quando há um ecrã táctil. Todos os teclados
 partilham um contexto e um keymap. XKB_DEFAULT_RULES, XKB_DEFAULT_MODEL,
 XKB_DEFAULT_LAYOUT, XKB_DEFAULT_VARIANT e XKB_DEFAULT_OPTIONS escolhem
 o mapa; se faltarem, o xkbcommon usa o mapa por omissão.
+
+Modos (Desktop, Gaming, Mídia)
+Cada saída tem um modo, e cada modo tem o seu espaço de trabalho (o Desktop usa os 1-4; Gaming e Mídia,
+um próprio cada): trocar de modo nunca fecha nem move janela, e as de cada modo ficam onde estavam. O
+modo de uma saída é o espaço em que ela está, então trocar de espaço por fora (Alt+1, a dock) também
+mantém o modo certo. O layout "tela" troca só a saída em foco; "estender" troca todas juntas. Vêm do
+~/.config/lumna/modos.ini ([geral] layout = tela|estender, ao_ligar = desktop|gaming|midia). No telemóvel
+não há modos.
+  orbit-msg modo                           o modo de cada saída e o layout
+  orbit-msg modo gaming [SAIDA]            troca (seguinte e anterior também)
+  orbit-msg modo_layout estender           todas as saídas juntas
+  evento "modo" ({"saida","modo","layout"}) a cada troca, para quem assina
+  [geral] modo_seletor = lumna-modos       o programa que mostra o seletor a cada troca
+                                           (LUMNA_SAIDA e LUMNA_MODO no ambiente)
+  O Orbit também escreve o modo da saída que trocou em ~/.config/lumna/modo.
