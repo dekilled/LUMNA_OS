@@ -70,6 +70,11 @@ static void lock_keyboard_enter(struct orbit_lock_surface *surface) {
 	if (!wlr->mapped || seat->keyboard_state.focused_surface == wlr) {
 		return;
 	}
+	/* com várias telas: a primeira que aparece fica com o teclado (as outras não o roubam) */
+	struct wlr_surface *focused = seat->keyboard_state.focused_surface;
+	if (focused && wlr_session_lock_surface_v1_try_from_wlr_surface(focused)) {
+		return;
+	}
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
 	wlr_seat_keyboard_notify_enter(seat, wlr, keyboard ? keyboard->keycodes : NULL, keyboard ? keyboard->num_keycodes : 0,
 		keyboard ? &keyboard->modifiers : NULL);

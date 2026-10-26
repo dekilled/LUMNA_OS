@@ -123,6 +123,7 @@ void orbit_gesture_end(struct orbit_server *server) {
 }
 
 static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
+	orbit_idle_activity(server); /* mexer o rato conta mesmo fora das janelas */
 	if (server->cursor_mode == ORBIT_CURSOR_GESTURE) {
 		orbit_gesture_motion(server, server->cursor->x, server->cursor->y);
 		return;
@@ -150,7 +151,6 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	}
 	wlr_seat_pointer_notify_enter(server->seat, surface, sx, sy);
 	wlr_seat_pointer_notify_motion(server->seat, time, sx, sy);
-	orbit_idle_activity(server);
 }
 
 static void on_cursor_motion(struct wl_listener *listener, void *data) {
@@ -170,6 +170,7 @@ static void on_cursor_motion_absolute(struct wl_listener *listener, void *data) 
 static void on_cursor_button(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
+	orbit_idle_activity(server);
 
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		struct orbit_view *view = server->grabbed;
@@ -229,6 +230,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 static void on_cursor_axis(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
+	orbit_idle_activity(server);
 	wlr_seat_pointer_notify_axis(server->seat, event->time_msec, event->orientation,
 		event->delta, event->delta_discrete, event->source, event->relative_direction);
 }
