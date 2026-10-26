@@ -24,6 +24,11 @@
 #include "rede.h"
 #include "som.h"
 
+/* os menus do sistema (Wi-Fi, som, Bluetooth, calendário) abrem todos no mesmo lugar: presos ao canto
+ * direito da barra (o grupo "dir"), com o mesmo vão para a borda e para a barra; os da bandeja ficam
+ * junto do ícone de cada app */
+#define POPUP_GAP 8
+
 static int area;
 /* o que a barra mostra (~/.config/lumna/barra.ini, gravado pelo Painel; vigiado) */
 static bool segundos, com_data, areas = true;
@@ -158,7 +163,7 @@ static const struct rede_disp *wifi_principal(void) {
 }
 
 static void menu_wifi(void) {
-	GV_POPUP(CLAY_ID("menu-wifi"), CLAY_ID("wifi"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = 10) {
+	GV_POPUP(CLAY_ID("menu-wifi"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = POPUP_GAP) {
 		bool ligado = rede.wifi_ligado;
 		if (topo_menu(1, "wifi", "Wi-Fi", rede.nm ? &ligado : NULL)) {
 			rede_wifi_ligar(ligado);
@@ -272,7 +277,7 @@ static const char *icone_rede(void) {
 static struct som_estado som;
 
 static void menu_som(void) {
-	GV_POPUP(CLAY_ID("menu-som"), CLAY_ID("som"), .alinhar = GV_ALINHAR_FIM, .largura = 420, .distancia = 10) {
+	GV_POPUP(CLAY_ID("menu-som"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 420, .distancia = POPUP_GAP) {
 		const struct som_no *atual = som_saida_atual(&som);
 		topo_menu(2, "volume", "Som", NULL);
 		if (!som.ligado || !atual) {
@@ -361,7 +366,7 @@ static const char *bt_icone(const char *icone) {
 }
 
 static void menu_bluetooth(void) {
-	GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("bt"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = 10) {
+	GV_POPUP(CLAY_ID("menu-bt"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = POPUP_GAP) {
 		const struct bt_adapt *a = bt.nadapt ? &bt.adapt[0] : NULL;
 		bool ligado = a && a->ligado;
 		if (topo_menu(3, "bluetooth", "Bluetooth", a ? &ligado : NULL) && a) {
@@ -510,7 +515,7 @@ static void menu_tray(void) {
 	if (tray_ancora < 0 || tray_ancora >= tray.n) {
 		return;
 	}
-	GV_POPUP(CLAY_ID("menu-tray"), CLAY_IDI("tray", (uint32_t)tray_ancora), .alinhar = GV_ALINHAR_FIM, .largura = 300, .distancia = 10) {
+	GV_POPUP(CLAY_ID("menu-tray"), CLAY_IDI("tray", (uint32_t)tray_ancora), .alinhar = GV_ALINHAR_FIM, .largura = 300, .distancia = POPUP_GAP) {
 		struct bandeja_menu *m = &tray_menu;
 		if (strcmp(m->chave, tray.itens[tray_ancora].chave)) {
 			mensagem("Abrindo...");
@@ -546,7 +551,7 @@ static void menu_tray(void) {
 static int cal_mes_desloc; /* 0: o mês de hoje */
 
 static void menu_calendario(const struct tm *hoje) {
-	GV_POPUP(CLAY_ID("menu-cal"), CLAY_ID("relogio"), .alinhar = GV_ALINHAR_FIM, .largura = 380, .distancia = 10) {
+	GV_POPUP(CLAY_ID("menu-cal"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = 380, .distancia = POPUP_GAP) {
 		static const char *const meses[] = { "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro",
 			"Outubro", "Novembro", "Dezembro" };
 		static const char *const dias_sem[] = { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
