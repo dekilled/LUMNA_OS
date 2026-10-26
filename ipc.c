@@ -22,7 +22,8 @@
  *   espacos | get_workspaces    o espaço activo e os ocupados de cada saída
  *   foco ID                     foca a janela (e mostra o espaço dela)
  *   fechar [ID]                 fecha a janela (sem ID, a focada)
- *   espaco N [SAIDA]            mostra o espaço N (1-4) na saída (sem ela, a do ponteiro)
+ *   espaco N [SAIDA]            mostra o espaço N (1 até `areas`) na saída (sem ela, a do ponteiro)
+ *   areas [N]                   quantos espaços o Desktop usa (1-3); o dos desligados vai para o último
  *   mover ID N                  leva a janela para o espaço N
  *   ecra [ID] | flutuar [ID]    ecrã inteiro / flutuante, alterna
  *   maximizar [ID]              maximizada (a área útil, sem a barra e a dock), alterna
@@ -31,7 +32,7 @@
  *   exec COMANDO                corre um comando
  *   toque baixo|move|cima DEDO X Y   um toque de mentira, em coordenadas do layout (testes)
  *   subscrever                  fica ligado e recebe os eventos, um JSON por linha:
- *                               janela_aberta, janela_fechada, foco, espaco, titulo
+ *                               janela_aberta, janela_fechada, foco, espaco, areas, modo, titulo
  */
 
 #define IPC_MAX_LINE 1024
@@ -61,6 +62,7 @@ static struct {
 	int modes[16];
 	char tag_names[16][32];
 	int ntags;
+	int areas;
 } ipc = { .fd = -1 };
 
 static void put(struct ipc_buf *b, const char *fmt, ...) {
@@ -249,7 +251,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		}
 		put(b, "]}");
 	} else if (!strcmp(cmd, "espacos") || !strcmp(cmd, "get_workspaces")) {
-		put(b, "{\"ok\":true,\"espacos\":[");
+		put(b, "{\"ok\":true,\"areas\":%d,\"espacos\":[", server->areas);
 		struct orbit_output *output;
 		bool first = true;
 		wl_list_for_each_reverse(output, &server->outputs, link) {
@@ -332,11 +334,22 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		}
 		orbit_mode_set_extend(server, !strcmp(arg1, "estender"));
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "areas")) {
+		/* areas [1-3]: quantos espaços o Desktop usa; o que estava nos desligados passa para o último */
+		if (arg1) {
+			int n = atoi(arg1);
+			if (n < 1 || n > ORBIT_TAGS) {
+				fail(b, "uso: areas [1-3]");
+				return;
+			}
+			orbit_areas_set(server, n);
+		}
+		put(b, "{\"ok\":true,\"areas\":%d,\"maximo\":%d}", server->areas, ORBIT_TAGS);
 	} else if (!strcmp(cmd, "espaco")) {
 		int n = arg1 ? atoi(arg1) : 0;
 		struct orbit_output *output = arg2 ? output_by_name(arg2) : cursor_output(server);
-		if (n < 1 || n > ORBIT_TAGS || !output) {
-			fail(b, "uso: espaco 1-4 [saida]");
+		if (n < 1 || n > server->areas || !output) {
+			fail(b, "uso: espaco 1-N [saida] (N = espaços ligados, ver `areas`)");
 			return;
 		}
 		output->tag = n - 1;
@@ -346,8 +359,8 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 	} else if (!strcmp(cmd, "mover")) {
 		struct orbit_view *view = arg1 ? view_by_id((uint32_t)strtoul(arg1, NULL, 10)) : NULL;
 		int n = arg2 ? atoi(arg2) : 0;
-		if (!view || n < 1 || n > ORBIT_TAGS) {
-			fail(b, "uso: mover ID 1-4");
+		if (!view || n < 1 || n > server->areas) {
+			fail(b, "uso: mover ID 1-N");
 			return;
 		}
 		orbit_split_release(server, view);
@@ -563,6 +576,15 @@ void orbit_ipc_sync(struct orbit_server *server) {
 		return;
 	}
 	bool listening = any_subscriber();
+	if (ipc.areas != server->areas) {
+		ipc.areas = server->areas;
+		if (listening) {
+			struct ipc_buf b = { 0 };
+			put(&b, "{\"evento\":\"areas\",\"areas\":%d}", server->areas);
+			broadcast(&b);
+			free(b.data);
+		}
+	}
 	uint32_t focused = server->focused && server->focused->mapped ? server->focused->id : 0;
 	if (focused != ipc.focused_id) {
 		ipc.focused_id = focused;

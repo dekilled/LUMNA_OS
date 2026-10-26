@@ -154,10 +154,38 @@ void orbit_mode_set_extend(struct orbit_server *server, bool extend) {
 	}
 }
 
-/* ~/.config/lumna/modos.ini: [geral] layout = tela|estender, ao_ligar = desktop|gaming|midia */
+/*
+ * Liga e desliga espaços do Desktop (1 a ORBIT_TAGS). O que estava num espaço desligado vai para o
+ * último que ficou ligado: nenhuma janela se perde.
+ */
+void orbit_areas_set(struct orbit_server *server, int count) {
+	count = count < 1 ? 1 : count > ORBIT_TAGS ? ORBIT_TAGS : count;
+	server->areas = count;
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->tag >= count && view->tag < ORBIT_TAGS) {
+			orbit_split_release(server, view);
+			view->tag = count - 1;
+			view->fullscreen = false;
+		}
+	}
+	struct orbit_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		if (output->desktop_tag >= count) {
+			output->desktop_tag = count - 1;
+		}
+		if (output->tag >= count && output->tag < ORBIT_TAGS) {
+			output->tag = count - 1;
+		}
+	}
+	orbit_arrange(server);
+}
+
+/* ~/.config/lumna/modos.ini: [geral] layout = tela|estender, ao_ligar = desktop|gaming|midia, areas = 1-3 */
 void orbit_mode_config_load(struct orbit_server *server) {
 	server->mode_extend = false;
 	server->mode_boot = ORBIT_MODE_DESKTOP;
+	server->areas = ORBIT_TAGS;
 	const char *config = getenv("XDG_CONFIG_HOME");
 	const char *home = getenv("HOME");
 	char path[460];
@@ -213,6 +241,7 @@ void orbit_mode_init_output(struct orbit_server *server, struct orbit_output *ou
 	if (is_mode_output(output) && server->mode_boot != ORBIT_MODE_DESKTOP && !server->mode_booted) {
 		output->tag = tag_of_mode(output, server->mode_boot);
 	}
+	output->shown_tag = output->tag; /* a saída nova aparece no lugar, sem deslizar */
 	server->mode_booted = true;
 	output->mode = mode_of_tag(output->tag);
 }

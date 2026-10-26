@@ -31,7 +31,7 @@
 #define ORBIT_BORDER_MAX 8
 #define ORBIT_ANIM_DEFAULT 120
 #define ORBIT_ANIM_MAX 400
-#define ORBIT_TAGS 4 /* os espaços numerados do Desktop; Gaming e Mídia têm um espaço cada logo depois */
+#define ORBIT_TAGS 3 /* no máximo, os espaços numerados do Desktop; Gaming e Mídia têm um espaço cada logo depois */
 #define ORBIT_MODES 3
 enum { ORBIT_MODE_DESKTOP, ORBIT_MODE_GAMING, ORBIT_MODE_MEDIA };
 
@@ -104,6 +104,8 @@ enum orbit_action {
 	ORBIT_OUTPUT_RIGHT,
 	ORBIT_TAG,
 	ORBIT_MOVE_TAG,
+	ORBIT_TAG_PREV, /* Ctrl+Alt+setas: o espaço do lado (só no Desktop) */
+	ORBIT_TAG_NEXT,
 	ORBIT_SCREENSHOT,
 	ORBIT_VOLUME_UP,
 	ORBIT_VOLUME_DOWN,
@@ -211,6 +213,7 @@ struct orbit_server {
 	char brightness_up[ORBIT_CMD_LEN];
 	char brightness_down[ORBIT_CMD_LEN];
 	char mode_osd[ORBIT_CMD_LEN]; /* o seletor que aparece ao trocar de modo */
+	int areas;                    /* quantos espaços do Desktop estão ligados (1 a ORBIT_TAGS) */
 	bool mode_extend;             /* os modos trocam em todas as saídas juntas */
 	int mode_boot;                /* o modo da primeira saída ao ligar */
 	bool mode_booted;
@@ -249,6 +252,7 @@ struct orbit_output {
 	struct wl_listener destroy;
 	int tag;
 	int desktop_tag; /* o espaço numerado em que o Desktop estava */
+	int shown_tag;   /* o espaço da última arrumação (a direção da troca vem da diferença) */
 	int mode;        /* acompanha o espaço (mode.c) */
 	bool warned_near;
 	bool warned_cap;
@@ -295,6 +299,9 @@ struct orbit_view {
 	int slide_from_x, slide_from_y;
 	int slide_to_x, slide_to_y;
 	uint32_t slide_start;
+	uint32_t slide_span; /* duração do movimento atual (ms) */
+	bool leaving;        /* saindo de cena na troca de espaço: some quando chegar */
+	int enter_dx;        /* entrando na troca de espaço: começa deslocado, na horizontal */
 	/* o último configure mandado por place(): só se manda outro quando algo muda (cada configure
 	 * faz o app redesenhar e responder; mandá-los sem mudança era um ciclo sem fim) */
 	bool cfg_valid;
@@ -411,6 +418,9 @@ void orbit_outputs_publish(struct orbit_server *server);
 void orbit_borders_sync(struct orbit_server *server);
 void orbit_slide(struct orbit_view *view, int x, int y);
 void orbit_slide_stop(struct orbit_view *view);
+void orbit_slide_leave(struct orbit_view *view, int dx);
+void orbit_slide_enter(struct orbit_view *view, int dx);
+void orbit_areas_set(struct orbit_server *server, int count);
 
 bool orbit_keybinding(struct orbit_server *server, xkb_keysym_t sym, uint32_t mods);
 bool orbit_action_named(struct orbit_server *server, const char *name);

@@ -57,6 +57,7 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 			wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
 		}
 	}
+	view->leaving = false;
 	orbit_slide(view, x, y);
 	bool max = view->maximized && !view->fullscreen;
 	uint32_t edges = tiled ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM : WLR_EDGE_NONE;
@@ -77,6 +78,9 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 }
 
 static void hide_view(struct orbit_view *view) {
+	if (view->leaving) {
+		return; /* ainda deslizando para fora: some sozinha ao chegar */
+	}
 	orbit_slide_stop(view);
 	wlr_scene_node_set_enabled(&view->scene_tree->node, false);
 	if (view->border) {
@@ -348,6 +352,19 @@ static void note_tiled_pressure(struct orbit_output *output, int n, bool capped)
 	}
 }
 
+/* as janelas que entraram nesta troca de espaço começam de lado e deslizam até o lugar */
+static void enter_views(struct orbit_server *server, struct orbit_output *output) {
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->enter_dx != 0 && view->output == output) {
+			if (view->scene_tree->node.enabled) {
+				orbit_slide_enter(view, view->enter_dx);
+			}
+		}
+		view->enter_dx = 0;
+	}
+}
+
 void orbit_arrange(struct orbit_server *server) {
 	struct orbit_output *output;
 	wl_list_for_each(output, &server->outputs, link) {
@@ -365,6 +382,10 @@ void orbit_arrange(struct orbit_server *server) {
 		}
 
 		orbit_lock_configure(output);
+		/* a troca de espaço (ou de modo) desliza: para a direita se o novo vem depois do que estava */
+		int dir = output->tag == output->shown_tag ? 0 : output->tag > output->shown_tag ? 1 : -1;
+		output->shown_tag = output->tag;
+		bool animate = dir != 0 && server->anim_ms > 0 && !output_is_phone(output->wlr);
 		struct wlr_box usable = orbit_layer_usable(output, &box);
 
 		struct orbit_view *tiled[ORBIT_MAX_VIEWS];
@@ -378,8 +399,17 @@ void orbit_arrange(struct orbit_server *server) {
 				continue;
 			}
 			if (view->tag != output->tag || view->minimized) {
-				hide_view(view);
+				if (animate && view->tag != output->tag && !view->minimized && !view->leaving &&
+					view->scene_tree->node.enabled) {
+					orbit_slide_leave(view, -dir * box.width);
+					orbit_foreign_sync(view);
+				} else {
+					hide_view(view);
+				}
 				continue;
+			}
+			if (animate && !view->scene_tree->node.enabled) {
+				view->enter_dx = dir * box.width;
 			}
 			if (view->fullscreen) {
 				full = view;
@@ -427,6 +457,7 @@ void orbit_arrange(struct orbit_server *server) {
 			for (int i = 0; i < nmax; i++) {
 				hide_view(maxed[i]);
 			}
+			enter_views(server, output);
 			continue;
 		}
 		if (phone) {
@@ -437,6 +468,7 @@ void orbit_arrange(struct orbit_server *server) {
 		for (int i = 0; i < nmax; i++) {
 			place(maxed[i], usable.x, usable.y, usable.width, usable.height, false);
 		}
+		enter_views(server, output);
 	}
 	orbit_idle_update(server);
 	orbit_borders_sync(server);

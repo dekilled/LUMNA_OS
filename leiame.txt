@@ -176,7 +176,7 @@ Telemóvel (PinePhone, Librem 5, postmarketOS)
   para o DP-1. Uma aplicação que conhece o toque (GTK, WebKit, Qt, foot)
   recebe wl_touch de verdade, com vários dedos; uma que não conhece recebe
   o primeiro dedo como o botão esquerdo do rato. O cursor some ao tocar. O teclado do telemóvel encolhe a janela em vez de a tapar.
-  Alt+1–4 muda o espaço desta saída. Se o espaço está vazio, o teclado
+  Alt+1–3 muda o espaço desta saída. Se o espaço está vazio, o teclado
   sai do cliente que ficou no espaço anterior — não continua a escrever
   numa janela escondida. A vista geral lista janelas de todos os espaços;
   abrir uma muda o DSI para o espaço dessa janela. O par dividido espera
@@ -194,8 +194,9 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Alt+J / Alt+K    focar o seguinte / anterior neste espaço
   Alt+H / Alt+L    encolher / alargar o mestre
   Alt+← / Alt+→    mudar a janela de saída
-  Alt+1–4          espaço da saída sob o ponteiro
-  Alt+Shift+1–4    mover a janela focada para esse espaço
+  Alt+1–3          espaço da saída sob o ponteiro (só no Desktop)
+  Ctrl+Alt+←/→     o espaço do lado
+  Alt+Shift+1–3    mover a janela focada para esse espaço
   Alt+Tab          a janela usada antes; segurando o Alt, as outras
                    (as minimizadas também voltam); Alt+Shift+Tab ao contrário
   Super+H          minimizar a janela focada
@@ -223,8 +224,8 @@ XKB_DEFAULT_LAYOUT, XKB_DEFAULT_VARIANT e XKB_DEFAULT_OPTIONS escolhem
 o mapa; se faltarem, o xkbcommon usa o mapa por omissão.
 
 Modos (Desktop, Gaming, Mídia)
-Cada saída tem um modo, e cada modo tem o seu espaço de trabalho (o Desktop usa os 1-4; Gaming e Mídia,
-um próprio cada): trocar de modo nunca fecha nem move janela, e as de cada modo ficam onde estavam. O
+Cada saída tem um modo, e cada modo tem o seu espaço de trabalho (o Desktop usa de 1 a 3, quantos estiverem
+ligados; Gaming e Mídia, um próprio cada): trocar de modo nunca fecha nem move janela, e as de cada modo ficam onde estavam. O
 modo de uma saída é o espaço em que ela está, então trocar de espaço por fora (Alt+1, a dock) também
 mantém o modo certo. O layout "tela" troca só a saída em foco; "estender" troca todas juntas. Vêm do
 ~/.config/lumna/modos.ini ([geral] layout = tela|estender, ao_ligar = desktop|gaming|midia). No telemóvel
@@ -233,6 +234,11 @@ não há modos.
   orbit-msg modo                           o modo de cada saída e o layout
   orbit-msg modo gaming [SAIDA]            troca (seguinte e anterior também)
   orbit-msg modo_layout estender           todas as saídas juntas
+  orbit-msg areas [N]                      quantos espaços o Desktop usa (1-3); as janelas dos desligados
+                                           vão para o último que ficou ligado
+  [geral] areas = 3                        o mesmo, em modos.ini
+  evento "areas" ({"areas"})               quando a contagem muda
+  A troca de espaço ou de modo desliza (para a direita se o novo vem depois), em 2x o tempo de "animacao".
   evento "modo" ({"saida","modo","layout"}) a cada troca, para quem assina
   [geral] modo_seletor = lumna-modos       o programa que mostra o seletor a cada troca
                                            (LUMNA_SAIDA e LUMNA_MODO no ambiente)

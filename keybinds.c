@@ -37,8 +37,11 @@ static void move_output(struct orbit_server *server, struct orbit_view *focused,
 
 static void go_tag(struct orbit_server *server, struct orbit_view *focused, int tag, bool move) {
 	struct orbit_output *output = cursor_output(server);
-	if (!output) {
+	if (!output || tag < 0 || tag >= server->areas) {
 		return;
+	}
+	if (output->tag >= ORBIT_TAGS) {
+		return; /* Gaming e Mídia têm um espaço só: o Alt+número é do Desktop */
 	}
 	if (move && focused) {
 		focused->tag = tag;
@@ -177,6 +180,15 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_OUTPUT_RIGHT:
 		move_output(server, focused, 1);
 		break;
+	case ORBIT_TAG_PREV:
+	case ORBIT_TAG_NEXT: {
+		struct orbit_output *output = cursor_output(server);
+		if (output && output->tag < ORBIT_TAGS) {
+			int next = output->tag + (bind->action == ORBIT_TAG_NEXT ? 1 : -1);
+			go_tag(server, focused, next, false);
+		}
+		break;
+	}
 	case ORBIT_TAG:
 		go_tag(server, focused, bind->arg, false);
 		break;
@@ -337,7 +349,9 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Up, ORBIT_SNAP_UP, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Down, ORBIT_SNAP_DOWN, 0);
-	for (int tag = 0; tag < 4; tag++) {
+	bind_put(server, WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT, XKB_KEY_Left, ORBIT_TAG_PREV, 0);
+	bind_put(server, WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT, XKB_KEY_Right, ORBIT_TAG_NEXT, 0);
+	for (int tag = 0; tag < ORBIT_TAGS; tag++) {
 		bind_put(server, alt, XKB_KEY_1 + tag, ORBIT_TAG, tag);
 		bind_put(server, alt_shift, XKB_KEY_1 + tag, ORBIT_MOVE_TAG, tag);
 	}
@@ -365,11 +379,11 @@ static const struct orbit_action_name action_names[] = {
 	{ "espaco_1", ORBIT_TAG, 0 },
 	{ "espaco_2", ORBIT_TAG, 1 },
 	{ "espaco_3", ORBIT_TAG, 2 },
-	{ "espaco_4", ORBIT_TAG, 3 },
+	{ "espaco_anterior", ORBIT_TAG_PREV, 0 },
+	{ "espaco_seguinte", ORBIT_TAG_NEXT, 0 },
 	{ "mover_1", ORBIT_MOVE_TAG, 0 },
 	{ "mover_2", ORBIT_MOVE_TAG, 1 },
 	{ "mover_3", ORBIT_MOVE_TAG, 2 },
-	{ "mover_4", ORBIT_MOVE_TAG, 3 },
 	{ "captura", ORBIT_SCREENSHOT, 0 },
 	{ "volume_subir", ORBIT_VOLUME_UP, 0 },
 	{ "volume_descer", ORBIT_VOLUME_DOWN, 0 },
