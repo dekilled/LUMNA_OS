@@ -201,6 +201,18 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Super+H          minimizar a janela focada
   Super+Tab        o modo seguinte do desktop ([geral] modo)
   Super            abrir / fechar o lançador ([geral] lancador)
+  Super+← / →      encaixar na metade (de novo no mesmo lado solta)
+  Super+↑ / ↓      maximizar / desfazer (numa janela livre, minimiza)
+
+Janelas livres (arranjo = livre, o de fábrica no desktop; o telemóvel
+fica em mosaico): abrem no meio da área útil com o tamanho que pedem,
+arrastam-se pela barra de título (xdg move) ou com Alt+arrastar, e mudam
+de tamanho pelas bordas (6 px por dentro), pelo pedido da janela (xdg
+resize) ou com Alt+botão direito. O encaixe só vem de um gatilho: largar
+na borda esquerda/direita da tela (metade) ou em cima (maximizar), com a
+prévia enquanto se arrasta, ou Super+setas. Arrastar uma janela encaixada
+ou maximizada solta-a no tamanho livre de antes. arranjo = mestre (ou
+monoculo, espiral, dwindle) volta ao mosaico.
   Alt+botão        arrastar; ao largar noutra saída, a janela muda de mãe
 
 seat0 anuncia pointer e keyboard desde o arranque (no telemóvel o único

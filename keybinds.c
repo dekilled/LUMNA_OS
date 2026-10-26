@@ -212,6 +212,18 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_MODE:
 		spawn(server->mode_next);
 		break;
+	case ORBIT_SNAP_LEFT:
+		orbit_snap_key(server, 1);
+		break;
+	case ORBIT_SNAP_RIGHT:
+		orbit_snap_key(server, 2);
+		break;
+	case ORBIT_SNAP_UP:
+		orbit_snap_key(server, 3);
+		break;
+	case ORBIT_SNAP_DOWN:
+		orbit_snap_key(server, 4);
+		break;
 	case ORBIT_LAUNCHER:
 		spawn(server->launcher);
 		break;
@@ -317,6 +329,10 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_h, ORBIT_MINIMIZE, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Tab, ORBIT_MODE, 0);
 	bind_put(server, 0, XKB_KEY_Super_L, ORBIT_LAUNCHER, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Left, ORBIT_SNAP_LEFT, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Up, ORBIT_SNAP_UP, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Down, ORBIT_SNAP_DOWN, 0);
 	for (int tag = 0; tag < 4; tag++) {
 		bind_put(server, alt, XKB_KEY_1 + tag, ORBIT_TAG, tag);
 		bind_put(server, alt_shift, XKB_KEY_1 + tag, ORBIT_MOVE_TAG, tag);
@@ -360,6 +376,10 @@ static const struct orbit_action_name action_names[] = {
 	{ "minimizar", ORBIT_MINIMIZE, 0 },
 	{ "modo", ORBIT_MODE, 0 },
 	{ "lancador", ORBIT_LAUNCHER, 0 },
+	{ "encaixar_esquerda", ORBIT_SNAP_LEFT, 0 },
+	{ "encaixar_direita", ORBIT_SNAP_RIGHT, 0 },
+	{ "maximizar", ORBIT_SNAP_UP, 0 },
+	{ "restaurar", ORBIT_SNAP_DOWN, 0 },
 };
 
 static bool parse_chord(const char *chord, uint32_t *mods, xkb_keysym_t *sym) {

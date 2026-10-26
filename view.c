@@ -117,6 +117,13 @@ void orbit_view_set_maximized(struct orbit_view *view, bool on) {
 		}
 		return;
 	}
+	if (on) {
+		orbit_float_save(view);
+		view->snap = 0;
+	} else if (view->floating) {
+		view->x = view->fx; /* volta para onde estava livre */
+		view->y = view->fy;
+	}
 	view->maximized = on;
 	if (on) {
 		orbit_split_release(view->server, view);
@@ -188,6 +195,22 @@ void orbit_view_set_minimized(struct orbit_view *view, bool on) {
 	orbit_foreign_sync(view);
 }
 
+static void xdg_request_move(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, request_move);
+	/* a barra de título da própria janela: só com o botão em baixo (o pedido vem de um aperto) */
+	if (view->server->cursor_mode == ORBIT_CURSOR_PASSTHROUGH) {
+		orbit_move_begin(view->server, view);
+	}
+}
+
+static void xdg_request_resize(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, request_resize);
+	struct wlr_xdg_toplevel_resize_event *event = data;
+	if (view->server->cursor_mode == ORBIT_CURSOR_PASSTHROUGH) {
+		orbit_resize_begin(view->server, view, event->edges);
+	}
+}
+
 static void xdg_request_minimize(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, request_minimize);
 	orbit_view_set_minimized(view, true);
@@ -212,6 +235,10 @@ static void xdg_map(struct wl_listener *listener, void *data) {
 	view->y = box.y + view->server->gap + 48;
 	view->w = box.width / 2;
 	view->h = box.height / 2;
+	if (orbit_free_desktop(view->server, output) && !view->fullscreen) {
+		view->floating = true;
+		orbit_float_place_new(view);
+	}
 	wl_list_insert(view->server->views.prev, &view->link);
 	orbit_foreign_map(view);
 	orbit_ipc_view_event(view, "janela_aberta");
@@ -264,6 +291,8 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&view->request_maximize.link);
 	wl_list_remove(&view->request_fullscreen.link);
 	wl_list_remove(&view->request_minimize.link);
+	wl_list_remove(&view->request_move.link);
+	wl_list_remove(&view->request_resize.link);
 	if (view->mapped) {
 		orbit_split_release(view->server, view);
 		wl_list_remove(&view->link);
@@ -336,6 +365,10 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&toplevel->events.request_fullscreen, &view->request_fullscreen);
 	view->request_minimize.notify = xdg_request_minimize;
 	wl_signal_add(&toplevel->events.request_minimize, &view->request_minimize);
+	view->request_move.notify = xdg_request_move;
+	wl_signal_add(&toplevel->events.request_move, &view->request_move);
+	view->request_resize.notify = xdg_request_resize;
+	wl_signal_add(&toplevel->events.request_resize, &view->request_resize);
 }
 
 static struct orbit_view *popup_root_view(struct wlr_xdg_popup *popup) {

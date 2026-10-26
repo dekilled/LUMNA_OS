@@ -75,10 +75,12 @@ enum {
 enum orbit_cursor_mode {
 	ORBIT_CURSOR_PASSTHROUGH,
 	ORBIT_CURSOR_MOVE,
+	ORBIT_CURSOR_RESIZE,
 	ORBIT_CURSOR_GESTURE,
 };
 
 enum orbit_layout {
+	ORBIT_LAYOUT_FREE, /* o desktop de janelas livres (o de fábrica); o telemóvel fica em mosaico */
 	ORBIT_LAYOUT_MASTER,
 	ORBIT_LAYOUT_MONOCLE,
 	ORBIT_LAYOUT_SPIRAL,
@@ -108,6 +110,10 @@ enum orbit_action {
 	ORBIT_CYCLE,      /* Alt+Tab: a janela usada antes (segurando o Alt, as outras) */
 	ORBIT_CYCLE_BACK, /* Alt+Shift+Tab: ao contrário */
 	ORBIT_MINIMIZE,
+	ORBIT_SNAP_LEFT,  /* Super+setas: encaixar, maximizar, desfazer */
+	ORBIT_SNAP_RIGHT,
+	ORBIT_SNAP_UP,
+	ORBIT_SNAP_DOWN,
 	ORBIT_LAUNCHER,   /* abrir ou fechar o lançador (o Super sozinho) */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 };
@@ -186,6 +192,10 @@ struct orbit_server {
 	struct orbit_view *split_bottom;
 	double grab_x, grab_y;
 	int grab_gx, grab_gy;
+	int grab_w, grab_h;     /* o tamanho ao começar a mudá-lo */
+	uint32_t resize_edges;
+	int snap_pending;       /* a arrastar, na borda: 1 esquerda, 2 direita, 3 maximizar */
+	struct wlr_scene_rect *snap_preview;
 	int master_pct;
 	int gap;
 	float phone_scale;
@@ -253,6 +263,10 @@ struct orbit_view {
 	bool floating;
 	bool fullscreen;
 	uint32_t focus_seq; /* quando teve o foco por último (o Alt+Tab vai por esta ordem) */
+	int snap;        /* encaixada: 1 na metade esquerda, 2 na direita (0: livre) */
+	int fx, fy, fw, fh; /* onde e de que tamanho estava livre (para voltar ao soltar o encaixe) */
+	struct wl_listener request_move;
+	struct wl_listener request_resize;
 	bool minimized;  /* escondida até a dock (ou o foco) a trazer de volta */
 	bool maximized;  /* ocupa a área útil da saída (sem a barra e a dock); as outras ficam por baixo */
 	bool mapped;
@@ -396,6 +410,22 @@ void orbit_binds_reset(struct orbit_server *server);
 bool orbit_bind_set(struct orbit_server *server, const char *action, const char *chord);
 
 void orbit_config_load(struct orbit_server *server);
+/* float.c: as janelas livres do desktop */
+bool orbit_free_desktop(struct orbit_server *server, struct orbit_output *output);
+void orbit_float_save(struct orbit_view *view);
+void orbit_float_place_new(struct orbit_view *view);
+void orbit_float_show(struct orbit_view *view);
+struct wlr_box orbit_snap_box(struct orbit_view *view, int snap);
+void orbit_view_snap(struct orbit_view *view, int snap);
+void orbit_snap_key(struct orbit_server *server, int dir);
+void orbit_move_begin(struct orbit_server *server, struct orbit_view *view);
+void orbit_move_motion(struct orbit_server *server);
+void orbit_move_end(struct orbit_server *server);
+void orbit_resize_begin(struct orbit_server *server, struct orbit_view *view, uint32_t edges);
+void orbit_resize_motion(struct orbit_server *server);
+void orbit_resize_end(struct orbit_server *server);
+uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly);
+const char *orbit_edges_cursor(uint32_t edges);
 /* relê o orbit.ini e o atalhos.ini quando mudam (o Painel grava os atalhos) */
 void orbit_config_watch(struct orbit_server *server);
 /* o Super sozinho: chamado em cada tecla (carregar e soltar) */

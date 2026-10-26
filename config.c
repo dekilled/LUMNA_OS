@@ -74,6 +74,10 @@ static bool parse_color(const char *text, float out[4]) {
 }
 
 static bool parse_layout(const char *text, enum orbit_layout *out) {
+	if (strcasecmp(text, "livre") == 0 || strcasecmp(text, "floating") == 0) {
+		*out = ORBIT_LAYOUT_FREE;
+		return true;
+	}
 	if (strcasecmp(text, "mestre") == 0 || strcasecmp(text, "master") == 0) {
 		*out = ORBIT_LAYOUT_MASTER;
 		return true;
@@ -296,7 +300,7 @@ void orbit_config_load(struct orbit_server *server) {
 	server->gap = ORBIT_GAP_DEFAULT;
 	server->master_pct = ORBIT_MASTER_DEFAULT;
 	server->phone_scale = ORBIT_PHONE_SCALE_DEFAULT;
-	server->arrangement = ORBIT_LAYOUT_MASTER;
+	server->arrangement = ORBIT_LAYOUT_FREE;
 	server->background[0] = 0.063f;
 	server->background[1] = 0.078f;
 	server->background[2] = 0.071f;

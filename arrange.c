@@ -389,15 +389,12 @@ void orbit_arrange(struct orbit_server *server) {
 				continue;
 			}
 			if (view->floating && !view->fullscreen) {
-				view->sliding = false;
-				view->placed = true;
-				view->slide_x = view->x;
-				view->slide_y = view->y;
-				wlr_scene_node_set_enabled(&view->scene_tree->node, true);
-				wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-				wlr_xdg_toplevel_set_fullscreen(view->toplevel, false);
-				wlr_xdg_toplevel_set_tiled(view->toplevel, WLR_EDGE_NONE);
-				view->cfg_valid = false; /* mandado por fora de place() */
+				if (view->snap) {
+					struct wlr_box s = orbit_snap_box(view, view->snap);
+					place(view, s.x, s.y, s.width, s.height, true);
+				} else {
+					orbit_float_show(view);
+				}
 				continue;
 			}
 			if (n < ORBIT_MAX_VIEWS) {

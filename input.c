@@ -1,6 +1,7 @@
 #include "orbit.h"
 #include <wlr/backend.h>
 
+#include <linux/input-event-codes.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
@@ -129,24 +130,26 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 		return;
 	}
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && server->grabbed && server->grabbed->mapped) {
-		struct orbit_view *view = server->grabbed;
-		if (view->floating) {
-			view->x = server->grab_gx + (int)(server->cursor->x - server->grab_x);
-			view->y = server->grab_gy + (int)(server->cursor->y - server->grab_y);
-			view->sliding = false;
-			view->placed = true;
-			view->slide_x = view->x;
-			view->slide_y = view->y;
-			wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
-		}
+		orbit_move_motion(server);
+		return;
+	}
+	if (server->cursor_mode == ORBIT_CURSOR_RESIZE && server->grabbed && server->grabbed->mapped) {
+		orbit_resize_motion(server);
 		return;
 	}
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
-	view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	struct orbit_view *under = view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 	if (!surface) {
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
 		wlr_seat_pointer_clear_focus(server->seat);
+		return;
+	}
+	uint32_t edges = orbit_float_edges_at(under, server->cursor->x, server->cursor->y);
+	if (edges) {
+		/* na borda de uma janela livre: a seta de mudar o tamanho (a janela não vê o cursor aqui) */
+		wlr_seat_pointer_clear_focus(server->seat);
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, orbit_edges_cursor(edges));
 		return;
 	}
 	wlr_seat_pointer_notify_enter(server->seat, surface, sx, sy);
@@ -175,9 +178,10 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		struct orbit_view *view = server->grabbed;
-		server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
-		server->grabbed = NULL;
-		if (view && view->mapped) {
+		if (view && view->mapped && !view->floating) {
+			/* uma janela do mosaico arrastada com Alt: só muda de tela */
+			server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
+			server->grabbed = NULL;
 			struct orbit_output *dest = output_at(server, server->cursor->x, server->cursor->y);
 			if (dest && dest != view->output) {
 				orbit_split_release(server, view);
@@ -187,8 +191,17 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 			}
 			orbit_arrange(server);
 			orbit_focus(view);
+			wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
+		} else {
+			orbit_move_end(server);
 		}
-		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
+		/* o cliente viu o aperto (a barra de título): também tem de ver o soltar */
+		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
+		return;
+	}
+	if (server->cursor_mode == ORBIT_CURSOR_RESIZE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
+		orbit_resize_end(server);
+		wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
 		return;
 	}
 
@@ -206,6 +219,19 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 		uint32_t mods = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
 		if (!(mods & WLR_MODIFIER_ALT) && orbit_gesture_begin(server, server->cursor->x, server->cursor->y)) {
 			server->cursor_mode = ORBIT_CURSOR_GESTURE;
+			return;
+		}
+		uint32_t edges = event->button == BTN_LEFT ? orbit_float_edges_at(view, server->cursor->x, server->cursor->y) : 0;
+		if (view && edges) {
+			orbit_resize_begin(server, view, edges);
+			return;
+		}
+		if (view && (mods & WLR_MODIFIER_ALT) && event->button == BTN_RIGHT && view->floating) {
+			orbit_resize_begin(server, view, 0);
+			return;
+		}
+		if (view && (mods & WLR_MODIFIER_ALT) && view->floating) {
+			orbit_move_begin(server, view);
 			return;
 		}
 		if (view && (mods & WLR_MODIFIER_ALT)) {
