@@ -324,7 +324,7 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->brightness_down, "brightnessctl set 5%-");
 	copy_cmd(server->mode_osd, "lumna-modos");
 	copy_cmd(server->launcher, "pkill -x lumna-lancador || lumna-lancador");
-	copy_cmd(server->media_menu, "lumna-midia seletor");
+	copy_cmd(server->media_menu, "lumna-midia tela seletor");
 	server->inhibit_host_shortcuts = true;
 	orbit_mode_config_load(server);
 	orbit_binds_reset(server);
