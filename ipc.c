@@ -317,13 +317,14 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			}
 		}
 		struct orbit_output *output;
-		put(b, "{\"ok\":true,\"layout\":\"%s\",\"saidas\":[", server->mode_extend ? "estender" : "tela");
+		put(b, "{\"ok\":true,\"layout\":\"%s\",\"areas\":%d,\"saidas\":[", server->mode_extend ? "estender" : "tela", server->areas);
 		bool first = true;
 		struct orbit_output *under = cursor_output(server);
 		wl_list_for_each_reverse(output, &server->outputs, link) {
 			put(b, "%s{\"saida\":", first ? "" : ",");
 			put_str(b, output->wlr->name);
-			put(b, ",\"modo\":\"%s\",\"ponteiro\":%s}", orbit_mode_name(output->mode), output == under ? "true" : "false");
+			put(b, ",\"modo\":\"%s\",\"espaco\":%d,\"ponteiro\":%s}", orbit_mode_name(output->mode), output->desktop_tag + 1,
+				output == under ? "true" : "false");
 			first = false;
 		}
 		put(b, "]}");
