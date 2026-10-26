@@ -1,4 +1,6 @@
 #include "orbit.h"
+
+#include <time.h>
 #include <wlr/backend.h>
 
 #include <linux/input-event-codes.h>
@@ -287,6 +289,24 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 		for (int i = 0; i < count; i++) {
 			handled = orbit_keybinding(server, syms[i], mods) || handled;
 		}
+	}
+	/* ORBIT_TECLAS=1: cada tecla que chega, com o atraso em relação à hora que o sistema de fora a mandou */
+	static int diagnostico = -1;
+	if (diagnostico < 0) {
+		const char *e = getenv("ORBIT_TECLAS");
+		diagnostico = e && *e && strcmp(e, "0") != 0;
+	}
+	if (diagnostico) {
+		struct timespec agora;
+		clock_gettime(CLOCK_MONOTONIC, &agora);
+		long ms = (long)(agora.tv_sec * 1000 + agora.tv_nsec / 1000000);
+		char nome[64] = "?";
+		if (count > 0) {
+			xkb_keysym_get_name(syms[0], nome, sizeof(nome));
+		}
+		wlr_log(WLR_INFO, "tecla %s %s (código %u) modificadores 0x%x atraso %ld ms%s", nome,
+			event->state == WL_KEYBOARD_KEY_STATE_PRESSED ? "apertada" : "solta", event->keycode, mods,
+			ms - (long)event->time_msec, handled ? " -> atalho do Orbit" : "");
 	}
 	if (!handled && orbit_im_forward_key(server, keyboard->wlr_keyboard, event)) {
 		return;

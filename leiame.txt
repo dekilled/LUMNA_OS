@@ -263,3 +263,6 @@ de fora; no KDE: Configurações > Gerenciamento de janelas > Regras de janela >
 No log aparece "pedi ao compositor de fora que deixe os atalhos" ou, se ele não sabe o protocolo (o Weston
 não sabe), "o Super vai ser dele": aí troque o modificador em [atalho] (Alt+..., Ctrl+Alt+...). Numa máquina
 virtual (QEMU, VirtualBox, WSL) o Super é do sistema de fora e o protocolo não chega lá: use outro modificador.
+
+Diagnóstico de teclado: ORBIT_TECLAS=1 faz o Orbit escrever no log cada tecla que chega (o nome, apertada ou solta,
+os modificadores e o atraso em relação à hora em que o sistema de fora a mandou), e se virou um atalho dele.
