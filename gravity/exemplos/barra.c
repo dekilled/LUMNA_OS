@@ -558,6 +558,10 @@ static void menu_modo(void) {
 				}
 			}
 		}
+		if (modos_est.orbit && modos_est.n > 1 && gv_menu_item(CLAY_ID("md-trocar"), "screens", "Trocar as telas de lugar", NULL)) {
+			modos_trocar_telas();
+			gv_popup_fechar(CLAY_ID("menu-modo"));
+		}
 		gv_separador(false, 0);
 		if (gv_menu_item(CLAY_ID("md-config"), "settings", "Configurações de modos", NULL)) {
 			executar("lumna-painel", "--secao", "telas/modos");

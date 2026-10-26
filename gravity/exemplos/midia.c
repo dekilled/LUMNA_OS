@@ -27,6 +27,7 @@
 #include "json.h"
 #include "midiac.h"
 #include "midiad.h"
+#include "modos.h"
 
 /* ---- o que as telas dividem ---- */
 
@@ -35,6 +36,7 @@ static float K = 1.0f;
 #define U(n) ((float)(n) * K)
 
 static struct midia_estado est;
+static int telas = 1; /* quantas telas o Orbit tem: com mais de uma aparece "Trocar telas" */
 static const char *papel;     /* "inicio", "capa" ou "seletor" */
 static char capa_servico[32]; /* o serviço da capa, pelo argumento */
 
@@ -42,6 +44,8 @@ static void estado_rever(void) {
 	if (!midiac_estado(&est)) {
 		est.servico = false;
 	}
+	struct modos_estado me;
+	telas = modos_ler(&me) && me.n > 0 ? me.n : 1;
 }
 
 static void ao_evento(gv_app *app, int fd, void *dados) {
@@ -372,7 +376,7 @@ static void inicio_navegar(int nserv, int nrec) {
 		foco_col = foco_col > 0 ? foco_col - 1 : foco_col;
 	}
 	if (tecla(XKB_KEY_Right)) {
-		int max = foco_linha == LINHA_SERVICOS ? cols - 1 : foco_linha == LINHA_RECENTES ? nrec - 1 : 0;
+		int max = foco_linha == LINHA_SERVICOS ? cols - 1 : foco_linha == LINHA_RECENTES ? nrec - 1 : telas > 1 ? 1 : 0;
 		foco_col = foco_col < max ? foco_col + 1 : foco_col;
 	}
 	if (tecla(XKB_KEY_Down)) {
@@ -389,14 +393,19 @@ static void inicio_navegar(int nserv, int nrec) {
 			foco_linha = LINHA_SERVICOS;
 		} else if (foco_linha == LINHA_SERVICOS) {
 			foco_linha = LINHA_CONTROLE;
+			foco_col = telas > 1 ? 1 : 0; /* o botão do celular, que fica mais perto do canto */
 		}
 	}
 	if (tecla(XKB_KEY_Return) || tecla(XKB_KEY_KP_Enter)) {
 		int idx[MIDIA_MAX_SERVICOS];
 		int n = servicos_ativos(idx);
 		if (foco_linha == LINHA_CONTROLE) {
-			modal_pareamento = true;
-			pareamento_pedir();
+			if (telas > 1 && foco_col == 0) {
+				modos_trocar_telas();
+			} else {
+				modal_pareamento = true;
+				pareamento_pedir();
+			}
 		} else if (foco_linha == LINHA_SERVICOS) {
 			if (foco_col < n) {
 				abrir_servico(est.serv[idx[foco_col]].s.id);
@@ -433,17 +442,32 @@ static void desenhar_inicio(gv_app *app, void *dados) {
 					gv_texto(CLAY_STRING("Início"), U(52), gv_t.texto, GV_PESO_NEGRITO);
 					gv_texto(CLAY_STRING("Seus serviços e últimas páginas, em um só lugar."), U(22), gv_t.texto_secundario, GV_PESO_NORMAL);
 				}
-				Clay_ElementId bt = CLAY_ID("controle-celular");
-				bool em_foco = foco_linha == LINHA_CONTROLE;
-				if (gv_tocado(bt)) {
-					modal_pareamento = true;
-					pareamento_pedir();
-				}
-				CLAY(bt, { .layout = { .padding = { U(24), U(24), U(16), U(16) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-					.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, em_foco || gv_por_cima(bt) ? 0.10f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(14)),
-					.border = { .color = em_foco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(em_foco ? 3 : 1) } }) {
-					gv_icone("phone", U(26), gv_t.texto);
-					gv_texto(CLAY_STRING("Controle pelo celular"), U(21), gv_t.texto, GV_PESO_MEDIO);
+				CLAY_AUTO_ID({ .layout = { .childGap = U(14) } }) {
+					if (telas > 1) {
+						Clay_ElementId tt = CLAY_ID("trocar-telas");
+						bool tfoco = foco_linha == LINHA_CONTROLE && foco_col == 0;
+						if (gv_tocado(tt)) {
+							modos_trocar_telas();
+						}
+						CLAY(tt, { .layout = { .padding = { U(24), U(24), U(16), U(16) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+							.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, tfoco || gv_por_cima(tt) ? 0.10f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(14)),
+							.border = { .color = tfoco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(tfoco ? 3 : 1) } }) {
+							gv_icone("screens", U(26), gv_t.texto);
+							gv_texto(CLAY_STRING("Trocar telas"), U(21), gv_t.texto, GV_PESO_MEDIO);
+						}
+					}
+					Clay_ElementId bt = CLAY_ID("controle-celular");
+					bool em_foco = foco_linha == LINHA_CONTROLE && foco_col == (telas > 1 ? 1 : 0);
+					if (gv_tocado(bt)) {
+						modal_pareamento = true;
+						pareamento_pedir();
+					}
+					CLAY(bt, { .layout = { .padding = { U(24), U(24), U(16), U(16) }, .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+						.backgroundColor = gv_alfa((Clay_Color){ 255, 255, 255, 255 }, em_foco || gv_por_cima(bt) ? 0.10f : 0.05f), .cornerRadius = CLAY_CORNER_RADIUS(U(14)),
+						.border = { .color = em_foco ? gv_t.acento : gv_alfa((Clay_Color){ 255, 255, 255, 255 }, 0.10f), .width = GV_BORDA(em_foco ? 3 : 1) } }) {
+						gv_icone("phone", U(26), gv_t.texto);
+						gv_texto(CLAY_STRING("Controle pelo celular"), U(21), gv_t.texto, GV_PESO_MEDIO);
+					}
 				}
 			}
 			gv_texto(CLAY_STRING("Serviços"), U(28), gv_t.texto, GV_PESO_SEMINEGRITO);

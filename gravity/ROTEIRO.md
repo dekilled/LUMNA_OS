@@ -52,6 +52,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [ ] Os recursos do Connect (arquivos, área de transferência, avisos, Emma, energia) ainda moram no shell antigo
 - [x] Mídia (lumna-midia): o Firefox em kiosk é o player web (um perfil, uma aba por serviço, controle por WebDriver BiDi); o serviço guarda o catálogo editável (midia.ini) e os recentes (URL, título, miniatura); Início, capa de loading com fade e seletor (Super+M) conforme os mockups; Home e abrir serviço também pelo celular; testes com um Firefox de mentira (`testes/midia.sh`)
   - [ ] Testar no Firefox de verdade: app_id da janela (--name/--class), Widevine (o CDM baixa na primeira vez), `navigator.webdriver` ligado pelo controle remoto (login do Google pode reclamar: YouTube TV entra por código)
+- [x] Telas em Gaming/Mídia como ilhas no Orbit (fora do Alt+Tab e da dock, sem janelas entrando ou saindo) e "Trocar telas" (Super+Shift+O, botão no Início da Mídia, item no menu de modo da topbar, `swap-screens` no celular)
+  - [ ] Conferir na dock de verdade que as janelas das ilhas não aparecem; arrastar com o mouse passando pela ilha; janelas de jogos que o Gaming abre com outro app_id
   - [ ] Ícones das marcas (~/.local/share/lumna/midia/icones/ID.svg), Música e Vídeos locais no Início, editar/remover serviços pela tela, LRU de abas vivas
 - [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
 - [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)

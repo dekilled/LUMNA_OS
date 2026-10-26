@@ -65,6 +65,8 @@ int modos_da_saida(const struct modos_estado *e, const char *saida);
 /* troca o modo (da saída dada, ou da em foco se NULL; todas, no layout "estender") */
 bool modos_definir(int modo, const char *saida);
 bool modos_definir_layout(bool estender);
+/* os espaços de trabalho (com o modo e as janelas) de duas telas trocam de lugar: a TV em Mídia passa para o monitor e vice-versa */
+bool modos_trocar_telas(void);
 bool modos_definir_areas(int areas);              /* liga/desliga espaços do Desktop; as janelas dos desligados vão para o último */
 bool modos_definir_espaco(int espaco, const char *saida); /* 1 a areas; NULL: a saída em foco */
 

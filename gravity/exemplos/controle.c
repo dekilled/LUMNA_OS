@@ -475,6 +475,9 @@ static void comando(const struct json *msg, GString *r) {
 		modos_definir(modo, *monitor ? monitor : NULL) ? ok(r) : erro(r, "o Orbit não respondeu", false);
 	} else if (!strcmp(tipo, "monitors")) {
 		listar_monitores(r);
+	} else if (!strcmp(tipo, "swap-screens")) {
+		/* a TV em Mídia e o monitor trocam de espaço de trabalho (só assim o filme sai da TV) */
+		modos_trocar_telas() ? ok(r) : erro(r, "não há outra tela para trocar", false);
 	} else if (!strcmp(tipo, "home")) {
 		ir_para_inicio(r);
 	} else if (!strcmp(tipo, "pointer")) {

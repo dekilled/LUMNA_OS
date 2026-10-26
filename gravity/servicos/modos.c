@@ -187,6 +187,11 @@ bool modos_definir(int modo, const char *saida) {
 	return pedir(pedido, r, sizeof(r)) && strstr(r, "\"ok\":true");
 }
 
+bool modos_trocar_telas(void) {
+	char r[256];
+	return pedir("trocar_telas", r, sizeof(r)) && strstr(r, "\"ok\":true");
+}
+
 bool modos_definir_layout(bool estender) {
 	char r[256];
 	return pedir(estender ? "modo_layout estender" : "modo_layout tela", r, sizeof(r)) && strstr(r, "\"ok\":true");
