@@ -78,8 +78,8 @@ apps: exemplos/apps.c libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c \
+barra: exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/bandeja.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a

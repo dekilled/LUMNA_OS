@@ -18,6 +18,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "bandeja.h"
 #include "bluetooth.h"
 #include "gravity.h"
 #include "rede.h"
@@ -449,6 +450,97 @@ static const char *icone_bt(void) {
 	return bt.nadapt && bt.adapt[0].ligado ? "bluetooth" : "bluetooth";
 }
 
+/* ---- a bandeja: os apps em segundo plano (StatusNotifierItem) ---- */
+
+static struct bandeja_estado tray;
+static struct bandeja_menu tray_menu;
+static unsigned tray_menu_visto;
+static int tray_ancora = -1;
+
+/* o ícone do item: arquivo (a imagem), ou o nome no tema */
+static void icone_tray(Clay_ElementId id, const struct bandeja_item *it) {
+	if (it->icone[0] == '/') {
+		Clay_ElementId img = CLAY_IDI("tray-img", (uint32_t)(id.offset));
+		CLAY(img, gv_imagem(img, it->icone, GV_AJUSTE_CONTER, (Clay_ElementDeclaration){
+			.layout = { .sizing = { CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20) } } })) {}
+	} else if (it->icone[0]) {
+		/* o ícone do tema chega depois: o espaço fica reservado */
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20) } } }) {
+			gv_icone_app(it->icone, 20);
+		}
+	} else {
+		gv_icone("grid", 20, gv_t.icone);
+	}
+}
+
+static void bandeja_na_barra(void) {
+	for (int i = 0; i < tray.n; i++) {
+		const struct bandeja_item *it = &tray.itens[i];
+		if (it->estado == BANDEJA_PASSIVO) {
+			continue; /* o app pediu para ficar escondido */
+		}
+		Clay_ElementId id = CLAY_IDI("tray", (uint32_t)i);
+		bool menu_contexto = gv_menu_contexto(id);
+		bool tocado = gv_tocado(id);
+		CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(32) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_popup_aberto(CLAY_ID("menu-tray")) && tray_ancora == i ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+			tocado |= gv_focavel(id, gv_t.raio_pequeno);
+			icone_tray(id, it);
+			if (it->estado == BANDEJA_ATENCAO) {
+				CLAY_AUTO_ID({ .floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { CLAY_ATTACH_POINT_RIGHT_TOP, CLAY_ATTACH_POINT_RIGHT_TOP },
+						.offset = { -4, 4 }, .zIndex = 2 },
+					.layout = { .sizing = { CLAY_SIZING_FIXED(8), CLAY_SIZING_FIXED(8) } }, .backgroundColor = gv_t.perigo,
+					.cornerRadius = CLAY_CORNER_RADIUS(4) }) {}
+			}
+		}
+		Clay_BoundingBox c = gv_caixa(id);
+		int x = (int)(c.x + c.width / 2), y = (int)(c.y + c.height);
+		if (menu_contexto) {
+			tray_ancora = i;
+			bandeja_menu_pedir(it->chave, x, y);
+		} else if (tocado) {
+			tray_ancora = i;
+			bandeja_ativar(it->chave, x, y);
+		}
+	}
+}
+
+static void menu_tray(void) {
+	if (tray_ancora < 0 || tray_ancora >= tray.n) {
+		return;
+	}
+	GV_POPUP(CLAY_ID("menu-tray"), CLAY_IDI("tray", (uint32_t)tray_ancora), .alinhar = GV_ALINHAR_FIM, .largura = 300, .distancia = 10) {
+		struct bandeja_menu *m = &tray_menu;
+		if (strcmp(m->chave, tray.itens[tray_ancora].chave)) {
+			mensagem("Abrindo...");
+		} else if (m->n == 0) {
+			mensagem("Este app não tem menu.");
+		} else {
+			for (int i = 0; i < m->n; i++) {
+				const struct bandeja_entrada *e = &m->entradas[i];
+				if (e->separador) {
+					gv_separador(false, 0);
+				} else if (e->submenu) {
+					CLAY(CLAY_IDI("tray-sub", i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { (uint16_t)(14 + e->nivel * 16), 12, 8, 4 } } }) {
+						gv_texto(gv_str(e->texto), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+					}
+				} else if (e->habilitado) {
+					if (gv_menu_item(CLAY_IDI("tray-it", i), e->marcavel && e->marcado ? "check" : NULL,
+						    e->nivel ? gv_fmt("%*s%s", e->nivel * 2, "", e->texto).chars : e->texto, NULL)) {
+						bandeja_menu_clicar(m->chave, e->id);
+						gv_popup_fechar(CLAY_ID("menu-tray"));
+					}
+				} else {
+					CLAY(CLAY_IDI("tray-off", i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { (uint16_t)(14 + e->nivel * 16), 12, 10, 10 } } }) {
+						gv_texto(gv_str(e->texto), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+					}
+				}
+			}
+		}
+	}
+}
+
 /* ---- relógio e calendário ---- */
 
 static int cal_mes_desloc; /* 0: o mês de hoje */
@@ -552,6 +644,18 @@ static void desenhar(gv_app *app, void *dados) {
 	rede_estado_copiar(&rede);
 	bt_estado_copiar(&bt);
 	som_ler(&som);
+	bandeja_estado_copiar(&tray);
+	bandeja_menu_copiar(&tray_menu);
+	if (tray_menu.pronto && tray_menu.geracao != tray_menu_visto) {
+		/* o menu de um item chegou: abre-o preso a ele */
+		tray_menu_visto = tray_menu.geracao;
+		for (int i = 0; i < tray.n; i++) {
+			if (!strcmp(tray.itens[i].chave, tray_menu.chave)) {
+				tray_ancora = i;
+				gv_popup_abrir(CLAY_ID("menu-tray"));
+			}
+		}
+	}
 	CLAY(CLAY_ID("barra"), {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 18, 14, 0, 0 },
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
@@ -583,6 +687,7 @@ static void desenhar(gv_app *app, void *dados) {
 		/* direita: o estado do sistema e o relógio */
 		CLAY(CLAY_ID("dir"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6,
 			.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
+			bandeja_na_barra();
 			if (icone_barra(CLAY_ID("wifi"), icone_rede(), gv_popup_aberto(CLAY_ID("menu-wifi")))) {
 				gv_popup_alternar(CLAY_ID("menu-wifi"));
 				rede_varrer("");
@@ -627,6 +732,7 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_wifi();
 	menu_som();
 	menu_bluetooth();
+	menu_tray();
 	struct tm hoje;
 	time_t agora2 = time(NULL);
 	localtime_r(&agora2, &hoje);
@@ -643,8 +749,8 @@ int main(void) {
 	}
 	ler_ajustes();
 	ler_modo();
-	int fds[3] = { rede_iniciar(), bt_iniciar(), som_iniciar("Barra") };
-	for (int i = 0; i < 3; i++) {
+	int fds[4] = { rede_iniciar(), bt_iniciar(), som_iniciar("Barra"), bandeja_iniciar() };
+	for (int i = 0; i < 4; i++) {
 		if (fds[i] >= 0) {
 			gv_app_vigiar(app, fds[i], servico_mudou, NULL);
 		}

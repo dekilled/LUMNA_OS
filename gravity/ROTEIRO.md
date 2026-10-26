@@ -80,3 +80,4 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [ ] Trocar a sessão do celular pelo Orbit + desktop novo
 - [x] Atalhos no Painel (Sistema → Teclado e mouse → Atalhos): Alt+Tab, Super+H, Super+Tab (lumna-modo), Super sozinho abre o lançador
 - [x] Modo desenvolvedor (Painel → Sistema → Desenvolvedor): tela de toque no desktop (teclado de números no PIN) e aplicar o Painel em tempo real
+- [x] Topbar de verdade: Wi-Fi (rede, senha ali mesmo), som (volume, saída, apps), Bluetooth, calendário do mês e a bandeja do sistema (StatusNotifierItem + dbusmenu: os apps em segundo plano, menu no clique direito)
