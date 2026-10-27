@@ -164,6 +164,10 @@ Clay_String gv_fmt(const char *formato, ...) __attribute__((format(printf, 1, 2)
 /* Um texto com o tamanho, a cor e o peso dados (0 no tamanho: o do corpo). */
 void gv_texto(Clay_String texto, float tamanho, Clay_Color cor, enum gv_peso peso);
 /* Atalho: texto do corpo na cor do tema. */
+/* Texto com marcação do pango (<b>negrito</b>, <i>itálico</i>, <tt>código</tt>, <a>, <span ...>), quebrado na largura
+ * que o elemento tiver (quem chama escapa o que for texto puro com g_markup_escape_text). mono: toda a fonte é monoespaçada.
+ * O id tem de ser único; a altura certa chega no quadro seguinte à primeira vez, ou quando a largura muda. */
+void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono);
 #define gv_rotulo(literal) gv_texto(CLAY_STRING(literal), 0, gv_t.texto, GV_PESO_NORMAL)
 
 /* ---- ícones (os do LUMNA: o mesmo traço de 24 px do shell) ---- */
@@ -247,6 +251,8 @@ int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica
  * de linhas_min até linhas_max (0, 0: de 3 a 8) e depois rola por dentro. Enter quebra a linha;
  * Ctrl+Enter devolve GV_CAMPO_ENTER. */
 int gv_campo_area(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_min, int linhas_max);
+/* O campo de uma conversa: uma linha que cresce até linhas_max; Enter envia (GV_CAMPO_ENTER) e Shift+Enter quebra a linha. */
+int gv_campo_chat(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_max);
 /* ---- foco ----
  * Um foco para a app inteira: Tab e Shift+Tab andam pelos controles na ordem em que aparecem,
  * Enter ou Espaço ativam, o anel violeta só aparece ao navegar pelo teclado. Os componentes do

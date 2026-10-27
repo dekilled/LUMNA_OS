@@ -160,6 +160,9 @@ static bool numero_valido(const char *s) {
 	return true;
 }
 
+/* gv_campo_chat: Enter envia e Shift+Enter quebra a linha (nas várias linhas comuns é o contrário: Ctrl+Enter envia) */
+static bool modo_chat;
+
 static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo, Clay_ElementId id, float tamanho,
 		float largura) {
 	bool multi = largura > 0;
@@ -233,8 +236,8 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 			continue;
 		case XKB_KEY_Return:
 		case XKB_KEY_KP_Enter:
-			/* várias linhas: Enter quebra a linha; Ctrl+Enter é o "enviar" */
-			if (multi && !ctrl) {
+			/* várias linhas: Enter quebra a linha; Ctrl+Enter é o "enviar" (no modo chat, o contrário: Shift+Enter quebra) */
+			if (multi && (modo_chat ? shift : !ctrl)) {
 				if (inserir(t, cap, c, "\n")) {
 					resultado |= GV_CAMPO_MUDOU;
 				}
@@ -622,4 +625,11 @@ int gv_campo_area(Clay_ElementId id, char *texto, size_t capacidade, const char 
 		linhas_max = linhas_min > 8 ? linhas_min : 8;
 	}
 	return campo(id, texto, capacidade, dica, GV_CAMPO_TEXTO, linhas_min, linhas_max < 2 ? 2 : linhas_max);
+}
+
+int gv_campo_chat(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_max) {
+	modo_chat = true;
+	int r = gv_campo_area(id, texto, capacidade, dica, 1, linhas_max < 2 ? 2 : linhas_max);
+	modo_chat = false;
+	return r;
 }

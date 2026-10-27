@@ -263,6 +263,9 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, i
 			case GV_EXTRA_IMAGEM:
 				imagem(cr, b, c->cornerRadius, extra);
 				break;
+			case GV_EXTRA_RICO:
+				gv__rico_desenhar(cr, b, extra);
+				break;
 			default:
 				break;
 			}

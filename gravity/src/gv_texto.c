@@ -332,3 +332,74 @@ void gv_texto(Clay_String texto, float tamanho, Clay_Color cor, enum gv_peso pes
 		.wrapMode = CLAY_TEXT_WRAP_WORDS,
 	});
 }
+
+/* ---- texto rico: a marcação do pango, quebrada na largura do elemento ---- */
+
+static GHashTable *larguras_ricas; /* id -> a largura do quadro anterior (em 1/16 de px) */
+
+static void preparar_rico(PangoLayout *layout, const char *markup, float tamanho, float largura, bool mono) {
+	PangoFontDescription *fonte = pango_font_description_from_string(gv_t.fonte);
+	if (mono) {
+		pango_font_description_set_family(fonte, "monospace");
+	}
+	pango_font_description_set_absolute_size(fonte, tamanho * PANGO_SCALE);
+	pango_layout_set_font_description(layout, fonte);
+	pango_font_description_free(fonte);
+	if (!pango_parse_markup(markup, -1, 0, NULL, NULL, NULL, NULL)) {
+		pango_layout_set_text(layout, markup, -1); /* marcação quebrada: mostra como texto */
+	} else {
+		pango_layout_set_markup(layout, markup, -1);
+	}
+	pango_layout_set_width(layout, (int)(largura * PANGO_SCALE));
+	pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
+}
+
+void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono) {
+	if (!larguras_ricas) {
+		larguras_ricas = g_hash_table_new(g_direct_hash, g_direct_equal);
+	}
+	float largura = GPOINTER_TO_INT(g_hash_table_lookup(larguras_ricas, GUINT_TO_POINTER(id.id))) / 16.0f;
+	if (largura < 40) {
+		largura = 400;
+	}
+	preparar_rico(medidor, markup, tamanho, largura, mono);
+	PangoRectangle logico;
+	pango_layout_get_extents(medidor, NULL, &logico);
+	float altura = logico.height / (float)PANGO_SCALE;
+	struct gv_extra *e = gv__quadro_alloc(sizeof(*e));
+	char *copia = gv__quadro_alloc(strlen(markup) + 1);
+	if (!e || !copia) {
+		return;
+	}
+	memset(e, 0, sizeof(*e));
+	strcpy(copia, markup);
+	e->tipo = GV_EXTRA_RICO;
+	e->rico.markup = copia;
+	e->rico.tamanho = tamanho;
+	e->rico.cor = cor;
+	e->rico.mono = mono;
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(altura) } }, .custom = { .customData = e } }) {}
+	Clay_ElementData dados = Clay_GetElementData(id);
+	if (dados.found) {
+		int w = (int)(dados.boundingBox.width * 16);
+		if (w != GPOINTER_TO_INT(g_hash_table_lookup(larguras_ricas, GUINT_TO_POINTER(id.id)))) {
+			g_hash_table_insert(larguras_ricas, GUINT_TO_POINTER(id.id), GINT_TO_POINTER(w));
+			gv__app_pedir(); /* a largura mudou: as linhas quebram noutro sítio */
+		}
+	}
+}
+
+void gv__rico_desenhar(cairo_t *cr, Clay_BoundingBox caixa, const struct gv_extra *e) {
+	PangoLayout *layout = pango_cairo_create_layout(cr);
+	cairo_font_options_t *opcoes = cairo_font_options_create();
+	cairo_font_options_set_hint_metrics(opcoes, CAIRO_HINT_METRICS_OFF);
+	cairo_font_options_set_antialias(opcoes, CAIRO_ANTIALIAS_GRAY);
+	pango_cairo_context_set_font_options(pango_layout_get_context(layout), opcoes);
+	cairo_font_options_destroy(opcoes);
+	pango_layout_context_changed(layout);
+	preparar_rico(layout, e->rico.markup, e->rico.tamanho, caixa.width, e->rico.mono);
+	cairo_set_source_rgba(cr, e->rico.cor.r / 255.0, e->rico.cor.g / 255.0, e->rico.cor.b / 255.0, e->rico.cor.a / 255.0);
+	cairo_move_to(cr, caixa.x, caixa.y);
+	pango_cairo_show_layout(cr, layout);
+	g_object_unref(layout);
+}

@@ -780,14 +780,14 @@ static void compositor_de_mensagem(void) {
 				}
 			}
 		}
-		CLAY(CLAY_ID("ap-entrada"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 8, 8 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		CLAY(CLAY_ID("ap-entrada"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 8, 8 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(28), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } }) {
 			if (eu_botao_icone(CLAY_ID("ap-skills"), "sparkle", vista == V_SKILLS)) {
 				vista = V_SKILLS;
 				carregar_skills();
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				if ((gv_campo(CLAY_ID("ap-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte ou peça algo à Emma…", GV_CAMPO_TEXTO) & GV_CAMPO_ENTER) && campo[0]) {
+				if ((gv_campo_chat(CLAY_ID("ap-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte ou peça algo à Emma…  (Shift+Enter quebra a linha)", 8) & GV_CAMPO_ENTER) && campo[0]) {
 					enviar(campo);
 					campo[0] = '\0';
 				}
@@ -1002,6 +1002,7 @@ int main(void) {
 	memorias = g_array_new(FALSE, TRUE, sizeof(struct memoria));
 	skills = g_array_new(FALSE, TRUE, sizeof(struct skill));
 	eu_iniciar();
+	eu_largura_balao = 680;
 	dir_fundo = eu_achar_asset("fundo.jpg");
 	app = gv_app_criar(&(gv_opcoes){ .titulo = "Emma", .app_id = "lumna-emma-app", .largura = 1180, .altura = 760 });
 	if (!app) {

@@ -110,6 +110,7 @@ enum gv_extra_tipo {
 	GV_EXTRA_CAMPO,
 	GV_EXTRA_ROLAGEM,
 	GV_EXTRA_IMAGEM,
+	GV_EXTRA_RICO,
 };
 
 struct gv_extra {
@@ -153,6 +154,12 @@ struct gv_extra {
 			Clay_Color cor;
 		} rolagem;
 		struct {
+			const char *markup;   /* texto com marcação do pango (<b>, <i>, <tt>...) */
+			float tamanho;
+			Clay_Color cor;
+			bool mono;
+		} rico;
+		struct {
 			cairo_surface_t *sup; /* NULL: ainda não chegou (desenha só o fundo) */
 			enum gv_ajuste ajuste;
 			float alfa;           /* o esmaecer da chegada */
@@ -168,6 +175,7 @@ Clay_Dimensions gv__texto_medir(Clay_StringSlice texto, Clay_TextElementConfig *
 void gv__texto_desenhar(cairo_t *cr, Clay_RenderCommand *cmd);
 struct gv_extra;
 void gv__campo_desenhar(cairo_t *cr, Clay_BoundingBox caixa, const struct gv_extra *e);
+void gv__rico_desenhar(cairo_t *cr, Clay_BoundingBox caixa, const struct gv_extra *e);
 
 /* ---- ícones ---- */
 const char *gv__icone_caminho(const char *nome);

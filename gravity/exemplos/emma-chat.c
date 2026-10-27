@@ -304,9 +304,9 @@ static void desenhar(gv_app *a, void *dados) {
 			}
 		}
 		/* escrever */
-		CLAY(CLAY_ID("em-entrada"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY(CLAY_ID("em-entrada"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } } }) {
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				if ((gv_campo(CLAY_ID("em-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte à Emma…", GV_CAMPO_TEXTO) & GV_CAMPO_ENTER) && campo[0]) {
+				if ((gv_campo_chat(CLAY_ID("em-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte à Emma…", 5) & GV_CAMPO_ENTER) && campo[0]) {
 					enviar(campo);
 					campo[0] = '\0';
 				}

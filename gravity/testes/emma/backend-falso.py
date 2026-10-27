@@ -129,6 +129,11 @@ class H(BaseHTTPRequestHandler):
                 time.sleep(0.05)
             resultados.pop("call-1", None)
             partes = [final]
+        elif "markdown" in texto or "troca esta tela" in texto:
+            partes = ["# Um exemplo\n\nAqui vai **negrito**, *itálico*, `codigo inline` e um [link](http://x.y).\n\n",
+                      "## Passos\n\n- primeiro item\n- segundo item com **ênfase**\n  - um sub-item\n\n1. abrir o Painel\n2. escolher o teclado\n\n",
+                      "> Uma citação importante\n> em duas linhas\n\n```c\nint main(void) {\n    printf(\"oi\\n\");\n    return 0;\n}\n```\n\n",
+                      "| Modo | Tela |\n|---|---|\n| Mídia | TV |\n| Desktop | Monitor |\n"]
         else:
             partes = ["Brasília é a capital do Brasil. ", "Fica no Planalto Central."]
         total = ""

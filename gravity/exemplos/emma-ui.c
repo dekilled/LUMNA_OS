@@ -132,6 +132,288 @@ void eu_juntar_ferramenta(struct eu_msg *m, const struct json *t) {
 	g_array_append_val(m->ferramentas, f);
 }
 
+
+/* ---- Markdown ---- */
+
+float eu_largura_balao = 340;
+
+/* o texto de uma linha em marcação do pango: **negrito**, *itálico*, `código`, ~~riscado~~, [texto](endereço) */
+static char *md_inline(const char *t, Clay_Color acento) {
+	GString *o = g_string_new(NULL);
+	const char *p = t;
+	while (*p) {
+		const char *fim = NULL;
+		if (!strncmp(p, "**", 2) || !strncmp(p, "__", 2)) {
+			fim = strstr(p + 2, !strncmp(p, "**", 2) ? "**" : "__");
+			if (fim && fim > p + 2) {
+				char *m = g_strndup(p + 2, (gsize)(fim - p - 2)), *i = md_inline(m, acento);
+				g_string_append_printf(o, "<b>%s</b>", i);
+				g_free(i);
+				g_free(m);
+				p = fim + 2;
+				continue;
+			}
+		} else if (!strncmp(p, "~~", 2)) {
+			fim = strstr(p + 2, "~~");
+			if (fim && fim > p + 2) {
+				char *m = g_strndup(p + 2, (gsize)(fim - p - 2)), *i = md_inline(m, acento);
+				g_string_append_printf(o, "<s>%s</s>", i);
+				g_free(i);
+				g_free(m);
+				p = fim + 2;
+				continue;
+			}
+		} else if (*p == '`') {
+			fim = strchr(p + 1, '`');
+			if (fim && fim > p + 1) {
+				char *m = g_strndup(p + 1, (gsize)(fim - p - 1)), *e = g_markup_escape_text(m, -1);
+				g_string_append_printf(o, "<span font_family=\"monospace\" background=\"#000000\" bgalpha=\"28%%\"> %s </span>", e);
+				g_free(e);
+				g_free(m);
+				p = fim + 1;
+				continue;
+			}
+		} else if ((*p == '*' || *p == '_') && p[1] && p[1] != ' ' && (p == t || !g_ascii_isalnum(p[-1]) || *p == '*')) {
+			fim = strchr(p + 1, *p);
+			if (fim && fim > p + 1 && fim[-1] != ' ' && (*p == '*' || !g_ascii_isalnum(fim[1]))) {
+				char *m = g_strndup(p + 1, (gsize)(fim - p - 1)), *i = md_inline(m, acento);
+				g_string_append_printf(o, "<i>%s</i>", i);
+				g_free(i);
+				g_free(m);
+				p = fim + 1;
+				continue;
+			}
+		} else if (*p == '[') {
+			const char *fecha = strchr(p, ']');
+			if (fecha && fecha[1] == '(') {
+				const char *par = strchr(fecha, ')');
+				if (par) {
+					char *m = g_strndup(p + 1, (gsize)(fecha - p - 1)), *e = g_markup_escape_text(m, -1);
+					g_string_append_printf(o, "<span foreground=\"#%02x%02x%02x\" underline=\"single\">%s</span>", (unsigned)acento.r, (unsigned)acento.g, (unsigned)acento.b, e);
+					g_free(e);
+					g_free(m);
+					p = par + 1;
+					continue;
+				}
+			}
+		}
+		const char *prox = g_utf8_next_char(p);
+		char *c = g_strndup(p, (gsize)(prox - p)), *e = g_markup_escape_text(c, -1);
+		g_string_append(o, e);
+		g_free(e);
+		g_free(c);
+		p = prox;
+	}
+	return g_string_free(o, FALSE);
+}
+
+static bool md_comeca(const char *l, const char *prefixo) {
+	return g_str_has_prefix(l, prefixo);
+}
+
+/* a linha, sem os espaços da frente, começa assim? */
+static bool md_lin(const char *l, const char *prefixo) {
+	while (*l == ' ') {
+		l++;
+	}
+	return g_str_has_prefix(l, prefixo);
+}
+
+/* "- item", "* item", "1. item": devolve onde o texto começa (NULL: não é item) e se é numerado */
+static const char *md_item(const char *l, bool *numerado, char *numero, size_t tn) {
+	*numerado = false;
+	if ((l[0] == '-' || l[0] == '*' || l[0] == '+') && l[1] == ' ') {
+		return l + 2;
+	}
+	const char *q = l;
+	while (g_ascii_isdigit(*q)) {
+		q++;
+	}
+	if (q > l && q - l < 5 && (*q == '.' || *q == ')') && q[1] == ' ') {
+		*numerado = true;
+		g_strlcpy(numero, l, (gsize)(q - l + 2) < tn ? (gsize)(q - l + 2) : tn);
+		return q + 2;
+	}
+	return NULL;
+}
+
+/* o texto tem algo de Markdown que justifique o desenho rico? (senão fica o balão enxuto de sempre) */
+bool eu_tem_markdown(const char *t) {
+	if (strstr(t, "```") || strstr(t, "**") || strstr(t, "~~") || strchr(t, '`') || strstr(t, "](") || strstr(t, "__")) {
+		return true;
+	}
+	bool inicio = true;
+	for (const char *p = t; *p; p++) {
+		if (inicio) {
+			const char *l = p;
+			while (*l == ' ') {
+				l++;
+			}
+			bool n;
+			char num[8];
+			if (*l == '#' || *l == '>' || *l == '|' || md_item(l, &n, num, sizeof(num)) || !strncmp(l, "---", 3)) {
+				return true;
+			}
+		}
+		inicio = *p == '\n';
+	}
+	return false;
+}
+
+static void md_codigo(uint32_t k, int *n, const char *lingua, GString *codigo, float tam) {
+	int idx = (*n)++;
+	CLAY(CLAY_SID(gv_fmt("md-cod-%u-%d", k, idx)), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 6, 12 }, .childGap = 2 },
+		.backgroundColor = (Clay_Color){ 0, 0, 0, 90 }, .cornerRadius = CLAY_CORNER_RADIUS(10), .border = { .color = gv_alfa(gv_t.borda, 0.7f), .width = GV_BORDA(1) } }) {
+		CLAY(CLAY_SID(gv_fmt("md-codh-%u-%d", k, idx)), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(gv_str(lingua[0] ? lingua : "código"), tam - 3, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+			if (gv_botao_ext(CLAY_SID(gv_fmt("md-cp-%u-%d", k, idx)), &(gv_botao_opcoes){ .icone = "copy", .texto = "Copiar", .estilo = GV_BOTAO_SIMPLES, .altura = 28 })) {
+				gv_copiar(codigo->str);
+			}
+		}
+		char *esc = g_markup_escape_text(codigo->str, -1);
+		gv_texto_rico(CLAY_SID(gv_fmt("md-cd-%u-%d", k, idx)), esc, tam - 1, (Clay_Color){ 235, 235, 245, 255 }, true);
+		g_free(esc);
+	}
+}
+
+void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor) {
+	char **ls = g_strsplit(texto, "\n", -1);
+	int n = 0, nl = (int)g_strv_length(ls);
+	CLAY(CLAY_SID(gv_fmt("md-%u", k)), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+		for (int i = 0; i < nl; i++) {
+			const char *l = ls[i];
+			const char *sem = l;
+			while (*sem == ' ') {
+				sem++;
+			}
+			int recuo = (int)(sem - l);
+			if (md_comeca(sem, "```")) {
+				char lingua[32];
+				const char *lg = sem + 3;
+				while (*lg == ' ') {
+					lg++;
+				}
+				g_strlcpy(lingua, lg, sizeof(lingua));
+				g_strchomp(lingua);
+				GString *c = g_string_new(NULL);
+				for (i++; i < nl && !md_lin(ls[i], "```"); i++) {
+					g_string_append_printf(c, "%s%s", c->len ? "\n" : "", ls[i]);
+				}
+				md_codigo(k, &n, lingua, c, tam);
+				g_string_free(c, TRUE);
+			} else if (!*sem) {
+				continue;
+			} else if (*sem == '#') {
+				int nivel = 0;
+				while (sem[nivel] == '#') {
+					nivel++;
+				}
+				if (nivel <= 6 && sem[nivel] == ' ') {
+					char *in = md_inline(sem + nivel + 1, gv_t.acento), *m = g_strdup_printf("<b>%s</b>", in);
+					gv_texto_rico(CLAY_SID(gv_fmt("md-t-%u-%d", k, n++)), m, tam + (nivel == 1 ? 7 : nivel == 2 ? 4 : nivel == 3 ? 2 : 0), cor, false);
+					g_free(m);
+					g_free(in);
+					continue;
+				}
+				goto paragrafo;
+			} else if (!strncmp(sem, "---", 3) || !strncmp(sem, "***", 3)) {
+				gv_separador(false, 0);
+			} else if (*sem == '>') {
+				GString *q = g_string_new(NULL);
+				for (; i < nl && md_lin(ls[i], ">"); i++) {
+					const char *t = ls[i];
+					while (*t == ' ') {
+						t++;
+					}
+					t++;
+					if (*t == ' ') {
+						t++;
+					}
+					g_string_append_printf(q, "%s%s", q->len ? "\n" : "", t);
+				}
+				i--;
+				char *in = md_inline(q->str, gv_t.acento);
+				CLAY(CLAY_SID(gv_fmt("md-q-%u-%d", k, n)), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 0, 2, 2 }, .childGap = 10 },
+					.border = { .color = gv_t.acento, .width = { .left = 3 } } }) {
+					gv_texto_rico(CLAY_SID(gv_fmt("md-qt-%u-%d", k, n)), in, tam, gv_t.texto_secundario, false);
+				}
+				n++;
+				g_free(in);
+				g_string_free(q, TRUE);
+			} else if (*sem == '|') {
+				/* uma tabela: as linhas | a | b |, sem a de traços */
+				GPtrArray *linhas = g_ptr_array_new();
+				for (; i < nl && md_lin(ls[i], "|"); i++) {
+					char *copia = g_strdup(ls[i]);
+					if (!strpbrk(copia, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")) {
+						g_free(copia);
+						continue;
+					}
+					g_ptr_array_add(linhas, copia);
+				}
+				i--;
+				for (guint r = 0; r < linhas->len; r++) {
+					char **cel = g_strsplit(g_strstrip(linhas->pdata[r]), "|", -1);
+					CLAY(CLAY_SID(gv_fmt("md-tl-%u-%d-%u", k, n, r)), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 10, 10, 6, 6 }, .childGap = 12 },
+						.backgroundColor = r == 0 ? gv_alfa(gv_t.acento, 0.14f) : (Clay_Color){ 0 }, .cornerRadius = CLAY_CORNER_RADIUS(6) }) {
+						int c = 0;
+						for (int j = 0; cel[j]; j++) {
+							if (!*g_strstrip(cel[j]) && (j == 0 || !cel[j + 1])) {
+								continue;
+							}
+							char *in = md_inline(cel[j], gv_t.acento), *m = r == 0 ? g_strdup_printf("<b>%s</b>", in) : g_strdup(in);
+							gv_texto_rico(CLAY_SID(gv_fmt("md-tc-%u-%d-%u-%d", k, n, r, c++)), m, tam - 1, cor, false);
+							g_free(m);
+							g_free(in);
+						}
+					}
+					g_strfreev(cel);
+				}
+				n++;
+				g_ptr_array_free(linhas, TRUE);
+			} else {
+				bool numerado;
+				char numero[8];
+				const char *item = md_item(sem, &numerado, numero, sizeof(numero));
+				if (item) {
+					char *in = md_inline(item, gv_t.acento);
+					CLAY(CLAY_SID(gv_fmt("md-li-%u-%d", k, n)), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { (uint16_t)(6 + recuo * 7), 0, 0, 0 }, .childGap = 8 } }) {
+						CLAY(CLAY_SID(gv_fmt("md-lm-%u-%d", k, n)), { .layout = { .sizing = { CLAY_SIZING_FIXED(numerado ? 26 : 14) } } }) {
+							gv_texto(gv_str(numerado ? numero : "•"), tam, gv_t.acento, GV_PESO_MEDIO);
+						}
+						gv_texto_rico(CLAY_SID(gv_fmt("md-lt-%u-%d", k, n)), in, tam, cor, false);
+					}
+					n++;
+					g_free(in);
+					continue;
+				}
+			paragrafo:;
+				GString *pr = g_string_new(NULL);
+				for (; i < nl; i++) {
+					const char *t = ls[i];
+					while (*t == ' ') {
+						t++;
+					}
+					bool nn;
+					char nm[8];
+					if (pr->len && (!*t || md_comeca(t, "```") || *t == '#' || *t == '>' || *t == '|' || md_item(t, &nn, nm, sizeof(nm)))) {
+						break;
+					}
+					g_string_append_printf(pr, "%s%s", pr->len ? "\n" : "", ls[i]);
+				}
+				i--;
+				char *in = md_inline(pr->str, gv_t.acento);
+				gv_texto_rico(CLAY_SID(gv_fmt("md-p-%u-%d", k, n++)), in, tam, cor, false);
+				g_free(in);
+				g_string_free(pr, TRUE);
+			}
+		}
+	}
+	g_strfreev(ls);
+}
+
 /* ---- o desenho ---- */
 
 bool eu_botao_icone(Clay_ElementId id, const char *icone, bool ligado) {
@@ -218,9 +500,14 @@ void eu_cartao_secao(uint32_t k, const struct eu_ferramenta *f) {
 void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) {
 	if (m->usuario) {
 		CLAY(CLAY_IDI("em-u", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4, .childAlignment = { .x = CLAY_ALIGN_X_RIGHT } } }) {
-			CLAY(CLAY_IDI("em-ub", k), { .layout = { .sizing = { CLAY_SIZING_FIT(0, 340) }, .padding = { 16, 16, 12, 12 } },
+			bool rico = eu_tem_markdown(m->texto);
+			CLAY(CLAY_IDI("em-ub", k), { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
 				.backgroundColor = EU_VIOLETA, .cornerRadius = CLAY_CORNER_RADIUS(18) }) {
-				gv_texto(gv_str(m->texto), gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_NORMAL);
+				if (rico) {
+					eu_markdown(k * 2 + 1, m->texto, gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 });
+				} else {
+					gv_texto(gv_str(m->texto), gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_NORMAL);
+				}
 			}
 			gv_texto(gv_fmt("%s ✓✓", m->hora), gv_t.tamanho_corpo - 3, gv_t.texto_suave, GV_PESO_NORMAL);
 		}
@@ -232,9 +519,14 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 		eu_avatar(CLAY_IDI("em-ea", k), 34);
 		CLAY(CLAY_IDI("em-ec", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
 			if (r.corpo[0] || m->parcial) {
-				CLAY(CLAY_IDI("em-eb", k), { .layout = { .sizing = { CLAY_SIZING_FIT(0, 340) }, .padding = { 16, 16, 12, 12 } },
+				bool rico = eu_tem_markdown(r.corpo);
+				CLAY(CLAY_IDI("em-eb", k), { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
 					.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(18) }) {
-					gv_texto(gv_str(r.corpo[0] ? r.corpo : "…"), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+					if (rico) {
+						eu_markdown(k * 2, r.corpo, gv_t.tamanho_corpo + 1, gv_t.texto);
+					} else {
+						gv_texto(gv_str(r.corpo[0] ? r.corpo : "…"), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+					}
 				}
 			}
 			for (guint i = 0; i < m->ferramentas->len; i++) {
