@@ -15,6 +15,7 @@
 
 #include "emma-ui.h"
 #include "emmac.h"
+#include "emmar.h"
 #include "gravity.h"
 #include "json.h"
 
@@ -75,30 +76,17 @@ struct resposta {
 	struct json *raiz;
 	const struct json *corpo;
 	bool ok;
-	char msg[200];
+	char msg[240];
 };
 
 static bool rest(const char *metodo, const char *caminho, const char *corpo, struct resposta *r) {
-	static char *buf;
-	if (!buf) {
-		buf = g_malloc(LIM_RESP);
-	}
-	memset(r, 0, sizeof(*r));
-	char *p = g_strdup_printf("rest %s %s %s", metodo, caminho, corpo ? corpo : "");
-	bool falou = emmac_pedido(p, buf, LIM_RESP);
-	g_free(p);
-	if (!falou) {
-		g_strlcpy(r->msg, "O serviço da Emma não respondeu.", sizeof(r->msg));
-		return false;
-	}
-	r->raiz = json_ler(buf);
-	r->corpo = json_chave(r->raiz, "corpo");
-	r->ok = json_bool(json_chave(r->raiz, "ok"), false);
-	if (!r->ok) {
-		const char *e = json_chave_texto(r->raiz, "erro"), *d = json_chave_texto(r->corpo, "detail");
-		g_strlcpy(r->msg, *d ? d : *e ? e : "O servidor da Emma não respondeu.", sizeof(r->msg));
-	}
-	return r->ok;
+	struct emmar e;
+	emmar_chamar(metodo, caminho, corpo, LIM_RESP, &e);
+	r->raiz = e.raiz;
+	r->corpo = e.corpo;
+	r->ok = e.ok;
+	g_strlcpy(r->msg, e.msg, sizeof(r->msg));
+	return e.ok;
 }
 
 static void liberar(struct resposta *r) {

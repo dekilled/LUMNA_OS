@@ -23,6 +23,10 @@ void pn_areas_descartar(void);
 void pn_areas_restaurar(void);
 void pn_areas_abrir(void);
 
+/* Emma → Provedores e modelos (emma.c) */
+void pn_emma_prov_desenhar(void);
+void pn_emma_prov_abrir(void);
+
 /* Sistema → Sobre (sobre.c) */
 void pn_sobre_pc_desenhar(void);
 void pn_sobre_pc_abrir(void);
@@ -123,7 +127,8 @@ const pn_categoria pn_celular = { "celular", "phone", "Celular Connect", "Conect
 static const pn_secao emma[] = {
 	{ "voz", "mic", "Voz", "Como a Emma fala e ouve.", NULL, "A voz;A velocidade;O microfone" },
 	{ "ativacao", "sparkle", "Oi Emma", "Chamar a Emma pela voz.", NULL, "Ligar e desligar;Sensibilidade" },
-	{ "provedores", "globe", "Provedores e modelos", "De onde vem a inteligência da Emma.", NULL, "O provedor e o modelo;Chaves" },
+	{ "provedores", "globe", "Provedores e modelos", "De onde vem a inteligência da Emma.", pn_emma_prov_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_emma_prov_abrir },
 	{ "privacidade", "shield", "Privacidade", "O que a Emma guarda.", NULL, "O histórico;Apagar as conversas" },
 	{ "automacoes", "zap", "Automações", "Tarefas que a Emma faz sozinha.", NULL, "As automações e quando correm" },
 };

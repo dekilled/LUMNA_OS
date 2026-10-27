@@ -224,6 +224,68 @@ static bool conta_local(char **email, char **senha) {
 	return ok;
 }
 
+bool emmab_conta_ler(char *email, size_t tam) {
+	char *e = NULL, *senha = NULL;
+	conta_local(&e, &senha);
+	g_strlcpy(email, e ? e : "", tam);
+	g_free(e);
+	g_free(senha);
+	return email[0] != '\0';
+}
+
+/* ADMIN_EMAIL=... ADMIN_PASSWORD=... entre aspas que o leitor acima entende (sem aspas dentro) */
+static char *valor_env(const char *v) {
+	if (!strchr(v, '"')) {
+		return g_strdup_printf("\"%s\"", v);
+	}
+	return !strchr(v, '\'') ? g_strdup_printf("'%s'", v) : NULL;
+}
+
+bool emmab_conta_gravar(const char *url, const char *email, const char *senha, char **erro) {
+	if (url && *url) {
+		GString *v = g_string_new(NULL);
+		json_escrever_texto(v, url);
+		emmab_config_gravar("url", v->str);
+		g_string_free(v, TRUE);
+	}
+	if ((email && *email) || (senha && *senha)) {
+		char *e0 = NULL, *s0 = NULL;
+		conta_local(&e0, &s0);
+		char *e1 = valor_env(email && *email ? email : e0 ? e0 : ""), *s1 = valor_env(senha && *senha ? senha : s0 ? s0 : "");
+		bool ok = false;
+		if (e1 && s1 && !strpbrk(email ? email : "", "\n\r") && !strpbrk(senha ? senha : "", "\n\r")) {
+			char *dir = g_build_filename(g_get_user_config_dir(), "lumna", "emma", NULL), *p = g_build_filename(dir, "backend.env", NULL);
+			char *conteudo = g_strdup_printf("ADMIN_EMAIL=%s\nADMIN_PASSWORD=%s\n", e1, s1), *tmp = g_strconcat(p, ".tmp", NULL);
+			g_mkdir_with_parents(dir, 0700);
+			ok = g_file_set_contents(tmp, conteudo, -1, NULL) && g_chmod(tmp, 0600) == 0 && g_rename(tmp, p) == 0;
+			g_free(tmp);
+			g_free(conteudo);
+			g_free(p);
+			g_free(dir);
+		}
+		g_free(e1);
+		g_free(s1);
+		g_free(e0);
+		g_free(s0);
+		if (!ok) {
+			if (erro) {
+				*erro = g_strdup("Não consegui guardar a conta (o e-mail e a senha não podem ter quebra de linha nem os dois tipos de aspas).");
+			}
+			return false;
+		}
+	}
+	emmab_reentrar();
+	return true;
+}
+
+void emmab_reentrar(void) {
+	emmab_config_gravar("refresh_token", NULL);
+	g_mutex_lock(&trinco);
+	g_free(token);
+	token = NULL;
+	g_mutex_unlock(&trinco);
+}
+
 static void guardar_token(const char *t) {
 	g_free(token);
 	token = g_strdup(t);

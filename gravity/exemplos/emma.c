@@ -920,6 +920,31 @@ static void tratar(struct cliente *c, char *linha) {
 		g_free(a);
 	} else if (!strcmp(cmd, "acoes")) {
 		pedido_acoes(c);
+	} else if (!strcmp(cmd, "conta")) {
+		/* conta                                  -> {"ok":true,"url":...,"email":...}
+		 * conta {"url":...,"email":...,"senha":...} guarda (o que faltar fica como está) e entra de novo */
+		if (resto && *resto) {
+			struct json *j = json_ler(resto);
+			const char *url = json_chave_texto(j, "url"), *email = json_chave_texto(j, "email"), *senha = json_chave_texto(j, "senha");
+			char *e = NULL;
+			if (!j) {
+				responder_erro(c, "conta {url, email, senha}");
+			} else if (emmab_conta_gravar(url, email, senha, &e)) {
+				responder_ok(c);
+			} else {
+				responder_erro(c, e ? e : "não consegui guardar a conta");
+			}
+			g_free(e);
+			json_liberar(j);
+		} else {
+			char email[200];
+			emmab_conta_ler(email, sizeof(email));
+			char *u = js(emmab_url()), *m = js(email), *r = g_strdup_printf("{\"ok\":true,\"url\":%s,\"email\":%s}", u, m);
+			escrever(c, r);
+			g_free(r);
+			g_free(m);
+			g_free(u);
+		}
 	} else if (!strcmp(cmd, "versao")) {
 		/* o app completo confere: 2 = conversar e rest */
 		escrever(c, "{\"ok\":true,\"versao\":2}");

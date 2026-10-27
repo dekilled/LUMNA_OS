@@ -22,6 +22,16 @@ def registrar(linha):
             f.write(linha + "\n")
 
 
+PROVS = []
+ROUTING = {}
+SENHA = {"ok": "segredo"}
+
+
+def prov_publico(p):
+    k = p.get("api_key", "")
+    return {**{x: p[x] for x in ("id", "name", "preset", "base_url", "models")}, "has_key": bool(k), "api_key_masked": f"••••{k[-4:]}" if k else ""}
+
+
 class H(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -42,6 +52,12 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         registrar(f"GET {self.path}")
+        if self.path == "/api/providers":
+            return self.json([prov_publico(p) for p in PROVS])
+        if self.path == "/api/settings":
+            return self.json({"routing": ROUTING})
+        if self.path.startswith("/api/providers/") and self.path.endswith("/models"):
+            return self.json({"ok": True, "models": ["modelo-x", "modelo-y", "modelo-z"]})
         if self.path == "/api/sessions/sess-a/messages":
             return self.json([
                 {"id": "m1", "role": "user", "content": "como adiciono outro layout de teclado", "created_at": "2026-10-27T14:02:00+00:00", "tools": []},
@@ -64,9 +80,34 @@ class H(BaseHTTPRequestHandler):
         self.json({"ok": True})
 
     def do_PATCH(self):
-        self.corpo()
-        registrar(f"PATCH {self.path}")
+        dados = self.corpo()
+        registrar(f"PATCH {self.path} {dados.decode()[:300]}")
+        if self.path.startswith("/api/providers/"):
+            c = json.loads(dados or b"{}")
+            for p in PROVS:
+                if p["id"] == self.path.rsplit("/", 1)[1]:
+                    chave = c.pop("api_key", None)
+                    p.update(c)
+                    if chave:
+                        p["api_key"] = chave
+                    return self.json(prov_publico(p))
         self.json({})
+
+    def do_PUT(self):
+        dados = self.corpo()
+        registrar(f"PUT {self.path} {dados.decode()[:600]}")
+        if self.path == "/api/settings":
+            ROUTING.clear()
+            ROUTING.update(json.loads(dados or b"{}").get("routing", {}))
+            return self.json({"routing": ROUTING})
+        self.json({})
+
+    def do_DELETE(self):
+        registrar(f"DELETE {self.path}")
+        if self.path.startswith("/api/providers/"):
+            pid = self.path.rsplit("/", 1)[1]
+            PROVS[:] = [p for p in PROVS if p["id"] != pid]
+        self.json({"ok": True})
 
     def do_POST(self):
         dados = self.corpo()
@@ -91,6 +132,13 @@ class H(BaseHTTPRequestHandler):
             return self.json({"access_token": "tok1", "refresh_token": "ref1"})
         if self.path == "/api/auth/refresh":
             return self.json({"access_token": "tok2"})
+        if self.path == "/api/providers":
+            p = {"id": f"prov{len(PROVS) + 1}", "name": c.get("name", ""), "preset": c.get("preset", "custom"), "base_url": c.get("base_url", ""),
+                 "models": c.get("models", []), "api_key": c.get("api_key", "")}
+            PROVS.append(p)
+            return self.json(prov_publico(p))
+        if self.path.startswith("/api/providers/") and self.path.endswith("/test"):
+            return self.json({"model": c.get("model"), "chat": True, "latency_ms": 321, "reply": "ok", "streaming": True, "json_mode": False})
         if self.path == "/api/sessions":
             return self.json({"id": "sess-1"})
         if self.path.endswith("/tool-result"):

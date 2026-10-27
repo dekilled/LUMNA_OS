@@ -121,6 +121,16 @@ try:
     confere(r.get("ok") is True and "layout" in r.get("resposta", "").lower(), f"a resposta com cartão não veio: {r}")
 
     confere(pede("versao").get("versao", 0) >= 2, "o serviço não disse a versão")
+    # a conta do servidor: o Painel guarda endereço, e-mail e senha pelo serviço
+    c0 = pede("conta")
+    confere(c0.get("ok") is True and c0.get("email") == "eu@lumna.local", f"a conta não veio: {c0}")
+    r = pede("conta", json.dumps({"email": "novo@lumna.local", "senha": "outra senha"}))
+    confere(r.get("ok") is True, f"a conta não guardou: {r}")
+    confere(pede("conta").get("email") == "novo@lumna.local", "o e-mail novo não ficou")
+    env_arq = os.path.join(cfg, "lumna", "emma", "backend.env")
+    confere("ADMIN_PASSWORD=\"outra senha\"" in open(env_arq).read() and oct(os.stat(env_arq).st_mode & 0o777) == "0o600", "o backend.env não ficou certo (conteúdo ou permissão)")
+    confere(pede("conta", json.dumps({"senha": "com\nquebra"})).get("ok") is False, "aceitou uma senha com quebra de linha")
+    confere(pede("rest", "GET", "/api/providers").get("ok") is True, "depois de trocar a conta, o serviço não entrou de novo")
     # o app completo: REST repassado e conversa numa sessão própria
     r = pede("rest", "GET", "/api/sessions/sess-9/messages")
     confere(r.get("ok") is True and r.get("status") == 200 and r.get("corpo") == [], f"o rest não voltou: {r}")

@@ -171,7 +171,8 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 **Emma**
 - 🔨 Voz (o microfone e a fala já funcionam no serviço `lumna-emma`; falta a tela de escolher voz e modelo);
 - ⏳ "Oi Emma" (ouvir sempre);
-- ⏳ Provedores e modelos;
+- ✅ Provedores e modelos: a conta do servidor da Emma (endereço, e-mail e senha), os provedores (Ollama, OpenAI, Gemini, Claude ou um endereço seu) com a chave de API e os modelos, testar, buscar modelos, e quem atende a Conversa e o Plano (o primeiro provedor já vira o padrão). Tudo pelo serviço `lumna-emma` (`servicos/emmar.h`);
+- ⏳ Prompt e personalidade (SFW/NSFW), Permissões das ações, Imagens, MCP;
 - ⏳ Privacidade;
 - ⏳ Automações.
 
