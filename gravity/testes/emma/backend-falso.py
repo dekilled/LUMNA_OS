@@ -42,8 +42,25 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         registrar(f"GET {self.path}")
+        if self.path == "/api/sessions/sess-a/messages":
+            return self.json([
+                {"id": "m1", "role": "user", "content": "como adiciono outro layout de teclado", "created_at": "2026-10-27T14:02:00+00:00", "tools": []},
+                {"id": "m2", "role": "assistant", "content": "Dá pra fazer no Painel, em Teclado e mouse.\n[acao: Abrir configuração]\n[sugestao: E o atalho para trocar?]", "created_at": "2026-10-27T14:02:05+00:00",
+                 "tools": [{"name": "lumna_painel_abrir", "args": {"secao": "teclado/teclado"}, "status": "ok", "summary": "Abri o Painel em Layouts de teclado."}]},
+                {"id": "m3", "role": "user", "content": "construir", "marker": "build", "created_at": "2026-10-27T14:03:00+00:00", "tools": []},
+            ])
         if self.path.startswith("/api/sessions/"):
             return self.json([])
+        if self.path.startswith("/api/sessions"):
+            if "project_id=p1" in self.path:
+                return self.json([{"id": "sess-p", "title": "Backup semanal"}])
+            return self.json([{"id": "sess-a", "title": "Layout de teclado"}, {"id": "sess-b", "title": "Cinema na TV"}])
+        if self.path == "/api/projects":
+            return self.json([{"id": "p1", "name": "LUMNA OS", "description": "O sistema operacional que estamos construindo"}, {"id": "p2", "name": "Casa", "description": ""}])
+        if self.path == "/api/projects/p1/memories":
+            return self.json([{"id": "k1", "kind": "preference", "content": "Gosta de respostas curtas e com humor."}, {"id": "k2", "kind": "decision", "content": "Build e Workspace foram para o LUMNA IDE."}])
+        if self.path == "/api/skills":
+            return self.json([{"id": "sk1", "name": "Resumir", "description": "Resume um texto em tópicos.", "icon": "Sparkles"}, {"id": "sk2", "name": "Revisar texto", "description": "Corrige e melhora a escrita."}])
         self.json({"ok": True})
 
     def do_PATCH(self):
