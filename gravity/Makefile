@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -83,8 +83,8 @@ apps: exemplos/apps.c libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
+barra: exemplos/barra.c servicos/emmac.c servicos/emmac.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/emmac.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a
@@ -127,15 +127,15 @@ entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
 # o controle do celular (servicos/json.c, mdns.c, ponteiro.c): um serviço da sessão, sem a biblioteca de interface
-controle: exemplos/controle.c servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
+controle: exemplos/controle.c servicos/emmac.c servicos/emmac.h servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
 		servicos/modos.c servicos/modos.h servicos/mpris.c servicos/mpris.h wlr-virtual-pointer-unstable-v1-client-protocol.h \
 		wlr-virtual-pointer-unstable-v1-protocol.c
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/controle.c servicos/midiac.c servicos/json.c servicos/mdns.c \
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/controle.c servicos/emmac.c servicos/midiac.c servicos/json.c servicos/mdns.c \
 		servicos/ponteiro.c servicos/modos.c servicos/mpris.c wlr-virtual-pointer-unstable-v1-protocol.c \
 		$(shell pkg-config --libs libsoup-3.0 gio-2.0 wayland-client) -lm
 
@@ -148,3 +148,8 @@ midia: exemplos/midia.c servicos/midiad.c servicos/midiad.h servicos/midiac.c se
 # a extensão do Firefox da Mídia, empacotada (sem assinatura: ver extensao-firefox/LEIAME.md para assinar)
 extensao:
 	cd extensao-firefox && rm -f lumna-midia.xpi && zip -q lumna-midia.xpi manifest.json fundo.js
+
+# a Emma em segundo plano (servicos/emma*.c): o serviço da sessão, sem a biblioteca de interface
+EMMA = exemplos/emma.c servicos/emmaa.c servicos/emmab.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
+emma: $(EMMA) servicos/emmaa.h servicos/emmab.h servicos/emmac.h servicos/emmav.h
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0 gio-unix-2.0) -o $@ $(EMMA) $(shell pkg-config --libs libsoup-3.0 gio-2.0 gio-unix-2.0) -lm -lpthread

@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "wtype $*" >> "$EMMA_TESTE_LOG"

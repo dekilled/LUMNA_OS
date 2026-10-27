@@ -338,6 +338,15 @@ void gv_app_vigiar(gv_app *app, int fd, void (*pronto)(gv_app *, int, void *), v
 	app->vigias[app->nvigias++] = (struct gv_vigia){ fd, pronto, dados };
 }
 
+void gv_app_desvigiar(gv_app *app, int fd) {
+	for (int i = 0; i < app->nvigias; i++) {
+		if (app->vigias[i].fd == fd) {
+			app->vigias[i] = app->vigias[--app->nvigias];
+			return;
+		}
+	}
+}
+
 /* ---- buffers ---- */
 
 static void buffer_libertado(void *dados, struct wl_buffer *wl) {

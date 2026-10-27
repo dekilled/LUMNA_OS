@@ -9,6 +9,9 @@
  * pedido pelo shell da Mídia (ou pelo `lumna-controle parear`); o celular recebe um token, guardado
  * nos dois lados em ~/.config/lumna/remotes.json (só o dono lê).
  *
+ * Voz: {"type":"voice","text":"..."} é o que o celular entendeu; vai para a Emma (lumna-emma), que age e responde
+ * depois com {"type":"voice_reply","ok":..,"text":"..."}. {"type":"voice","action":"listen"} liga o microfone do PC.
+ *
  * Dois caminhos, que não dependem de qual janela está na frente:
  *   Sistema   volume, modo, Home, desligar: falam com o Orbit e com o som, direto.
  *   Serviço   setas, OK, voltar, texto, play, seek e o mouse do celular: entram como teclado e
@@ -36,6 +39,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "emmac.h"
 #include "json.h"
 #include "mdns.h"
 #include "modos.h"
@@ -524,6 +528,65 @@ static void pareamento(struct cliente *c, const struct json *msg, GString *r) {
 	}
 }
 
+/* ---- a voz: o celular ouve e a Emma (lumna-emma) entende ---- */
+
+struct voz_espera {
+	SoupWebsocketConnection *ws;
+};
+
+static void voz_respondeu(const char *resposta, void *dados) {
+	struct voz_espera *v = dados;
+	if (soup_websocket_connection_get_state(v->ws) == SOUP_WEBSOCKET_STATE_OPEN) {
+		GString *r = g_string_new("{\"type\":\"voice_reply\"");
+		struct json *j = resposta ? json_ler(resposta) : NULL;
+		if (j) {
+			g_string_append_printf(r, ",\"ok\":%s,\"local\":%s,\"text\":", json_bool(json_chave(j, "ok"), false) ? "true" : "false",
+				json_bool(json_chave(j, "local"), false) ? "true" : "false");
+			json_escrever_texto(r, json_chave_texto(j, "resposta"));
+			if (*json_chave_texto(j, "erro")) {
+				g_string_append(r, ",\"error\":");
+				json_escrever_texto(r, json_chave_texto(j, "erro"));
+			}
+		} else {
+			g_string_append(r, ",\"ok\":false,\"error\":\"a Emma não está rodando\"");
+		}
+		g_string_append_c(r, '}');
+		enviar(v->ws, r->str);
+		g_string_free(r, TRUE);
+		json_liberar(j);
+	}
+	g_object_unref(v->ws);
+	g_free(v);
+}
+
+/* {"type":"voice","text":"abre a netflix"}: o que o celular transcreveu. {"type":"voice","action":"listen"}: liga (ou
+ * encerra) o microfone do computador. A resposta chega depois, como voice_reply */
+static void voz(SoupWebsocketConnection *ws, const struct json *msg, GString *r) {
+	const char *texto = json_chave_texto(msg, "text"), *acao = json_chave_texto(msg, "action");
+	struct voz_espera *v = g_new0(struct voz_espera, 1);
+	v->ws = g_object_ref(ws);
+	if (!strcmp(acao, "listen")) {
+		emmac_pedido_async("ouvir", voz_respondeu, v);
+	} else if (*texto && strlen(texto) <= 500) {
+		char *limpo = g_strdup(texto);
+		for (char *p = limpo; *p; p++) {
+			if (*p == '\n' || *p == '\r') {
+				*p = ' ';
+			}
+		}
+		char *pedido = g_strdup_printf("celular %s", limpo);
+		emmac_pedido_async(pedido, voz_respondeu, v);
+		g_free(pedido);
+		g_free(limpo);
+	} else {
+		g_object_unref(v->ws);
+		g_free(v);
+		erro(r, "texto vazio ou longo demais", false);
+		return;
+	}
+	ok(r);
+}
+
 static void ao_receber(SoupWebsocketConnection *ws, gint tipo_dado, GBytes *bytes, gpointer dados) {
 	struct cliente *c = dados;
 	if (tipo_dado != SOUP_WEBSOCKET_DATA_TEXT) {
@@ -557,6 +620,8 @@ static void ao_receber(SoupWebsocketConnection *ws, gint tipo_dado, GBytes *byte
 		}
 	} else if (!c->dispositivo[0]) {
 		erro(r, "pareie o celular primeiro", true);
+	} else if (!strcmp(tipo, "voice")) {
+		voz(ws, msg, r);
 	} else {
 		comando(msg, r);
 	}

@@ -169,8 +169,8 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - ⏳ Arquivos.
 
 **Emma**
-- ⏳ Voz;
-- ⏳ "Oi Emma";
+- 🔨 Voz (o microfone e a fala já funcionam no serviço `lumna-emma`; falta a tela de escolher voz e modelo);
+- ⏳ "Oi Emma" (ouvir sempre);
 - ⏳ Provedores e modelos;
 - ⏳ Privacidade;
 - ⏳ Automações.

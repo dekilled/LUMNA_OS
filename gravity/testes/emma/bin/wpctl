@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "wpctl $*" >> "$EMMA_TESTE_LOG"
+[ "$1" = "get-volume" ] && echo "Volume: 0.35"
+exit 0

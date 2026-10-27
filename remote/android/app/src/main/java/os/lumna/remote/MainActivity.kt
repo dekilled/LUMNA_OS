@@ -2,11 +2,14 @@ package os.lumna.remote
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.text.InputType
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -231,6 +234,10 @@ class MainActivity : Activity(), TvLink.Listener {
                     toast(reply.message)
                 }
             }
+            is Protocol.Reply.Voice -> {
+                status.text = "Emma: ${reply.text}"
+                if (!reply.ok) toast(reply.text)
+            }
             Protocol.Reply.Ok -> {}
         }
     }
@@ -246,6 +253,37 @@ class MainActivity : Activity(), TvLink.Listener {
     }
 
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+    // ---- voz ----
+
+    /** O reconhecimento de voz do próprio celular (a tela do sistema, sem pedir permissão de microfone). */
+    private fun listenOnPhone() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Fale com a Emma")
+        }
+        try {
+            startActivityForResult(intent, REQUEST_VOICE)
+        } catch (e: ActivityNotFoundException) {
+            toast("Este celular não tem reconhecimento de voz")
+        }
+    }
+
+    @Deprecated("Activity.onActivityResult: o reconhecedor de voz devolve a fala por aqui.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_VOICE || resultCode != RESULT_OK) return
+        val said = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+        if (!said.isNullOrEmpty()) {
+            status.text = "Você: $said"
+            send(Protocol.voice(said))
+        }
+    }
+
+    private companion object {
+        const val REQUEST_VOICE = 4701
+    }
 
     // ---- controle ----
 
@@ -272,6 +310,12 @@ class MainActivity : Activity(), TvLink.Listener {
         val pad = DPadView(this) { action -> send(Protocol.pad(action)) }
         content.addView(pad, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { setMargins(dp(24), dp(16), dp(24), dp(12)) })
 
+        content.addView(
+            row(
+                button("Falar com a Emma", primary = true) { listenOnPhone() },
+                button("Microfone da TV") { send(Protocol.voiceListen()) },
+            ),
+        )
         content.addView(
             row(
                 button("Voltar") { send(Protocol.pad("back")) },

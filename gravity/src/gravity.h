@@ -147,6 +147,8 @@ void gv_app_redesenhar(gv_app *app);
 void gv_acordar_em(double segundos);
 /* Um descritor a vigiar no ciclo da app (um socket, um pipe); a função corre quando há o que ler. */
 void gv_app_vigiar(gv_app *app, int fd, void (*pronto)(gv_app *app, int fd, void *dados), void *dados);
+/* Deixa de vigiar um descritor (antes de fechá-lo: um socket que caiu acordaria o ciclo sem parar). */
+void gv_app_desvigiar(gv_app *app, int fd);
 float gv_app_largura(gv_app *app);
 float gv_app_altura(gv_app *app);
 /* Segundos desde o arranque. */

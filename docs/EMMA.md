@@ -157,3 +157,27 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 5. **"Oi Emma"** no LUMNA (long poll do `/wake/wait`) e voz no painel.
 6. ✅ **Backend da Emma no ISO** como serviço do usuário (`systemctl --user`), com o primeiro boot
    ("conta da Emma", provedor de LLM).
+
+
+## 6. A Emma no desktop novo (Orbit + Gravity): `lumna-emma`
+
+No desktop novo (C, sem Tauri) a Emma é um **serviço da sessão**, `lumna-emma` (`gravity/exemplos/emma.c`), que fica
+ligado o tempo todo. Ele faz a ponte entre as pessoas e o backend da porta 8001 (o mesmo protocolo do shell antigo:
+login, sessões, SSE, `tool_client`, `tool-result`, `/api/stt`, `/api/tts`; o `~/.config/lumna/emma.json` é o mesmo,
+então conta, conversas e permissões valem nos dois):
+
+- **Quem pede** (socket `$XDG_RUNTIME_DIR/lumna-emma.sock`, ver `servicos/emmac.h`): o ícone da topbar (estado e
+  microfone), o controle do celular, `lumna-emma <pedido>` na linha de comando e, nos próximos passos, o chat lateral e
+  o painel completo.
+- **Comandos curtos sem a Emma** (`servicos/emmaa.c`, `emmaa_intencao`): "pausa", "continua", "próxima", "avança 30
+  segundos", "volume 40", "aumenta o volume", "mudo", "abre a Netflix", "início", "modo mídia", "troca as telas"...
+  Rápidos e sem internet. O resto vai para a Emma.
+- **Ações da Emma** (mesmo esquema das permissões antigas: `auto`, `ask`, `off`): Mídia (`midia.estado/abrir/fechar/inicio/
+  seletor/controle/navegar/digitar`), `audio.volume`, `mode.atual/trocar/trocar_telas`, `apps.listar/abrir`, `notificar`.
+  O catálogo antigo (arquivos, Wi-Fi, loja, serviços...) entra nas próximas levas.
+- **Voz**: microfone do sistema (`parec`/`arecord`, 16 kHz) com detecção do fim da fala, `/api/stt`, e a resposta falada por
+  `/api/tts` frase a frase. Atalho **Super+A** (`emma = ...` no `orbit.ini`) liga o microfone; apertar de novo encerra a fala.
+- **Celular**: o app LUMNA Controle tem "Falar com a Emma" (reconhecimento de voz do próprio Android) e "Microfone da TV".
+  O `lumna-controle` recebe `{"type":"voice","text":"..."}`, passa para a Emma e devolve `{"type":"voice_reply",...}`.
+
+Testes: `gravity/testes/emma.sh` (backend, Mídia e comandos de mentira).

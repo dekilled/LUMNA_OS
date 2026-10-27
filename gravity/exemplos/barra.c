@@ -20,6 +20,8 @@
 
 #include "bandeja.h"
 #include "bluetooth.h"
+#include "emmac.h"
+#include "json.h"
 #include "gravity.h"
 #include "hora.h"
 #include "modos.h"
@@ -54,6 +56,7 @@ static void menu_alternar(Clay_ElementId id) {
 	gv_popup_fechar(CLAY_ID("menu-bt"));
 	gv_popup_fechar(CLAY_ID("menu-cal"));
 	gv_popup_fechar(CLAY_ID("menu-tray"));
+	gv_popup_fechar(CLAY_ID("menu-emma"));
 	if (!estava) {
 		gv_popup_abrir(id);
 	}
@@ -748,6 +751,187 @@ static void executar(const char *programa, const char *arg, const char *arg2) {
 	}
 }
 
+/* ---- a Emma (lumna-emma: o serviço que fica o tempo todo) ---- */
+
+static int emma_fd = -1;
+static char emma_estado[16] = "offline";   /* offline | ocioso | ouvindo | transcrevendo | pensando | falando */
+static double emma_nivel;                  /* o volume do microfone, 0 a 1 */
+static bool emma_servidor;                 /* o backend da Emma (a conversa) responde; sem ele só valem os comandos curtos */
+static char emma_ouvido[256], emma_resposta[1024], emma_erro[256];
+static char emma_confirma_id[24], emma_confirma_nome[96], emma_confirma_desc[256];
+static char emma_texto[256];
+static double emma_tentar_em;
+static gv_app *emma_app;
+
+static void emma_pedir(const char *pedido) {
+	char r[512];
+	emmac_pedido(pedido, r, sizeof(r));
+}
+
+static void emma_evento(const struct json *j) {
+	const char *ev = json_chave_texto(j, "evento");
+	if (!strcmp(ev, "estado")) {
+		g_strlcpy(emma_estado, json_chave_texto(j, "estado"), sizeof(emma_estado));
+		emma_servidor = json_bool(json_chave(j, "online"), false);
+		if (strcmp(emma_estado, "ouvindo")) {
+			emma_nivel = 0;
+		}
+	} else if (!strcmp(ev, "nivel")) {
+		emma_nivel = json_numero(json_chave(j, "nivel"), 0);
+	} else if (!strcmp(ev, "ouvido")) {
+		g_strlcpy(emma_ouvido, json_chave_texto(j, "texto"), sizeof(emma_ouvido));
+		emma_resposta[0] = emma_erro[0] = '\0';
+	} else if (!strcmp(ev, "delta")) {
+		g_strlcat(emma_resposta, json_chave_texto(j, "texto"), sizeof(emma_resposta));
+	} else if (!strcmp(ev, "resposta")) {
+		const char *t = json_chave_texto(j, "texto");
+		if (*t) {
+			g_strlcpy(emma_resposta, t, sizeof(emma_resposta));
+		}
+	} else if (!strcmp(ev, "erro")) {
+		g_strlcpy(emma_erro, json_chave_texto(j, "mensagem"), sizeof(emma_erro));
+	} else if (!strcmp(ev, "confirmar")) {
+		g_strlcpy(emma_confirma_id, json_chave_texto(j, "id"), sizeof(emma_confirma_id));
+		g_strlcpy(emma_confirma_nome, json_chave_texto(j, "nome"), sizeof(emma_confirma_nome));
+		g_strlcpy(emma_confirma_desc, json_chave_texto(j, "descricao"), sizeof(emma_confirma_desc));
+	} else if (!strcmp(ev, "ferramenta") && emma_confirma_id[0]) {
+		emma_confirma_id[0] = '\0';
+	}
+}
+
+static void emma_caiu(void) {
+	if (emma_fd >= 0) {
+		gv_app_desvigiar(emma_app, emma_fd);
+		close(emma_fd);
+	}
+	emma_fd = -1;
+	g_strlcpy(emma_estado, "offline", sizeof(emma_estado));
+	emma_nivel = 0;
+	emma_tentar_em = gv_agora() + 4;
+}
+
+static void emma_mudou(gv_app *app, int fd, void *dados) {
+	bool caiu = false;
+	char *linha;
+	while ((linha = emmac_assinar_ler(fd, &caiu))) {
+		struct json *j = json_ler(linha);
+		if (j) {
+			emma_evento(j);
+			json_liberar(j);
+		}
+		g_free(linha);
+	}
+	if (caiu) {
+		emma_caiu();
+	}
+	gv_app_redesenhar(app);
+}
+
+static void emma_ligar(gv_app *app) {
+	emma_app = app;
+	emma_fd = emmac_assinar();
+	if (emma_fd >= 0) {
+		gv_app_vigiar(app, emma_fd, emma_mudou, NULL);
+	} else {
+		emma_tentar_em = gv_agora() + 4;
+	}
+}
+
+static const char *icone_emma(void) {
+	return !strcmp(emma_estado, "ouvindo") ? "mic" : !strcmp(emma_estado, "offline") ? "mic-off" : !strcmp(emma_estado, "falando") ? "waves" : "sparkle";
+}
+
+static Clay_Color cor_emma(void) {
+	if (!strcmp(emma_estado, "ouvindo")) {
+		return gv_t.perigo;
+	}
+	if (!strcmp(emma_estado, "pensando") || !strcmp(emma_estado, "transcrevendo")) {
+		return gv_t.acento;
+	}
+	if (!strcmp(emma_estado, "falando")) {
+		return gv_t.sucesso;
+	}
+	return !strcmp(emma_estado, "offline") || (!emma_servidor && !strcmp(emma_estado, "ocioso")) ? gv_t.texto_suave : gv_t.icone;
+}
+
+static const char *emma_frase_estado(void) {
+	return !strcmp(emma_estado, "ouvindo") ? "Ouvindo… fale agora" : !strcmp(emma_estado, "transcrevendo") ? "Entendendo o que você disse…" :
+		!strcmp(emma_estado, "pensando") ? "Pensando…" : !strcmp(emma_estado, "falando") ? "Falando" : !strcmp(emma_estado, "offline") ? "O serviço da Emma não está rodando" :
+		emma_servidor ? "Pronta" : "Só comandos curtos: o servidor da Emma não responde";
+}
+
+static void menu_emma(void) {
+	GV_POPUP(CLAY_ID("menu-emma"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
+		topo_menu(5, "sparkle", "Emma", NULL);
+		bool parada = !strcmp(emma_estado, "offline");
+		CLAY(CLAY_ID("emma-estado"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 10, 6 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY(CLAY_ID("emma-ponto"), { .layout = { .sizing = { CLAY_SIZING_FIXED(10), CLAY_SIZING_FIXED(10) } }, .backgroundColor = cor_emma(), .cornerRadius = CLAY_CORNER_RADIUS(5) }) {}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(gv_str(emma_frase_estado()), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+			}
+		}
+		if (!strcmp(emma_estado, "ouvindo")) {
+			CLAY(CLAY_ID("emma-nivel"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(6) }, .padding = { 14, 14, 0, 0 } } }) {
+				CLAY(CLAY_ID("emma-nivel-f"), { .layout = { .sizing = { CLAY_SIZING_PERCENT((float)MAX(emma_nivel, 0.04)), CLAY_SIZING_GROW(0) } },
+					.backgroundColor = gv_t.perigo, .cornerRadius = CLAY_CORNER_RADIUS(3) }) {}
+			}
+		}
+		if (emma_confirma_id[0]) {
+			CLAY(CLAY_ID("emma-lic"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 8, 8 }, .childGap = 8 },
+				.backgroundColor = gv_alfa(gv_t.aviso, 0.12f) }) {
+				gv_texto(gv_fmt("A Emma quer: %s", emma_confirma_nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+				gv_texto(gv_str(emma_confirma_desc), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				CLAY(CLAY_ID("emma-lic-b"), { .layout = { .childGap = 10 } }) {
+					if (gv_botao(CLAY_ID("emma-nao"), NULL, "Agora não", GV_BOTAO_ELEVADO)) {
+						char p[64];
+						snprintf(p, sizeof(p), "confirmar %s nao", emma_confirma_id);
+						emma_pedir(p);
+						emma_confirma_id[0] = '\0';
+					}
+					if (gv_botao(CLAY_ID("emma-sim"), "check", "Pode", GV_BOTAO_CHEIO)) {
+						char p[64];
+						snprintf(p, sizeof(p), "confirmar %s sim", emma_confirma_id);
+						emma_pedir(p);
+						emma_confirma_id[0] = '\0';
+					}
+				}
+			}
+		}
+		if (emma_ouvido[0]) {
+			CLAY(CLAY_ID("emma-voce"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 6, 6 }, .childGap = 3 } }) {
+				gv_texto(CLAY_STRING("Você"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+				gv_texto(gv_str(emma_ouvido), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+			}
+		}
+		if (emma_resposta[0] || emma_erro[0]) {
+			CLAY(CLAY_ID("emma-ela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 6, 8 }, .childGap = 3 } }) {
+				gv_texto(CLAY_STRING("Emma"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+				gv_texto(gv_str(emma_erro[0] ? emma_erro : emma_resposta), gv_t.tamanho_corpo, emma_erro[0] ? gv_t.perigo : gv_t.texto, GV_PESO_NORMAL);
+			}
+		}
+		gv_separador(false, 0);
+		CLAY(CLAY_ID("emma-escreve"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 8, 8 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				if ((gv_campo(CLAY_ID("emma-campo"), emma_texto, sizeof(emma_texto), "Peça algo à Emma", GV_CAMPO_TEXTO) & GV_CAMPO_ENTER) && emma_texto[0] && !parada) {
+					char *p = g_strdup_printf("enviar %s", emma_texto);
+					emma_pedir(p);
+					g_free(p);
+					emma_texto[0] = '\0';
+				}
+			}
+			bool ouvindo = !strcmp(emma_estado, "ouvindo");
+			if (gv_botao_ext(CLAY_ID("emma-mic"), &(gv_botao_opcoes){ .icone = "mic", .estilo = ouvindo ? GV_BOTAO_PERIGO : GV_BOTAO_CHEIO, .desativado = parada, .altura = 40 })) {
+				emma_pedir("ouvir");
+			}
+		}
+		if (!strcmp(emma_estado, "falando") || !strcmp(emma_estado, "pensando")) {
+			if (gv_menu_item(CLAY_ID("emma-calar"), "close", "Parar", NULL)) {
+				emma_pedir("calar");
+			}
+		}
+	}
+}
+
 static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 	bool tocado = gv_tocado(id);
 	CLAY(id, {
@@ -762,7 +946,6 @@ static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 }
 
 static void desenhar(gv_app *app, void *dados) {
-	(void)app;
 	(void)dados;
 	rede_estado_copiar(&rede);
 	bt_estado_copiar(&bt);
@@ -836,6 +1019,27 @@ static void desenhar(gv_app *app, void *dados) {
 		CLAY(CLAY_ID("dir"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6,
 			.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
 			bandeja_na_barra();
+			/* a Emma: o estado dela no ícone; tocar abre o menu dela (o microfone fica ali) */
+			if (emma_fd < 0 && gv_agora() >= emma_tentar_em) {
+				emma_ligar(app);
+			}
+			if (emma_fd < 0) {
+				gv_acordar_em(emma_tentar_em - gv_agora() + 0.05);
+			}
+			{
+				Clay_ElementId id = CLAY_ID("emma");
+				bool tocado = gv_tocado(id);
+				bool ativa = strcmp(emma_estado, "ocioso") && strcmp(emma_estado, "offline");
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(32) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = gv_popup_aberto(CLAY_ID("menu-emma")) ? gv_t.selecionado : ativa ? gv_alfa(cor_emma(), 0.16f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+					.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+					tocado |= gv_focavel(id, gv_t.raio_pequeno);
+					gv_icone(icone_emma(), 20, cor_emma());
+				}
+				if (tocado) {
+					menu_alternar(CLAY_ID("menu-emma"));
+				}
+			}
 			if (icone_barra(CLAY_ID("wifi"), icone_rede(), gv_popup_aberto(CLAY_ID("menu-wifi")))) {
 				menu_alternar(CLAY_ID("menu-wifi"));
 				rede_varrer("");
@@ -880,6 +1084,7 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_som();
 	menu_bluetooth();
 	menu_tray();
+	menu_emma();
 	struct tm hoje;
 	time_t agora2 = time(NULL);
 	localtime_r(&agora2, &hoje);

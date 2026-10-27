@@ -34,11 +34,19 @@ object Protocol {
 
     fun home(): String = JSONObject().put("type", "home").toString()
 
+    /** O que o celular entendeu da fala: a Emma da TV age (abre a Netflix, pausa...) e responde com [Reply.Voice]. */
+    fun voice(text: String): String = JSONObject().put("type", "voice").put("text", text).toString()
+
+    /** Liga (ou encerra) o microfone da TV: a fala é transcrita lá. */
+    fun voiceListen(): String = JSONObject().put("type", "voice").put("action", "listen").toString()
+
     /** Resposta da TV, já interpretada. */
     sealed class Reply {
         data class Paired(val token: String, val tvName: String) : Reply()
         data class Ready(val tvName: String) : Reply()
         data class Volume(val value: Int?, val muted: Boolean) : Reply()
+        /** A resposta da Emma a uma fala ([ok] falso: ela não conseguiu; [text] diz por quê ou o que fez). */
+        data class Voice(val text: String, val ok: Boolean) : Reply()
         data class Error(val message: String, val unpaired: Boolean) : Reply()
         object Ok : Reply()
     }
@@ -49,6 +57,7 @@ object Protocol {
             "paired" -> Reply.Paired(json.getString("token"), json.optString("name", "LUMNA"))
             "ready" -> Reply.Ready(json.optString("name", "LUMNA"))
             "volume" -> Reply.Volume(if (json.isNull("value")) null else json.optInt("value"), json.optBoolean("muted"))
+            "voice_reply" -> Reply.Voice(json.optString("text", json.optString("error")), json.optBoolean("ok"))
             "error" -> Reply.Error(json.optString("message", "erro"), json.optBoolean("unpaired"))
             else -> Reply.Ok
         }

@@ -18,6 +18,16 @@ class ProtocolTest {
     }
 
     @Test
+    fun voiceGoesToTheEmma() {
+        val said = JSONObject(Protocol.voice("abre a \"Netflix\""))
+        assertEquals("voice", said.getString("type"))
+        assertEquals("abre a \"Netflix\"", said.getString("text"))
+        assertEquals("listen", JSONObject(Protocol.voiceListen()).getString("action"))
+        assertEquals(Protocol.Reply.Voice("Abrindo Netflix.", true), Protocol.parse("""{"type":"voice_reply","ok":true,"local":true,"text":"Abrindo Netflix."}"""))
+        assertEquals(Protocol.Reply.Voice("a Emma não está rodando", false), Protocol.parse("""{"type":"voice_reply","ok":false,"error":"a Emma não está rodando"}"""))
+    }
+
+    @Test
     fun textIsEscaped() {
         val value = "olá \"TV\"\n"
         assertEquals(value, JSONObject(Protocol.text(value)).getString("value"))
