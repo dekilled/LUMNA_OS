@@ -234,6 +234,15 @@ static char *token_api(void) {
 	return env && *env ? g_strdup(env) : emmab_config_texto("token");
 }
 
+bool emmab_email_ler(char *email, size_t tam) {
+	char *e = NULL, *senha = NULL;
+	conta_local(&e, &senha);
+	g_strlcpy(email, e ? e : "", tam);
+	g_free(e);
+	g_free(senha);
+	return email[0] != '\0';
+}
+
 bool emmab_token_ler(char *mascara, size_t tam) {
 	char *t = token_api();
 	mascara[0] = '\0';
@@ -249,7 +258,15 @@ bool emmab_token_ler(char *mascara, size_t tam) {
 	return mascara[0] != '\0';
 }
 
-bool emmab_conta_gravar(const char *url, const char *token, char **erro) {
+/* ADMIN_EMAIL=... ADMIN_PASSWORD=... entre aspas que o leitor de conta_local entende (sem o mesmo tipo de aspas dentro) */
+static char *valor_env(const char *v) {
+	if (!strchr(v, '"')) {
+		return g_strdup_printf("\"%s\"", v);
+	}
+	return !strchr(v, '\'') ? g_strdup_printf("'%s'", v) : NULL;
+}
+
+bool emmab_conta_gravar(const char *url, const char *token, const char *email, const char *senha, char **erro) {
 	if (token && *token && (!g_str_has_prefix(token, "lumna_") || strpbrk(token, " \t\r\n\"\\"))) {
 		if (erro) {
 			*erro = g_strdup("Isso não parece um token da Emma: ele começa com lumna_ (gere em Configurações > Conta, no harness).");
@@ -273,6 +290,33 @@ bool emmab_conta_gravar(const char *url, const char *token, char **erro) {
 			}
 			return false;
 		}
+	}
+	if ((email && *email) || (senha && *senha)) {
+		char *e0 = NULL, *s0 = NULL;
+		conta_local(&e0, &s0);
+		char *e1 = valor_env(email && *email ? email : e0 ? e0 : ""), *s1 = valor_env(senha && *senha ? senha : s0 ? s0 : "");
+		bool ok = false;
+		if (e1 && s1 && !strpbrk(email ? email : "", "\n\r") && !strpbrk(senha ? senha : "", "\n\r")) {
+			char *dir = g_build_filename(g_get_user_config_dir(), "lumna", "emma", NULL), *p = g_build_filename(dir, "backend.env", NULL);
+			char *conteudo = g_strdup_printf("ADMIN_EMAIL=%s\nADMIN_PASSWORD=%s\n", e1, s1), *tmp = g_strconcat(p, ".tmp", NULL);
+			g_mkdir_with_parents(dir, 0700);
+			ok = g_file_set_contents(tmp, conteudo, -1, NULL) && g_chmod(tmp, 0600) == 0 && g_rename(tmp, p) == 0;
+			g_free(tmp);
+			g_free(conteudo);
+			g_free(p);
+			g_free(dir);
+		}
+		g_free(e1);
+		g_free(s1);
+		g_free(e0);
+		g_free(s0);
+		if (!ok) {
+			if (erro) {
+				*erro = g_strdup("Não consegui guardar o e-mail e a senha (sem quebra de linha nem os dois tipos de aspas).");
+			}
+			return false;
+		}
+		emmab_config_gravar("refresh_token", NULL); /* a sessão de antes era de outra conta */
 	}
 	emmab_reentrar();
 	return true;
