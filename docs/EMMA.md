@@ -132,9 +132,10 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 - Na primeira vez, `/usr/lib/lumna/lumna-emma` cria `~/.config/lumna/emma/backend.env` (modo 600)
   com segredos aleatórios e uma conta local (`$USER@lumna.local` + senha aleatória). O painel lê
   esse arquivo e entra sozinho; dados em `~/.local/share/lumna-emma`.
-- Com um **token de API** (criado no harness em Configurações > Conta > Tokens de API) o serviço entra direto, sem login: o endereço e o
-  token se guardam em Painel > Emma > Provedores e modelos (`~/.config/lumna/emma.json`, modo 600, ou `$LUMNA_EMMA_TOKEN`). A conta local
-  acima continua valendo enquanto não houver token. E-mail e senha ficam só no harness.
+- **Sem login:** o backend, ao ligar, cria sozinho uma chave de API para o LUMNA OS e a deixa em `~/.config/lumna/emma/chave` (modo 600; `LUMNA_KEY_FILE`
+  muda o lugar, `off` desliga). O serviço lê esse arquivo e entra com ela: ninguém digita e-mail, senha nem token. Ela vale só para quem lê o arquivo (o
+  usuário), então outros programas e páginas da web não usam a API. Para um servidor em **outro computador**, Painel > Emma > Provedores > Conexão pede o endereço
+  e um token criado no harness (Configurações > Conta > Tokens de API). A conta local acima só entra se não houver chave.
 - O backend escuta só em `127.0.0.1:8001`. Endpoints locais (Ollama no próprio PC) são liberados
   (`ALLOW_PRIVATE_URLS=true`).
 - O código vem do NewHarnessV2 (privado): `EMMA_SRC` no build local, `EMMA_REPO_TOKEN` no CI. Sem

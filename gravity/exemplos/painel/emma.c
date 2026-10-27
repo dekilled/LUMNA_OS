@@ -5,7 +5,8 @@
  *
  * A lista é SEMPRE desta tela: fica guardada em ~/.config/lumna/emma/provedores.json (só do usuário) e aparece com ou sem conexão. O serviço
  * lumna-emma (servicos/emmar.h) manda para o servidor da Emma quando consegue entrar, e traz de lá o que já existir; a chave, depois de enviada,
- * fica só no servidor (aqui sobra a máscara ••••1234). A conexão (endereço e token, ou e-mail e senha) fica recolhida: só aparece se falhar.
+ * fica só no servidor (aqui sobra a máscara ••••1234). Neste computador o serviço entra sozinho, com a chave que o servidor deixa em
+ * ~/.config/lumna/emma/chave; o endereço e o token só aparecem recolhidos, para um servidor em outro computador.
  */
 #include "painel.h"
 
@@ -81,7 +82,7 @@ static bool lido, ocupado, sincronizou, servico_ok = true, conectado;
 static char aviso[300];
 static bool aviso_erro;
 static char con_msg[240];
-static char srv_url[200], srv_token_mascara[64], srv_token[200], srv_email[200], srv_senha[200];
+static char srv_url[200], srv_token_mascara[64], srv_token[200];
 static bool conexao_aberta;
 static guint proximo_lid = 1;
 
@@ -446,7 +447,6 @@ static void pronto(void *d) {
 		conectado = j->r.ok;
 		g_strlcpy(srv_url, j->url, sizeof(srv_url));
 		g_strlcpy(srv_token_mascara, j->token, sizeof(srv_token_mascara));
-		g_strlcpy(srv_email, j->email, sizeof(srv_email));
 		g_strlcpy(con_msg, j->r.msg, sizeof(con_msg));
 		if (conectado) {
 			/* o que foi enviado */
@@ -548,7 +548,7 @@ static void pronto(void *d) {
 				g_strlcpy(aviso, "Conectado ao servidor da Emma.", sizeof(aviso));
 				aviso_erro = false;
 				conexao_aberta = false;
-				srv_token[0] = srv_senha[0] = '\0';
+				srv_token[0] = '\0';
 			}
 		} else if (j->acao == A_CONTA) {
 			g_snprintf(aviso, sizeof(aviso), "Não consegui entrar no servidor da Emma. %s", j->r.msg);
@@ -673,7 +673,7 @@ static void aviso_topo(void) {
 	}
 }
 
-/* a conexão com o servidor da Emma: o endereço e o token de API (harness > Configurações > Conta), ou o e-mail e a senha do harness */
+/* a conexão com um servidor da Emma que NÃO é o deste computador: o endereço e um token de API (harness > Configurações > Conta). No mesmo computador não se digita nada */
 static void bloco_conexao(void) {
 	pn_linha_comecar(CLAY_ID("emp-srv-u"), "link", "Endereço do servidor", "Onde o servidor da Emma está (o padrão é este computador).");
 	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
@@ -681,20 +681,9 @@ static void bloco_conexao(void) {
 	}
 	pn_linha_acabar();
 	pn_linha_comecar(CLAY_ID("emp-srv-t"), "lock", "Token de API",
-		srv_token_mascara[0] ? gv_fmt("Guardado (%s). Deixe vazio para manter.", srv_token_mascara).chars : "Crie no harness: Configurações > Conta > Tokens de API.");
+		srv_token_mascara[0] ? gv_fmt("Guardado (%s). Deixe vazio para manter.", srv_token_mascara).chars : "Só para um servidor em outro computador: crie no harness (Configurações > Conta > Tokens de API).");
 	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
 		gv_campo(CLAY_ID("emp-srv-t-c"), srv_token, sizeof(srv_token), "lumna_…", GV_CAMPO_SENHA);
-	}
-	pn_linha_acabar();
-	gv_texto(CLAY_STRING("Ou entre com a conta do harness:"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
-	pn_linha_comecar(CLAY_ID("emp-srv-e"), "user", "E-mail", "O mesmo que você usa para entrar no harness.");
-	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-		gv_campo(CLAY_ID("emp-srv-e-c"), srv_email, sizeof(srv_email), "voce@exemplo.com", GV_CAMPO_EMAIL);
-	}
-	pn_linha_acabar();
-	pn_linha_comecar(CLAY_ID("emp-srv-s"), "lock", "Senha", "Fica guardada só no seu usuário (~/.config/lumna/emma).");
-	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-		gv_campo(CLAY_ID("emp-srv-s-c"), srv_senha, sizeof(srv_senha), "Deixe vazio para manter a de agora", GV_CAMPO_SENHA);
 	}
 	pn_linha_acabar();
 	CLAY(CLAY_ID("emp-srv-bt"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 6, 0 }, .childGap = 10 } }) {
@@ -703,10 +692,6 @@ static void bloco_conexao(void) {
 			json_escrever_texto(c, srv_url);
 			g_string_append(c, ",\"token\":");
 			json_escrever_texto(c, srv_token);
-			g_string_append(c, ",\"email\":");
-			json_escrever_texto(c, srv_email);
-			g_string_append(c, ",\"senha\":");
-			json_escrever_texto(c, srv_senha);
 			g_string_append_c(c, '}');
 			iniciar_sync(A_CONTA, c->str);
 			g_string_free(c, TRUE);

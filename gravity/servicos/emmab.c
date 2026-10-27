@@ -231,7 +231,25 @@ static bool conta_local(char **email, char **senha) {
 /* o token de API do servidor da Emma (criado no harness, em Configurações > Conta): $LUMNA_EMMA_TOKEN, ou o guardado em emma.json */
 static char *token_api(void) {
 	const char *env = g_getenv("LUMNA_EMMA_TOKEN");
-	return env && *env ? g_strdup(env) : emmab_config_texto("token");
+	if (env && *env) {
+		return g_strdup(env);
+	}
+	char *t = emmab_config_texto("token");
+	if (t) {
+		return t;
+	}
+	/* a chave que o próprio servidor deixa neste computador (~/.config/lumna/emma/chave): entra sem ninguém digitar nada */
+	char *p = g_build_filename(g_get_user_config_dir(), "lumna", "emma", "chave", NULL), *txt = NULL;
+	if (g_file_get_contents(p, &txt, NULL, NULL)) {
+		g_strstrip(txt);
+		if (g_str_has_prefix(txt, "lumna_") && !strpbrk(txt, " \t\r\n")) {
+			t = txt;
+			txt = NULL;
+		}
+	}
+	g_free(txt);
+	g_free(p);
+	return t;
 }
 
 bool emmab_email_ler(char *email, size_t tam) {
