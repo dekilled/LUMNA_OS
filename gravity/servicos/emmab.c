@@ -192,6 +192,14 @@ bool emmab_no_ar(void) {
 	return st > 0 && st < 500;
 }
 
+bool emmab_pronto(void) {
+	char *r = NULL, *e = NULL;
+	int st = emmab_chamar("GET", "/api/auth/me", NULL, &r, &e);
+	g_free(r);
+	g_free(e);
+	return st == 200;
+}
+
 /* ---- entrar ---- */
 
 static bool conta_local(char **email, char **senha) {

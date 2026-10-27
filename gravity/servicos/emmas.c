@@ -169,6 +169,29 @@ bool emmas_existe(const char *sid) {
 	return ok;
 }
 
+/* uma conversa que veio do servidor e agora segue aqui (a reserva): cria a cópia local com o mesmo id */
+bool emmas_garantir(const char *sid) {
+	if (emmas_existe(sid)) {
+		return true;
+	}
+	char *caminho = arq_sessao(sid);
+	if (!caminho) {
+		return false;
+	}
+	g_free(caminho);
+	g_mutex_lock(&trinco);
+	struct sessao s = { 0 };
+	s.id = g_strdup(sid);
+	s.titulo = g_strdup("Conversa (sem o servidor)");
+	s.criada = agora_iso();
+	s.atualizada = g_strdup(s.criada);
+	s.msgs = g_string_new(NULL);
+	bool ok = sessao_gravar(&s);
+	sessao_liberar(&s);
+	g_mutex_unlock(&trinco);
+	return ok;
+}
+
 bool emmas_anexar(const char *sid, const char *role, const char *texto, const char *tools_json) {
 	g_mutex_lock(&trinco);
 	struct sessao s;

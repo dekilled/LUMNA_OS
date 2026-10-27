@@ -132,10 +132,11 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 - Na primeira vez, `/usr/lib/lumna/lumna-emma` cria `~/.config/lumna/emma/backend.env` (modo 600)
   com segredos aleatórios e uma conta local (`$USER@lumna.local` + senha aleatória). O painel lê
   esse arquivo e entra sozinho; dados em `~/.local/share/lumna-emma`.
-- **Direto com o provedor de IA:** a Emma conversa com o provedor na nuvem (Ollama, OpenAI, Gemini, Claude ou qualquer API compatível com OpenAI) usando a
-  URL, a chave e o modelo de Painel > Emma > Provedores e Roteamento (`~/.config/lumna/emma/provedores.json`, modo 600). Não há servidor no meio, login nem
-  token. As conversas, rotinas e memórias ficam em arquivos em `~/.local/share/lumna/emma` (serviço `lumna-emma`, `servicos/emmal.c` e `emmas.c`). O backend
-  Python (NewHarnessV2) só continua sendo usado para a voz (Fish Audio) por enquanto.
+- **O servidor da Emma é o motor** (skills, memória, RAG e as conversas dele). O LUMNA entra nele sozinho, sem tela de login: com a **chave local** que o próprio
+  backend cria ao ligar em `~/.config/lumna/emma/chave` (modo 600; `LUMNA_KEY_FILE` muda o lugar, `off` desliga), ou com a conta local abaixo.
+- **Reserva sem servidor:** se o servidor estiver desligado, a Emma conversa **direto com o provedor de IA** (Ollama, OpenAI, Gemini, Claude ou qualquer API compatível com
+  OpenAI) com a URL, a chave e o modelo de Painel > Emma > Provedores e Roteamento (`~/.config/lumna/emma/provedores.json`, modo 600). Sem skills, memória nem RAG; as conversas
+  da reserva ficam em `~/.local/share/lumna/emma` (`servicos/emmal.c` e `emmas.c`). Quando o servidor volta, ele volta a ser o motor.
 - O backend escuta só em `127.0.0.1:8001`. Endpoints locais (Ollama no próprio PC) são liberados
   (`ALLOW_PRIVATE_URLS=true`).
 - O código vem do NewHarnessV2 (privado): `EMMA_SRC` no build local, `EMMA_REPO_TOKEN` no CI. Sem

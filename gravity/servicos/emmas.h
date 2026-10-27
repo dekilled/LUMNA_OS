@@ -21,5 +21,6 @@ char *emmas_historico(const char *sid, int max);
 /* uma fala nova (role "user" ou "assistant"; tools: um array JSON do que a Emma fez, ou NULL) */
 bool emmas_anexar(const char *sid, const char *role, const char *texto, const char *tools_json);
 bool emmas_existe(const char *sid);
+bool emmas_garantir(const char *sid); /* cria a cópia local de uma conversa do servidor, com o mesmo id */
 
 #endif

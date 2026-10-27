@@ -409,7 +409,7 @@ bool emmal_conversar(const char *sid, const char *texto, bool voz, const char *l
 	if (!emmal_provedor("chat", &prov, erro)) {
 		return false;
 	}
-	if (!emmas_existe(sid)) {
+	if (!emmas_garantir(sid)) {
 		*erro = g_strdup("Essa conversa não existe mais.");
 		return false;
 	}

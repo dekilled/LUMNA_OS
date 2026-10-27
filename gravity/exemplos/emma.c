@@ -35,6 +35,7 @@
 
 static GMainLoop *loop;
 static bool online;
+static bool servidor_ok;   /* o servidor da Emma (harness) responde e deixa o LUMNA entrar: ele é o motor (skills, memória, RAG); sem ele, a conversa vai direto ao provedor */
 static bool ouvindo, transcrevendo, pensando;
 static char estado_atual[16] = "ocioso";
 
@@ -332,6 +333,11 @@ static void ouvinte_evento(const struct json *ev, void *dados) {
 	} else if (!strcmp(tipo, "tool_confirm")) {
 		/* as ferramentas do próprio backend (internet, arquivos dele) pedem licença: sem tela para perguntar
 		 * ainda, ficam negadas (senão a conversa espera para sempre) */
+		char sid[80], *erro = NULL;
+		if (emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro)) {
+			emmab_decidir(sid, json_chave_texto(json_chave(ev, "tool"), "id"), false);
+		}
+		g_free(erro);
 	}
 	g_main_context_invoke(NULL, evento_na_principal, e);
 }
@@ -424,14 +430,29 @@ static gpointer conversa_linha(gpointer d) {
 	struct conversa *c = d;
 	char *tools = emmaa_ferramentas_json(false), *ctx = contexto_agora();
 	struct emmab_ouvinte o = { .evento = ouvinte_evento, .acao = ouvinte_acao, .dados = c };
-	char sid[80];
-	if (c->sid && *c->sid) {
-		g_strlcpy(sid, c->sid, sizeof(sid));
-	} else if (!emmas_sessao_canal("assist", sid, sizeof(sid))) {
-		c->erro = g_strdup("Não consegui guardar a conversa neste computador.");
+	const char *ctx_final = c->app && !contexto_ativo ? NULL : ctx;
+	bool feito = false;
+	if (servidor_ok) {
+		/* o servidor da Emma é o motor: skills, memória, RAG, as conversas dele */
+		c->ok = emmab_conversar(c->app ? EMMAB_APP : EMMAB_ASSIST, c->sid, c->texto, c->voz, tools, ctx_final, c->extra, &o, &c->final, &c->erro);
+		feito = c->ok || emmab_no_ar(); /* respondeu (mesmo com erro): vale; sumiu: cai para a reserva */
+		if (!feito) {
+			servidor_ok = false;
+			g_free(c->erro);
+			c->erro = NULL;
+		}
 	}
-	/* direto com o provedor de IA (o do Painel > Emma > Provedores): sem servidor no meio, sem login */
-	c->ok = !c->erro && emmal_conversar(sid, c->texto, c->voz, tools, c->app && !contexto_ativo ? NULL : ctx, &o, &c->final, &c->erro);
+	if (!feito) {
+		/* reserva: sem o servidor, direto com o provedor de IA do Painel (sem skills, memória nem RAG), guardando no PC */
+		char sid[80];
+		if (c->sid && *c->sid) {
+			g_strlcpy(sid, c->sid, sizeof(sid));
+			emmas_garantir(sid);
+		} else if (!emmas_sessao_canal("assist", sid, sizeof(sid))) {
+			c->erro = g_strdup("Não consegui guardar a conversa neste computador.");
+		}
+		c->ok = !c->erro && emmal_conversar(sid, c->texto, c->voz, tools, ctx_final, &o, &c->final, &c->erro);
+	}
 	g_free(tools);
 	g_free(ctx);
 	if (c->voz && c->fala) {
@@ -692,10 +713,15 @@ static gpointer hist_linha(gpointer d) {
 	struct hist_ctx *h = d;
 	char sid[80], *erro = NULL, *corpo = NULL;
 	GString *g = g_string_new("{\"ok\":true,\"mensagens\":[");
-	if (emmas_sessao_canal("assist", sid, sizeof(sid))) {
+	bool tem_sessao = servidor_ok ? emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro) : emmas_sessao_canal("assist", sid, sizeof(sid));
+	if (tem_sessao) {
 		char *caminho = g_strdup_printf("/api/sessions/%s/messages", sid);
 		int st = 0;
-		corpo = emmas_rest("GET", caminho, NULL, &st);
+		if (servidor_ok) {
+			st = emmab_chamar("GET", caminho, NULL, &corpo, &erro);
+		} else {
+			corpo = emmas_rest("GET", caminho, NULL, &st);
+		}
 		if (corpo && st == 200) {
 			struct json *j = json_ler(corpo);
 			bool primeiro = true;
@@ -773,23 +799,47 @@ static gboolean rest_pronto(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
-/* as chamadas do app (conversas, rotinas, memórias) são atendidas aqui mesmo, nos arquivos do PC: não há servidor */
+/* as chamadas do app (conversas, skills, memória, rotinas) vão ao servidor da Emma; sem ele, as conversas, rotinas e memórias da reserva ficam nos arquivos do PC */
 static gpointer rest_linha(gpointer d) {
 	struct rest_ctx *r = d;
 	int st = 0;
-	char *resp = emmas_rest(r->metodo, r->caminho, r->corpo && *r->corpo ? r->corpo : NULL, &st);
+	char *resp = NULL, *erro = NULL;
+	const char *corpo = r->corpo && *r->corpo ? r->corpo : NULL;
+	if (servidor_ok) {
+		st = emmab_chamar(r->metodo, r->caminho, corpo, &resp, &erro);
+		if (st == 0) {
+			servidor_ok = false; /* sumiu: o resto desta chamada já vai pela reserva */
+		}
+	}
+	if (!servidor_ok) {
+		bool so_servidor = g_str_has_prefix(r->caminho, "/api/providers") || g_str_has_prefix(r->caminho, "/api/settings") || g_str_has_prefix(r->caminho, "/api/auth");
+		g_free(resp);
+		g_free(erro);
+		resp = so_servidor ? NULL : emmas_rest(r->metodo, r->caminho, corpo, &st);
+		erro = so_servidor ? g_strdup("O servidor da Emma não respondeu.") : NULL;
+		if (so_servidor) {
+			st = 0;
+		}
+	}
 	GString *g = g_string_new(NULL);
 	g_string_printf(g, "{\"ok\":%s,\"status\":%d,\"corpo\":", st >= 200 && st < 300 ? "true" : "false", st);
 	struct json *j = resp && *resp ? json_ler(resp) : NULL;
 	if (j) {
 		g_string_append(g, resp);
 		json_liberar(j);
+	} else if (resp && *resp) {
+		json_escrever_texto(g, resp);
 	} else {
 		g_string_append(g, "null");
+	}
+	if (erro) {
+		g_string_append(g, ",\"erro\":");
+		json_escrever_texto(g, erro);
 	}
 	g_string_append_c(g, '}');
 	r->json = g_string_free(g, FALSE);
 	g_free(resp);
+	g_free(erro);
 	g_main_context_invoke(NULL, rest_pronto, r);
 	return NULL;
 }
@@ -860,7 +910,7 @@ static void tratar(struct cliente *c, char *linha) {
 	}
 	const char *cmd = linha;
 	if (!strcmp(cmd, "estado")) {
-		char *j = g_strdup_printf("{\"ok\":true,\"estado\":\"%s\",\"online\":%s}", estado_atual, online ? "true" : "false");
+		char *j = g_strdup_printf("{\"ok\":true,\"estado\":\"%s\",\"online\":%s,\"servidor\":%s}", estado_atual, online ? "true" : "false", servidor_ok ? "true" : "false");
 		escrever(c, j);
 		g_free(j);
 	} else if (!strcmp(cmd, "assinar")) {
@@ -904,6 +954,7 @@ static void tratar(struct cliente *c, char *linha) {
 			responder_ok(c);
 		}
 	} else if (!strcmp(cmd, "nova")) {
+		emmab_nova_conversa(EMMAB_ASSIST);
 		emmas_nova_sessao_canal("assist");
 		emitir_form("nova", "");
 		responder_ok(c);
@@ -984,7 +1035,7 @@ static void tratar(struct cliente *c, char *linha) {
 		}
 	} else if (!strcmp(cmd, "versao")) {
 		/* o app completo confere: 2 = conversar e rest */
-		escrever(c, "{\"ok\":true,\"versao\":3}");
+		escrever(c, "{\"ok\":true,\"versao\":4}");
 	} else if (!strcmp(cmd, "reiniciar")) {
 		responder_ok(c);
 		g_timeout_add(200, reiniciar_agora, NULL);
@@ -1049,14 +1100,21 @@ static gboolean online_pronto(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
-/* "online": a Emma tem um provedor de IA configurado (Painel > Emma > Provedores) */
+/* "online": o servidor da Emma responde e deixa o LUMNA entrar, ou ao menos há um provedor de IA configurado para a reserva */
+static gboolean servidor_pronto(gpointer d) {
+	servidor_ok = GPOINTER_TO_INT(d);
+	return G_SOURCE_REMOVE;
+}
+
 static gpointer online_linha(gpointer d) {
 	(void)d;
+	bool srv = emmab_pronto();
 	struct emmal_prov p;
 	char *erro = NULL;
-	bool tem = emmal_provedor("chat", &p, &erro);
+	bool reserva = emmal_provedor("chat", &p, &erro);
 	g_free(erro);
-	g_main_context_invoke(NULL, online_pronto, GINT_TO_POINTER(tem));
+	g_main_context_invoke(NULL, servidor_pronto, GINT_TO_POINTER(srv));
+	g_main_context_invoke(NULL, online_pronto, GINT_TO_POINTER(srv || reserva));
 	return NULL;
 }
 
@@ -1141,7 +1199,7 @@ int main(int argc, char **argv) {
 	g_unix_signal_add(SIGTERM, sair, NULL);
 	g_unix_signal_add(SIGINT, sair, NULL);
 	verificar_online(NULL);
-	g_timeout_add_seconds(20, verificar_online, NULL);
+	g_timeout_add_seconds(5, verificar_online, NULL);
 	g_main_loop_run(loop);
 	g_unlink(caminho);
 	return 0;

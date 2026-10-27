@@ -24,7 +24,8 @@ bool emmab_conta_gravar(const char *url, const char *token, const char *email, c
 bool emmab_email_ler(char *email, size_t tam);   /* o e-mail da conta local ("" : nenhum) */
 bool emmab_token_ler(char *mascara, size_t tam);  /* "lumna_abcd…wxyz" (nunca o token inteiro); "" se não há */
 void emmab_reentrar(void);                        /* esquece o acesso guardado: o próximo pedido pega de novo */
-bool emmab_no_ar(void);                       /* o backend respondeu agora */
+bool emmab_no_ar(void);
+bool emmab_pronto(void);                      /* o backend responde E deixa o LUMNA entrar (a chave local, o token ou a conta) */                       /* o backend respondeu agora */
 
 /* uma chamada com o token (entra de novo se vier 401). Devolve o status HTTP, ou 0 se o backend não respondeu */
 int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro);
