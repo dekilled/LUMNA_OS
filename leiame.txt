@@ -81,6 +81,13 @@ Configuração
   quando mudam. orbit-msg atalhos pausar|retomar desliga os atalhos uns
   segundos (no máximo 30) para o Painel gravar um novo.
 
+  Em ~/.config/lumna (XDG_CONFIG_HOME/lumna) o Painel manda mais dois ficheiros, vigiados também:
+  entrada.ini ([teclado] layout, variant, options, repeticao_taxa, repeticao_atraso; [mouse] e [touchpad]:
+  botao_primario, velocidade, perfil, rolagem_natural, tocar_para_clicar...) refaz o mapa do teclado e os
+  ajustes do libinput (precisa de libinput no PKGS); telas.ini (uma secção por saída: ligada, modo=LxA@HZ,
+  escala, rotacao, x, y) aplica o modo, a escala, a rotação, a posição e liga ou desliga a saída (nunca a
+  última). orbit-msg entrada mostra o que está aplicado e os dispositivos; orbit-msg saidas traz os modos.
+
 Protocolos
   foreign toplevel anuncia título, app id, saída, foco e ecrã inteiro.
   Uma barra pode listar as janelas. Pedidos de activar ou fechar

@@ -96,7 +96,7 @@ static void pin_touch(struct orbit_server *server) {
 static void output_frame(struct wl_listener *listener, void *data) {
 	struct orbit_output *output = wl_container_of(listener, output, frame);
 	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(output->server->scene, output->wlr);
-	if (!scene_output) {
+	if (!scene_output || output->off) {
 		return;
 	}
 	wlr_scene_output_commit(scene_output, NULL);
@@ -136,9 +136,8 @@ static bool configure_output(struct orbit_output *output) {
 	return ok;
 }
 
-static void output_destroy(struct wl_listener *listener, void *data) {
-	struct orbit_output *output = wl_container_of(listener, output, destroy);
-	struct orbit_server *server = output->server;
+/* tira a saída das contas: as janelas dela vão para outra, o toque solta, (destruir) as camadas fecham */
+void orbit_output_release(struct orbit_server *server, struct orbit_output *output, bool close_layers) {
 	struct orbit_output *fallback = NULL;
 	struct orbit_output *other;
 	wl_list_for_each(other, &server->outputs, link) {
@@ -157,7 +156,9 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 		}
 	}
 	struct orbit_view *view;
-	orbit_layers_close_output(output);
+	if (close_layers) {
+		orbit_layers_close_output(output);
+	}
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == output) {
 			orbit_split_release(server, view);
@@ -168,12 +169,22 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 			}
 		}
 	}
+}
+
+static void output_destroy(struct wl_listener *listener, void *data) {
+	struct orbit_output *output = wl_container_of(listener, output, destroy);
+	struct orbit_server *server = output->server;
+	if (!output->off) {
+		orbit_output_release(server, output, true);
+	}
 	wl_list_remove(&output->link);
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
 	wl_list_remove(&output->destroy.link);
 	wlr_log(WLR_INFO, "saída %s desligada", output->wlr->name);
-	wlr_output_layout_remove(server->layout, output->wlr);
+	if (!output->off) {
+		wlr_output_layout_remove(server->layout, output->wlr);
+	}
 	if (output->bg) {
 		wlr_scene_node_destroy(&output->bg->node);
 	}
@@ -211,6 +222,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 		wlr_log(WLR_ERROR, "saída %s: fundo da cena falhou", wlr->name);
 	}
 	struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->layout, wlr);
+	output->off = false;
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 	/* aninhado: o Wayland de fora deixa os atalhos (o Super) para nós enquanto a janela do Orbit tem o foco */
@@ -228,6 +240,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 			wlr_log(WLR_INFO, "%s: o compositor de fora não sabe inibir atalhos: o Super vai ser dele (use outro modificador em [atalho])", wlr->name);
 		}
 	}
+	orbit_screen_apply_one(server, output);
 	orbit_outputs_publish(server);
 	wlr_log(WLR_INFO, "saída %s %dx%d scale %.2f%s", wlr->name, wlr->width, wlr->height, wlr->scale,
 		output_is_phone(wlr) ? " telemóvel" : "");

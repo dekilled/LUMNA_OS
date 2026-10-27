@@ -156,6 +156,8 @@ int main(int argc, char *argv[]) {
 	wlr_xcursor_manager_load(server.cursor_mgr, 2);
 
 	wl_list_init(&server.keyboards);
+	wl_list_init(&server.pointers);
+	wl_list_init(&server.off_outputs);
 	wl_list_init(&server.touches);
 	server.seat = wlr_seat_create(server.display, "seat0");
 	if (!server.seat) {
@@ -172,7 +174,7 @@ int main(int argc, char *argv[]) {
 		server.virtual_touch = true;
 		orbit_seat_capabilities(&server);
 	}
-	orbit_xkb_prepare();
+	orbit_xkb_prepare(&server);
 	if (!orbit_im_bind(&server)) {
 		return fail(&server, "falha ao preparar a escrita (teclado virtual, método de entrada)");
 	}

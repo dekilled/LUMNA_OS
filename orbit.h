@@ -132,6 +132,43 @@ struct orbit_bind {
 	int arg;
 };
 
+/* entrada.ini (~/.config/lumna): o que o Painel mexe em Teclado e Mouse. -1 em um número: não mexer */
+struct orbit_input_config {
+	char layout[128], variant[128], options[256], model[64];
+	int repeat_rate, repeat_delay;
+	struct {
+		int left_handed;       /* botão primário no direito */
+		double speed;          /* -1 a 1 */
+		int profile;           /* 0 adaptativo, 1 plano */
+		int natural_scroll;
+	} mouse;
+	struct {
+		int tap, natural_scroll, left_handed, disable_while_typing;
+		double speed;
+		int profile;
+	} touchpad;
+};
+
+#define ORBIT_MAX_SCREEN_CFG 16
+/* telas.ini: uma seção por saída ([DP-1]) */
+struct orbit_screen_config {
+	char name[64];
+	int enabled;                   /* -1 não mexer, 0 desligada, 1 ligada */
+	int width, height, hz;         /* 0: o modo preferido */
+	double scale;                  /* 0: o padrão */
+	int rotation;                  /* 0, 90, 180, 270 */
+	bool has_pos;
+	int x, y;
+};
+
+struct orbit_pointer {
+	struct wl_list link;
+	struct orbit_server *server;
+	struct wlr_input_device *device;
+	struct wl_listener destroy;
+	bool touchpad;
+};
+
 struct orbit_server {
 	struct wl_display *display;
 	struct wlr_backend *backend;
@@ -191,6 +228,11 @@ struct orbit_server {
 	struct wl_listener request_set_selection;
 	struct wl_list keyboards;
 	struct wl_list touches;
+	struct wl_list pointers;       /* os mouses e touchpads (entrada.c) */
+	struct orbit_input_config input;
+	struct orbit_screen_config screens[ORBIT_MAX_SCREEN_CFG];
+	int nscreens;
+	struct wl_list off_outputs;    /* as saídas desligadas pelo Painel (telas.c): fora do layout e das contas */
 
 	enum orbit_cursor_mode cursor_mode;
 	struct orbit_view *grabbed;
@@ -248,6 +290,7 @@ struct orbit_server {
 
 struct orbit_output {
 	struct wl_list link;
+	bool off; /* desligada pelo Painel: está em server->off_outputs */
 	struct orbit_server *server;
 	struct wlr_output *wlr;
 	struct wlr_scene_rect *bg;
@@ -335,6 +378,7 @@ struct orbit_keyboard {
 	struct wl_list link;
 	struct orbit_server *server;
 	struct wlr_keyboard *wlr_keyboard;
+	bool shared; /* usa o mapa do Orbit (o Painel muda); o teclado virtual traz o dele */
 	struct wl_listener modifiers;
 	struct wl_listener key;
 	struct wl_listener destroy;
@@ -400,7 +444,21 @@ bool orbit_ipc_bind(struct orbit_server *server, const char *wayland_display);
 void orbit_ipc_finish(void);
 void orbit_ipc_sync(struct orbit_server *server);
 void orbit_ipc_view_event(struct orbit_view *view, const char *event);
-void orbit_xkb_prepare(void);
+void orbit_xkb_prepare(struct orbit_server *server);
+/* entrada.c: lê entrada.ini, refaz o mapa do teclado e reaplica a repetição e os ajustes do ponteiro */
+void orbit_input_config_load(struct orbit_server *server);
+void orbit_input_apply(struct orbit_server *server);
+void orbit_pointer_add(struct orbit_server *server, struct wlr_input_device *device);
+const char *orbit_input_layout_name(struct orbit_server *server);
+int orbit_input_describe(struct orbit_server *server, void (*cb)(void *ctx, const char *name, const char *kind, bool configurable), void *ctx);
+/* o ~/.config/lumna (XDG_CONFIG_HOME/lumna), de onde o Painel manda entrada.ini, telas.ini e modos.ini */
+bool orbit_lumna_dir(char *dest, size_t n);
+/* telas.c: telas.ini; aplica o modo, a escala, a rotação, a posição e liga ou desliga */
+void orbit_output_release(struct orbit_server *server, struct orbit_output *output, bool close_layers);
+void orbit_screens_config_load(struct orbit_server *server);
+void orbit_screens_apply(struct orbit_server *server);
+void orbit_screen_apply_one(struct orbit_server *server, struct orbit_output *output);
+struct orbit_output *orbit_output_find_any(struct orbit_server *server, const char *name);
 void orbit_xkb_finish(void);
 
 bool orbit_layers_bind(struct orbit_server *server);

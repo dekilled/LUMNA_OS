@@ -99,7 +99,9 @@ void orbit_outputs_publish(struct orbit_server *server) {
 		return;
 	}
 	struct orbit_output *output;
-	wl_list_for_each(output, &server->outputs, link) {
+	for (int pass = 0; pass < 2; pass++) {
+	struct wl_list *lista = pass ? &server->off_outputs : &server->outputs;
+	wl_list_for_each(output, lista, link) {
 		struct wlr_output_configuration_head_v1 *head =
 			wlr_output_configuration_head_v1_create(config, output->wlr);
 		if (!head) {
@@ -113,6 +115,7 @@ void orbit_outputs_publish(struct orbit_server *server) {
 		head->state.y = box.y;
 		head->state.scale = output->wlr->scale;
 		head->state.transform = output->wlr->transform;
+	}
 	}
 	wlr_output_manager_v1_set_configuration(server->output_manager, config);
 }

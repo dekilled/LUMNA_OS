@@ -1,10 +1,10 @@
 # Orbit — wlroots 0.18, 0.19 ou 0.20 (o Arch de hoje só tem o 0.20: PKGS="wlroots-0.20 ...").
 # O Arch chama o módulo de "wlroots-0.18"; noutras distros é "wlroots"
-# (make PKGS="wlroots wayland-server xkbcommon"). wlroots 0.19: PKGS="wlroots-0.19 ...".
-PKGS ?= wlroots-0.18 wayland-server xkbcommon
+# (make PKGS="wlroots wayland-server xkbcommon libinput"). wlroots 0.19: PKGS="wlroots-0.19 ...".
+PKGS ?= wlroots-0.18 wayland-server xkbcommon libinput
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
-SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c mode.c nested.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c
+SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c mode.c entrada.c telas.c nested.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c
 # os cabeçalhos que os do wlroots incluem, gerados dos XML dos protocolos
 PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h
 

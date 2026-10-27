@@ -15,42 +15,6 @@
 #include <wlr/types/wlr_switch.h>
 #include <wlr/util/log.h>
 
-static struct xkb_context *shared_context;
-static struct xkb_keymap *shared_keymap;
-
-void orbit_xkb_prepare(void) {
-	if (shared_keymap) {
-		return;
-	}
-	shared_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	if (!shared_context) {
-		wlr_log(WLR_ERROR, "contexto XKB falhou");
-		return;
-	}
-	struct xkb_rule_names names = {
-		.rules = getenv("XKB_DEFAULT_RULES"),
-		.model = getenv("XKB_DEFAULT_MODEL"),
-		.layout = getenv("XKB_DEFAULT_LAYOUT"),
-		.variant = getenv("XKB_DEFAULT_VARIANT"),
-		.options = getenv("XKB_DEFAULT_OPTIONS"),
-	};
-	shared_keymap = xkb_keymap_new_from_names(shared_context, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
-	if (!shared_keymap) {
-		wlr_log(WLR_ERROR, "keymap XKB falhou");
-	}
-}
-
-void orbit_xkb_finish(void) {
-	if (shared_keymap) {
-		xkb_keymap_unref(shared_keymap);
-		shared_keymap = NULL;
-	}
-	if (shared_context) {
-		xkb_context_unref(shared_context);
-		shared_context = NULL;
-	}
-}
-
 /*
  * Gestos da borda do telemóvel, com o rato ou com o dedo: começam numa faixa de 28 px da
  * borda. Da esquerda para a direita recua um espaço, da direita para a esquerda avança, e de
@@ -394,12 +358,10 @@ void orbit_keyboard_add(struct orbit_server *server, struct wlr_keyboard *wlr_ke
 	}
 	keyboard->server = server;
 	keyboard->wlr_keyboard = wlr_keyboard;
+	keyboard->shared = shared;
+	wl_list_insert(&server->keyboards, &keyboard->link);
 	if (shared) {
-		orbit_xkb_prepare();
-		if (shared_keymap) {
-			wlr_keyboard_set_keymap(wlr_keyboard, shared_keymap);
-		}
-		wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
+		orbit_input_apply(server);
 	}
 	keyboard->modifiers.notify = keyboard_modifiers;
 	wl_signal_add(&wlr_keyboard->events.modifiers, &keyboard->modifiers);
@@ -408,7 +370,6 @@ void orbit_keyboard_add(struct orbit_server *server, struct wlr_keyboard *wlr_ke
 	keyboard->destroy.notify = keyboard_destroy;
 	wl_signal_add(&wlr_keyboard->base.events.destroy, &keyboard->destroy);
 	wlr_seat_set_keyboard(server->seat, wlr_keyboard);
-	wl_list_insert(&server->keyboards, &keyboard->link);
 	orbit_seat_capabilities(server);
 }
 
@@ -420,6 +381,9 @@ static void server_new_input(struct wl_listener *listener, void *data) {
 	} else if (device->type == WLR_INPUT_DEVICE_POINTER || device->type == WLR_INPUT_DEVICE_TOUCH ||
 		device->type == WLR_INPUT_DEVICE_TABLET) {
 		wlr_cursor_attach_input_device(server->cursor, device);
+		if (device->type == WLR_INPUT_DEVICE_POINTER) {
+			orbit_pointer_add(server, device);
+		}
 		if (device->type == WLR_INPUT_DEVICE_TOUCH) {
 			struct orbit_touch *touch = calloc(1, sizeof(*touch));
 			if (!touch) {

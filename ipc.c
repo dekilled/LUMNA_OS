@@ -1,4 +1,5 @@
 #include "orbit.h"
+#include <wlr/backend/wayland.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -18,6 +19,7 @@
  * resposta uma linha de JSON: {"ok":true,...} ou {"ok":false,"erro":"..."}.
  *
  *   saidas | get_outputs        as saídas
+ *   entrada                     o teclado aplicado (layout, repetição) e os dispositivos ligados
  *   janelas | get_tree          as janelas (com id)
  *   espacos | get_workspaces    o espaço activo e os ocupados de cada saída
  *   foco ID                     foca a janela (e mostra o espaço dela)
@@ -107,6 +109,19 @@ static void put_str(struct ipc_buf *b, const char *s) {
 		}
 	}
 	put(b, "\"");
+}
+
+struct ipc_dev_ctx {
+	struct ipc_buf *b;
+	bool first;
+};
+
+static void ipc_dev_cb(void *ctx_, const char *name, const char *kind, bool configurable) {
+	struct ipc_dev_ctx *ctx = ctx_;
+	put(ctx->b, "%s{\"nome\":", ctx->first ? "" : ",");
+	put_str(ctx->b, name);
+	put(ctx->b, ",\"tipo\":\"%s\",\"configuravel\":%s}", kind, configurable ? "true" : "false");
+	ctx->first = false;
 }
 
 static void client_close(struct ipc_client *client) {
@@ -222,22 +237,77 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		struct orbit_output *output;
 		bool first = true;
 		struct orbit_output *under = cursor_output(server);
-		wl_list_for_each_reverse(output, &server->outputs, link) {
-			struct wlr_box box;
-			wlr_output_layout_get_box(server->layout, output->wlr, &box);
+		/* as ligadas, depois as que o Painel desligou */
+		for (int pass = 0; pass < 2; pass++) {
+		struct wl_list *lista = pass ? &server->off_outputs : &server->outputs;
+		wl_list_for_each_reverse(output, lista, link) {
+			struct wlr_box box = { 0 };
+			if (!output->off) {
+				wlr_output_layout_get_box(server->layout, output->wlr, &box);
+			}
 			int hz = output->wlr->refresh > 0 ? (output->wlr->refresh + 500) / 1000 : 0;
 			/* a área útil: o que sobra depois da barra e da dock (relativa à saída) */
-			struct wlr_box util = orbit_layer_usable(output, &box);
+			struct wlr_box util = output->off ? box : orbit_layer_usable(output, &box);
+			int rotation = 0;
+			switch (output->wlr->transform) {
+			case WL_OUTPUT_TRANSFORM_90: rotation = 90; break;
+			case WL_OUTPUT_TRANSFORM_180: rotation = 180; break;
+			case WL_OUTPUT_TRANSFORM_270: rotation = 270; break;
+			default: break;
+			}
 			put(b, "%s{\"nome\":", first ? "" : ",");
 			put_str(b, output->wlr->name);
 			put(b, ",\"largura\":%d,\"altura\":%d,\"escala\":%.2f,\"hz\":%d,\"x\":%d,\"y\":%d,"
-				"\"espaco\":%d,\"telemovel\":%s,\"ponteiro\":%s,"
-				"\"util\":{\"x\":%d,\"y\":%d,\"largura\":%d,\"altura\":%d}}",
+				"\"espaco\":%d,\"telemovel\":%s,\"ponteiro\":%s,\"ligada\":%s,\"desligavel\":%s,\"rotacao\":%d,"
+				"\"util\":{\"x\":%d,\"y\":%d,\"largura\":%d,\"altura\":%d},\"mm\":[%d,%d],\"fabricante\":",
 				output->wlr->width, output->wlr->height, output->wlr->scale, hz, box.x, box.y,
 				output->tag + 1, output_is_phone(output->wlr) ? "true" : "false",
-				output == under ? "true" : "false", util.x - box.x, util.y - box.y, util.width, util.height);
+				output == under ? "true" : "false", output->off ? "false" : "true", wlr_output_is_wl(output->wlr) ? "false" : "true", rotation,
+				util.x - box.x, util.y - box.y, util.width, util.height, output->wlr->phys_width, output->wlr->phys_height);
+			put_str(b, output->wlr->make ? output->wlr->make : "");
+			put(b, ",\"modelo\":");
+			put_str(b, output->wlr->model ? output->wlr->model : "");
+			/* os modos da tela (sem repetir tamanho e taxa) */
+			put(b, ",\"modos\":[");
+			struct wlr_output_mode *mode;
+			bool mfirst = true;
+			wl_list_for_each(mode, &output->wlr->modes, link) {
+				int mhz = (mode->refresh + 500) / 1000;
+				bool seen = false;
+				struct wlr_output_mode *prev;
+				wl_list_for_each(prev, &output->wlr->modes, link) {
+					if (prev == mode) {
+						break;
+					}
+					if (prev->width == mode->width && prev->height == mode->height && (prev->refresh + 500) / 1000 == mhz) {
+						seen = true;
+					}
+				}
+				if (seen) {
+					continue;
+				}
+				put(b, "%s{\"l\":%d,\"a\":%d,\"hz\":%d,\"atual\":%s,\"preferido\":%s}", mfirst ? "" : ",", mode->width, mode->height, mhz,
+					mode == output->wlr->current_mode ? "true" : "false", mode->preferred ? "true" : "false");
+				mfirst = false;
+			}
+			put(b, "]}");
 			first = false;
 		}
+		}
+		put(b, "]}");
+	} else if (!strcmp(cmd, "entrada")) {
+		/* o que há ligado e o que o Orbit aplicou (o Painel só mostra o que existe) */
+		put(b, "{\"ok\":true,\"layout\":");
+		put_str(b, server->input.layout);
+		put(b, ",\"variante\":");
+		put_str(b, server->input.variant);
+		put(b, ",\"opcoes\":");
+		put_str(b, server->input.options);
+		put(b, ",\"nome_do_mapa\":");
+		put_str(b, orbit_input_layout_name(server) ? orbit_input_layout_name(server) : "");
+		put(b, ",\"repeticao\":[%d,%d],\"dispositivos\":[", server->input.repeat_rate, server->input.repeat_delay);
+		struct ipc_dev_ctx ctx = { b, true };
+		orbit_input_describe(server, ipc_dev_cb, &ctx);
 		put(b, "]}");
 	} else if (!strcmp(cmd, "janelas") || !strcmp(cmd, "get_tree") || !strcmp(cmd, "get_views")) {
 		put(b, "{\"ok\":true,\"janelas\":[");

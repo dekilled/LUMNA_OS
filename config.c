@@ -327,6 +327,8 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->media_menu, "lumna-midia tela seletor");
 	server->inhibit_host_shortcuts = true;
 	orbit_mode_config_load(server);
+	orbit_input_config_load(server);
+	orbit_screens_config_load(server);
 	orbit_binds_reset(server);
 	char path[512];
 	config_path(path, sizeof(path));
@@ -346,13 +348,17 @@ void orbit_config_load(struct orbit_server *server) {
 static int config_changed(int fd, uint32_t mask, void *data) {
 	struct orbit_server *server = data;
 	char buf[4096];
-	bool ours = false;
+	bool ours = false, input = false, screens = false;
 	ssize_t n;
 	while ((n = read(fd, buf, sizeof(buf))) > 0) {
 		for (char *p = buf; p < buf + n;) {
 			struct inotify_event *event = (struct inotify_event *)p;
 			if (event->len && (!strcmp(event->name, "orbit.ini") || !strcmp(event->name, "atalhos.ini"))) {
 				ours = true;
+			} else if (event->len && !strcmp(event->name, "entrada.ini")) {
+				input = true;
+			} else if (event->len && !strcmp(event->name, "telas.ini")) {
+				screens = true;
 			}
 			p += sizeof(*event) + event->len;
 		}
@@ -361,6 +367,20 @@ static int config_changed(int fd, uint32_t mask, void *data) {
 		wlr_log(WLR_INFO, "a configuração mudou: relida");
 		orbit_config_load(server);
 		orbit_arrange(server);
+	}
+	if (input && !ours) {
+		wlr_log(WLR_INFO, "entrada.ini mudou: teclado e ponteiro reaplicados");
+		orbit_input_config_load(server);
+		orbit_input_apply(server);
+	}
+	if (screens && !ours) {
+		wlr_log(WLR_INFO, "telas.ini mudou: monitores reaplicados");
+		orbit_screens_config_load(server);
+		orbit_screens_apply(server);
+	}
+	if (ours) {
+		orbit_input_apply(server);
+		orbit_screens_apply(server);
 	}
 	return 0;
 }
@@ -391,6 +411,19 @@ void orbit_config_watch(struct orbit_server *server) {
 	if (inotify_add_watch(fd, path, IN_CLOSE_WRITE | IN_MOVED_TO) < 0) {
 		close(fd);
 		return;
+	}
+	/* o que o Painel manda para o Orbit fora do orbit.ini: entrada.ini e telas.ini, em ~/.config/lumna */
+	char lumna[400];
+	if (orbit_lumna_dir(lumna, sizeof(lumna))) {
+		for (char *p = lumna + 1; *p; p++) {
+			if (*p == '/') {
+				*p = '\0';
+				mkdir(lumna, 0755);
+				*p = '/';
+			}
+		}
+		mkdir(lumna, 0755);
+		inotify_add_watch(fd, lumna, IN_CLOSE_WRITE | IN_MOVED_TO);
 	}
 	wl_event_loop_add_fd(wl_display_get_event_loop(server->display), fd, WL_EVENT_READABLE, config_changed, server);
 }
