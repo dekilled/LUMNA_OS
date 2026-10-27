@@ -6,7 +6,7 @@
  * A lista é SEMPRE desta tela: fica guardada em ~/.config/lumna/emma/provedores.json (só do usuário) e aparece com ou sem conexão. O serviço
  * lumna-emma (servicos/emmar.h) manda para o servidor da Emma quando consegue entrar, e traz de lá o que já existir; a chave, depois de enviada,
  * fica só no servidor (aqui sobra a máscara ••••1234). Neste computador o serviço entra sozinho, com a chave que o servidor deixa em
- * ~/.config/lumna/emma/chave; o endereço e o token só aparecem recolhidos, para um servidor em outro computador.
+ * ~/.config/lumna/emma/chave. Não há login nem token nesta tela.
  */
 #include "painel.h"
 
@@ -82,18 +82,15 @@ static bool lido, ocupado, sincronizou, servico_ok = true, conectado;
 static char aviso[300];
 static bool aviso_erro;
 static char con_msg[240];
-static char srv_url[200], srv_token_mascara[64], srv_token[200];
-static bool conexao_aberta;
 static guint proximo_lid = 1;
 
-enum acao { A_SYNC, A_CONTA, A_MODELOS, A_TESTAR };
+enum acao { A_SYNC, A_MODELOS, A_TESTAR };
 
 struct job {
 	enum acao acao;
 	int idx;
-	char caminho[200], conta[900];
+	char caminho[200];
 	char *corpo;
-	char url[200], token[64], email[200];
 	/* A_SYNC: o que foi para o servidor (cópia) e o que voltou */
 	struct prov prov[MAX_PROV];
 	int n, rev_antes[MAX_PROV];
@@ -306,23 +303,11 @@ static char *corpo_provedor(const struct prov *p) {
 
 static void trabalho(void *d) {
 	struct job *j = d;
-	if (j->acao == A_CONTA) {
-		char resp[300];
-		emmac_pedido(j->conta, resp, sizeof(resp));
-	}
 	if (j->acao == A_MODELOS || j->acao == A_TESTAR) {
 		emmar_chamar(j->acao == A_MODELOS ? "GET" : "POST", j->caminho, j->corpo, 0, &j->r);
 		return;
 	}
-	/* A_SYNC e A_CONTA: a conta de agora, e então tudo que estiver pendente */
-	char resp[800];
-	if (emmac_pedido("conta", resp, sizeof(resp))) {
-		struct json *c = json_ler(resp);
-		g_strlcpy(j->url, json_chave_texto(c, "url"), sizeof(j->url));
-		g_strlcpy(j->token, json_chave_texto(c, "token"), sizeof(j->token));
-		g_strlcpy(j->email, json_chave_texto(c, "email"), sizeof(j->email));
-		json_liberar(c);
-	}
+	/* A_SYNC: tudo que estiver pendente */
 	struct emmar teste;
 	emmar_chamar("GET", "/api/providers", NULL, 0, &teste);
 	bool entrou = teste.ok;
@@ -408,7 +393,7 @@ static void trabalho(void *d) {
 	}
 }
 
-static void iniciar_sync(enum acao a, const char *conta);
+static void iniciar_sync(enum acao a);
 
 static void pronto(void *d) {
 	struct job *j = d;
@@ -445,8 +430,6 @@ static void pronto(void *d) {
 		sincronizou = true;
 		servico_ok = j->r.servico;
 		conectado = j->r.ok;
-		g_strlcpy(srv_url, j->url, sizeof(srv_url));
-		g_strlcpy(srv_token_mascara, j->token, sizeof(srv_token_mascara));
 		g_strlcpy(con_msg, j->r.msg, sizeof(con_msg));
 		if (conectado) {
 			/* o que foi enviado */
@@ -544,15 +527,7 @@ static void pronto(void *d) {
 			if (j->erro[0]) {
 				g_strlcpy(aviso, j->erro, sizeof(aviso));
 				aviso_erro = true;
-			} else if (j->acao == A_CONTA) {
-				g_strlcpy(aviso, "Conectado ao servidor da Emma.", sizeof(aviso));
-				aviso_erro = false;
-				conexao_aberta = false;
-				srv_token[0] = '\0';
 			}
-		} else if (j->acao == A_CONTA) {
-			g_snprintf(aviso, sizeof(aviso), "Não consegui entrar no servidor da Emma. %s", j->r.msg);
-			aviso_erro = true;
 		}
 		/* mudou algo enquanto isto ia e voltava: manda de novo */
 		bool pendente = false;
@@ -568,16 +543,13 @@ static void pronto(void *d) {
 	g_free(j->corpo);
 	g_free(j);
 	if (de_novo) {
-		iniciar_sync(A_SYNC, NULL);
+		iniciar_sync(A_SYNC);
 	}
 }
 
-static void iniciar_sync(enum acao a, const char *conta) {
+static void iniciar_sync(enum acao a) {
 	struct job *j = g_new0(struct job, 1);
 	j->acao = a;
-	if (conta) {
-		g_strlcpy(j->conta, conta, sizeof(j->conta));
-	}
 	j->n = nprov;
 	for (int i = 0; i < nprov; i++) {
 		j->prov[i] = provs[i];
@@ -594,7 +566,7 @@ static void iniciar_sync(enum acao a, const char *conta) {
 
 static void sincronizar(void) {
 	if (!ocupado) {
-		iniciar_sync(A_SYNC, NULL);
+		iniciar_sync(A_SYNC);
 	}
 }
 
@@ -611,7 +583,6 @@ static void iniciar_unico(enum acao a, int idx, const char *caminho, char *corpo
 /* só marca: tudo sai do primeiro desenho (a janela pode nem existir ainda quando se abre direto numa seção) */
 void pn_emma_prov_abrir(void) {
 	aviso[0] = '\0';
-	conexao_aberta = false;
 	sincronizou = false;
 }
 
@@ -620,7 +591,7 @@ static void ao_desenhar(void) {
 		ler_local();
 	}
 	if (!sincronizou && !ocupado) {
-		iniciar_sync(A_SYNC, NULL);
+		iniciar_sync(A_SYNC);
 	}
 }
 
@@ -673,35 +644,6 @@ static void aviso_topo(void) {
 	}
 }
 
-/* a conexão com um servidor da Emma que NÃO é o deste computador: o endereço e um token de API (harness > Configurações > Conta). No mesmo computador não se digita nada */
-static void bloco_conexao(void) {
-	pn_linha_comecar(CLAY_ID("emp-srv-u"), "link", "Endereço do servidor", "Onde o servidor da Emma está (o padrão é este computador).");
-	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-		gv_campo(CLAY_ID("emp-srv-u-c"), srv_url, sizeof(srv_url), "http://127.0.0.1:8001", GV_CAMPO_URL);
-	}
-	pn_linha_acabar();
-	pn_linha_comecar(CLAY_ID("emp-srv-t"), "lock", "Token de API",
-		srv_token_mascara[0] ? gv_fmt("Guardado (%s). Deixe vazio para manter.", srv_token_mascara).chars : "Só para um servidor em outro computador: crie no harness (Configurações > Conta > Tokens de API).");
-	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-		gv_campo(CLAY_ID("emp-srv-t-c"), srv_token, sizeof(srv_token), "lumna_…", GV_CAMPO_SENHA);
-	}
-	pn_linha_acabar();
-	CLAY(CLAY_ID("emp-srv-bt"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 6, 0 }, .childGap = 10 } }) {
-		if (gv_botao(CLAY_ID("emp-srv-entrar"), "check", "Guardar e conectar", GV_BOTAO_CHEIO) && !ocupado) {
-			GString *c = g_string_new("conta {\"url\":");
-			json_escrever_texto(c, srv_url);
-			g_string_append(c, ",\"token\":");
-			json_escrever_texto(c, srv_token);
-			g_string_append_c(c, '}');
-			iniciar_sync(A_CONTA, c->str);
-			g_string_free(c, TRUE);
-		}
-		if (conectado && gv_botao(CLAY_ID("emp-srv-fechar"), NULL, "Cancelar", GV_BOTAO_SIMPLES)) {
-			conexao_aberta = false;
-		}
-	}
-}
-
 static void estado_conexao(void) {
 	aviso_topo();
 	if (!sincronizou) {
@@ -728,15 +670,9 @@ static void estado_conexao(void) {
 				gv_texto(gv_str(gv_fmt("Sem conexão com o servidor da Emma%s%s. O que você configurar fica guardado aqui e vai quando conectar.", con_msg[0] ? ": " : "", con_msg).chars),
 					gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
 			}
-			if (gv_botao(CLAY_ID("emp-conectar"), "link", "Conexão", GV_BOTAO_ELEVADO)) {
-				conexao_aberta = !conexao_aberta;
-			}
 			if (gv_botao(CLAY_ID("emp-tentar"), "refresh", "Tentar de novo", GV_BOTAO_ELEVADO)) {
 				sincronizou = false;
 			}
-		}
-		if (conexao_aberta) {
-			bloco_conexao();
 		}
 	}
 }
@@ -922,17 +858,6 @@ void pn_emma_prov_desenhar(void) {
 	}
 	for (int i = 0; i < nprov; i++) {
 		cartao_provedor(i);
-	}
-	/* a conexão com o servidor fica recolhida quando está tudo certo */
-	if (conectado) {
-		CLAY(CLAY_ID("emp-con-t"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 18, 0 } } }) {
-			if (gv_botao(CLAY_ID("emp-con-b"), conexao_aberta ? "chevron-up" : "chevron-down", "Conexão com o servidor", GV_BOTAO_SIMPLES)) {
-				conexao_aberta = !conexao_aberta;
-			}
-		}
-		if (conexao_aberta) {
-			bloco_conexao();
-		}
 	}
 }
 
