@@ -1,7 +1,7 @@
 # Orbit — wlroots 0.18, 0.19 ou 0.20 (o Arch de hoje só tem o 0.20: PKGS="wlroots-0.20 ...").
 # O Arch chama o módulo de "wlroots-0.18"; noutras distros é "wlroots"
-# (make PKGS="wlroots wayland-server xkbcommon libinput"). wlroots 0.19: PKGS="wlroots-0.19 ...".
-PKGS ?= wlroots-0.18 wayland-server xkbcommon libinput
+# (make PKGS="wlroots wayland-server xkbcommon"). A libinput entra sempre, por fora do PKGS. wlroots 0.19: PKGS="wlroots-0.19 ...".
+PKGS ?= wlroots-0.18 wayland-server xkbcommon
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
 SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c mode.c entrada.c telas.c nested.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c
@@ -11,7 +11,7 @@ PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-sh
 all: orbit orbit-msg
 
 orbit: $(SRCS) orbit.h nested.h $(PROTOS)
-	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS) wayland-client)
+	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS) libinput wayland-client)
 
 orbit-msg: orbit-msg.c
 	$(CC) -g -Wall -Wextra -o $@ orbit-msg.c
