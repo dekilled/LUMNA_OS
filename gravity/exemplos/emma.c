@@ -124,7 +124,12 @@ static int proximo_id;
 static void acao_terminar(struct pedido_acao *p) {
 	char *nome = js(p->nome), *resumo = js(p->res.resumo);
 	GString *g = g_string_new(NULL);
-	g_string_printf(g, "\"nome\":%s,\"ok\":%s,\"resumo\":%s", nome, p->res.ok ? "true" : "false", resumo);
+	g_string_printf(g, "\"nome\":%s,\"ok\":%s,\"resumo\":%s,\"args\":", nome, p->res.ok ? "true" : "false", resumo);
+	if (p->args) {
+		json_escrever(g, p->args);
+	} else {
+		g_string_append(g, "{}");
+	}
 	emitir_form("ferramenta", g->str);
 	g_string_free(g, TRUE);
 	g_free(nome);
@@ -339,8 +344,36 @@ static void ouvinte_acao(const char *nome, const struct json *args, struct emmab
 	g_free(p);
 }
 
+static bool contexto_ativo = true;   /* o chip "Contexto: ..." do painel: a Emma sabe o que a pessoa está vendo */
+
+/* o título e o app da janela em foco, pelo Orbit */
+static bool janela_em_foco(char *titulo, size_t tt, char *app, size_t ta) {
+	char *r = g_malloc(32 * 1024);
+	bool ok = false;
+	if (orbit_pedido("janelas", r, 32 * 1024)) {
+		struct json *j = json_ler(r);
+		const struct json *l = json_chave(j, "janelas");
+		for (int i = 0; l && i < l->nfilhos; i++) {
+			const struct json *w = json_item(l, i);
+			if (json_bool(json_chave(w, "foco"), false)) {
+				g_strlcpy(titulo, json_chave_texto(w, "titulo"), tt);
+				g_strlcpy(app, json_chave_texto(w, "app_id"), ta);
+				ok = true;
+				break;
+			}
+		}
+		json_liberar(j);
+	}
+	g_free(r);
+	return ok;
+}
+
 static char *contexto_agora(void) {
 	GString *s = g_string_new(NULL);
+	char titulo[160], app[96];
+	if (contexto_ativo && janela_em_foco(titulo, sizeof(titulo), app, sizeof(app)) && *titulo) {
+		g_string_append_printf(s, "janela em foco: %s (%s); ", titulo, app);
+	}
 	struct modos_estado m;
 	if (modos_ler(&m) && m.orbit) {
 		for (int i = 0; i < m.n; i++) {
@@ -586,6 +619,95 @@ static void pedido_acoes(struct cliente *c) {
 	g_string_free(g, TRUE);
 }
 
+/* o histórico da conversa do painel: buscado numa linha à parte e respondido quando chegar */
+struct hist_ctx {
+	struct cliente *c;
+	char *json;
+};
+
+static char *hora_local(const char *iso) {
+	GDateTime *t = g_date_time_new_from_iso8601(iso, NULL);
+	char *r = NULL;
+	if (t) {
+		GDateTime *l = g_date_time_to_local(t);
+		r = g_date_time_format(l, "%H:%M");
+		g_date_time_unref(l);
+		g_date_time_unref(t);
+	}
+	return r ? r : g_strdup("");
+}
+
+static gboolean hist_pronto(gpointer d) {
+	struct hist_ctx *h = d;
+	if (cliente_vivo(h->c)) {
+		escrever(h->c, h->json);
+	}
+	g_free(h->json);
+	g_free(h);
+	return G_SOURCE_REMOVE;
+}
+
+static gpointer hist_linha(gpointer d) {
+	struct hist_ctx *h = d;
+	char sid[80], *erro = NULL, *corpo = NULL;
+	GString *g = g_string_new("{\"ok\":true,\"mensagens\":[");
+	if (emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro)) {
+		char *caminho = g_strdup_printf("/api/sessions/%s/messages", sid);
+		if (emmab_chamar("GET", caminho, NULL, &corpo, &erro) == 200) {
+			struct json *j = json_ler(corpo);
+			bool primeiro = true;
+			for (int i = 0; j && j->tipo == JSON_LISTA && i < j->nfilhos; i++) {
+				const struct json *m = json_item(j, i);
+				const char *papel = json_chave_texto(m, "role");
+				if (strcmp(papel, "user") && strcmp(papel, "assistant")) {
+					continue;
+				}
+				char *hora = hora_local(json_chave_texto(m, "created_at"));
+				g_string_append_printf(g, "%s{\"papel\":\"%s\",\"texto\":", primeiro ? "" : ",", papel);
+				json_escrever_texto(g, json_chave_texto(m, "content"));
+				g_string_append(g, ",\"hora\":");
+				json_escrever_texto(g, hora);
+				g_string_append(g, ",\"ferramentas\":[");
+				const struct json *ts = json_chave(m, "tools");
+				bool pt = true;
+				for (int k = 0; ts && k < ts->nfilhos; k++) {
+					const struct json *t = json_item(ts, k);
+					g_string_append_printf(g, "%s{\"nome\":", pt ? "" : ",");
+					json_escrever_texto(g, json_chave_texto(t, "name"));
+					g_string_append(g, ",\"resumo\":");
+					json_escrever_texto(g, json_chave_texto(t, "summary"));
+					g_string_append_printf(g, ",\"ok\":%s,\"args\":", !strcmp(json_chave_texto(t, "status"), "ok") ? "true" : "false");
+					const struct json *a = json_chave(t, "args");
+					if (a) {
+						json_escrever(g, a);
+					} else {
+						g_string_append(g, "{}");
+					}
+					g_string_append_c(g, '}');
+					pt = false;
+				}
+				g_string_append(g, "]}");
+				g_free(hora);
+				primeiro = false;
+			}
+			json_liberar(j);
+		}
+		g_free(caminho);
+	}
+	g_string_append_c(g, ']');
+	if (erro) {
+		char *e = js(erro);
+		g_string_append_printf(g, ",\"erro\":%s", e);
+		g_free(e);
+	}
+	g_string_append_c(g, '}');
+	h->json = g_string_free(g, FALSE);
+	g_free(corpo);
+	g_free(erro);
+	g_main_context_invoke(NULL, hist_pronto, h);
+	return NULL;
+}
+
 static void tratar(struct cliente *c, char *linha) {
 	linha = g_strstrip(linha);
 	char *resto = strchr(linha, ' ');
@@ -639,7 +761,24 @@ static void tratar(struct cliente *c, char *linha) {
 		}
 	} else if (!strcmp(cmd, "nova")) {
 		emmab_nova_conversa(EMMAB_ASSIST);
+		emitir_form("nova", "");
 		responder_ok(c);
+	} else if (!strcmp(cmd, "historico")) {
+		struct hist_ctx *h = g_new0(struct hist_ctx, 1);
+		h->c = c;
+		g_thread_unref(g_thread_new("emma-historico", hist_linha, h));
+	} else if (!strcmp(cmd, "contexto")) {
+		if (resto && (!strcmp(resto, "sim") || !strcmp(resto, "nao"))) {
+			contexto_ativo = !strcmp(resto, "sim");
+		}
+		char titulo[160] = "", app[96] = "";
+		janela_em_foco(titulo, sizeof(titulo), app, sizeof(app));
+		char *t = js(titulo), *a = js(app);
+		char *j = g_strdup_printf("{\"ok\":true,\"ativo\":%s,\"titulo\":%s,\"app\":%s}", contexto_ativo ? "true" : "false", t, a);
+		escrever(c, j);
+		g_free(j);
+		g_free(t);
+		g_free(a);
 	} else if (!strcmp(cmd, "acoes")) {
 		pedido_acoes(c);
 	} else {

@@ -49,6 +49,11 @@ static const struct emmaa_def catalogo[] = {
 		"{\"query\":{\"type\":\"string\",\"description\":\"Parte do nome ou do tipo\"}}", "", EMMAA_LER, "auto" },
 	{ "apps.abrir", "Abrir programa", "Abre um programa instalado pelo nome aproximado (\"firefox\", \"steam\", \"terminal\").",
 		"{\"nome\":{\"type\":\"string\"}}", "nome", EMMAA_AGIR, "auto" },
+	{ "painel.abrir", "Abrir uma configuração",
+		"Abre o Painel de controle numa seção (o jeito de mostrar onde mudar algo). Seções: aparencia/tema, aparencia/papel, aparencia/barra, rede/wifi, bluetooth/dispositivos, "
+		"aplicativos/instalados, aplicativos/atualizacoes, telas/monitores, telas/modos, teclado/teclado, teclado/atalhos, teclado/mouse, data/hora, data/fuso, "
+		"sobre/computador, sobre/atualizacoes, armazenamento/uso, armazenamento/limpeza, armazenamento/discos, energia/perfil.",
+		"{\"secao\":{\"type\":\"string\",\"description\":\"categoria/seção, como teclado/mouse\"}}", "secao", EMMAA_AGIR, "auto" },
 	{ "notificar", "Notificar", "Mostra um aviso na tela.", "{\"titulo\":{\"type\":\"string\"},\"texto\":{\"type\":\"string\"}}", "titulo", EMMAA_AGIR, "auto" },
 };
 
@@ -566,6 +571,18 @@ void emmaa_executar(const struct emmaa_def *d, const struct json *args, struct e
 		apps_listar(json_chave_texto(args, "query"), r);
 	} else if (!strcmp(n, "apps.abrir")) {
 		apps_abrir(json_chave_texto(args, "nome"), r);
+	} else if (!strcmp(n, "painel.abrir")) {
+		const char *sec = json_chave_texto(args, "secao");
+		bool bom = *sec && strlen(sec) < 64;
+		for (const char *c = sec; bom && *c; c++) {
+			bom = g_ascii_islower(*c) || g_ascii_isdigit(*c) || *c == '/' || *c == '-' || *c == '_';
+		}
+		if (!bom) {
+			falha(r, "Seção inválida.");
+		} else {
+			char *argv[] = { "lumna-painel", "--secao", (char *)sec, NULL };
+			executar_simples(argv) ? ok_(r, "Abri a configuração.") : falha(r, "Não consegui abrir o Painel de controle.");
+		}
 	} else if (!strcmp(n, "notificar")) {
 		char *argv[] = { "notify-send", "-a", "Emma", (char *)json_chave_texto(args, "titulo"), (char *)json_chave_texto(args, "texto"), NULL };
 		executar_simples(argv) ? ok_(r, "Avisei.") : falha(r, "O notify-send não está instalado.");

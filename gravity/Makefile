@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma emma-chat
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -127,7 +127,7 @@ entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma emma-chat ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
@@ -153,3 +153,7 @@ extensao:
 EMMA = exemplos/emma.c servicos/emmaa.c servicos/emmab.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
 emma: $(EMMA) servicos/emmaa.h servicos/emmab.h servicos/emmac.h servicos/emmav.h
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0 gio-unix-2.0) -o $@ $(EMMA) $(shell pkg-config --libs libsoup-3.0 gio-2.0 gio-unix-2.0) -lm -lpthread
+
+# o painel flutuante da Emma (à direita)
+emma-chat: exemplos/emma-chat.c servicos/emmac.c servicos/emmac.h servicos/json.c servicos/modos.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/emma-chat.c servicos/emmac.c servicos/json.c servicos/modos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)

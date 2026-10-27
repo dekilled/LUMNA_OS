@@ -175,8 +175,13 @@ então conta, conversas e permissões valem nos dois):
 - **Ações da Emma** (mesmo esquema das permissões antigas: `auto`, `ask`, `off`): Mídia (`midia.estado/abrir/fechar/inicio/
   seletor/controle/navegar/digitar`), `audio.volume`, `mode.atual/trocar/trocar_telas`, `apps.listar/abrir`, `notificar`.
   O catálogo antigo (arquivos, Wi-Fi, loja, serviços...) entra nas próximas levas.
+- **Painel flutuante** (`lumna-emma-chat`, `gravity/exemplos/emma-chat.c`): o chat rápido à direita, como no desenho (foto e estado,
+  balões com hora, botões de próximo passo `[acao:]`/`[link:]`/`[sugestao:]`, cartão "Abrir configuração" quando a Emma usa
+  `painel.abrir`, contexto da janela em foco, Nova conversa, microfone, fixar e "Abrir app completo"). O topo da tela (ícone da
+  Emma) e o **Super+A** abrem e fecham; **Super+Shift+A** liga o microfone. Pedido rápido ("pausa") fecha sozinho se não estiver fixado.
+  As imagens da Emma ficam em `gravity/assets/emma/` (`avatar.jpg`, `fundo.jpg`); `LUMNA_EMMA_ASSETS` muda a pasta.
 - **Voz**: microfone do sistema (`parec`/`arecord`, 16 kHz) com detecção do fim da fala, `/api/stt`, e a resposta falada por
-  `/api/tts` frase a frase. Atalho **Super+A** (`emma = ...` no `orbit.ini`) liga o microfone; apertar de novo encerra a fala.
+  `/api/tts` frase a frase. O atalho do microfone (`emma_voz` no `orbit.ini`) liga; apertar de novo encerra a fala e transcreve.
 - **Celular**: o app LUMNA Controle tem "Falar com a Emma" (reconhecimento de voz do próprio Android) e "Microfone da TV".
   O `lumna-controle` recebe `{"type":"voice","text":"..."}`, passa para a Emma e devolve `{"type":"voice_reply",...}`.
 

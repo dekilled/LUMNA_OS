@@ -10,10 +10,12 @@
  *   celular TEXTO                a fala que o celular já transcreveu: responde só quando a Emma acaba, com "resposta"
  *   confirmar ID sim|nao         a decisão de uma ação que pediu licença
  *   nova                         recomeça a conversa
+ *   historico                    as mensagens da conversa do painel: [{papel, texto, hora, ferramentas}]
+ *   contexto [sim|nao]           a janela em foco (o chip "Contexto: ..." do painel) e se a Emma pode usá-la
  *   acoes                        o catálogo de ações e a permissão de cada uma
  *
  * Eventos (assinar): estado, nivel (volume do microfone), ouvido (o que se falou), delta (a resposta chegando),
- * resposta (a final), ferramenta (uma ação rodou), confirmar (uma ação pede licença), erro.
+ * resposta (a final), ferramenta (uma ação rodou, com os argumentos), confirmar (uma ação pede licença), nova, erro.
  */
 #ifndef LUMNA_EMMAC_H
 #define LUMNA_EMMAC_H

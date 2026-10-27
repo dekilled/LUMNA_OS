@@ -73,7 +73,7 @@ try:
     sobe(["python3", os.path.join(AQUI, "backend-falso.py"), str(porta), LOG, STT])
     sobe(["python3", os.path.join(AQUI, "midia-falso.py"), os.path.join(run, "lumna-midia.sock"), LOG])
     time.sleep(0.8)
-    d = sobe([EMMA], env=env, stderr=subprocess.PIPE)
+    d = sobe([EMMA], env=env, stderr=open(os.path.join(T, "emma.err"), "w"))
     confere(espera(lambda: os.path.exists(os.path.join(run, "lumna-emma.sock"))), "o socket não abriu")
     confere(espera(lambda: pede("estado").get("online") is True), "o serviço não achou o backend")
 
@@ -110,9 +110,20 @@ try:
     confere(r.get("ok") is False and "desligada" in r.get("resposta", ""), f"a ação desligada rodou: {r}")
     confere(log().count("40%") == 0, "o volume mudou com a ação desligada")
 
+    # o histórico do painel e o contexto
+    h = pede("historico")
+    confere(h.get("ok") is True, f"o histórico não veio: {h}")
+    c = pede("contexto")
+    confere(c.get("ok") is True and c.get("ativo") is True, f"o contexto não veio: {c}")
+    confere(pede("contexto", "nao").get("ativo") is False, "o contexto não desligou")
+    confere(pede("contexto", "sim").get("ativo") is True, "o contexto não religou")
+    r = pede("celular", "como adiciono outro layout")
+    confere(r.get("ok") is True and "layout" in r.get("resposta", "").lower(), f"a resposta com cartão não veio: {r}")
+
     # o catálogo
     a = pede("acoes")
     confere(any(x["nome"] == "midia.abrir" for x in a.get("acoes", [])), "o catálogo de ações veio sem a Mídia")
+    confere(any(x["nome"] == "painel.abrir" for x in a.get("acoes", [])), "o catálogo de ações veio sem o painel.abrir")
 
     # o celular: a fala que o app Controle transcreveu chega à Emma pelo lumna-controle
     if CONTROLE:
@@ -151,5 +162,6 @@ finally:
             p.kill()
 if falhas:
     print(log())
+    print(open(os.path.join(T, "emma.err")).read())
     sys.exit(1)
 print("emma ok")

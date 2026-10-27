@@ -98,6 +98,9 @@ class H(BaseHTTPRequestHandler):
         ferramenta = None
         if "netflix" in texto:
             ferramenta = ("lumna_midia_abrir", {"servico": "netflix"}, "Abri a Netflix. Bom filme!")
+        elif "layout" in texto:
+            ferramenta = ("lumna_painel_abrir", {"secao": "teclado/teclado"},
+                          "Encontrei essa opção nas configurações. Qual layout você quer usar?\n[acao: Adicionar layout]\n[sugestao: Português (Brasil)]\n[sugestao: Inglês (EUA)]")
         elif "volume" in texto:
             ferramenta = ("lumna_audio_volume", {"percentual": 35}, "Volume em 35 por cento.")
         if ferramenta:
