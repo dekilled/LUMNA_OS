@@ -88,5 +88,8 @@ const char *pn_dia(int64_t unix_s);
 void pn_ir(const char *id);
 /* Aplicativos > Instalados: abre a página deste pacote (o nome no pacman, ou o caminho do AppImage) */
 void pn_apps_selecionar(const char *pacote);
+struct pacote;
+/* os aplicativos lidos (0 e lista NULL enquanto lê) */
+int pn_apps_dados(const struct pacote ***lista);
 
 #endif

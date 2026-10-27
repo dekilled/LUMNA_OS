@@ -303,11 +303,14 @@ static gpointer tarefa_linha(gpointer p) {
 }
 
 void pn_tarefa(void (*trabalho)(void *), void (*pronto)(void *), void *dados) {
+	static bool vigiado;
 	if (tarefas_fd < 0) {
 		tarefas_fd = eventfd(0, EFD_CLOEXEC);
-		if (tarefas_fd >= 0 && pn_app) {
-			gv_app_vigiar(pn_app, tarefas_fd, tarefas_acordou, NULL);
-		}
+	}
+	/* o painel pode pedir uma tarefa antes de a janela existir (abrir direto numa seção): vigia quando puder */
+	if (!vigiado && tarefas_fd >= 0 && pn_app) {
+		gv_app_vigiar(pn_app, tarefas_fd, tarefas_acordou, NULL);
+		vigiado = true;
 	}
 	struct tarefa *t = g_new0(struct tarefa, 1);
 	t->trabalho = trabalho;

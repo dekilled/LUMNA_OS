@@ -31,6 +31,13 @@ void pn_sobre_atu_abrir(void);
 void pn_sobre_legal_desenhar(void);
 
 /* Sistema → Data e hora (datahora.c) */
+void pn_armaz_abrir(void);
+void pn_armaz_uso_desenhar(void);
+void pn_armaz_limpeza_desenhar(void);
+void pn_armaz_discos_desenhar(void);
+void pn_apps_desenhar(void);
+void pn_apps_abrir(void);
+void pn_apps_atu_desenhar(void);
 void pn_hora_desenhar(void);
 void pn_hora_abrir(void);
 void pn_fuso_desenhar(void);
@@ -60,12 +67,13 @@ extern const pn_categoria pn_rede;
 extern const pn_categoria pn_bluetooth;
 
 static const pn_secao aplicativos[] = {
-	{ "instalados", "grid", "Instalados", "Os apps deste computador.", NULL,
-		"A lista com o tamanho de cada um;Desinstalar;Abrir na Loja" },
+	{ "instalados", "grid", "Instalados", "Os apps deste computador.", pn_apps_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_apps_abrir },
 	{ "padrao", "check", "Apps padrão", "Que app abre cada coisa.", NULL,
 		"Navegador, música, vídeo, imagens, e-mail e terminal" },
 	{ "permissoes", "shield", "Permissões", "O que cada app pode usar.", NULL, "Câmera, microfone, localização e arquivos" },
-	{ "atualizacoes", "refresh", "Atualizações", "Manter os apps em dia.", NULL, "Procurar e instalar;Automático" },
+	{ "atualizacoes", "refresh", "Atualizações", "Manter os apps em dia.", pn_apps_atu_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_apps_abrir },
 };
 const pn_categoria pn_aplicativos = { "aplicativos", "grid", "Aplicativos", "Instalação e permissões", PN_GERAL, aplicativos,
 	N(aplicativos) };
@@ -130,9 +138,12 @@ static const pn_secao sobre[] = {
 const pn_categoria pn_sobre = { "sobre", "info", "Sobre", "LUMNA OS 1.0.0 neste computador", PN_SISTEMA, sobre, N(sobre) };
 
 static const pn_secao armazenamento[] = {
-	{ "uso", "drive", "Uso do disco", "O espaço de cada pasta.", NULL, "O espaço livre;O que ocupa mais" },
-	{ "limpeza", "trash", "Limpeza", "Liberar espaço.", NULL, "Lixeira, cache e pacotes antigos" },
-	{ "discos", "usb", "Discos e pendrives", "Os discos ligados.", NULL, "Montar, ejetar e formatar" },
+	{ "uso", "drive", "Uso do disco", "O que ocupa espaço, como no Android.", pn_armaz_uso_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_armaz_abrir },
+	{ "limpeza", "trash", "Limpeza", "Liberar espaço.", pn_armaz_limpeza_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_armaz_abrir },
+	{ "discos", "usb", "Discos e pendrives", "Os discos ligados.", pn_armaz_discos_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_armaz_abrir },
 };
 const pn_categoria pn_armazenamento = { "armazenamento", "drive", "Armazenamento", "Espaço usado e limpeza", PN_SISTEMA,
 	armazenamento, N(armazenamento) };

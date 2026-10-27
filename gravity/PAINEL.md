@@ -139,10 +139,10 @@ placa ou sem o NetworkManager, a seção avisa e diz como instalar. Para testar 
 Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.sh`.
 
 **Aplicativos**
-- 🔨 Instalados (a lista do lançador, com desinstalar pelo `lumna-pkg`);
+- ✅ Instalados (pacman, AUR e AppImages; a página do app: origem, versão, tamanho, pasta, datas, o que depende dele, atualização, desativar e desinstalar mostrando antes o que sai junto e o que quebraria; `servicos/pacotes.c`);
 - 🔨 Apps padrão (navegador, música, vídeo, imagens, e-mail);
 - ⏳ Permissões (câmera, microfone, localização, arquivos);
-- ⏳ Atualizações.
+- ✅ Atualizações (os apps com versão nova; atualizar roda `yay -Syu`/`pacman -Syu` num terminal: o Arch atualiza o sistema inteiro junto).
 
 **Telas e modos**
 - ⏳ Monitores:
@@ -186,13 +186,13 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 ### Sistema
 
 - **Sobre:**
-  - 🔨 este computador (modelo, processador, memória, versão do LUMNA);
-  - ⏳ atualizações do sistema;
+  - ✅ este computador (modelo, processador, memória, versão do LUMNA);
+  - ✅ atualizações do sistema (procurar e histórico do pacman.log);
   - avisos legais.
 - **Armazenamento:**
-  - 🔨 uso do disco por pasta;
-  - ⏳ limpeza (lixeira, cache, pacotes antigos);
-  - ⏳ discos e pendrives.
+  - ✅ uso do disco como no Android (barra: apps, cache, temporários, lixeira; os apps que mais ocupam levam à página do app);
+  - ✅ limpeza (lixeira, temporários, cache do pacman, com confirmação);
+  - ✅ discos e pendrives (montar, abrir, ejetar pelo udisks).
 - **Energia:**
   - ⏳ perfil de energia (power-profiles-daemon);
   - ⏳ bateria (UPower);
