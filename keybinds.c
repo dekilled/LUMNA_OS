@@ -263,6 +263,9 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_LAUNCHER:
 		spawn(server->launcher);
 		break;
+	case ORBIT_EMMA:
+		spawn(server->emma);
+		break;
 	}
 }
 
@@ -367,6 +370,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_Tab, ORBIT_MODE_PREV, 0);
 	bind_put(server, 0, XKB_KEY_Super_L, ORBIT_LAUNCHER, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_m, ORBIT_MEDIA_MENU, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_a, ORBIT_EMMA, 0);
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_o, ORBIT_SWAP_OUTPUTS, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Left, ORBIT_SNAP_LEFT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
@@ -419,6 +423,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "modo_anterior", ORBIT_MODE_PREV, 0 },
 	{ "lancador", ORBIT_LAUNCHER, 0 },
 	{ "seletor_midia", ORBIT_MEDIA_MENU, 0 },
+	{ "emma", ORBIT_EMMA, 0 },
 	{ "trocar_telas", ORBIT_SWAP_OUTPUTS, 0 },
 	{ "encaixar_esquerda", ORBIT_SNAP_LEFT, 0 },
 	{ "encaixar_direita", ORBIT_SNAP_RIGHT, 0 },

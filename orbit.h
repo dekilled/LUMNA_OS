@@ -120,6 +120,7 @@ enum orbit_action {
 	ORBIT_SNAP_DOWN,
 	ORBIT_LAUNCHER,   /* abrir ou fechar o lançador (o Super sozinho) */
 	ORBIT_MEDIA_MENU, /* Super+M: o seletor de serviços, só no modo Mídia */
+	ORBIT_EMMA,       /* Super+A: ligar (ou encerrar) o microfone da Emma */
 	ORBIT_SWAP_OUTPUTS, /* trocar os espaços de trabalho entre as telas */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 	ORBIT_MODE_PREV,
@@ -263,6 +264,7 @@ struct orbit_server {
 	bool mode_booted;
 	char launcher[ORBIT_CMD_LEN];
 	char media_menu[ORBIT_CMD_LEN]; /* o seletor de serviços da Mídia */
+	char emma[ORBIT_CMD_LEN];       /* liga o microfone da Emma (lumna-emma ouvir) */
 	bool inhibit_host_shortcuts;    /* aninhado: pede ao Wayland de fora que deixe os atalhos (o Super) com o Orbit */
 	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
 	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
