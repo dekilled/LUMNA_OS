@@ -162,6 +162,7 @@ static bool numero_valido(const char *s) {
 
 /* gv_campo_chat: Enter envia e Shift+Enter quebra a linha (nas várias linhas comuns é o contrário: Ctrl+Enter envia) */
 static bool modo_chat;
+static bool sem_moldura; /* gv_campo_chat sem moldura: quem o envolve (uma pílula) é que desenha o contorno */
 
 static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo, Clay_ElementId id, float tamanho,
 		float largura) {
@@ -561,13 +562,14 @@ static int campo(Clay_ElementId id, char *texto, size_t capacidade, const char *
 		borda.a + (gv_t.foco.a - borda.a) * realce,
 	};
 	bool com_botao = !multi && ((tipo == GV_CAMPO_BUSCA && n > 0) || senha);
+	bool moldura = !sem_moldura;
 	CLAY(id, {
 		.layout = { .sizing = { CLAY_SIZING_GROW(0), multi ? CLAY_SIZING_FIT(44) : CLAY_SIZING_FIXED(44) },
-			.padding = { tipo == GV_CAMPO_BUSCA ? 14 : 16, com_botao ? 6 : 16, multi ? 11 : 0, multi ? 11 : 0 }, .childGap = 10,
+			.padding = { moldura ? (tipo == GV_CAMPO_BUSCA ? 14 : 16) : 8, com_botao ? 6 : moldura ? 16 : 8, multi ? 11 : 0, multi ? 11 : 0 }, .childGap = 10,
 			.childAlignment = { .y = multi ? CLAY_ALIGN_Y_TOP : CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = gv_t.elevada,
+		.backgroundColor = moldura ? gv_t.elevada : (Clay_Color){ 0 },
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno),
-		.border = { .color = borda, .width = GV_BORDA(1) },
+		.border = { .color = borda, .width = moldura ? GV_BORDA(1) : (Clay_BorderWidth){ 0 } },
 	}) {
 		if (tipo == GV_CAMPO_BUSCA) {
 			gv_icone("search", 20, focado ? gv_t.icone : gv_t.texto_secundario);
@@ -627,9 +629,10 @@ int gv_campo_area(Clay_ElementId id, char *texto, size_t capacidade, const char 
 	return campo(id, texto, capacidade, dica, GV_CAMPO_TEXTO, linhas_min, linhas_max < 2 ? 2 : linhas_max);
 }
 
-int gv_campo_chat(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_max) {
+int gv_campo_chat(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_max, bool moldura) {
 	modo_chat = true;
+	sem_moldura = !moldura;
 	int r = gv_campo_area(id, texto, capacidade, dica, 1, linhas_max < 2 ? 2 : linhas_max);
-	modo_chat = false;
+	modo_chat = sem_moldura = false;
 	return r;
 }

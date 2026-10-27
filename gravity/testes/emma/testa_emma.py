@@ -120,6 +120,7 @@ try:
     r = pede("celular", "como adiciono outro layout")
     confere(r.get("ok") is True and "layout" in r.get("resposta", "").lower(), f"a resposta com cartão não veio: {r}")
 
+    confere(pede("versao").get("versao", 0) >= 2, "o serviço não disse a versão")
     # o app completo: REST repassado e conversa numa sessão própria
     r = pede("rest", "GET", "/api/sessions/sess-9/messages")
     confere(r.get("ok") is True and r.get("status") == 200 and r.get("corpo") == [], f"o rest não voltou: {r}")

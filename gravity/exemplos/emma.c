@@ -911,6 +911,9 @@ static void tratar(struct cliente *c, char *linha) {
 		g_free(a);
 	} else if (!strcmp(cmd, "acoes")) {
 		pedido_acoes(c);
+	} else if (!strcmp(cmd, "versao")) {
+		/* o app completo confere: 2 = conversar e rest */
+		escrever(c, "{\"ok\":true,\"versao\":2}");
 	} else if (!strcmp(cmd, "reiniciar")) {
 		responder_ok(c);
 		g_timeout_add(200, reiniciar_agora, NULL);
@@ -1021,6 +1024,8 @@ static gboolean reiniciar_agora(gpointer d) {
 	char *caminho = emmac_socket_caminho();
 	g_unlink(caminho);
 	g_free(caminho);
+	/* pelo nome de quando abriu (no PATH, a versão nova, se foi recompilado); /proc/self/exe só se isso falhar */
+	execvp(argv_original[0], argv_original);
 	execv("/proc/self/exe", argv_original);
 	return G_SOURCE_REMOVE;
 }

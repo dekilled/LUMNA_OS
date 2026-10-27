@@ -313,10 +313,16 @@ static void enviar(const char *texto) {
 	}
 	g_string_append_c(c, '}');
 	char *p = g_strdup_printf("conversar %s", c->str);
-	pedir(p);
+	char resp[300];
+	bool falou = emmac_pedido(p, resp, sizeof(resp));
+	struct json *j = falou ? json_ler(resp) : NULL;
+	skill_id[0] = skill_nome[0] = erro[0] = '\0';
+	if (!falou || !json_bool(json_chave(j, "ok"), false)) {
+		g_strlcpy(erro, !falou ? "O serviço da Emma não respondeu." : *json_chave_texto(j, "erro") ? json_chave_texto(j, "erro") : "A Emma não aceitou a mensagem.", sizeof(erro));
+	}
+	json_liberar(j);
 	g_free(p);
 	g_string_free(c, TRUE);
-	skill_id[0] = skill_nome[0] = erro[0] = '\0';
 }
 
 static void aplicar_evento(const struct json *j) {
@@ -787,7 +793,7 @@ static void compositor_de_mensagem(void) {
 				carregar_skills();
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				if ((gv_campo_chat(CLAY_ID("ap-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte ou peça algo à Emma…  (Shift+Enter quebra a linha)", 8) & GV_CAMPO_ENTER) && campo[0]) {
+				if ((gv_campo_chat(CLAY_ID("ap-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte ou peça algo à Emma…  (Shift+Enter quebra a linha)", 8, false) & GV_CAMPO_ENTER) && campo[0]) {
 					enviar(campo);
 					campo[0] = '\0';
 				}
@@ -814,6 +820,11 @@ static void vista_chat(void) {
 	bool vazio = !msgs->len && !conf_id[0];
 	if (vazio) {
 		apresentacao();
+		if (erro[0]) {
+			CLAY(CLAY_ID("ap-erro"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 56, 56, 6, 6 } } }) {
+				gv_texto(gv_str(erro), gv_t.tamanho_corpo, gv_t.perigo, GV_PESO_MEDIO);
+			}
+		}
 	} else {
 		conversa();
 	}
@@ -995,6 +1006,36 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 }
 
+/* o serviço da Emma tem de estar de pé e na versão que entende o app (conversar e rest): senão inicia ou reinicia */
+static bool servico_pronto(void) {
+	char r[128];
+	if (emmac_pedido("versao", r, sizeof(r))) {
+		struct json *j = json_ler(r);
+		bool bom = json_numero(json_chave(j, "versao"), 0) >= 2;
+		json_liberar(j);
+		return bom;
+	}
+	return false;
+}
+
+static void garantir_servico(void) {
+	if (servico_pronto()) {
+		return;
+	}
+	char r[128];
+	if (emmac_pedido("estado", r, sizeof(r))) {
+		emmac_pedido("reiniciar", r, sizeof(r)); /* de pé, mas velho */
+	} else {
+		eu_lancar("lumna-emma");
+	}
+	for (int i = 0; i < 25 && !servico_pronto(); i++) {
+		g_usleep(200000);
+	}
+	if (!servico_pronto()) {
+		g_strlcpy(erro, "O serviço da Emma está desatualizado: feche e abra de novo pelo ícone dela na barra (Fechar, depois Iniciar).", sizeof(erro));
+	}
+}
+
 int main(void) {
 	msgs = g_ptr_array_new_with_free_func(eu_msg_liberar);
 	sessoes = g_array_new(FALSE, TRUE, sizeof(struct sessao));
@@ -1008,6 +1049,7 @@ int main(void) {
 	if (!app) {
 		return 1;
 	}
+	garantir_servico();
 	carregar_rotinas();
 	carregar_sessoes();
 	gv_focar(CLAY_ID("ap-campo"));
