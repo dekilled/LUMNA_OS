@@ -577,6 +577,17 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 	g_free(r.corpo);
 }
 
+/* o aviso de um erro da conversa; se for falta de provedor/chave, leva ao Painel onde se configura */
+void eu_aviso_erro(const char *erro, float tam) {
+	gv_texto(gv_str(erro), tam, gv_t.perigo, GV_PESO_MEDIO);
+	char *baixo = g_utf8_casefold(erro, -1);
+	bool config = strstr(baixo, "provedor") || strstr(baixo, "provider") || strstr(baixo, "api") || strstr(baixo, "chave") || strstr(baixo, "modelo");
+	g_free(baixo);
+	if (config && gv_botao(CLAY_ID("eu-erro-conf"), "settings", "Configurar provedor", GV_BOTAO_ELEVADO)) {
+		eu_abrir_secao("emma/provedores");
+	}
+}
+
 /* ---- abrir outros programas ---- */
 
 static void lancar(const char *programa, const char *a1, const char *a2) {

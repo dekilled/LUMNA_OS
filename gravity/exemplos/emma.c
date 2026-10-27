@@ -73,7 +73,7 @@ static const char *emit_canal = "assist";
 static char emit_sid[80];
 
 static bool evento_de_conversa(const char *e) {
-	return !strcmp(e, "ouvido") || !strcmp(e, "delta") || !strcmp(e, "resposta") || !strcmp(e, "ferramenta") || !strcmp(e, "confirmar") || !strcmp(e, "nova");
+	return !strcmp(e, "ouvido") || !strcmp(e, "delta") || !strcmp(e, "resposta") || !strcmp(e, "ferramenta") || !strcmp(e, "confirmar") || !strcmp(e, "erro");
 }
 
 static void emitir_conv(const char *canal, const char *sid, const char *evento, const char *chaves_json) {
@@ -113,11 +113,20 @@ static void recalcular_estado(void) {
 	}
 }
 
-static void erro_para_todos(const char *msg) {
+/* um erro: da conversa de agora (a do app ou a do painel) ou, sem conversa (microfone), do painel */
+static void erro_para_todos_de(const char *msg, bool da_conversa) {
 	char *m = js(msg), *k = g_strdup_printf("\"mensagem\":%s", m);
-	emitir_form("erro", k);
+	if (da_conversa) {
+		emitir_form("erro", k);
+	} else {
+		emitir_conv("assist", "", "erro", k);
+	}
 	g_free(k);
 	g_free(m);
+}
+
+static void erro_para_todos(const char *msg) {
+	erro_para_todos_de(msg, true);
 }
 
 static void voz_estado(const char *e, void *d) {
@@ -560,7 +569,7 @@ static gboolean ouvido_pronto(gpointer d) {
 	struct ouvido_res *r = d;
 	ouvindo = transcrevendo = false;
 	if (r->erro) {
-		erro_para_todos(r->erro);
+		erro_para_todos_de(r->erro, false);
 	}
 	if (r->texto && *r->texto) {
 		processar_texto(r->texto, "mic", true, NULL);

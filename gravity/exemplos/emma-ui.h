@@ -57,6 +57,7 @@ extern float eu_largura_balao;          /* a largura máxima de um balão */
 bool eu_tem_markdown(const char *texto);
 void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor);
 
+void eu_aviso_erro(const char *erro, float tam);
 void eu_avatar(Clay_ElementId id, float tam);
 bool eu_botao_icone(Clay_ElementId id, const char *icone, bool ligado);
 bool eu_chip(Clay_ElementId id, const char *texto, bool principal);

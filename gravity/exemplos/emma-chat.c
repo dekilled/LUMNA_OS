@@ -273,7 +273,7 @@ static void desenhar(gv_app *a, void *dados) {
 				}
 			}
 			if (erro[0]) {
-				gv_texto(gv_str(erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+				eu_aviso_erro(erro, gv_t.tamanho_corpo - 1);
 			}
 		}
 		if (rolar_fim) {

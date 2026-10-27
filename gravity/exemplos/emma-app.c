@@ -765,7 +765,7 @@ static void conversa(void) {
 			}
 		}
 		if (erro[0]) {
-			gv_texto(gv_str(erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+			eu_aviso_erro(erro, gv_t.tamanho_corpo - 1);
 		}
 	}
 	if (rolar_fim) {
@@ -821,8 +821,8 @@ static void vista_chat(void) {
 	if (vazio) {
 		apresentacao();
 		if (erro[0]) {
-			CLAY(CLAY_ID("ap-erro"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 56, 56, 6, 6 } } }) {
-				gv_texto(gv_str(erro), gv_t.tamanho_corpo, gv_t.perigo, GV_PESO_MEDIO);
+			CLAY(CLAY_ID("ap-erro"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 56, 56, 6, 6 }, .childGap = 8 } }) {
+				eu_aviso_erro(erro, gv_t.tamanho_corpo);
 			}
 		}
 	} else {
