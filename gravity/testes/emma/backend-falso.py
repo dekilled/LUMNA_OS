@@ -51,7 +51,7 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def do_GET(self):
-        registrar(f"GET {self.path}")
+        registrar(f"GET {self.path} auth={self.headers.get('Authorization', '')}")
         if self.path == "/api/providers":
             return self.json([prov_publico(p) for p in PROVS])
         if self.path == "/api/settings":

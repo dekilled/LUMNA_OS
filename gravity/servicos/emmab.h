@@ -18,10 +18,11 @@
 enum { EMMAB_APP, EMMAB_ASSIST, EMMAB_NN };
 
 const char *emmab_url(void);
-/* a conta de que o serviço entra no backend: endereço, e-mail e senha (guardados em emma.json e em backend.env, só do usuário); o que vier NULL fica como está */
-bool emmab_conta_gravar(const char *url, const char *email, const char *senha, char **erro);
-bool emmab_conta_ler(char *email, size_t tam);   /* o e-mail guardado ("" : nenhum) */
-void emmab_reentrar(void);                       /* esquece o login de agora: o próximo pedido entra de novo */
+/* a conta de que o serviço entra no backend: o endereço e o token de API (criado no harness; guardados em emma.json, só do usuário).
+ * NULL ou vazio: fica como está. O que valia antes (a conta local de backend.env) segue valendo enquanto não houver token */
+bool emmab_conta_gravar(const char *url, const char *token, char **erro);
+bool emmab_token_ler(char *mascara, size_t tam);  /* "lumna_abcd…wxyz" (nunca o token inteiro); "" se não há */
+void emmab_reentrar(void);                        /* esquece o acesso guardado: o próximo pedido pega de novo */
 bool emmab_no_ar(void);                       /* o backend respondeu agora */
 
 /* uma chamada com o token (entra de novo se vier 401). Devolve o status HTTP, ou 0 se o backend não respondeu */

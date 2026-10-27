@@ -921,15 +921,15 @@ static void tratar(struct cliente *c, char *linha) {
 	} else if (!strcmp(cmd, "acoes")) {
 		pedido_acoes(c);
 	} else if (!strcmp(cmd, "conta")) {
-		/* conta                                  -> {"ok":true,"url":...,"email":...}
-		 * conta {"url":...,"email":...,"senha":...} guarda (o que faltar fica como está) e entra de novo */
+		/* conta                                -> {"ok":true,"url":...,"token":"lumna_abcd…wxyz","tem_token":true}
+		 * conta {"url":...,"token":...}          guarda (o que faltar fica como está) */
 		if (resto && *resto) {
 			struct json *j = json_ler(resto);
-			const char *url = json_chave_texto(j, "url"), *email = json_chave_texto(j, "email"), *senha = json_chave_texto(j, "senha");
+			const char *url = json_chave_texto(j, "url"), *tk = json_chave_texto(j, "token");
 			char *e = NULL;
 			if (!j) {
-				responder_erro(c, "conta {url, email, senha}");
-			} else if (emmab_conta_gravar(url, email, senha, &e)) {
+				responder_erro(c, "conta {url, token}");
+			} else if (emmab_conta_gravar(url, tk, &e)) {
 				responder_ok(c);
 			} else {
 				responder_erro(c, e ? e : "não consegui guardar a conta");
@@ -937,9 +937,9 @@ static void tratar(struct cliente *c, char *linha) {
 			g_free(e);
 			json_liberar(j);
 		} else {
-			char email[200];
-			emmab_conta_ler(email, sizeof(email));
-			char *u = js(emmab_url()), *m = js(email), *r = g_strdup_printf("{\"ok\":true,\"url\":%s,\"email\":%s}", u, m);
+			char mascara[64];
+			bool tem = emmab_token_ler(mascara, sizeof(mascara));
+			char *u = js(emmab_url()), *m = js(mascara), *r = g_strdup_printf("{\"ok\":true,\"url\":%s,\"token\":%s,\"tem_token\":%s}", u, m, tem ? "true" : "false");
 			escrever(c, r);
 			g_free(r);
 			g_free(m);

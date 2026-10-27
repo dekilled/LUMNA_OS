@@ -1,5 +1,5 @@
 /*
- * Emma > Provedores e modelos: a conta do servidor da Emma (endereço, e-mail e senha), os provedores de IA (Ollama, OpenAI, Gemini,
+ * Emma > Provedores e modelos: o servidor da Emma (endereço e token de API), os provedores de IA (Ollama, OpenAI, Gemini,
  * Claude ou um endereço seu), as chaves de API e qual modelo atende a conversa e o plano. Tudo vai e volta pelo serviço lumna-emma
  * (servicos/emmar.h); as chamadas rodam numa linha à parte e o resultado aparece no aviso do topo.
  */
@@ -44,7 +44,7 @@ static int nrotas;
 
 static char aviso[300];
 static bool aviso_erro, ocupado, carregado, servico_ok = true, servidor_ok;
-static char srv_url[200], srv_email[120], srv_senha[120];
+static char srv_url[200], srv_token_mascara[64], srv_token[200];
 static bool conta_aberta;
 
 static bool form_aberto;
@@ -58,7 +58,7 @@ struct job {
 	char metodo[8], caminho[200], conta[700];
 	char *corpo;
 	struct emmar r, r2;
-	char url[200], email[120];
+	char url[200], token[64];
 	char modelo[96];
 };
 
@@ -75,7 +75,7 @@ static void trabalho(void *d) {
 		if (emmac_pedido("conta", resp, sizeof(resp))) {
 			struct json *c = json_ler(resp);
 			g_strlcpy(j->url, json_chave_texto(c, "url"), sizeof(j->url));
-			g_strlcpy(j->email, json_chave_texto(c, "email"), sizeof(j->email));
+			g_strlcpy(j->token, json_chave_texto(c, "token"), sizeof(j->token));
 			json_liberar(c);
 		}
 		emmar_chamar("GET", "/api/providers", NULL, 0, &j->r);
@@ -91,13 +91,13 @@ static void carregar_dados(struct job *j) {
 	servico_ok = j->r.servico;
 	servidor_ok = j->r.ok;
 	g_strlcpy(srv_url, j->url, sizeof(srv_url));
-	g_strlcpy(srv_email, j->email, sizeof(srv_email));
+	g_strlcpy(srv_token_mascara, j->token, sizeof(srv_token_mascara));
 	carregado = true;
 	if (!servico_ok) {
 		return;
 	}
 	if (!servidor_ok) {
-		g_snprintf(aviso, sizeof(aviso), "%s Confira o endereço e a conta do servidor da Emma.", j->r.msg);
+		g_snprintf(aviso, sizeof(aviso), "%s Confira o endereço e o token do servidor da Emma.", j->r.msg);
 		aviso_erro = true;
 		conta_aberta = true;
 		return;
@@ -149,7 +149,7 @@ static void pronto(void *d) {
 			g_strlcpy(aviso, "Conectado ao servidor da Emma.", sizeof(aviso));
 			aviso_erro = false;
 			conta_aberta = false;
-			srv_senha[0] = '\0';
+			srv_token[0] = '\0';
 		}
 		break;
 	case A_ROTA:
@@ -499,7 +499,8 @@ static void aviso_topo(void) {
 static void card_servidor(void) {
 	pn_subtitulo(CLAY_ID("emp-t-srv"), "Servidor da Emma");
 	if (!conta_aberta) {
-		pn_linha_comecar(CLAY_ID("emp-srv"), "computer", srv_url[0] ? srv_url : "Sem endereço", servidor_ok ? (srv_email[0] ? gv_fmt("Conectado como %s", srv_email).chars : "Conectado") : "Sem conexão");
+		pn_linha_comecar(CLAY_ID("emp-srv"), "computer", srv_url[0] ? srv_url : "Sem endereço",
+			servidor_ok ? (srv_token_mascara[0] ? gv_fmt("Conectado · token %s", srv_token_mascara).chars : "Conectado") : "Sem conexão");
 		if (gv_botao(CLAY_ID("emp-srv-alt"), "edit", "Alterar", GV_BOTAO_ELEVADO)) {
 			conta_aberta = true;
 		}
@@ -511,24 +512,18 @@ static void card_servidor(void) {
 		gv_campo(CLAY_ID("emp-srv-u-c"), srv_url, sizeof(srv_url), "http://127.0.0.1:8001", GV_CAMPO_URL);
 	}
 	pn_linha_acabar();
-	pn_linha_comecar(CLAY_ID("emp-srv-e"), "user", "E-mail", "A conta da Emma.");
+	pn_linha_comecar(CLAY_ID("emp-srv-t"), "lock", "Token de API",
+		srv_token_mascara[0] ? gv_fmt("Guardado (%s). Deixe vazio para manter.", srv_token_mascara).chars : "Crie no harness: Configurações > Conta > Tokens de API.");
 	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-		gv_campo(CLAY_ID("emp-srv-e-c"), srv_email, sizeof(srv_email), "voce@exemplo.com", GV_CAMPO_EMAIL);
-	}
-	pn_linha_acabar();
-	pn_linha_comecar(CLAY_ID("emp-srv-s"), "lock", "Senha", "Fica guardada só no seu usuário (~/.config/lumna/emma).");
-	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-		gv_campo(CLAY_ID("emp-srv-s-c"), srv_senha, sizeof(srv_senha), "Deixe vazio para manter a de agora", GV_CAMPO_SENHA);
+		gv_campo(CLAY_ID("emp-srv-t-c"), srv_token, sizeof(srv_token), "lumna_…", GV_CAMPO_SENHA);
 	}
 	pn_linha_acabar();
 	CLAY(CLAY_ID("emp-srv-bt"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 6, 0 }, .childGap = 10 } }) {
-		if (gv_botao(CLAY_ID("emp-srv-entrar"), "check", "Guardar e entrar", GV_BOTAO_CHEIO) && !ocupado) {
+		if (gv_botao(CLAY_ID("emp-srv-entrar"), "check", "Guardar e conectar", GV_BOTAO_CHEIO) && !ocupado) {
 			GString *c = g_string_new("conta {\"url\":");
 			json_escrever_texto(c, srv_url);
-			g_string_append(c, ",\"email\":");
-			json_escrever_texto(c, srv_email);
-			g_string_append(c, ",\"senha\":");
-			json_escrever_texto(c, srv_senha);
+			g_string_append(c, ",\"token\":");
+			json_escrever_texto(c, srv_token);
 			g_string_append_c(c, '}');
 			struct job *j = g_new0(struct job, 1);
 			j->acao = A_CONTA;
