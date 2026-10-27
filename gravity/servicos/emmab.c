@@ -11,6 +11,10 @@
 #define TOKEN_VALE_S (50 * 60)
 
 static GMutex trinco;
+/* depois de o servidor recusar o login, espera um pouco antes de tentar de novo: insistir só trava a conta ("Muitas tentativas") */
+static gint64 pausa_ate;
+static char pausa_msg[240];
+#define PAUSA_LOGIN_S 120
 static char *token;
 static gint64 token_ate;                  /* monotônico, em µs */
 static SoupSession *sessao_curta, *sessao_longa;
@@ -278,6 +282,7 @@ void emmab_reentrar(void) {
 	g_mutex_lock(&trinco);
 	g_free(token);
 	token = NULL;
+	pausa_ate = 0;
 	g_mutex_unlock(&trinco);
 }
 
@@ -307,9 +312,17 @@ static char *acesso(char **erro) {
 		g_mutex_unlock(&trinco);
 		return t;
 	}
+	if (g_get_monotonic_time() < pausa_ate) {
+		if (erro && !*erro) {
+			*erro = g_strdup(pausa_msg);
+		}
+		g_mutex_unlock(&trinco);
+		return NULL;
+	}
 	g_mutex_unlock(&trinco);
 	sessoes();
 	char *r = NULL, *refresh = emmab_config_texto("refresh_token"), *novo = NULL;
+	bool recusado = false;
 	if (refresh) {
 		GString *c = g_string_new("{\"refresh_token\":");
 		json_escrever_texto(c, refresh);
@@ -351,9 +364,12 @@ static char *acesso(char **erro) {
 				json_escrever_texto(e, email);
 				emmab_config_gravar("email", e->str);
 				g_string_free(e, TRUE);
-			} else if (erro && !*erro) {
-				char *d = detalhe(r);
-				*erro = d ? d : g_strdup_printf("A Emma recusou o login (%d).", st);
+			} else {
+				if (erro && !*erro) {
+					char *d = detalhe(r);
+					*erro = d ? d : g_strdup_printf("A Emma recusou o login (%d).", st);
+				}
+				recusado = st != 0;
 			}
 			g_free(r);
 		} else if (erro && !*erro) {
@@ -365,6 +381,12 @@ static char *acesso(char **erro) {
 	if (novo) {
 		g_mutex_lock(&trinco);
 		guardar_token(novo);
+		pausa_ate = 0;
+		g_mutex_unlock(&trinco);
+	} else if (recusado) {
+		g_mutex_lock(&trinco);
+		pausa_ate = g_get_monotonic_time() + (gint64)PAUSA_LOGIN_S * G_USEC_PER_SEC;
+		g_snprintf(pausa_msg, sizeof(pausa_msg), "%s", erro && *erro ? *erro : "O servidor recusou o login.");
 		g_mutex_unlock(&trinco);
 	}
 	return novo;

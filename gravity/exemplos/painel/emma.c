@@ -1,7 +1,10 @@
 /*
- * Emma > Provedores e modelos: o servidor da Emma (endereço e token de API), os provedores de IA (Ollama, OpenAI, Gemini,
- * Claude ou um endereço seu), as chaves de API e qual modelo atende a conversa e o plano. Tudo vai e volta pelo serviço lumna-emma
- * (servicos/emmar.h); as chamadas rodam numa linha à parte e o resultado aparece no aviso do topo.
+ * Emma > Provedores e Roteamento: as mesmas telas do harness (Configurações > Providers e Roteamento) aqui no Painel. Provedores de IA
+ * compatíveis com OpenAI (Ollama, OpenAI, Gemini, Claude ou um endereço seu) com a chave de API e os modelos, o teste de capacidades, e qual
+ * provedor e modelo atende cada tarefa (Chat, Planner, RAG, Coder, Visão).
+ *
+ * Tudo vai e volta pelo serviço lumna-emma (servicos/emmar.h), que já está ligado ao servidor da Emma: a conexão não aparece na tela, só se
+ * falhar (ou em "Conexão com o servidor", lá embaixo). As chamadas rodam numa linha à parte; o resultado aparece no aviso do topo.
  */
 #include "painel.h"
 
@@ -15,12 +18,22 @@
 
 #define N(lista) (int)(sizeof(lista) / sizeof(lista[0]))
 #define MAX_PROV 16
-#define MAX_ROTAS 8
+#define MAX_ROTAS 12
 
 struct prov {
 	char id[40], nome[96], url[200], preset[24], mascara[24];
 	bool tem_chave;
 	char modelos[1500]; /* separados por vírgula */
+};
+
+/* o que se edita no cartão de cada provedor (volta ao valor do servidor quando recarrega) */
+struct edicao {
+	char nome[96], url[200], chave[200], modelos[1500];
+	int modelo_teste;
+	bool tem_relatorio;
+	bool chat, streaming, json_mode;
+	int latencia;
+	char erro[240];
 };
 
 struct rota {
@@ -37,24 +50,33 @@ static const struct {
 	{ "custom", "Endpoint customizado", "http://localhost:11434/v1", "" },
 };
 
+static const struct {
+	const char *chave, *nome, *dica;
+} tarefas[] = {
+	{ "chat", "Chat", "Modo Chat livre" },
+	{ "planner", "Planner", "Modo Plan + extração de memória" },
+	{ "rag", "RAG", "Chat com contexto do projeto" },
+	{ "coder", "Coder", "Modos Build e Workspace" },
+	{ "vision", "Visão", "Mensagens com imagem (opcional; sem ele usa a tarefa do modo)" },
+};
+
 static struct prov provs[MAX_PROV];
+static struct edicao eds[MAX_PROV];
 static int nprov;
-static struct rota rotas[MAX_ROTAS];
-static int nrotas;
+static struct rota rotas[MAX_ROTAS], rotas_salvas[MAX_ROTAS];
+static int nrotas, nrotas_salvas;
+static bool rotas_sujas;
 
 static char aviso[300];
 static bool aviso_erro, ocupado, carregado, servico_ok = true, servidor_ok;
 static char srv_url[200], srv_token_mascara[64], srv_token[200];
-static bool conta_aberta;
+static bool conexao_aberta;
 
-static bool form_aberto;
-static char ed_id[40], ed_nome[96], ed_url[200], ed_chave[200], ed_modelos[1500];
-static int ed_preset = 4;
-
-enum acao { A_CARREGAR, A_CONTA, A_ROTA, A_SALVAR, A_EXCLUIR, A_MODELOS, A_TESTAR };
+enum acao { A_CARREGAR, A_CONTA, A_ROTA, A_SALVAR, A_ADICIONAR, A_EXCLUIR, A_MODELOS, A_TESTAR };
 
 struct job {
 	enum acao acao;
+	int idx;
 	char metodo[8], caminho[200], conta[700];
 	char *corpo;
 	struct emmar r, r2;
@@ -87,6 +109,22 @@ static void trabalho(void *d) {
 	emmar_chamar(j->metodo, j->caminho, j->corpo, 0, &j->r);
 }
 
+static int separar_modelos(const char *csv, char ***lista);
+static struct rota *rota_de(const char *chave);
+static int prov_index(const char *id);
+static void guardar_rotas(void);
+static void iniciar(enum acao a, int idx, const char *metodo, const char *caminho, char *corpo, const char *modelo);
+
+static void csv_de(const struct json *ms, char *dest, size_t tam) {
+	GString *csv = g_string_new(NULL);
+	for (int k = 0; ms && k < ms->nfilhos; k++) {
+		const char *m = json_texto(json_item(ms, k));
+		g_string_append_printf(csv, "%s%s", k ? ", " : "", m ? m : "");
+	}
+	g_strlcpy(dest, csv->str, tam);
+	g_string_free(csv, TRUE);
+}
+
 static void carregar_dados(struct job *j) {
 	servico_ok = j->r.servico;
 	servidor_ok = j->r.ok;
@@ -97,15 +135,15 @@ static void carregar_dados(struct job *j) {
 		return;
 	}
 	if (!servidor_ok) {
-		g_snprintf(aviso, sizeof(aviso), "%s Confira o endereço e o token do servidor da Emma.", j->r.msg);
+		g_snprintf(aviso, sizeof(aviso), "Não consegui entrar no servidor da Emma. %s", j->r.msg);
 		aviso_erro = true;
-		conta_aberta = true;
+		conexao_aberta = true;
 		return;
 	}
 	nprov = 0;
 	for (int i = 0; j->r.corpo && i < j->r.corpo->nfilhos && nprov < MAX_PROV; i++) {
 		const struct json *p = json_item(j->r.corpo, i);
-		struct prov *v = &provs[nprov++];
+		struct prov *v = &provs[nprov];
 		memset(v, 0, sizeof(*v));
 		g_strlcpy(v->id, json_chave_texto(p, "id"), sizeof(v->id));
 		g_strlcpy(v->nome, json_chave_texto(p, "name"), sizeof(v->nome));
@@ -113,13 +151,13 @@ static void carregar_dados(struct job *j) {
 		g_strlcpy(v->preset, json_chave_texto(p, "preset"), sizeof(v->preset));
 		g_strlcpy(v->mascara, json_chave_texto(p, "api_key_masked"), sizeof(v->mascara));
 		v->tem_chave = json_bool(json_chave(p, "has_key"), false);
-		const struct json *ms = json_chave(p, "models");
-		GString *csv = g_string_new(NULL);
-		for (int k = 0; ms && k < ms->nfilhos; k++) {
-			g_string_append_printf(csv, "%s%s", k ? ", " : "", json_texto(json_item(ms, k)) ? json_texto(json_item(ms, k)) : "");
-		}
-		g_strlcpy(v->modelos, csv->str, sizeof(v->modelos));
-		g_string_free(csv, TRUE);
+		csv_de(json_chave(p, "models"), v->modelos, sizeof(v->modelos));
+		struct edicao *e = &eds[nprov];
+		memset(e, 0, sizeof(*e));
+		g_strlcpy(e->nome, v->nome, sizeof(e->nome));
+		g_strlcpy(e->url, v->url, sizeof(e->url));
+		g_strlcpy(e->modelos, v->modelos, sizeof(e->modelos));
+		nprov++;
 	}
 	nrotas = 0;
 	const struct json *rt = json_chave(j->r2.corpo, "routing");
@@ -130,13 +168,10 @@ static void carregar_dados(struct job *j) {
 		g_strlcpy(r->prov, json_chave_texto(rt->filhos[i], "provider_id"), sizeof(r->prov));
 		g_strlcpy(r->modelo, json_chave_texto(rt->filhos[i], "model"), sizeof(r->modelo));
 	}
+	memcpy(rotas_salvas, rotas, sizeof(rotas));
+	nrotas_salvas = nrotas;
+	rotas_sujas = false;
 }
-
-static void iniciar(enum acao a, const char *metodo, const char *caminho, char *corpo, const char *modelo);
-static struct rota *rota_de(const char *chave);
-static int prov_index(const char *id);
-static int separar_modelos(const char *csv, char ***lista);
-static void guardar_rotas(void);
 
 static void pronto(void *d) {
 	struct job *j = d;
@@ -148,64 +183,65 @@ static void pronto(void *d) {
 		if (j->acao == A_CONTA && servidor_ok) {
 			g_strlcpy(aviso, "Conectado ao servidor da Emma.", sizeof(aviso));
 			aviso_erro = false;
-			conta_aberta = false;
+			conexao_aberta = false;
 			srv_token[0] = '\0';
 		}
 		break;
 	case A_ROTA:
-		g_strlcpy(aviso, j->r.ok ? "Modelo da Emma guardado." : j->r.msg, sizeof(aviso));
+		g_strlcpy(aviso, j->r.ok ? "Roteamento salvo." : j->r.msg, sizeof(aviso));
 		aviso_erro = !j->r.ok;
-		break;
-	case A_SALVAR:
 		if (j->r.ok) {
-			g_strlcpy(aviso, "Provedor guardado.", sizeof(aviso));
-			aviso_erro = false;
-			form_aberto = false;
-			ed_chave[0] = '\0';
-			recarregar = true;
-		} else {
-			g_strlcpy(aviso, j->r.msg, sizeof(aviso));
-			aviso_erro = true;
+			memcpy(rotas_salvas, rotas, sizeof(rotas));
+			nrotas_salvas = nrotas;
+			rotas_sujas = false;
 		}
 		break;
+	case A_SALVAR:
+		g_strlcpy(aviso, j->r.ok ? "Provider salvo." : j->r.msg, sizeof(aviso));
+		aviso_erro = !j->r.ok;
+		recarregar = j->r.ok;
+		break;
+	case A_ADICIONAR:
+		g_strlcpy(aviso, j->r.ok ? gv_fmt("%s adicionado: configure a API key.", j->modelo).chars : j->r.msg, sizeof(aviso));
+		aviso_erro = !j->r.ok;
+		recarregar = j->r.ok;
+		break;
 	case A_EXCLUIR:
-		g_strlcpy(aviso, j->r.ok ? "Provedor removido." : j->r.msg, sizeof(aviso));
+		g_strlcpy(aviso, j->r.ok ? "Provider removido." : j->r.msg, sizeof(aviso));
 		aviso_erro = !j->r.ok;
 		recarregar = j->r.ok;
 		break;
 	case A_MODELOS: {
 		const struct json *ms = json_chave(j->r.corpo, "models");
-		if (j->r.ok && json_bool(json_chave(j->r.corpo, "ok"), false) && ms && ms->nfilhos) {
-			GString *csv = g_string_new(NULL);
-			for (int k = 0; k < ms->nfilhos; k++) {
-				g_string_append_printf(csv, "%s%s", k ? ", " : "", json_texto(json_item(ms, k)) ? json_texto(json_item(ms, k)) : "");
-			}
-			g_strlcpy(ed_modelos, csv->str, sizeof(ed_modelos));
-			g_snprintf(aviso, sizeof(aviso), "%d modelos encontrados. Confira a lista e guarde.", ms->nfilhos);
-			g_string_free(csv, TRUE);
+		if (j->r.ok && json_bool(json_chave(j->r.corpo, "ok"), false) && ms && ms->nfilhos && j->idx < nprov) {
+			csv_de(ms, eds[j->idx].modelos, sizeof(eds[j->idx].modelos));
+			g_snprintf(aviso, sizeof(aviso), "%d modelos encontrados: confira a lista e salve.", ms->nfilhos);
 			aviso_erro = false;
 		} else {
 			const char *e = json_chave_texto(j->r.corpo, "error");
-			g_snprintf(aviso, sizeof(aviso), "Não consegui buscar os modelos: %s", *e ? e : j->r.msg);
+			g_strlcpy(aviso, *e ? e : j->r.ok ? "Endpoint não suporta /models" : j->r.msg, sizeof(aviso));
 			aviso_erro = true;
 		}
 		break;
 	}
-	case A_TESTAR: {
-		if (!j->r.ok) {
-			g_strlcpy(aviso, j->r.msg, sizeof(aviso));
-			aviso_erro = true;
-		} else if (json_bool(json_chave(j->r.corpo, "chat"), false)) {
-			g_snprintf(aviso, sizeof(aviso), "%s respondeu em %d ms%s%s.", j->modelo, (int)json_numero(json_chave(j->r.corpo, "latency_ms"), 0),
-				json_bool(json_chave(j->r.corpo, "streaming"), false) ? ", com resposta em tempo real" : "",
-				json_bool(json_chave(j->r.corpo, "json_mode"), false) ? " e modo JSON" : "");
-			aviso_erro = false;
-		} else {
-			g_snprintf(aviso, sizeof(aviso), "O teste falhou: %s", json_chave_texto(j->r.corpo, "error"));
-			aviso_erro = true;
+	case A_TESTAR:
+		if (j->idx < nprov) {
+			struct edicao *e = &eds[j->idx];
+			e->tem_relatorio = true;
+			e->erro[0] = '\0';
+			if (!j->r.ok) {
+				g_strlcpy(e->erro, j->r.msg, sizeof(e->erro));
+				e->chat = e->streaming = e->json_mode = false;
+				e->latencia = 0;
+			} else {
+				e->chat = json_bool(json_chave(j->r.corpo, "chat"), false);
+				e->streaming = json_bool(json_chave(j->r.corpo, "streaming"), false);
+				e->json_mode = json_bool(json_chave(j->r.corpo, "json_mode"), false);
+				e->latencia = (int)json_numero(json_chave(j->r.corpo, "latency_ms"), 0);
+				g_strlcpy(e->erro, json_chave_texto(j->r.corpo, "error"), sizeof(e->erro));
+			}
 		}
 		break;
-	}
 	}
 	ocupado = false;
 	emmar_liberar(&j->r);
@@ -213,15 +249,17 @@ static void pronto(void *d) {
 	g_free(j->corpo);
 	g_free(j);
 	if (recarregar) {
-		iniciar(A_CARREGAR, NULL, NULL, NULL, NULL);
+		iniciar(A_CARREGAR, 0, NULL, NULL, NULL, NULL);
 		return;
 	}
-	/* o primeiro provedor já atende a conversa e o plano (senão a Emma continuaria sem responder) */
+	/* o primeiro provedor já atende todas as tarefas que ainda não têm um (senão a Emma continuaria sem responder) */
 	if (servidor_ok && nprov && !ocupado) {
 		bool mudou = false;
-		static const char *chaves[] = { "chat", "planner" };
-		for (int k = 0; k < N(chaves); k++) {
-			struct rota *r = rota_de(chaves[k]);
+		for (int k = 0; k < N(tarefas); k++) {
+			if (!strcmp(tarefas[k].chave, "vision")) {
+				continue; /* opcional */
+			}
+			struct rota *r = rota_de(tarefas[k].chave);
 			if (prov_index(r->prov) < 0) {
 				char **ms;
 				int nm = separar_modelos(provs[0].modelos, &ms);
@@ -237,9 +275,10 @@ static void pronto(void *d) {
 	}
 }
 
-static void iniciar(enum acao a, const char *metodo, const char *caminho, char *corpo, const char *modelo) {
+static void iniciar(enum acao a, int idx, const char *metodo, const char *caminho, char *corpo, const char *modelo) {
 	struct job *j = g_new0(struct job, 1);
 	j->acao = a;
+	j->idx = idx;
 	if (metodo) {
 		g_strlcpy(j->metodo, metodo, sizeof(j->metodo));
 	}
@@ -257,12 +296,17 @@ static void iniciar(enum acao a, const char *metodo, const char *caminho, char *
 /* só marca: o carregamento sai do primeiro desenho (a janela pode nem existir ainda quando se abre direto numa seção) */
 void pn_emma_prov_abrir(void) {
 	aviso[0] = '\0';
-	form_aberto = false;
-	conta_aberta = false;
+	conexao_aberta = false;
 	carregado = false;
 }
 
-/* ---- as rotas (qual provedor e modelo atende a conversa e o plano) ---- */
+static void garantir_carregado(void) {
+	if (!carregado && !ocupado) {
+		iniciar(A_CARREGAR, 0, NULL, NULL, NULL, NULL);
+	}
+}
+
+/* ---- as rotas ---- */
 
 static struct rota *rota_de(const char *chave) {
 	for (int i = 0; i < nrotas; i++) {
@@ -291,7 +335,10 @@ static int prov_index(const char *id) {
 static void guardar_rotas(void) {
 	GString *c = g_string_new("{\"routing\":{");
 	for (int i = 0; i < nrotas; i++) {
-		g_string_append_printf(c, "%s", i ? "," : "");
+		if (!rotas[i].prov[0] && !rotas[i].modelo[0]) {
+			continue; /* sem provedor: a tarefa nem entra */
+		}
+		g_string_append_printf(c, "%s", c->str[c->len - 1] == '{' ? "" : ",");
 		json_escrever_texto(c, rotas[i].chave);
 		g_string_append(c, ":{\"provider_id\":");
 		json_escrever_texto(c, rotas[i].prov);
@@ -300,10 +347,10 @@ static void guardar_rotas(void) {
 		g_string_append_c(c, '}');
 	}
 	g_string_append(c, "}}");
-	iniciar(A_ROTA, "PUT", "/api/settings", g_string_free(c, FALSE), NULL);
+	iniciar(A_ROTA, 0, "PUT", "/api/settings", g_string_free(c, FALSE), NULL);
 }
 
-/* os modelos de um provedor, um a um (o texto é do chamador, que libera) */
+/* os modelos de um provedor, um a um (a lista é do chamador, que libera com g_strfreev) */
 static int separar_modelos(const char *csv, char ***lista) {
 	char **partes = g_strsplit(csv, ",", -1);
 	GPtrArray *ok = g_ptr_array_new();
@@ -320,164 +367,7 @@ static int separar_modelos(const char *csv, char ***lista) {
 	return n;
 }
 
-static void linha_rota(const char *chave, const char *titulo, const char *sub) {
-	struct rota *r = rota_de(chave);
-	const char *nomes[MAX_PROV + 1] = { "Escolher…" };
-	for (int i = 0; i < nprov; i++) {
-		nomes[i + 1] = provs[i].nome;
-	}
-	int pi = prov_index(r->prov), esc = pi + 1;
-	if (pn_ajuste_lista(CLAY_SID(gv_fmt("emp-rp-%s", chave)), "globe", titulo, sub, nomes, nprov + 1, &esc)) {
-		g_strlcpy(r->prov, esc > 0 ? provs[esc - 1].id : "", sizeof(r->prov));
-		/* o modelo de antes não vale para outro provedor: o primeiro dele */
-		char **ms;
-		int nm = esc > 0 ? separar_modelos(provs[esc - 1].modelos, &ms) : 0;
-		g_strlcpy(r->modelo, nm ? ms[0] : "", sizeof(r->modelo));
-		if (nm) {
-			g_strfreev(ms);
-		}
-		guardar_rotas();
-	}
-	pi = prov_index(r->prov);
-	if (pi < 0) {
-		return;
-	}
-	char **ms;
-	int nm = separar_modelos(provs[pi].modelos, &ms);
-	if (!nm) {
-		g_strfreev(ms);
-		pn_linha_comecar(CLAY_SID(gv_fmt("emp-rm0-%s", chave)), "sparkle", "Modelo", "Este provedor ainda não tem modelos: adicione nele.");
-		pn_linha_acabar();
-		return;
-	}
-	const char *opcoes[64];
-	int n = nm > 64 ? 64 : nm, atual = 0;
-	for (int i = 0; i < n; i++) {
-		opcoes[i] = ms[i];
-		if (!strcmp(ms[i], r->modelo)) {
-			atual = i;
-		}
-	}
-	if (pn_ajuste_lista(CLAY_SID(gv_fmt("emp-rm-%s", chave)), "sparkle", "Modelo", NULL, opcoes, n, &atual)) {
-		g_strlcpy(r->modelo, ms[atual], sizeof(r->modelo));
-		guardar_rotas();
-	}
-	g_strfreev(ms);
-}
-
-/* ---- o formulário de um provedor ---- */
-
-static void abrir_form(int i) {
-	form_aberto = true;
-	ed_chave[0] = '\0';
-	if (i < 0) {
-		ed_id[0] = '\0';
-		ed_nome[0] = ed_url[0] = ed_modelos[0] = '\0';
-		ed_preset = 4;
-		g_strlcpy(ed_url, presets[4].url, sizeof(ed_url));
-	} else {
-		g_strlcpy(ed_id, provs[i].id, sizeof(ed_id));
-		g_strlcpy(ed_nome, provs[i].nome, sizeof(ed_nome));
-		g_strlcpy(ed_url, provs[i].url, sizeof(ed_url));
-		g_strlcpy(ed_modelos, provs[i].modelos, sizeof(ed_modelos));
-		ed_preset = 4;
-		for (int k = 0; k < N(presets); k++) {
-			if (!strcmp(presets[k].id, provs[i].preset)) {
-				ed_preset = k;
-			}
-		}
-	}
-}
-
-static void guardar_provedor(void) {
-	GString *c = g_string_new("{\"name\":");
-	json_escrever_texto(c, ed_nome);
-	g_string_append(c, ",\"preset\":");
-	json_escrever_texto(c, presets[ed_preset].id);
-	g_string_append(c, ",\"base_url\":");
-	json_escrever_texto(c, ed_url);
-	if (ed_chave[0]) {
-		g_string_append(c, ",\"api_key\":");
-		json_escrever_texto(c, ed_chave);
-	}
-	g_string_append(c, ",\"models\":[");
-	char **ms;
-	int nm = separar_modelos(ed_modelos, &ms);
-	for (int i = 0; i < nm; i++) {
-		g_string_append_printf(c, "%s", i ? "," : "");
-		json_escrever_texto(c, ms[i]);
-	}
-	g_strfreev(ms);
-	g_string_append(c, "]}");
-	if (ed_id[0]) {
-		char *p = g_strdup_printf("/api/providers/%s", ed_id);
-		iniciar(A_SALVAR, "PATCH", p, g_string_free(c, FALSE), NULL);
-		g_free(p);
-	} else {
-		iniciar(A_SALVAR, "POST", "/api/providers", g_string_free(c, FALSE), NULL);
-	}
-}
-
-static void form_provedor(void) {
-	CLAY(CLAY_ID("emp-form"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 4 },
-		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-		gv_texto(gv_str(ed_id[0] ? "Editar provedor" : "Novo provedor"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
-		const char *nomes[N(presets)];
-		for (int i = 0; i < N(presets); i++) {
-			nomes[i] = presets[i].nome;
-		}
-		if (pn_ajuste_lista(CLAY_ID("emp-preset"), "globe", "Tipo", "Preenche o endereço e os modelos mais comuns.", nomes, N(presets), &ed_preset)) {
-			g_strlcpy(ed_url, presets[ed_preset].url, sizeof(ed_url));
-			if (!ed_id[0] || !ed_modelos[0]) {
-				g_strlcpy(ed_modelos, presets[ed_preset].modelos, sizeof(ed_modelos));
-			}
-			if (!ed_id[0]) {
-				g_strlcpy(ed_nome, presets[ed_preset].nome, sizeof(ed_nome));
-			}
-		}
-		pn_linha_comecar(CLAY_ID("emp-f-nome"), "text", "Nome", "Como aparece nas listas.");
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-			gv_campo(CLAY_ID("emp-f-nome-c"), ed_nome, sizeof(ed_nome), "Meu provedor", GV_CAMPO_TEXTO);
-		}
-		pn_linha_acabar();
-		pn_linha_comecar(CLAY_ID("emp-f-url"), "link", "Endereço", "A API compatível com OpenAI (termina em /v1).");
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-			gv_campo(CLAY_ID("emp-f-url-c"), ed_url, sizeof(ed_url), "https://…/v1", GV_CAMPO_URL);
-		}
-		pn_linha_acabar();
-		int pi = ed_id[0] ? prov_index(ed_id) : -1;
-		pn_linha_comecar(CLAY_ID("emp-f-chave"), "lock", "Chave de API",
-			pi >= 0 && provs[pi].tem_chave ? gv_fmt("Guardada (%s). Deixe vazio para manter.", provs[pi].mascara).chars : "Fica guardada só no servidor da Emma.");
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-			gv_campo(CLAY_ID("emp-f-chave-c"), ed_chave, sizeof(ed_chave), "sk-…", GV_CAMPO_SENHA);
-		}
-		pn_linha_acabar();
-		pn_linha_comecar(CLAY_ID("emp-f-mod"), "sparkle", "Modelos", "Separados por vírgula.");
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
-			gv_campo(CLAY_ID("emp-f-mod-c"), ed_modelos, sizeof(ed_modelos), "modelo-a, modelo-b", GV_CAMPO_TEXTO);
-		}
-		pn_linha_acabar();
-		CLAY(CLAY_ID("emp-f-bt"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 10, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-			if (gv_botao(CLAY_ID("emp-f-salvar"), "check", "Guardar", GV_BOTAO_CHEIO) && !ocupado && ed_nome[0] && ed_url[0]) {
-				guardar_provedor();
-			}
-			if (ed_id[0] && gv_botao(CLAY_ID("emp-f-buscar"), "refresh", "Buscar modelos no provedor", GV_BOTAO_ELEVADO) && !ocupado) {
-				char *p = g_strdup_printf("/api/providers/%s/models", ed_id);
-				iniciar(A_MODELOS, "GET", p, NULL, NULL);
-				g_free(p);
-			}
-			if (!ed_id[0]) {
-				gv_texto(CLAY_STRING("Guarde primeiro para poder buscar os modelos."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
-			}
-			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
-			if (gv_botao(CLAY_ID("emp-f-cancelar"), NULL, "Cancelar", GV_BOTAO_SIMPLES)) {
-				form_aberto = false;
-			}
-		}
-	}
-}
-
-/* ---- a página ---- */
+/* ---- avisos e a conexão ---- */
 
 static void aviso_topo(void) {
 	if (!aviso[0]) {
@@ -496,18 +386,9 @@ static void aviso_topo(void) {
 	}
 }
 
-static void card_servidor(void) {
-	pn_subtitulo(CLAY_ID("emp-t-srv"), "Servidor da Emma");
-	if (!conta_aberta) {
-		pn_linha_comecar(CLAY_ID("emp-srv"), "computer", srv_url[0] ? srv_url : "Sem endereço",
-			servidor_ok ? (srv_token_mascara[0] ? gv_fmt("Conectado · token %s", srv_token_mascara).chars : "Conectado") : "Sem conexão");
-		if (gv_botao(CLAY_ID("emp-srv-alt"), "edit", "Alterar", GV_BOTAO_ELEVADO)) {
-			conta_aberta = true;
-		}
-		pn_linha_acabar();
-		return;
-	}
-	pn_linha_comecar(CLAY_ID("emp-srv-u"), "link", "Endereço", "Onde o servidor da Emma está (o padrão é este computador).");
+/* a conexão com o servidor da Emma: o endereço e o token de API (criado no harness, em Configurações > Conta > Tokens de API) */
+static void bloco_conexao(void) {
+	pn_linha_comecar(CLAY_ID("emp-srv-u"), "link", "Endereço do servidor", "Onde o servidor da Emma está (o padrão é este computador).");
 	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(360) } } }) {
 		gv_campo(CLAY_ID("emp-srv-u-c"), srv_url, sizeof(srv_url), "http://127.0.0.1:8001", GV_CAMPO_URL);
 	}
@@ -533,18 +414,17 @@ static void card_servidor(void) {
 			pn_tarefa(trabalho, pronto, j);
 		}
 		if (servidor_ok && gv_botao(CLAY_ID("emp-srv-fechar"), NULL, "Cancelar", GV_BOTAO_SIMPLES)) {
-			conta_aberta = false;
+			conexao_aberta = false;
 		}
 	}
 }
 
-void pn_emma_prov_desenhar(void) {
-	if (!carregado && !ocupado) {
-		iniciar(A_CARREGAR, NULL, NULL, NULL, NULL);
-	}
+/* o que mostrar quando o serviço ou o servidor não estão de pé; devolve verdadeiro se já desenhou tudo */
+static bool sem_servidor(void) {
+	garantir_carregado();
 	if (!carregado) {
 		gv_texto(CLAY_STRING("Falando com o serviço da Emma…"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
-		return;
+		return true;
 	}
 	if (!servico_ok) {
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 8 },
@@ -561,67 +441,277 @@ void pn_emma_prov_desenhar(void) {
 				}
 			}
 		}
-		return;
+		return true;
 	}
 	aviso_topo();
+	if (!servidor_ok) {
+		pn_subtitulo(CLAY_ID("emp-t-srv0"), "Conexão com o servidor da Emma");
+		bloco_conexao();
+		if (gv_botao(CLAY_ID("emp-tentar2"), "refresh", "Tentar de novo", GV_BOTAO_ELEVADO)) {
+			pn_emma_prov_abrir();
+		}
+		return true;
+	}
+	return false;
+}
+
+/* ---- Provedores: um cartão por provedor, como no harness ---- */
+
+static void campo_cartao(Clay_ElementId id, char *texto, size_t tam, const char *dica, enum gv_campo_tipo tipo) {
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+		gv_campo(id, texto, tam, dica, tipo);
+	}
+}
+
+static void marca_capacidade(const char *rotulo, bool ok) {
+	CLAY_AUTO_ID({ .layout = { .childGap = 4, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		gv_icone(ok ? "check" : "close", 14, ok ? gv_t.sucesso : gv_t.perigo);
+		gv_texto(gv_str(rotulo), gv_t.tamanho_corpo - 2, ok ? gv_t.sucesso : gv_t.perigo, GV_PESO_NORMAL);
+	}
+}
+
+static void cartao_provedor(int i) {
+	struct prov *p = &provs[i];
+	struct edicao *e = &eds[i];
+	uint32_t k = (uint32_t)i;
+	CLAY(CLAY_IDI("emp-card", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(14), .childGap = 10 },
+		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		CLAY(CLAY_IDI("emp-cab", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY(CLAY_IDI("emp-tag", k), { .layout = { .padding = { 8, 8, 3, 3 } }, .backgroundColor = gv_t.selecionado, .cornerRadius = CLAY_CORNER_RADIUS(5) }) {
+				char *alto = g_ascii_strup(p->preset[0] ? p->preset : "custom", -1);
+				gv_texto(gv_str(alto), gv_t.tamanho_corpo - 3, gv_t.texto_secundario, GV_PESO_MEDIO);
+				g_free(alto);
+			}
+			gv_texto(gv_str(p->tem_chave ? gv_fmt("chave %s", p->mascara).chars : "sem chave"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+			if (pn_confirmar(CLAY_IDI("emp-x", k), "trash", NULL, gv_fmt("Remover %s?", p->nome).chars, true) && !ocupado) {
+				char *caminho = g_strdup_printf("/api/providers/%s", p->id);
+				iniciar(A_EXCLUIR, i, "DELETE", caminho, NULL, NULL);
+				g_free(caminho);
+			}
+		}
+		CLAY(CLAY_IDI("emp-l1", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
+			campo_cartao(CLAY_IDI("emp-nome", k), e->nome, sizeof(e->nome), "Nome", GV_CAMPO_TEXTO);
+			campo_cartao(CLAY_IDI("emp-url", k), e->url, sizeof(e->url), "Base URL", GV_CAMPO_URL);
+		}
+		CLAY(CLAY_IDI("emp-l2", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
+			campo_cartao(CLAY_IDI("emp-chave", k), e->chave, sizeof(e->chave), p->tem_chave ? "manter chave atual" : "API key", GV_CAMPO_SENHA);
+			CLAY(CLAY_IDI("emp-modc", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 } }) {
+				campo_cartao(CLAY_IDI("emp-mod", k), e->modelos, sizeof(e->modelos), "modelos, separados, por vírgula", GV_CAMPO_TEXTO);
+				if (gv_botao(CLAY_IDI("emp-busca", k), NULL, "/models", GV_BOTAO_SIMPLES) && !ocupado) {
+					char *caminho = g_strdup_printf("/api/providers/%s/models", p->id);
+					iniciar(A_MODELOS, i, "GET", caminho, NULL, NULL);
+					g_free(caminho);
+				}
+			}
+		}
+		CLAY(CLAY_IDI("emp-l3", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			char **ms;
+			int nm = separar_modelos(p->modelos, &ms);
+			if (nm) {
+				const char *opcoes[64];
+				int n = nm > 64 ? 64 : nm;
+				for (int m = 0; m < n; m++) {
+					opcoes[m] = ms[m];
+				}
+				if (e->modelo_teste >= n) {
+					e->modelo_teste = 0;
+				}
+				CLAY(CLAY_IDI("emp-tm", k), { .layout = { .sizing = { CLAY_SIZING_FIXED(260) } } }) {
+					gv_lista_suspensa(CLAY_IDI("emp-tml", k), opcoes, n, &e->modelo_teste);
+				}
+				if (gv_botao(CLAY_IDI("emp-testar", k), "zap", "Testar capacidades", GV_BOTAO_SIMPLES) && !ocupado) {
+					GString *c = g_string_new("{\"model\":");
+					json_escrever_texto(c, ms[e->modelo_teste]);
+					g_string_append_c(c, '}');
+					char *caminho = g_strdup_printf("/api/providers/%s/test", p->id);
+					iniciar(A_TESTAR, i, "POST", caminho, g_string_free(c, FALSE), NULL);
+					g_free(caminho);
+				}
+			} else {
+				gv_texto(CLAY_STRING("Salve com alguns modelos (ou use /models) para poder testar."), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+			g_strfreev(ms);
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+			if (gv_botao(CLAY_IDI("emp-salvar", k), NULL, "Salvar", GV_BOTAO_CHEIO) && !ocupado && e->nome[0] && e->url[0]) {
+				GString *c = g_string_new("{\"name\":");
+				json_escrever_texto(c, e->nome);
+				g_string_append(c, ",\"preset\":");
+				json_escrever_texto(c, p->preset[0] ? p->preset : "custom");
+				g_string_append(c, ",\"base_url\":");
+				json_escrever_texto(c, e->url);
+				if (e->chave[0]) {
+					g_string_append(c, ",\"api_key\":");
+					json_escrever_texto(c, e->chave);
+				}
+				g_string_append(c, ",\"models\":[");
+				char **lista;
+				int nl = separar_modelos(e->modelos, &lista);
+				for (int m = 0; m < nl; m++) {
+					g_string_append_printf(c, "%s", m ? "," : "");
+					json_escrever_texto(c, lista[m]);
+				}
+				g_strfreev(lista);
+				g_string_append(c, "]}");
+				char *caminho = g_strdup_printf("/api/providers/%s", p->id);
+				iniciar(A_SALVAR, i, "PATCH", caminho, g_string_free(c, FALSE), NULL);
+				g_free(caminho);
+			}
+		}
+		if (e->tem_relatorio) {
+			CLAY(CLAY_IDI("emp-rel", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 8, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.border = { .color = gv_t.borda, .width = { .top = 1 } } }) {
+				marca_capacidade("chat", e->chat);
+				marca_capacidade("streaming", e->streaming);
+				marca_capacidade("JSON mode", e->json_mode);
+				if (e->latencia) {
+					gv_texto(gv_fmt("%dms", e->latencia), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+				}
+			}
+			if (e->erro[0]) {
+				gv_texto(gv_str(e->erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+			}
+			if (e->chat && !e->json_mode) {
+				gv_texto(CLAY_STRING("Compatibilidade parcial: o LUMNA usa blocos de texto (não tool calling), então Build continua funcionando."), gv_t.tamanho_corpo - 2, gv_t.aviso, GV_PESO_NORMAL);
+			}
+		}
+	}
+}
+
+void pn_emma_prov_desenhar(void) {
+	if (sem_servidor()) {
+		return;
+	}
 	if (ocupado) {
 		gv_texto(CLAY_STRING("Falando com o servidor da Emma…"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 	}
-	card_servidor();
-	if (!servidor_ok) {
-		return;
+	/* os botões de adicionar, um por tipo */
+	CLAY(CLAY_ID("emp-presets"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+		for (int i = 0; i < N(presets); i++) {
+			if (gv_botao(CLAY_IDI("emp-add", (uint32_t)i), "plus", presets[i].nome, GV_BOTAO_CONTORNO) && !ocupado) {
+				GString *c = g_string_new("{\"name\":");
+				json_escrever_texto(c, presets[i].nome);
+				g_string_append(c, ",\"preset\":");
+				json_escrever_texto(c, presets[i].id);
+				g_string_append(c, ",\"base_url\":");
+				json_escrever_texto(c, presets[i].url);
+				g_string_append(c, ",\"models\":[");
+				char **ms;
+				int nm = separar_modelos(presets[i].modelos, &ms);
+				for (int m = 0; m < nm; m++) {
+					g_string_append_printf(c, "%s", m ? "," : "");
+					json_escrever_texto(c, ms[m]);
+				}
+				g_strfreev(ms);
+				g_string_append(c, "]}");
+				iniciar(A_ADICIONAR, i, "POST", "/api/providers", g_string_free(c, FALSE), presets[i].nome);
+			}
+		}
 	}
-	if (nprov) {
-		pn_subtitulo(CLAY_ID("emp-t-rotas"), "Quem responde");
-		linha_rota("chat", "Conversa", "O provedor da conversa de todo dia.");
-		linha_rota("planner", "Plano", "Quem monta o plano antes de a Emma criar uma macro.");
-	}
-	pn_subtitulo(CLAY_ID("emp-t-provs"), "Provedores");
 	if (!nprov) {
-		gv_texto(CLAY_STRING("Nenhum provedor ainda. Adicione um (e a chave de API) para a Emma poder conversar."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+		gv_texto(CLAY_STRING("Nenhum provedor ainda. Adicione um acima e coloque a API key para a Emma poder conversar."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 	}
 	for (int i = 0; i < nprov; i++) {
-		const struct prov *p = &provs[i];
-		char **ms;
-		int nm = separar_modelos(p->modelos, &ms);
-		g_strfreev(ms);
-		pn_linha_comecar(CLAY_IDI("emp-p", (uint32_t)i), "globe", p->nome,
-			gv_fmt("%s · %s · %d modelo%s", p->url, p->tem_chave ? gv_fmt("chave %s", p->mascara).chars : "sem chave", nm, nm == 1 ? "" : "s").chars);
-		if (gv_botao(CLAY_IDI("emp-p-t", (uint32_t)i), "zap", "Testar", GV_BOTAO_ELEVADO) && !ocupado) {
-			struct rota *r = rota_de("chat");
-			char **lista;
-			int n = separar_modelos(p->modelos, &lista);
-			const char *modelo = !strcmp(r->prov, p->id) && r->modelo[0] ? r->modelo : n ? lista[0] : "";
-			if (*modelo) {
-				GString *c = g_string_new("{\"model\":");
-				json_escrever_texto(c, modelo);
-				g_string_append_c(c, '}');
-				char *caminho = g_strdup_printf("/api/providers/%s/test", p->id);
-				iniciar(A_TESTAR, "POST", caminho, g_string_free(c, FALSE), modelo);
-				g_free(caminho);
-			} else {
-				g_strlcpy(aviso, "Este provedor não tem modelos para testar: edite e adicione.", sizeof(aviso));
-				aviso_erro = true;
-			}
-			g_strfreev(lista);
-		}
-		if (gv_botao(CLAY_IDI("emp-p-e", (uint32_t)i), "edit", "Editar", GV_BOTAO_ELEVADO)) {
-			abrir_form(i);
-		}
-		if (pn_confirmar(CLAY_IDI("emp-p-x", (uint32_t)i), "trash", NULL, gv_fmt("Remover %s?", p->nome).chars, true) && !ocupado) {
-			char *caminho = g_strdup_printf("/api/providers/%s", p->id);
-			iniciar(A_EXCLUIR, "DELETE", caminho, NULL, NULL);
-			g_free(caminho);
-		}
-		pn_linha_acabar();
+		cartao_provedor(i);
 	}
-	if (form_aberto) {
-		form_provedor();
-	} else {
-		CLAY(CLAY_ID("emp-novo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 8, 0 } } }) {
-			if (gv_botao(CLAY_ID("emp-novo-b"), "plus-circle", "Adicionar provedor", GV_BOTAO_CONTORNO)) {
-				abrir_form(-1);
+	/* a conexão com o servidor fica recolhida: só interessa a quem usa outro servidor */
+	CLAY(CLAY_ID("emp-con-t"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 18, 0 } } }) {
+		if (gv_botao(CLAY_ID("emp-con-b"), conexao_aberta ? "chevron-up" : "chevron-down", "Conexão com o servidor", GV_BOTAO_SIMPLES)) {
+			conexao_aberta = !conexao_aberta;
+		}
+	}
+	if (conexao_aberta) {
+		bloco_conexao();
+	}
+}
+
+/* ---- Roteamento: qual provedor e modelo atende cada tarefa ---- */
+
+bool pn_emma_rota_pendente(void) {
+	return rotas_sujas;
+}
+
+void pn_emma_rota_aplicar(void) {
+	if (!ocupado) {
+		guardar_rotas();
+	}
+}
+
+void pn_emma_rota_descartar(void) {
+	memcpy(rotas, rotas_salvas, sizeof(rotas));
+	nrotas = nrotas_salvas;
+	rotas_sujas = false;
+}
+
+void pn_emma_rota_desenhar(void) {
+	if (sem_servidor()) {
+		return;
+	}
+	if (!nprov) {
+		gv_texto(CLAY_STRING("Antes de escolher, adicione um provedor em Provedores."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+		return;
+	}
+	for (int t = 0; t < N(tarefas); t++) {
+		struct rota *r = rota_de(tarefas[t].chave);
+		uint32_t k = (uint32_t)t;
+		CLAY(CLAY_IDI("emr-fora", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 0, 8 } } }) {
+		CLAY(CLAY_IDI("emr-lin", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(12), .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+			CLAY(CLAY_IDI("emr-tit", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(190) }, .childGap = 2 } }) {
+				gv_texto(gv_str(tarefas[t].nome), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+				gv_texto(gv_str(tarefas[t].dica), gv_t.tamanho_corpo - 3, gv_t.texto_suave, GV_PESO_NORMAL);
 			}
+			const char *nomes[MAX_PROV + 1] = { "— provedor —" };
+			for (int i = 0; i < nprov; i++) {
+				nomes[i + 1] = provs[i].nome;
+			}
+			int pi = prov_index(r->prov), esc = pi + 1;
+			CLAY(CLAY_IDI("emr-pc", k), { .layout = { .sizing = { CLAY_SIZING_FIXED(210) } } }) {
+				if (gv_lista_suspensa(CLAY_IDI("emr-p", k), nomes, nprov + 1, &esc)) {
+					g_strlcpy(r->prov, esc > 0 ? provs[esc - 1].id : "", sizeof(r->prov));
+					char **ms;
+					int nm = esc > 0 ? separar_modelos(provs[esc - 1].modelos, &ms) : 0;
+					g_strlcpy(r->modelo, nm ? ms[0] : "", sizeof(r->modelo));
+					if (nm) {
+						g_strfreev(ms);
+					}
+					rotas_sujas = true;
+				}
+			}
+			pi = prov_index(r->prov);
+			CLAY(CLAY_IDI("emr-mc", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				if (pi < 0) {
+					gv_texto(CLAY_STRING("—"), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+				} else {
+					char **ms;
+					int nm = separar_modelos(provs[pi].modelos, &ms);
+					const char *opcoes[66];
+					int n = 0, atual = -1;
+					for (int m = 0; m < nm && n < 64; m++) {
+						opcoes[n] = ms[m];
+						if (!strcmp(ms[m], r->modelo)) {
+							atual = n;
+						}
+						n++;
+					}
+					if (atual < 0 && r->modelo[0]) { /* um modelo que não está na lista (escrito à mão no harness) continua valendo */
+						opcoes[n] = r->modelo;
+						atual = n++;
+					}
+					if (atual < 0) {
+						atual = 0;
+					}
+					if (n && gv_lista_suspensa(CLAY_IDI("emr-m", k), opcoes, n, &atual)) {
+						g_strlcpy(r->modelo, opcoes[atual], sizeof(r->modelo));
+						rotas_sujas = true;
+					}
+					if (!n) {
+						gv_texto(CLAY_STRING("Este provedor não tem modelos."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+					}
+					g_strfreev(ms);
+				}
+			}
+		}
 		}
 	}
 }

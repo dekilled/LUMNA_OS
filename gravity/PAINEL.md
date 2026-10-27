@@ -171,8 +171,10 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 **Emma**
 - 🔨 Voz (o microfone e a fala já funcionam no serviço `lumna-emma`; falta a tela de escolher voz e modelo);
 - ⏳ "Oi Emma" (ouvir sempre);
-- ✅ Provedores e modelos: o servidor da Emma (endereço e token de API, criado no harness em Configurações > Conta > Tokens de API; e-mail e senha ficam só no harness), os provedores (Ollama, OpenAI, Gemini, Claude ou um endereço seu) com a chave de API e os modelos, testar, buscar modelos, e quem atende a Conversa e o Plano (o primeiro provedor já vira o padrão). Tudo pelo serviço `lumna-emma` (`servicos/emmar.h`);
-- ⏳ Prompt e personalidade (SFW/NSFW), Permissões das ações, Imagens, MCP;
+- ✅ Provedores: as mesmas telas do harness (Configurações > Providers) aqui no Painel: Ollama Cloud, OpenAI, Gemini, Claude ou um endereço seu, com a chave de API, os modelos (`/models`) e o teste de capacidades;
+- ✅ Roteamento: qual provedor e modelo atende Chat, Planner, RAG, Coder e Visão (o primeiro provedor já vira o padrão);
+- ⏳ Imagens, Voz (Fish Audio, voz local, "Oi Emma"), Embeddings, Personalidade (SFW/NSFW) e Permissões das ações, MCP: as outras telas do harness, na sequência.
+  A conexão com o servidor da Emma não aparece: o serviço entra sozinho; só se falhar (ou em "Conexão com o servidor") pede o endereço e um token de API (harness > Configurações > Conta);
 - ⏳ Privacidade;
 - ⏳ Automações.
 
