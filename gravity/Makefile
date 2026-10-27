@@ -72,7 +72,7 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c \
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c servicos/sistema.c servicos/hora.c \
 	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c servicos/modos.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
@@ -83,8 +83,8 @@ apps: exemplos/apps.c libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
+barra: exemplos/barra.c servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a
@@ -118,8 +118,8 @@ ocioso: exemplos/ocioso.c ext-idle-notify-v1-client-protocol.h ext-idle-notify-v
 		$(shell pkg-config --libs wayland-client gio-unix-2.0)
 
 # a tela de bloqueio: o PIN e a senha (servicos/entrar.c), o que toca (servicos/mpris.c) e o papel
-bloqueio: exemplos/bloqueio.c servicos/entrar.c servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/bloqueio.c servicos/entrar.c \
+bloqueio: exemplos/bloqueio.c servicos/hora.c servicos/hora.h servicos/entrar.c servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/bloqueio.c servicos/hora.c servicos/entrar.c \
 		servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
 # a tela de login (o greetd corre-a dentro de um Orbit só dela: orbit -S lumna-entrada)

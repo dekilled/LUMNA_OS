@@ -1,0 +1,13 @@
+#!/bin/sh
+# O timedatectl dos testes do Painel: guarda o estado em $TDC_ESTADO (uma pasta) e responde como o de verdade.
+E="${TDC_ESTADO:-/tmp/tdc-falso}"; mkdir -p "$E"
+[ -f "$E/fuso" ] || echo "America/Sao_Paulo" > "$E/fuso"
+[ -f "$E/ntp" ] || echo "yes" > "$E/ntp"
+case "$1" in
+	show) echo "Timezone=$(cat $E/fuso)"; echo "NTP=$(cat $E/ntp)"; echo "CanNTP=yes"; echo "NTPSynchronized=$([ "$(cat $E/ntp)" = yes ] && echo yes || echo no)";;
+	list-timezones) printf 'Africa/Cairo\nAmerica/Bahia\nAmerica/Manaus\nAmerica/New_York\nAmerica/Sao_Paulo\nAsia/Tokyo\nEurope/Lisbon\nEurope/London\nUTC\n';;
+	set-ntp) [ "$2" = true ] && echo yes > "$E/ntp" || echo no > "$E/ntp";;
+	set-timezone) echo "$2" > "$E/fuso";;
+	set-time) echo "$2" > "$E/hora";;
+	*) echo "comando desconhecido: $1" >&2; exit 1;;
+esac

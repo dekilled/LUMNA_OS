@@ -112,6 +112,14 @@ static void ir_agora(int c, int s, int a) {
 	recentes_marcar(id);
 }
 
+/* o pedido de outra seção, de dentro de uma seção (o Armazenamento levando ao Aplicativos): vale no começo do quadro seguinte */
+static char ir_pedido[64];
+
+void pn_ir(const char *id) {
+	snprintf(ir_pedido, sizeof(ir_pedido), "%s", id);
+	gv_app_redesenhar(app_painel);
+}
+
 /* sair da seção com algo por aplicar pergunta antes */
 static void ir(int c, int s, int a) {
 	const pn_secao *x = secao_aberta();
@@ -511,6 +519,13 @@ static void pergunta(void) {
 
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
+	if (ir_pedido[0]) {
+		int c, s;
+		if (achar(ir_pedido, &c, &s)) {
+			ir(c, s, aba);
+		}
+		ir_pedido[0] = '\0';
+	}
 	CLAY(CLAY_ID("janela"), {
 		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
 		.backgroundColor = gv_t.superficie,

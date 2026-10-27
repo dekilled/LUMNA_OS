@@ -23,6 +23,28 @@ void pn_areas_descartar(void);
 void pn_areas_restaurar(void);
 void pn_areas_abrir(void);
 
+/* Sistema → Sobre (sobre.c) */
+void pn_sobre_pc_desenhar(void);
+void pn_sobre_pc_abrir(void);
+void pn_sobre_atu_desenhar(void);
+void pn_sobre_atu_abrir(void);
+void pn_sobre_legal_desenhar(void);
+
+/* Sistema → Data e hora (datahora.c) */
+void pn_hora_desenhar(void);
+void pn_hora_abrir(void);
+void pn_fuso_desenhar(void);
+void pn_fuso_abrir(void);
+bool pn_fuso_pendente(void);
+void pn_fuso_aplicar(void);
+void pn_fuso_descartar(void);
+void pn_formato_desenhar(void);
+void pn_formato_abrir(void);
+bool pn_formato_pendente(void);
+void pn_formato_aplicar(void);
+void pn_formato_descartar(void);
+void pn_formato_restaurar(void);
+
 /* Sistema → Teclado e mouse → Atalhos (atalhos.c) */
 void pn_atalhos_desenhar(void);
 bool pn_atalhos_pendente(void);
@@ -100,9 +122,10 @@ const pn_categoria pn_inicializacao = { "inicializacao", "power", "Inicializaç�
 /* ---- Sistema ---- */
 
 static const pn_secao sobre[] = {
-	{ "computador", "computer", "Este computador", "O que tem dentro.", NULL, "Modelo, processador e memória;A versão do LUMNA" },
-	{ "atualizacoes", "refresh", "Atualizações do sistema", "Manter o LUMNA em dia.", NULL, "Procurar e instalar;O histórico" },
-	{ "legal", "info", "Avisos legais", "As licenças.", NULL, "As licenças do LUMNA e dos programas" },
+	{ "computador", "computer", "Este computador", "O que tem dentro.", pn_sobre_pc_desenhar, NULL, NULL, NULL, NULL, NULL, pn_sobre_pc_abrir },
+	{ "atualizacoes", "refresh", "Atualizações do sistema", "Manter o LUMNA em dia.", pn_sobre_atu_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_sobre_atu_abrir },
+	{ "legal", "info", "Avisos legais", "As licenças.", pn_sobre_legal_desenhar },
 };
 const pn_categoria pn_sobre = { "sobre", "info", "Sobre", "LUMNA OS 1.0.0 neste computador", PN_SISTEMA, sobre, N(sobre) };
 
@@ -134,9 +157,11 @@ const pn_categoria pn_teclado = { "teclado", "keyboard", "Teclado e mouse", "Lay
 	N(teclado) };
 
 static const pn_secao data[] = {
-	{ "hora", "clock", "Data e hora", "Acertar o relógio.", NULL, "Automática pela internet;Manual" },
-	{ "fuso", "globe", "Fuso horário", "Onde você está.", NULL, "Automático;Escolher" },
-	{ "formato", "text", "Formato", "Como as horas aparecem.", NULL, "24 horas;A data na barra" },
+	{ "hora", "clock", "Data e hora", "Acertar o relógio.", pn_hora_desenhar, NULL, NULL, NULL, NULL, NULL, pn_hora_abrir },
+	{ "fuso", "globe", "Fuso horário", "Onde você está.", pn_fuso_desenhar, NULL, pn_fuso_pendente, pn_fuso_aplicar, pn_fuso_descartar, NULL,
+		pn_fuso_abrir },
+	{ "formato", "text", "Formato", "Como as horas aparecem.", pn_formato_desenhar, NULL, pn_formato_pendente, pn_formato_aplicar, pn_formato_descartar,
+		pn_formato_restaurar, pn_formato_abrir },
 };
 const pn_categoria pn_data = { "data", "clock", "Data e hora", "Fuso horário e formato", PN_SISTEMA, data, N(data) };
 

@@ -23,6 +23,7 @@
 
 #include "desenvolvedor.h"
 #include "entrar.h"
+#include "hora.h"
 #include "gravity.h"
 #include "mpris.h"
 #include "papelini.h"
@@ -262,7 +263,9 @@ static void relogio(float tam_hora, bool a_esquerda) {
 	localtime_r(&agora, &t);
 	CLAY(CLAY_ID("relogio"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 0,
 		.childAlignment = { .x = a_esquerda ? CLAY_ALIGN_X_LEFT : CLAY_ALIGN_X_CENTER } } }) {
-		texto(gv_fmt("%02d:%02d", t.tm_hour, t.tm_min), tam_hora, 1, GV_PESO_NORMAL);
+		char hora_txt[24];
+		hora_texto(&t, false, hora_txt, sizeof(hora_txt));
+		texto(gv_str(hora_txt), tam_hora, 1, GV_PESO_NORMAL);
 		texto(gv_fmt("%s, %d de %s", dias[t.tm_wday], t.tm_mday, meses[t.tm_mon]), tam_hora * 0.24f, 0.95f, GV_PESO_NORMAL);
 	}
 	gv_acordar_em(60 - t.tm_sec + 0.05);

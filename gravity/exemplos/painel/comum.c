@@ -4,11 +4,15 @@
 #include "papelini.h"
 
 #include <glib.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <sys/eventfd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 void pn_caminho(char *buf, size_t tam, const char *nome) {
@@ -223,4 +227,157 @@ const char *pn_suas_popup(Clay_ElementId popup, Clay_ElementId ancora, const cha
 		}
 	}
 	return escolhida;
+}
+
+/* ---- terminal, tarefas, confirmação, formatos ---- */
+
+void pn_terminal(const char *comando) {
+	/* cada terminal pede o comando de um jeito; o primeiro que existir leva */
+	static const struct { const char *programa, *formato; } terminais[] = {
+		{ "foot", "foot sh -c %s" },
+		{ "kitty", "kitty sh -c %s" },
+		{ "alacritty", "alacritty -e sh -c %s" },
+		{ "konsole", "konsole -e sh -c %s" },
+		{ "gnome-terminal", "gnome-terminal -- sh -c %s" },
+		{ "xterm", "xterm -e sh -c %s" },
+	};
+	char *com_espera = g_strdup_printf("%s; echo; printf 'Pronto. Aperte Enter para fechar. '; read _", comando);
+	char *quoted = g_shell_quote(com_espera);
+	const char *escolhido = g_getenv("LUMNA_TERMINAL");
+	for (size_t i = 0; i < sizeof(terminais) / sizeof(terminais[0]); i++) {
+		if (escolhido && *escolhido && strcmp(escolhido, terminais[i].programa) != 0) {
+			continue;
+		}
+		char *caminho = g_find_program_in_path(terminais[i].programa);
+		if (caminho) {
+			g_free(caminho);
+			char *linha = g_strdup_printf(terminais[i].formato, quoted);
+			pn_executar(linha);
+			g_free(linha);
+			break;
+		}
+	}
+	g_free(quoted);
+	g_free(com_espera);
+}
+
+struct tarefa {
+	void (*trabalho)(void *);
+	void (*pronto)(void *);
+	void *dados;
+};
+
+static GMutex tarefas_trinco;
+static GQueue tarefas_prontas = G_QUEUE_INIT;
+static int tarefas_fd = -1;
+
+static void tarefas_acordou(gv_app *app, int fd, void *dados) {
+	uint64_t v;
+	if (read(fd, &v, sizeof(v)) < 0) {
+	}
+	for (;;) {
+		g_mutex_lock(&tarefas_trinco);
+		struct tarefa *t = g_queue_pop_head(&tarefas_prontas);
+		g_mutex_unlock(&tarefas_trinco);
+		if (!t) {
+			break;
+		}
+		if (t->pronto) {
+			t->pronto(t->dados);
+		}
+		g_free(t);
+	}
+	gv_app_redesenhar(app);
+}
+
+static gpointer tarefa_linha(gpointer p) {
+	struct tarefa *t = p;
+	t->trabalho(t->dados);
+	g_mutex_lock(&tarefas_trinco);
+	g_queue_push_tail(&tarefas_prontas, t);
+	g_mutex_unlock(&tarefas_trinco);
+	uint64_t um = 1;
+	if (write(tarefas_fd, &um, sizeof(um)) < 0) {
+	}
+	return NULL;
+}
+
+void pn_tarefa(void (*trabalho)(void *), void (*pronto)(void *), void *dados) {
+	if (tarefas_fd < 0) {
+		tarefas_fd = eventfd(0, EFD_CLOEXEC);
+		if (tarefas_fd >= 0 && pn_app) {
+			gv_app_vigiar(pn_app, tarefas_fd, tarefas_acordou, NULL);
+		}
+	}
+	struct tarefa *t = g_new0(struct tarefa, 1);
+	t->trabalho = trabalho;
+	t->pronto = pronto;
+	t->dados = dados;
+	g_thread_unref(g_thread_new("painel-tarefa", tarefa_linha, t));
+}
+
+/* quem está pedindo confirmação agora (um por vez) e até quando */
+static uint32_t confirmando_id;
+static double confirmando_ate;
+
+bool pn_confirmar(Clay_ElementId id, const char *icone, const char *texto, const char *aviso, bool perigo) {
+	bool aberto = confirmando_id == id.id && gv_agora() < confirmando_ate;
+	if (!aberto) {
+		if (gv_botao(id, icone, texto, perigo ? GV_BOTAO_PERIGO : GV_BOTAO_ELEVADO)) {
+			confirmando_id = id.id;
+			confirmando_ate = gv_agora() + 8;
+		}
+		return false;
+	}
+	gv_acordar_em(confirmando_ate - gv_agora() + 0.05);
+	bool sim = false;
+	CLAY(CLAY_IDI("confirmar-caixa", id.id), { .layout = { .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		gv_texto(gv_str(aviso), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		if (gv_botao(CLAY_IDI("confirmar-sim", id.id), perigo ? "trash" : "check", "Confirmar", perigo ? GV_BOTAO_PERIGO : GV_BOTAO_CHEIO)) {
+			sim = true;
+			confirmando_id = 0;
+		}
+		if (gv_botao(CLAY_IDI("confirmar-nao", id.id), NULL, "Cancelar", GV_BOTAO_ELEVADO)) {
+			confirmando_id = 0;
+		}
+	}
+	return sim;
+}
+
+const char *pn_tamanho(int64_t bytes) {
+	static char buf[8][32];
+	static int i;
+	char *saida = buf[i++ % 8];
+	static const char *const un[] = { "B", "KB", "MB", "GB", "TB" };
+	double v = (double)(bytes < 0 ? 0 : bytes);
+	int k = 0;
+	while (v >= 1000.0 && k < 4) {
+		v /= 1000.0;
+		k++;
+	}
+	if (k == 0) {
+		snprintf(saida, 32, "%d B", (int)v);
+	} else {
+		snprintf(saida, 32, v >= 100 ? "%.0f %s" : "%.1f %s", v, un[k]);
+		for (char *p = saida; *p; p++) {
+			if (*p == '.') {
+				*p = ','; /* à brasileira */
+			}
+		}
+	}
+	return saida;
+}
+
+const char *pn_dia(int64_t unix_s) {
+	static char buf[8][24];
+	static int i;
+	char *saida = buf[i++ % 8];
+	if (unix_s <= 0) {
+		return "—";
+	}
+	time_t t = (time_t)unix_s;
+	struct tm tm;
+	localtime_r(&t, &tm);
+	strftime(saida, 24, "%d/%m/%Y", &tm);
+	return saida;
 }

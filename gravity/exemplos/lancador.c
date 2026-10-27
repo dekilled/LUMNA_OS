@@ -116,10 +116,19 @@ static void classificar(struct app *a, const char *cats) {
 #undef TEM
 }
 
+/* os ids escondidos (Hidden/NoDisplay) num diretório antes: o do sistema com o mesmo id não volta (é assim que o Painel desativa um app) */
+static char escondidos[256][128];
+static int nescondidos;
+
 static void ler_desktop(const char *caminho, const char *id) {
 	for (int i = 0; i < napps; i++) {
 		if (!strcmp(apps[i].id, id)) {
 			return; /* o primeiro diretório ganha (~/.local antes do sistema) */
+		}
+	}
+	for (int i = 0; i < nescondidos; i++) {
+		if (!strcmp(escondidos[i], id)) {
+			return;
 		}
 	}
 	FILE *f = fopen(caminho, "r");
@@ -184,6 +193,9 @@ static void ler_desktop(const char *caminho, const char *id) {
 		}
 	}
 	fclose(f);
+	if (escondido && nescondidos < 256) {
+		snprintf(escondidos[nescondidos++], sizeof(escondidos[0]), "%s", id);
+	}
 	if (!aplicacao || escondido || !a.nome[0] || !a.comando[0]) {
 		return;
 	}

@@ -13,6 +13,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "gravity.h"
 
@@ -73,5 +74,19 @@ void pn_suas_carregar(void);
 const char *pn_suas_popup(Clay_ElementId popup, Clay_ElementId ancora, const char *atual);
 /* abrir outro programa sem esperar */
 void pn_executar(const char *comando);
+/* abre um terminal e roda o comando nele (uma atualização que pede senha, por exemplo); o terminal espera uma tecla ao fim */
+void pn_terminal(const char *comando);
+/* roda trabalho(dados) numa linha à parte e, quando acaba, pronto(dados) na linha da tela (que redesenha); pronto pode ser NULL */
+void pn_tarefa(void (*trabalho)(void *), void (*pronto)(void *), void *dados);
+/* um botão que pede confirmação no próprio lugar: o 1º toque troca por "aviso  [Confirmar] [Cancelar]"; devolve verdadeiro no Confirmar */
+bool pn_confirmar(Clay_ElementId id, const char *icone, const char *texto, const char *aviso, bool perigo);
+/* "1,4 GB", "820 MB": base 1000, como no Android e nos discos */
+const char *pn_tamanho(int64_t bytes);
+/* "26/10/2026" (0 ou negativo: "—") */
+const char *pn_dia(int64_t unix_s);
+/* vai a uma seção ("armazenamento/uso"): vale no começo do quadro seguinte */
+void pn_ir(const char *id);
+/* Aplicativos > Instalados: abre a página deste pacote (o nome no pacman, ou o caminho do AppImage) */
+void pn_apps_selecionar(const char *pacote);
 
 #endif

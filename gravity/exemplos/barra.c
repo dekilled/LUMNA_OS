@@ -21,6 +21,7 @@
 #include "bandeja.h"
 #include "bluetooth.h"
 #include "gravity.h"
+#include "hora.h"
 #include "modos.h"
 #include "rede.h"
 #include "som.h"
@@ -680,7 +681,9 @@ static void menu_calendario(const struct tm *hoje) {
 		mktime(&ultimo);
 		int ndias = ultimo.tm_mday;
 		CLAY(CLAY_ID("cal-hoje"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 18, 18, 16, 8 }, .childGap = 2 } }) {
-			gv_texto(gv_str(gv_fmt("%02d:%02d", hoje->tm_hour, hoje->tm_min).chars), gv_t.tamanho_destaque + 10, gv_t.texto, GV_PESO_NORMAL);
+			char hora_cal[24];
+			hora_texto(hoje, false, hora_cal, sizeof(hora_cal));
+			gv_texto(gv_str(hora_cal), gv_t.tamanho_destaque + 10, gv_t.texto, GV_PESO_NORMAL);
 			gv_texto(gv_str(gv_fmt("%s, %d de %s de %d", dias_longos[hoje->tm_wday], hoje->tm_mday, meses[hoje->tm_mon], hoje->tm_year + 1900).chars),
 				gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 		}
@@ -864,11 +867,9 @@ static void desenhar(gv_app *app, void *dados) {
 					gv_texto(gv_fmt("%s, %d de %s", dias[t.tm_wday], t.tm_mday, meses[t.tm_mon]), gv_t.tamanho_corpo,
 						gv_t.texto_secundario, GV_PESO_NORMAL);
 				}
-				if (segundos) {
-					gv_texto(gv_fmt("%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
-				} else {
-					gv_texto(gv_fmt("%02d:%02d", t.tm_hour, t.tm_min), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
-				}
+				char hora_txt[24];
+				hora_texto(&t, segundos, hora_txt, sizeof(hora_txt));
+				gv_texto(gv_str(hora_txt), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
 			}
 			/* acorda na virada do segundo (com os segundos) ou do minuto */
 			gv_acordar_em(segundos ? 1.0 - fmod(gv_agora(), 1.0) + 0.01 : 60 - t.tm_sec + 0.05);
