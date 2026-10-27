@@ -144,3 +144,7 @@ midia: exemplos/midia.c servicos/midiad.c servicos/midiad.h servicos/midiac.c se
 		servicos/firefox.c servicos/firefox.h servicos/json.c servicos/json.h servicos/modos.c servicos/modos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/midia.c servicos/midiad.c servicos/midiac.c \
 		servicos/midia.c servicos/firefox.c servicos/json.c servicos/modos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs libsoup-3.0 gio-2.0) -lpthread
+
+# a extensão do Firefox da Mídia, empacotada (sem assinatura: ver extensao-firefox/LEIAME.md para assinar)
+extensao:
+	cd extensao-firefox && rm -f lumna-midia.xpi && zip -q lumna-midia.xpi manifest.json fundo.js

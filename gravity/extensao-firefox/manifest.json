@@ -1,0 +1,11 @@
+{
+  "manifest_version": 2,
+  "name": "LUMNA Mídia",
+  "version": "1.0.0",
+  "description": "O Firefox da Mídia do LUMNA: abre, troca e fecha as abas dos serviços a pedido do sistema, sem o controle remoto do WebDriver (que os sites enxergam como automação).",
+  "browser_specific_settings": {
+    "gecko": { "id": "lumna-midia@lumna.os", "strict_min_version": "109.0" }
+  },
+  "background": { "scripts": ["fundo.js"], "persistent": true },
+  "permissions": ["tabs", "<all_urls>"]
+}

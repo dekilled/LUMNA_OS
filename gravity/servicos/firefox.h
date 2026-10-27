@@ -4,9 +4,16 @@
  * aba dele, e a aba é o "serviço vivo": voltar a ele é só ativar a aba, no ponto exato do vídeo.
  * O Orbit vê uma janela só (app_id lumna-midia-web).
  *
- * O controle é por WebDriver BiDi (--remote-debugging-port, só em 127.0.0.1): abrir e ativar abas,
- * saber quando a página carregou (para o loading sair com fade), a URL e o título de cada uma e a
- * miniatura. Uma linha à parte faz isso; a app vigia o descritor e lê o estado:
+ * O controle é por uma EXTENSÃO nossa (extensao-firefox/), que mora no perfil e fala com este serviço
+ * por um WebSocket só em 127.0.0.1:47822: abre, ativa e fecha abas, avisa o endereço, o título e se
+ * a página está carregando, e tira a miniatura. Não é o WebDriver: com ele o Firefox liga o
+ * navigator.webdriver e os sites (o login do Google, por exemplo) o tratam como robô.
+ *
+ * A extensão precisa estar assinada pela Mozilla no Firefox comum (Developer Edition, ESR e Nightly
+ * aceitam sem assinar). O serviço a procura em $LUMNA_EXTENSAO (arquivo .xpi ou pasta), em
+ * /usr/share/lumna/midia/lumna-midia.xpi e ao lado do programa (extensao-firefox/).
+ *
+ * Uma linha à parte faz isso; a app vigia o descritor e lê o estado:
  *
  *   int fd = ff_iniciar();
  *   gv_app_vigiar(app, fd, mudou, NULL);   // em mudou(): ff_ler(&estado)
@@ -24,7 +31,7 @@
 
 struct ff_aba {
 	char servico[32];
-	char contexto[64];  /* o id da aba no BiDi */
+	char contexto[64];  /* o id da aba no Firefox */
 	char url[1024];
 	char titulo[160];
 	bool carregando;
@@ -32,18 +39,20 @@ struct ff_aba {
 };
 
 struct ff_estado {
-	bool lancado;   /* o processo existe */
-	bool ligado;    /* o controle respondeu: dá para mandar abas */
-	bool login;     /* o Firefox está aberto SEM controle, para entrar numa conta (ver ff_entrar) */
+	bool lancado;     /* o processo existe */
+	bool ligado;      /* a extensão respondeu: dá para mandar abas */
+	bool sem_extensao; /* não achei a extensão para instalar no perfil: o Firefox abre, mas sem controle */
 	struct ff_aba abas[FF_MAX_ABAS];
 	int n;
-	char ativo[32]; /* o serviço da aba à frente, ou "" */
+	char ativo[32];   /* o serviço da aba à frente, ou "" */
 };
 
 int ff_iniciar(void);               /* o descritor que acorda a cada mudança; -1 se falhou */
 void ff_ler(struct ff_estado *e);
 /* abre o serviço: se já tem aba, só ativa (nada recarrega); senão abre a aba e vai ao endereço */
 void ff_abrir(const char *servico, const char *url);
+/* como ff_abrir, mas se a aba já existe ela vai ao endereço dado (a página de entrada de uma conta) */
+void ff_ir(const char *servico, const char *url);
 void ff_ativar(const char *servico);
 /* fecha a aba do serviço (a memória volta; o endereço fica nos recentes) */
 void ff_fechar(const char *servico);
@@ -53,15 +62,6 @@ void ff_fechar(const char *servico);
  * sozinho a cada 20 segundos enquanto o serviço está à frente.
  */
 void ff_salvar(const char *servico, bool miniatura);
-/*
- * Entrar numa conta. O Firefox controlado por BiDi avisa os sites de que é um navegador automatizado
- * (navigator.webdriver), e o Google recusa o login ("este navegador pode não ser seguro"). Então o
- * login é feito num Firefox comum, sem controle, no mesmo perfil: o que ele guardar (cookies) vale
- * depois no controlado. Não dá para controlar nem ver as abas nesse modo; ff_sair_login() (ou abrir
- * um serviço) fecha esse Firefox e volta ao normal.
- */
-void ff_entrar(const char *url);
-void ff_sair_login(void);
 void ff_encerrar(void);             /* fecha o Firefox */
 
 #endif

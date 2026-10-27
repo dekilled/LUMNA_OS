@@ -450,8 +450,8 @@ static void modal_contas_desenhar(gv_app *app, int *idx, int n) {
 				.padding = CLAY_PADDING_ALL(U(36)), .childGap = U(14) },
 			.backgroundColor = { 22, 20, 44, 255 }, .cornerRadius = CLAY_CORNER_RADIUS(U(22)), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
 			gv_texto(CLAY_STRING("Entrar nas contas"), U(28), gv_t.texto, GV_PESO_SEMINEGRITO);
-			gv_texto(CLAY_STRING("Abre um Firefox comum na página de entrada do serviço. Entre com o teclado ou pelo celular e, quando "
-				"terminar, volte ao Início (Super + M, ou Home no celular). O Google não deixa entrar no navegador controlado, por isso o passo à parte."),
+			gv_texto(CLAY_STRING("Abre o serviço direto na página de entrada da conta. Entre com o teclado ou pelo celular; quando "
+				"terminar, volte ao Início (Super + M, ou Home no celular). A conta fica guardada para os próximos usos."),
 				U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
 			for (int i = 0; i < n; i++) {
 				const struct midia_vivo *v = &est.serv[idx[i]];
@@ -547,6 +547,10 @@ static void desenhar_inicio(gv_app *app, void *dados) {
 				gv_texto(CLAY_STRING("Abra um serviço: o que você assistir aparece aqui para retomar de onde parou."), U(20), gv_t.texto_suave, GV_PESO_NORMAL);
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {}
+			if (est.servico && !est.extensao) {
+				gv_texto(CLAY_STRING("A extensão do Firefox (extensao-firefox/) não está instalada: os serviços abrem, mas sem o controle do LUMNA."),
+					U(18), gv_t.aviso, GV_PESO_NORMAL);
+			}
 			CLAY(CLAY_ID("rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(28), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER }, .padding = { 0, 0, 0, U(18) } } }) {
 				dica("← → ↑ ↓", "Navegar");
 				dica("Enter", "Abrir");

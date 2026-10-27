@@ -64,7 +64,7 @@ bool midiac_estado(struct midia_estado *e) {
 		if (j && json_bool(json_chave(j, "ok"), false)) {
 			ok = e->servico = true;
 			e->firefox = json_bool(json_chave(j, "firefox"), false);
-			e->login = json_bool(json_chave(j, "login"), false);
+			e->extensao = json_bool(json_chave(j, "extensao"), true);
 			copiar(e->ativo, sizeof(e->ativo), j, "ativo");
 			const struct json *lista = json_chave(j, "servicos");
 			for (int i = 0; lista && i < lista->nfilhos && e->n < MIDIA_MAX_SERVICOS; i++) {

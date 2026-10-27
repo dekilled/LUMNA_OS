@@ -6,8 +6,7 @@
  *   estado                        tudo o que as telas precisam (midiac_estado traduz)
  *   abrir ID [novo]               abre o serviço: se já está vivo, só vem para a frente; senão abre
  *                                 onde parou (o último endereço), ou do começo com "novo"
- *   entrar ID                     abre um Firefox comum (sem controle) na página de entrada do serviço: o Google
- *                                 não deixa entrar no controlado. `inicio` fecha esse Firefox
+ *   entrar ID                     o serviço na página de entrada da conta (a aba já aberta vai até lá)
  *   inicio                        a tela de Início (guarda o serviço que estava na frente)
  *   seletor                       o seletor de serviços sobre o que estiver passando
  *   fechar ID                     fecha o serviço vivo (o endereço fica nos recentes)
@@ -31,7 +30,7 @@ struct midia_vivo {
 struct midia_estado {
 	bool servico;           /* o serviço respondeu */
 	bool firefox;           /* o Firefox está ligado */
-	bool login;             /* o Firefox está aberto só para entrar numa conta (sem controle) */
+	bool extensao;          /* a extensão do Firefox está instalada no perfil (sem ela o Firefox abre, mas sem controle) */
 	char ativo[32];         /* o serviço que está na frente ("" se o Início ou nenhum) */
 	struct midia_vivo serv[MIDIA_MAX_SERVICOS];
 	int n;

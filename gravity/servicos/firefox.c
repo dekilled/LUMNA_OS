@@ -2,18 +2,19 @@
 #include "firefox.h"
 
 #include <gio/gio.h>
-#include <signal.h>
 #include <libsoup/soup.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/eventfd.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "json.h"
 #include "midia.h"
 
-#define PORTA_BIDI 47821
-#define TENTATIVAS_LIGAR 80      /* x 250 ms: o Firefox frio demora */
+#define PORTA_EXT 47822
+#define EXTENSAO_ID "lumna-midia@lumna.os"
 #define SALVAR_A_CADA_S 20
 
 static GMutex trinco;
@@ -23,23 +24,20 @@ static int fd_aviso = -1;
 /* tudo abaixo roda na linha do Firefox */
 static GMainContext *ctx;
 static GPid pid;
-static SoupSession *sessao;
-static SoupWebsocketConnection *ws;
-static GHashTable *pendentes; /* id -> struct rpc */
+static SoupServer *servidor;
+static SoupWebsocketConnection *ws; /* a extensão */
+static GHashTable *pendentes;       /* id -> struct rpc */
 static int proximo_id = 1;
-static int tentativas;
-static bool conectando;
-static bool modo_login;       /* o processo atual é o de login (sem controle) */
-static struct acao *depois;   /* o que fazer quando o processo atual terminar de sair */
-static GPtrArray *fila; /* ações que chegaram antes do controle ligar: struct acao */
+static char uuid[48];               /* o moz-extension://UUID da nossa extensão: só ela fala com o servidor */
+static GPtrArray *fila;             /* ações que chegaram antes da extensão ligar: struct acao */
 
 struct rpc {
-	void (*fim)(const struct json *resultado, gpointer dados);
+	void (*fim)(const struct json *resposta, gpointer dados);
 	gpointer dados;
 };
 
 struct acao {
-	enum { ACAO_ABRIR, ACAO_ATIVAR, ACAO_FECHAR, ACAO_SALVAR, ACAO_ENTRAR, ACAO_SAIR_LOGIN } tipo;
+	enum { ACAO_ABRIR, ACAO_IR, ACAO_ATIVAR, ACAO_FECHAR, ACAO_SALVAR } tipo;
 	char servico[32];
 	char url[1024];
 	bool miniatura;
@@ -60,16 +58,7 @@ static struct ff_aba *aba_do_servico(const char *servico) {
 	return NULL;
 }
 
-static struct ff_aba *aba_do_contexto(const char *contexto) {
-	for (int i = 0; i < estado.n; i++) {
-		if (!strcmp(estado.abas[i].contexto, contexto)) {
-			return &estado.abas[i];
-		}
-	}
-	return NULL;
-}
-
-/* ---- o perfil ---- */
+/* ---- o perfil e a extensão ---- */
 
 static const char *const prefs =
 	"// Gerado pelo LUMNA: o Firefox da Mídia. Mudanças aqui se perdem na próxima vez que abrir.\n"
@@ -104,25 +93,108 @@ static const char *const prefs =
 	"user_pref(\"full-screen-api.transition-duration.enter\", \"0 0\");\n"
 	"user_pref(\"full-screen-api.transition-duration.leave\", \"0 0\");\n"
 	"user_pref(\"ui.key.menuAccessKeyFocuses\", false);\n"
-	"user_pref(\"remote.active-protocols\", 1);\n"
-	"user_pref(\"remote.log.level\", \"Warn\");\n";
+	/* a extensão do perfil liga sozinha (sem perguntar) e não precisa de assinatura no Developer Edition, ESR e Nightly */
+	"user_pref(\"extensions.autoDisableScopes\", 0);\n"
+	"user_pref(\"extensions.enabledScopes\", 15);\n"
+	"user_pref(\"xpinstall.signatures.required\", false);\n"
+	"user_pref(\"extensions.update.enabled\", false);\n";
+
+/* a pasta onde está este programa (a extensão do repositório fica ao lado) */
+static char *pasta_do_programa(void) {
+	char exe[1024];
+	ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+	if (n <= 0) {
+		return g_strdup(".");
+	}
+	exe[n] = '\0';
+	return g_path_get_dirname(exe);
+}
+
+/* o UUID fixo da extensão neste perfil: assim o Origin dela (moz-extension://UUID) se sabe de antemão */
+static void uuid_da_extensao(const char *dados) {
+	char *caminho = g_build_filename(dados, "extensao-uuid", NULL), *texto = NULL;
+	if (g_file_get_contents(caminho, &texto, NULL, NULL) && strlen(g_strstrip(texto)) == 36) {
+		g_strlcpy(uuid, texto, sizeof(uuid));
+	} else {
+		char *novo = g_uuid_string_random();
+		g_strlcpy(uuid, novo, sizeof(uuid));
+		g_free(novo);
+		g_file_set_contents(caminho, uuid, -1, NULL);
+	}
+	g_free(texto);
+	g_free(caminho);
+}
+
+/* põe a extensão no perfil: o .xpi assinado, ou (Developer Edition, ESR, Nightly) a pasta, por um arquivo-ponteiro */
+static bool instalar_extensao(const char *perfil) {
+	char *exe = pasta_do_programa();
+	const char *env = g_getenv("LUMNA_EXTENSAO");
+	char *candidatos[6] = { NULL };
+	int n = 0;
+	if (env && *env) {
+		candidatos[n++] = g_strdup(env);
+	}
+	candidatos[n++] = g_strdup("/usr/share/lumna/midia/lumna-midia.xpi");
+	candidatos[n++] = g_build_filename(exe, "extensao-firefox", "lumna-midia.xpi", NULL);
+	candidatos[n++] = g_build_filename(exe, "extensao-firefox", NULL);
+	g_free(exe);
+	char *pasta_ext = g_build_filename(perfil, "extensions", NULL);
+	g_mkdir_with_parents(pasta_ext, 0700);
+	bool ok = false;
+	for (int i = 0; i < n && !ok; i++) {
+		if (g_file_test(candidatos[i], G_FILE_TEST_IS_DIR)) {
+			char *manifesto = g_build_filename(candidatos[i], "manifest.json", NULL);
+			if (g_file_test(manifesto, G_FILE_TEST_IS_REGULAR)) {
+				char *alvo = g_build_filename(pasta_ext, EXTENSAO_ID, NULL);
+				char *real = realpath(candidatos[i], NULL);
+				unlink(alvo);
+				ok = real && g_file_set_contents(alvo, real, -1, NULL); /* o arquivo-ponteiro: o texto é o caminho da pasta */
+				free(real);
+				g_free(alvo);
+			}
+			g_free(manifesto);
+		} else if (g_file_test(candidatos[i], G_FILE_TEST_IS_REGULAR)) {
+			char *alvo = g_strdup_printf("%s/%s.xpi", pasta_ext, EXTENSAO_ID);
+			GFile *de = g_file_new_for_path(candidatos[i]), *para = g_file_new_for_path(alvo);
+			unlink(alvo);
+			ok = g_file_copy(de, para, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, NULL);
+			g_object_unref(de);
+			g_object_unref(para);
+			g_free(alvo);
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		g_free(candidatos[i]);
+	}
+	g_free(pasta_ext);
+	return ok;
+}
 
 static char *pasta_perfil(void) {
 	char *dados = midia_pasta_dados();
 	char *p = g_build_filename(dados, "perfil", NULL);
 	g_mkdir_with_parents(p, 0700);
-	char *u = g_build_filename(p, "user.js", NULL);
-	GError *erro = NULL;
-	g_file_set_contents(u, prefs, -1, &erro);
-	g_clear_error(&erro);
-	g_free(u);
+	uuid_da_extensao(dados);
+	GString *u = g_string_new(prefs);
+	g_string_append_printf(u, "user_pref(\"extensions.webextensions.uuids\", \"{\\\"%s\\\":\\\"%s\\\"}\");\n", EXTENSAO_ID, uuid);
+	char *arquivo = g_build_filename(p, "user.js", NULL);
+	g_file_set_contents(arquivo, u->str, (gssize)u->len, NULL);
+	g_free(arquivo);
+	g_string_free(u, TRUE);
+	bool achou = instalar_extensao(p);
+	g_mutex_lock(&trinco);
+	estado.sem_extensao = !achou;
+	g_mutex_unlock(&trinco);
+	if (!achou) {
+		fprintf(stderr, "lumna-midia: não achei a extensão do Firefox (extensao-firefox/ ou $LUMNA_EXTENSAO): o Firefox abre, mas sem controle\n");
+	}
 	g_free(dados);
 	return p;
 }
 
-/* ---- BiDi ---- */
+/* ---- a conversa com a extensão ---- */
 
-static void enviar_rpc(const char *metodo, const char *params, void (*fim)(const struct json *, gpointer), gpointer dados) {
+static void enviar_cmd(const char *cmd, const char *servico, const char *url, void (*fim)(const struct json *, gpointer), gpointer dados) {
 	if (!ws || soup_websocket_connection_get_state(ws) != SOUP_WEBSOCKET_STATE_OPEN) {
 		return;
 	}
@@ -133,15 +205,16 @@ static void enviar_rpc(const char *metodo, const char *params, void (*fim)(const
 		r->dados = dados;
 		g_hash_table_insert(pendentes, GINT_TO_POINTER(id), r);
 	}
-	char *m = g_strdup_printf("{\"id\":%d,\"method\":\"%s\",\"params\":%s}", id, metodo, params ? params : "{}");
-	soup_websocket_connection_send_text(ws, m);
-	g_free(m);
-}
-
-static char *texto_json(const char *t) {
-	GString *s = g_string_new(NULL);
-	json_escrever_texto(s, t);
-	return g_string_free(s, FALSE);
+	GString *m = g_string_new(NULL);
+	g_string_append_printf(m, "{\"id\":%d,\"cmd\":\"%s\",\"servico\":", id, cmd);
+	json_escrever_texto(m, servico);
+	if (url) {
+		g_string_append(m, ",\"url\":");
+		json_escrever_texto(m, url);
+	}
+	g_string_append_c(m, '}');
+	soup_websocket_connection_send_text(ws, m->str);
+	g_string_free(m, TRUE);
 }
 
 static void ativar_no_estado(const char *servico) {
@@ -157,7 +230,6 @@ static void ativar_no_estado(const char *servico) {
 /* a miniatura: a página como está (vídeo protegido sai preto: o Firefox não entrega esses quadros) */
 struct salvar {
 	char servico[32];
-	bool miniatura;
 };
 
 static void salvar_gravar(struct salvar *s, const char *arquivo) {
@@ -189,23 +261,22 @@ static void salvar_gravar(struct salvar *s, const char *arquivo) {
 	g_free(s);
 }
 
-static void ao_capturar(const struct json *res, gpointer dados) {
+static void ao_capturar(const struct json *resp, gpointer dados) {
 	struct salvar *s = dados;
-	const char *b64 = json_chave_texto(res, "data");
+	const char *url_dados = json_chave_texto(resp, "dados"); /* "data:image/jpeg;base64,...." */
+	const char *b64 = strchr(url_dados, ',');
 	char *arquivo = NULL;
-	if (*b64) {
+	if (b64 && json_bool(json_chave(resp, "ok"), false)) {
 		gsize n;
-		guchar *bytes = g_base64_decode(b64, &n);
+		guchar *bytes = g_base64_decode(b64 + 1, &n);
 		char *dir = midia_pasta_dados();
 		char *mini = g_build_filename(dir, "miniaturas", NULL);
 		g_mkdir_with_parents(mini, 0700);
 		arquivo = g_strdup_printf("%s/%s.jpg", mini, s->servico);
-		GError *erro = NULL;
-		if (!g_file_set_contents(arquivo, (const char *)bytes, (gssize)n, &erro)) {
+		if (!g_file_set_contents(arquivo, (const char *)bytes, (gssize)n, NULL)) {
 			g_free(arquivo);
 			arquivo = NULL;
 		}
-		g_clear_error(&erro);
 		g_free(mini);
 		g_free(dir);
 		g_free(bytes);
@@ -214,108 +285,14 @@ static void ao_capturar(const struct json *res, gpointer dados) {
 	g_free(arquivo);
 }
 
-/* a URL e o título de cada aba, depois o que se pedir */
-struct atualizacao {
-	void (*fim)(gpointer);
-	gpointer dados;
-	int faltam;
-};
-
-static void atualizacao_um(struct atualizacao *a) {
-	if (--a->faltam <= 0) {
-		if (a->fim) {
-			a->fim(a->dados);
-		}
-		g_free(a);
-	}
-}
-
-struct titulo_pedido {
-	struct atualizacao *a;
-	char contexto[64];
-};
-
-static void ao_titulo(const struct json *res, gpointer dados) {
-	struct titulo_pedido *t = dados;
-	const char *valor = json_chave_texto(json_chave(res, "result"), "value");
-	g_mutex_lock(&trinco);
-	struct ff_aba *aba = aba_do_contexto(t->contexto);
-	if (aba && *valor) {
-		g_strlcpy(aba->titulo, valor, sizeof(aba->titulo));
-	}
-	g_mutex_unlock(&trinco);
-	atualizacao_um(t->a);
-	g_free(t);
-}
-
-static void ao_arvore(const struct json *res, gpointer dados) {
-	struct atualizacao *a = dados;
-	const struct json *ctxs = json_chave(res, "contexts");
-	int pedir = 0;
-	struct titulo_pedido *ts[FF_MAX_ABAS];
-	g_mutex_lock(&trinco);
-	for (int i = 0; ctxs && i < ctxs->nfilhos; i++) {
-		struct ff_aba *aba = aba_do_contexto(json_chave_texto(ctxs->filhos[i], "context"));
-		if (!aba) {
-			continue;
-		}
-		g_strlcpy(aba->url, json_chave_texto(ctxs->filhos[i], "url"), sizeof(aba->url));
-		if (pedir < FF_MAX_ABAS) {
-			struct titulo_pedido *t = g_new0(struct titulo_pedido, 1);
-			t->a = a;
-			g_strlcpy(t->contexto, aba->contexto, sizeof(t->contexto));
-			ts[pedir++] = t;
-		}
-	}
-	g_mutex_unlock(&trinco);
-	a->faltam = pedir + 1; /* +1: este passo */
-	for (int i = 0; i < pedir; i++) {
-		char *c = texto_json(ts[i]->contexto);
-		char *p = g_strdup_printf("{\"expression\":\"document.title\",\"awaitPromise\":false,\"target\":{\"context\":%s}}", c);
-		enviar_rpc("script.evaluate", p, ao_titulo, ts[i]);
-		g_free(p);
-		g_free(c);
-	}
-	atualizacao_um(a);
-}
-
-static void atualizar(void (*fim)(gpointer), gpointer dados) {
-	struct atualizacao *a = g_new0(struct atualizacao, 1);
-	a->fim = fim;
-	a->dados = dados;
-	a->faltam = 1;
-	enviar_rpc("browsingContext.getTree", "{}", ao_arvore, a);
-}
-
-static void salvar_depois_de_atualizar(gpointer dados) {
-	struct salvar *s = dados;
-	g_mutex_lock(&trinco);
-	struct ff_aba *a = aba_do_servico(s->servico);
-	char contexto[64] = "";
-	if (a) {
-		g_strlcpy(contexto, a->contexto, sizeof(contexto));
-	}
-	g_mutex_unlock(&trinco);
-	if (!*contexto) {
-		g_free(s);
-		return;
-	}
-	if (s->miniatura) {
-		char *c = texto_json(contexto);
-		char *p = g_strdup_printf("{\"context\":%s,\"origin\":\"viewport\",\"format\":{\"type\":\"image/jpeg\",\"quality\":0.6}}", c);
-		enviar_rpc("browsingContext.captureScreenshot", p, ao_capturar, s);
-		g_free(p);
-		g_free(c);
-	} else {
-		salvar_gravar(s, NULL);
-	}
-}
-
 static void salvar_agora(const char *servico, bool miniatura) {
 	struct salvar *s = g_new0(struct salvar, 1);
 	g_strlcpy(s->servico, servico, sizeof(s->servico));
-	s->miniatura = miniatura;
-	atualizar(salvar_depois_de_atualizar, s);
+	if (miniatura) {
+		enviar_cmd("capturar", servico, NULL, ao_capturar, s);
+	} else {
+		salvar_gravar(s, NULL); /* o endereço e o título já vêm atualizados pelos avisos da extensão */
+	}
 }
 
 static gboolean salvar_periodico(gpointer dados) {
@@ -329,111 +306,87 @@ static gboolean salvar_periodico(gpointer dados) {
 	return G_SOURCE_CONTINUE;
 }
 
-/* abrir: a aba nova, depois o endereço */
-struct abrir {
-	char servico[32];
-	char url[1024];
-};
-
-static void navegar(const char *contexto, const char *url) {
-	char *c = texto_json(contexto), *u = texto_json(url);
-	char *p = g_strdup_printf("{\"context\":%s,\"url\":%s,\"wait\":\"none\"}", c, u);
-	enviar_rpc("browsingContext.navigate", p, NULL, NULL);
-	g_free(p);
-	g_free(u);
-	g_free(c);
-}
-
-static void ativar_contexto(const char *contexto) {
-	char *c = texto_json(contexto);
-	char *p = g_strdup_printf("{\"context\":%s}", c);
-	enviar_rpc("browsingContext.activate", p, NULL, NULL);
-	g_free(p);
-	g_free(c);
-}
-
-static void ao_criar(const struct json *res, gpointer dados) {
-	struct abrir *ab = dados;
-	const char *contexto = json_chave_texto(res, "context");
-	if (*contexto && estado.n < FF_MAX_ABAS) {
-		g_mutex_lock(&trinco);
-		struct ff_aba *a = &estado.abas[estado.n++];
-		memset(a, 0, sizeof(*a));
-		g_strlcpy(a->servico, ab->servico, sizeof(a->servico));
-		g_strlcpy(a->contexto, contexto, sizeof(a->contexto));
-		g_strlcpy(a->url, ab->url, sizeof(a->url));
-		a->carregando = true;
-		g_mutex_unlock(&trinco);
-		ativar_no_estado(ab->servico);
-		navegar(contexto, ab->url);
-	}
-	g_free(ab);
-}
-
 static void executar(const struct acao *a) {
-	struct ff_aba *aba = aba_do_servico(a->servico);
+	g_mutex_lock(&trinco);
+	bool existe = aba_do_servico(a->servico) != NULL;
+	g_mutex_unlock(&trinco);
 	switch (a->tipo) {
 	case ACAO_ABRIR:
+	case ACAO_IR:
+		if (!existe) {
+			enviar_cmd("abrir", a->servico, a->url, NULL, NULL);
+		} else if (a->tipo == ACAO_IR) {
+			enviar_cmd("ir", a->servico, a->url, NULL, NULL); /* a aba vai a outro endereço */
+		} else {
+			enviar_cmd("ativar", a->servico, NULL, NULL, NULL); /* já está viva: só vem para a frente */
+		}
+		ativar_no_estado(a->servico);
+		break;
 	case ACAO_ATIVAR:
-		if (aba) {
-			ativar_contexto(aba->contexto);
+		if (existe) {
+			enviar_cmd("ativar", a->servico, NULL, NULL, NULL);
 			ativar_no_estado(a->servico);
-		} else if (a->tipo == ACAO_ABRIR && estado.n < FF_MAX_ABAS) {
-			struct abrir *ab = g_new0(struct abrir, 1);
-			g_strlcpy(ab->servico, a->servico, sizeof(ab->servico));
-			g_strlcpy(ab->url, a->url, sizeof(ab->url));
-			enviar_rpc("browsingContext.create", "{\"type\":\"tab\"}", ao_criar, ab);
 		}
 		break;
 	case ACAO_FECHAR:
-		if (aba) {
-			char *c = texto_json(aba->contexto);
-			char *p = g_strdup_printf("{\"context\":%s}", c);
-			enviar_rpc("browsingContext.close", p, NULL, NULL);
-			g_free(p);
-			g_free(c);
+		if (existe) {
+			enviar_cmd("fechar", a->servico, NULL, NULL, NULL);
 		}
 		break;
 	case ACAO_SALVAR:
-		if (aba) {
+		if (existe) {
 			salvar_agora(a->servico, a->miniatura);
 		}
-		break;
-	case ACAO_ENTRAR:
-	case ACAO_SAIR_LOGIN:
 		break;
 	}
 }
 
-static void evento(const char *metodo, const struct json *p) {
-	const char *contexto = json_chave_texto(p, "context");
-	if (!strcmp(metodo, "browsingContext.navigationStarted") || !strcmp(metodo, "browsingContext.load")) {
-		g_mutex_lock(&trinco);
-		struct ff_aba *a = aba_do_contexto(contexto);
-		if (a) {
-			a->carregando = !strcmp(metodo, "browsingContext.navigationStarted");
-			const char *url = json_chave_texto(p, "url");
-			if (*url) {
-				g_strlcpy(a->url, url, sizeof(a->url));
-			}
-		}
-		g_mutex_unlock(&trinco);
-		avisar();
-	} else if (!strcmp(metodo, "browsingContext.contextDestroyed")) {
-		g_mutex_lock(&trinco);
-		for (int i = 0; i < estado.n; i++) {
-			if (!strcmp(estado.abas[i].contexto, contexto)) {
-				if (estado.abas[i].ativa) {
-					estado.ativo[0] = '\0';
-				}
-				memmove(&estado.abas[i], &estado.abas[i + 1], (size_t)(estado.n - i - 1) * sizeof(estado.abas[0]));
-				estado.n--;
-				break;
-			}
-		}
-		g_mutex_unlock(&trinco);
-		avisar();
+/* ---- os avisos da extensão ---- */
+
+static void aviso_aba(const struct json *m) {
+	const char *servico = json_chave_texto(m, "servico");
+	if (!*servico) {
+		return;
 	}
+	g_mutex_lock(&trinco);
+	struct ff_aba *a = aba_do_servico(servico);
+	if (!a && estado.n < FF_MAX_ABAS) {
+		a = &estado.abas[estado.n++];
+		memset(a, 0, sizeof(*a));
+		g_strlcpy(a->servico, servico, sizeof(a->servico));
+		a->ativa = !strcmp(estado.ativo, servico);
+	}
+	if (a) {
+		snprintf(a->contexto, sizeof(a->contexto), "%d", (int)json_numero(json_chave(m, "tab"), 0));
+		const char *url = json_chave_texto(m, "url");
+		if (*url) {
+			g_strlcpy(a->url, url, sizeof(a->url));
+		}
+		const char *titulo = json_chave_texto(m, "titulo");
+		if (*titulo) {
+			g_strlcpy(a->titulo, titulo, sizeof(a->titulo));
+		}
+		a->carregando = json_bool(json_chave(m, "carregando"), false);
+	}
+	g_mutex_unlock(&trinco);
+	avisar();
+}
+
+static void aviso_fechada(const struct json *m) {
+	const char *servico = json_chave_texto(m, "servico");
+	g_mutex_lock(&trinco);
+	for (int i = 0; i < estado.n; i++) {
+		if (!strcmp(estado.abas[i].servico, servico)) {
+			if (estado.abas[i].ativa) {
+				estado.ativo[0] = '\0';
+			}
+			memmove(&estado.abas[i], &estado.abas[i + 1], (size_t)(estado.n - i - 1) * sizeof(estado.abas[0]));
+			estado.n--;
+			break;
+		}
+	}
+	g_mutex_unlock(&trinco);
+	avisar();
 }
 
 static void ao_mensagem(SoupWebsocketConnection *c, gint tipo, GBytes *bytes, gpointer dados) {
@@ -445,17 +398,28 @@ static void ao_mensagem(SoupWebsocketConnection *c, gint tipo, GBytes *bytes, gp
 	char *copia = g_strndup(t, n);
 	struct json *j = json_ler(copia);
 	g_free(copia);
-	const char *tp = json_chave_texto(j, "type");
-	if (!strcmp(tp, "event")) {
-		evento(json_chave_texto(j, "method"), json_chave(j, "params"));
-	} else if (!strcmp(tp, "success") || !strcmp(tp, "error")) {
+	const char *ev = json_chave_texto(j, "evento");
+	if (!strcmp(ev, "ola")) {
+		g_mutex_lock(&trinco);
+		estado.ligado = true;
+		g_mutex_unlock(&trinco);
+		avisar();
+		for (guint i = 0; fila && i < fila->len; i++) {
+			executar(fila->pdata[i]);
+		}
+		if (fila) {
+			g_ptr_array_set_size(fila, 0);
+		}
+	} else if (!strcmp(ev, "aba")) {
+		aviso_aba(j);
+	} else if (!strcmp(ev, "fechada")) {
+		aviso_fechada(j);
+	} else if (json_chave(j, "id")) {
 		gpointer id = GINT_TO_POINTER((int)json_numero(json_chave(j, "id"), 0));
 		struct rpc *r = g_hash_table_lookup(pendentes, id);
 		if (r) {
 			g_hash_table_steal(pendentes, id);
-			if (r->fim && !strcmp(tp, "success")) {
-				r->fim(json_chave(j, "result"), r->dados);
-			}
+			r->fim(j, r->dados);
 			g_free(r);
 		}
 	}
@@ -482,64 +446,24 @@ static void ao_fechar_ws(SoupWebsocketConnection *c, gpointer dados) {
 	}
 }
 
-static void ao_assinar(const struct json *res, gpointer dados) {
-	/* o que já estava aberto (a aba em branco do começo) não é de ninguém: fica de reserva */
-}
-
-static void ao_sessao(const struct json *res, gpointer dados) {
-	enviar_rpc("session.subscribe",
-		"{\"events\":[\"browsingContext.navigationStarted\",\"browsingContext.load\",\"browsingContext.contextDestroyed\"]}", ao_assinar, NULL);
-	g_mutex_lock(&trinco);
-	estado.ligado = true;
-	g_mutex_unlock(&trinco);
-	avisar();
-	/* as ações que esperavam */
-	for (guint i = 0; fila && i < fila->len; i++) {
-		executar(fila->pdata[i]);
-	}
-	if (fila) {
-		g_ptr_array_set_size(fila, 0);
-	}
-}
-
-static void ao_conectar(GObject *origem, GAsyncResult *r, gpointer dados);
-
-static gboolean tentar_ligar(gpointer dados) {
-	if (ws || conectando) {
-		return G_SOURCE_REMOVE;
-	}
-	char *url = g_strdup_printf("ws://127.0.0.1:%d/session", PORTA_BIDI);
-	SoupMessage *m = soup_message_new("GET", url);
-	g_free(url);
-	conectando = true;
-	soup_session_websocket_connect_async(sessao, m, NULL, NULL, G_PRIORITY_DEFAULT, NULL, ao_conectar, NULL);
-	g_object_unref(m);
-	return G_SOURCE_REMOVE;
-}
-
-static void ao_conectar(GObject *origem, GAsyncResult *r, gpointer dados) {
-	GError *erro = NULL;
-	SoupWebsocketConnection *c = soup_session_websocket_connect_finish(SOUP_SESSION(origem), r, &erro);
-	conectando = false;
-	g_clear_error(&erro);
-	if (!c) {
-		bool vivo;
-		g_mutex_lock(&trinco);
-		vivo = estado.lancado;
-		g_mutex_unlock(&trinco);
-		if (vivo && ++tentativas < TENTATIVAS_LIGAR) {
-			GSource *s = g_timeout_source_new(250);
-			g_source_set_callback(s, tentar_ligar, NULL, NULL);
-			g_source_attach(s, ctx);
-			g_source_unref(s);
-		}
+/* quem se conecta? só a nossa extensão: o Origin é o moz-extension://UUID que fixamos no perfil, e uma página da web não consegue forjá-lo */
+static void ao_conectar(SoupServer *s, SoupServerMessage *msg, const char *caminho, SoupWebsocketConnection *c, gpointer dados) {
+	char *esperado = g_strdup_printf("moz-extension://%s", uuid);
+	const char *origem = soup_message_headers_get_one(soup_server_message_get_request_headers(msg), "Origin");
+	bool vale = origem && !strcmp(origem, esperado);
+	g_free(esperado);
+	if (!vale) {
+		soup_websocket_connection_close(c, SOUP_WEBSOCKET_CLOSE_POLICY_VIOLATION, "só a extensão do LUMNA");
 		return;
 	}
-	ws = c;
+	if (ws) {
+		soup_websocket_connection_close(ws, SOUP_WEBSOCKET_CLOSE_GOING_AWAY, "outra extensão tomou o lugar");
+		desligar();
+	}
+	ws = g_object_ref(c);
 	soup_websocket_connection_set_max_incoming_payload_size(ws, 32 * 1024 * 1024); /* a miniatura vem em base64 */
 	g_signal_connect(ws, "message", G_CALLBACK(ao_mensagem), NULL);
 	g_signal_connect(ws, "closed", G_CALLBACK(ao_fechar_ws), NULL);
-	enviar_rpc("session.new", "{\"capabilities\":{}}", ao_sessao, NULL);
 }
 
 /* ---- o processo ---- */
@@ -549,42 +473,31 @@ static gboolean na_linha(gpointer dados);
 static void ao_sair(GPid p, gint status, gpointer dados) {
 	g_spawn_close_pid(p);
 	pid = 0;
-	modo_login = false;
 	g_mutex_lock(&trinco);
 	estado.lancado = false;
-	estado.login = false;
 	g_mutex_unlock(&trinco);
 	if (ws) {
 		soup_websocket_connection_close(ws, SOUP_WEBSOCKET_CLOSE_NORMAL, NULL);
 	}
 	desligar();
-	if (depois) {
-		struct acao *a = depois;
-		depois = NULL;
-		na_linha(a); /* o que esperava o outro modo sair */
-	}
+	g_ptr_array_set_size(fila, 0);
 }
 
-static bool lancar(bool login, const char *url) {
+static bool lancar(void) {
 	if (pid) {
 		return true;
 	}
 	char *perfil = pasta_perfil();
 	const char *programa = g_getenv("LUMNA_FIREFOX");
-	/* o de login não leva o controle remoto: sem ele o navigator.webdriver fica desligado e o Google deixa entrar */
-	char *porta = login ? NULL : g_strdup_printf("--remote-debugging-port=%d", PORTA_BIDI);
 	char *argv[] = { (char *)(programa && *programa ? programa : "firefox"), "--kiosk", "--no-remote", "--profile", perfil, "--name", FF_APP_ID,
-		"--class", FF_APP_ID, login ? (char *)url : porta, login ? NULL : "about:blank", NULL };
-	modo_login = login;
+		"--class", FF_APP_ID, "about:blank", NULL };
 	GError *erro = NULL;
 	bool ok = g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
 		NULL, NULL, &pid, &erro);
 	g_clear_error(&erro);
-	g_free(porta);
 	g_free(perfil);
 	if (!ok) {
 		pid = 0;
-		modo_login = false;
 		return false;
 	}
 	GSource *w = g_child_watch_source_new(pid);
@@ -593,15 +506,7 @@ static bool lancar(bool login, const char *url) {
 	g_source_unref(w);
 	g_mutex_lock(&trinco);
 	estado.lancado = true;
-	estado.login = login;
 	g_mutex_unlock(&trinco);
-	tentativas = 0;
-	if (!login) {
-		GSource *s = g_timeout_source_new(250);
-		g_source_set_callback(s, tentar_ligar, NULL, NULL);
-		g_source_attach(s, ctx);
-		g_source_unref(s);
-	}
 	avisar();
 	return true;
 }
@@ -610,29 +515,7 @@ static bool lancar(bool login, const char *url) {
 
 static gboolean na_linha(gpointer dados) {
 	struct acao *a = dados;
-	if (a->tipo == ACAO_SAIR_LOGIN) {
-		if (pid && modo_login) {
-			kill(pid, SIGTERM);
-		}
-		g_free(a);
-		return G_SOURCE_REMOVE;
-	}
-	bool quer_login = a->tipo == ACAO_ENTRAR;
-	if (pid && modo_login != quer_login) {
-		/* o Firefox que está aí é do outro modo: sai primeiro, e a ação roda quando ele terminar */
-		g_free(depois);
-		depois = a;
-		kill(pid, SIGTERM);
-		return G_SOURCE_REMOVE;
-	}
-	if (quer_login) {
-		if (!pid) {
-			lancar(true, a->url);
-		}
-		g_free(a);
-		return G_SOURCE_REMOVE;
-	}
-	if (!lancar(false, NULL)) {
+	if (!lancar()) {
 		g_free(a);
 		return G_SOURCE_REMOVE;
 	}
@@ -644,7 +527,7 @@ static gboolean na_linha(gpointer dados) {
 		executar(a);
 		g_free(a);
 	} else {
-		g_ptr_array_add(fila, a); /* o controle ainda está subindo */
+		g_ptr_array_add(fila, a); /* a extensão ainda está subindo */
 	}
 	return G_SOURCE_REMOVE;
 }
@@ -661,7 +544,7 @@ static void pedir(int tipo, const char *servico, const char *url, bool miniatura
 	}
 	a->miniatura = miniatura;
 	/* salvar, ativar e fechar sem Firefox não fazem nada: não vale subir um só para isso */
-	if (tipo != ACAO_ABRIR && tipo != ACAO_ENTRAR) {
+	if (tipo != ACAO_ABRIR && tipo != ACAO_IR) {
 		bool vivo;
 		g_mutex_lock(&trinco);
 		vivo = estado.lancado;
@@ -678,6 +561,10 @@ void ff_abrir(const char *servico, const char *url) {
 	pedir(ACAO_ABRIR, servico, url, false);
 }
 
+void ff_ir(const char *servico, const char *url) {
+	pedir(ACAO_IR, servico, url, false);
+}
+
 void ff_ativar(const char *servico) {
 	pedir(ACAO_ATIVAR, servico, NULL, false);
 }
@@ -688,14 +575,6 @@ void ff_fechar(const char *servico) {
 
 void ff_salvar(const char *servico, bool miniatura) {
 	pedir(ACAO_SALVAR, servico, NULL, miniatura);
-}
-
-void ff_entrar(const char *url) {
-	pedir(ACAO_ENTRAR, "", url, false);
-}
-
-void ff_sair_login(void) {
-	pedir(ACAO_SAIR_LOGIN, "", NULL, false);
 }
 
 void ff_ler(struct ff_estado *e) {
@@ -715,9 +594,19 @@ void ff_encerrar(void) {
 
 static gpointer linha(gpointer dados) {
 	g_main_context_push_thread_default(ctx);
-	sessao = soup_session_new();
 	pendentes = g_hash_table_new(g_direct_hash, g_direct_equal);
 	fila = g_ptr_array_new_with_free_func(g_free);
+	char *dir = midia_pasta_dados();
+	uuid_da_extensao(dir);
+	g_free(dir);
+	/* o servidor da extensão: só em 127.0.0.1 */
+	servidor = soup_server_new("server-header", "lumna-midia", NULL);
+	soup_server_add_websocket_handler(servidor, "/extensao", NULL, NULL, ao_conectar, NULL, NULL);
+	GError *erro = NULL;
+	if (!soup_server_listen_local(servidor, PORTA_EXT, 0, &erro)) {
+		fprintf(stderr, "lumna-midia: a porta %d da extensão do Firefox: %s\n", PORTA_EXT, erro ? erro->message : "?");
+		g_clear_error(&erro);
+	}
 	GSource *s = g_timeout_source_new_seconds(SALVAR_A_CADA_S);
 	g_source_set_callback(s, salvar_periodico, NULL, NULL);
 	g_source_attach(s, ctx);
