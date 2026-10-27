@@ -35,6 +35,20 @@ void pn_armaz_abrir(void);
 void pn_armaz_uso_desenhar(void);
 void pn_armaz_limpeza_desenhar(void);
 void pn_armaz_discos_desenhar(void);
+void pn_monitores_desenhar(void);
+void pn_monitores_abrir(void);
+bool pn_monitores_pendente(void);
+void pn_monitores_aplicar(void);
+void pn_monitores_descartar(void);
+void pn_monitores_restaurar(void);
+void pn_teclado_desenhar(void);
+void pn_teclado_abrir(void);
+bool pn_teclado_pendente(void);
+void pn_teclado_aplicar(void);
+void pn_teclado_descartar(void);
+void pn_teclado_restaurar(void);
+void pn_mouse_desenhar(void);
+void pn_mouse_restaurar(void);
 void pn_apps_desenhar(void);
 void pn_apps_abrir(void);
 void pn_apps_atu_desenhar(void);
@@ -79,8 +93,8 @@ const pn_categoria pn_aplicativos = { "aplicativos", "grid", "Aplicativos", "Ins
 	N(aplicativos) };
 
 static const pn_secao telas[] = {
-	{ "monitores", "screens", "Monitores", "Resolução, escala e posição das telas.", NULL,
-		"Resolução, escala, taxa e rotação;A posição de cada tela;Qual é a principal" },
+	{ "monitores", "screens", "Monitores", "Resolução, escala e posição das telas.", pn_monitores_desenhar, NULL, pn_monitores_pendente,
+		pn_monitores_aplicar, pn_monitores_descartar, pn_monitores_restaurar, pn_monitores_abrir },
 	{ "luz", "moon", "Luz noturna", "Cores mais quentes à noite.", NULL, "Ligar, intensidade e horário" },
 	{ "modos", "desktop", "Modos", "Desktop, Gaming e Mídia: o modo ao ligar e o que cada um faz.", pn_modos_desenhar, NULL, pn_modos_pendente,
 		pn_modos_aplicar, pn_modos_descartar, pn_modos_restaurar, pn_modos_abrir },
@@ -158,10 +172,12 @@ static const pn_secao energia[] = {
 const pn_categoria pn_energia = { "energia", "battery", "Energia", "Bateria e suspensão", PN_SISTEMA, energia, N(energia) };
 
 static const pn_secao teclado[] = {
-	{ "teclado", "keyboard", "Teclado", "Layout e repetição.", NULL, "O layout;A repetição das teclas" },
+	{ "teclado", "keyboard", "Teclado", "Layout e repetição.", pn_teclado_desenhar, NULL, pn_teclado_pendente, pn_teclado_aplicar,
+		pn_teclado_descartar, pn_teclado_restaurar, pn_teclado_abrir },
 	{ "atalhos", "keyboard", "Atalhos", "As teclas que fazem as coisas.", pn_atalhos_desenhar, NULL, pn_atalhos_pendente,
 		pn_atalhos_aplicar, pn_atalhos_descartar, pn_atalhos_restaurar, pn_atalhos_abrir },
-	{ "mouse", "mouse", "Mouse e touchpad", "O ponteiro.", NULL, "Velocidade;Toque para clicar;Rolagem natural" },
+	{ "mouse", "mouse", "Mouse e touchpad", "Botões, velocidade e rolagem.", pn_mouse_desenhar, NULL, pn_teclado_pendente, pn_teclado_aplicar,
+		pn_teclado_descartar, pn_mouse_restaurar, pn_teclado_abrir },
 	{ "tela", "keyboard", "Teclado na tela", "Escrever sem teclado.", NULL, "Ligar;O tamanho" },
 };
 const pn_categoria pn_teclado = { "teclado", "keyboard", "Teclado e mouse", "Layout, atalhos e ponteiro", PN_SISTEMA, teclado,

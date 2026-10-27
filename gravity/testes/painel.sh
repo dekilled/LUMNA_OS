@@ -22,4 +22,8 @@ LUMNA_RAIZ_SISTEMA="$T/raiz" PATH="$T/raiz/bin:$PATH" "$T/testa_sistema"
 cc $CF -o "$T/testa_hora" testes/painel/testa_hora.c servicos/hora.c $LG
 mkdir -p "$T/cfg/lumna"
 env -u XDG_DATA_HOME XDG_CONFIG_HOME="$T/cfg" "$T/testa_hora" "$T/cfg/lumna/hora.ini"
+# entrada e telas (Teclado e mouse, Monitores)
+cc $CF -o "$T/testa_entrada" testes/painel/testa_entrada.c servicos/entrada.c servicos/telas.c servicos/json.c servicos/modos.c $LG -lm
+mkdir -p "$T/cfg2"
+env -u XDG_DATA_HOME XDG_CONFIG_HOME="$T/cfg2" LUMNA_XKB_LST="$AQUI/testes/painel/evdev-falso.lst" env -u XKB_DEFAULT_LAYOUT "$T/testa_entrada"
 echo "(arquivos de teste em $T)"

@@ -145,12 +145,11 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - ✅ Atualizações (os apps com versão nova; atualizar roda `yay -Syu`/`pacman -Syu` num terminal: o Arch atualiza o sistema inteiro junto).
 
 **Telas e modos**
-- ⏳ Monitores:
-  - resolução, escala, taxa e rotação;
-  - posição;
-  - qual é o principal.
-
-  Pelo Orbit (`orbit-msg` / wlr-output-management).
+- ✅ Monitores: o desenho das telas, e por tela a resolução, a taxa, a escala, a rotação, ligar/desligar e a
+  posição (à direita, à esquerda, acima ou abaixo de outra). Grava `~/.config/lumna/telas.ini`, que o Orbit
+  vigia e aplica na hora (`servicos/telas.c`); depois de mudar algo que pode apagar a imagem o Painel pergunta
+  "Manter?" e volta sozinho em 15 s. O Orbit nunca desliga a última tela. Falta: "qual é a principal" (o Orbit
+  ainda não tem esse conceito) e identificar cada tela piscando um número nela.
 - ⏳ Luz noturna;
 - ✅ Modos (Desktop, Gaming, Mídia): o modo ao ligar, estender o modo às telas (ou um por tela) e, por modo,
   esconder a dock e o "não perturbe" (`modos.ini`). A base está no Orbit (um espaço por modo e por saída:
@@ -199,9 +198,12 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
   - 🔨 tela e suspensão (desligar a tela e suspender depois de X min);
   - ⏳ o botão de ligar.
 - **Teclado e mouse:**
-  - 🔨 layout e repetição;
+  - ✅ teclado: vários layouts do XKB com a tecla que troca de um para o outro, Caps Lock (Ctrl ou Esc) e a
+    repetição das teclas (`entrada.ini`, o Orbit refaz o mapa na hora);
   - 🔨 atalhos;
-  - ⏳ mouse e touchpad;
+  - ✅ mouse e touchpad: botão primário (trocar para canhotos), velocidade e aceleração do ponteiro, rolagem
+    natural, tocar para clicar e ignorar o touchpad ao digitar. Valem em aparelhos de verdade (libinput); o
+    desenho do ponteiro e os ícones ficam para Temas;
   - ⏳ teclado na tela.
 - **Data e hora:**
   - ⏳ automática;

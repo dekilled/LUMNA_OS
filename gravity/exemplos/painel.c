@@ -517,8 +517,13 @@ static void pergunta(void) {
 	}
 }
 
+void pn_monitores_tick(bool aqui);
+void pn_monitores_desenhar(void);
+
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
+	/* o "Manter?" dos monitores corre mesmo se a pessoa sair da seção */
+	pn_monitores_tick(cat >= 0 && sec >= 0 && secao_aberta()->desenhar == pn_monitores_desenhar);
 	if (ir_pedido[0]) {
 		int c, s;
 		if (achar(ir_pedido, &c, &s)) {
