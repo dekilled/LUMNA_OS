@@ -72,7 +72,7 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c servicos/emmac.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
 	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c servicos/modos.c servicos/json.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
@@ -150,8 +150,8 @@ extensao:
 	cd extensao-firefox && rm -f lumna-midia.xpi && zip -q lumna-midia.xpi manifest.json fundo.js
 
 # a Emma em segundo plano (servicos/emma*.c): o serviço da sessão, sem a biblioteca de interface
-EMMA = exemplos/emma.c servicos/emmaa.c servicos/emmab.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
-emma: $(EMMA) servicos/emmaa.h servicos/emmab.h servicos/emmac.h servicos/emmav.h
+EMMA = exemplos/emma.c servicos/emmaa.c servicos/emmab.c servicos/emmal.c servicos/emmas.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
+emma: $(EMMA) servicos/emmaa.h servicos/emmab.h servicos/emmal.h servicos/emmas.h servicos/emmac.h servicos/emmav.h
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0 gio-unix-2.0) -o $@ $(EMMA) $(shell pkg-config --libs libsoup-3.0 gio-2.0 gio-unix-2.0) -lm -lpthread
 
 # o painel flutuante da Emma (à direita)

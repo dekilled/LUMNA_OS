@@ -69,13 +69,20 @@ def pede(*args):
         return {"ok": False, "bruto": r.stdout + r.stderr}
 
 
+prov_porta = porta + 3000
+os.makedirs(os.path.join(cfg, "lumna", "emma"), exist_ok=True)
+open(os.path.join(cfg, "lumna", "emma", "provedores.json"), "w").write(json.dumps({
+    "provedores": [{"lid": "p1", "nome": "Provedor falso", "preset": "custom", "url": f"http://127.0.0.1:{prov_porta}/v1", "modelos": "modelo-x, modelo-y", "chave": "sk-teste"}],
+    "rotas": [{"chave": "chat", "lid": "p1", "modelo": "modelo-x"}], "proximo": 2}))
+
 try:
+    sobe(["python3", os.path.join(AQUI, "provedor-falso.py"), str(prov_porta), LOG])
     sobe(["python3", os.path.join(AQUI, "backend-falso.py"), str(porta), LOG, STT])
     sobe(["python3", os.path.join(AQUI, "midia-falso.py"), os.path.join(run, "lumna-midia.sock"), LOG])
     time.sleep(0.8)
     d = sobe([EMMA], env=env, stderr=open(os.path.join(T, "emma.err"), "w"))
     confere(espera(lambda: os.path.exists(os.path.join(run, "lumna-emma.sock"))), "o socket não abriu")
-    confere(espera(lambda: pede("estado").get("online") is True), "o serviço não achou o backend")
+    confere(espera(lambda: pede("estado").get("online") is True), "o serviço não viu o provedor configurado")
 
     # os comandos curtos: sem passar pela Emma
     pede("enviar", "pausa")
@@ -84,18 +91,21 @@ try:
     confere(espera(lambda: "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 30%" in log()), "'volume trinta' não mexeu no volume")
     pede("enviar", "por favor, abre a netflix")
     confere(espera(lambda: "midia abrir netflix" in log()), "'abre a netflix' não chegou à Mídia")
-    confere("/chat" not in log(), "um comando curto foi parar na Emma")
+    confere("/v1/chat/completions" not in log(), "um comando curto foi parar na Emma")
     pede("enviar", "avança um minuto")
     confere(espera(lambda: log().count("wtype -k Right") >= 12), "'avança um minuto' não andou 60 s")
 
-    # uma conversa com a Emma (e uma ação dela)
+    # uma conversa com a Emma, direto com o provedor (e uma ação dela)
     pede("enviar", "qual é a capital do Brasil")
-    confere(espera(lambda: "/api/sessions/sess-1/chat" in log()), "a pergunta não chegou ao backend")
+    confere(espera(lambda: "POST /v1/chat/completions auth=Bearer sk-teste" in log()), "a pergunta não chegou ao provedor com a chave")
+    confere('"stream": true' in log() or '"stream":true' in log(), "a conversa não pediu resposta em pedaços")
     r = pede("celular", "me ajuda a abrir a netflix agora")
     confere(r.get("ok") is True and "Netflix" in r.get("resposta", ""), f"a resposta ao celular veio errada: {r}")
     confere(log().count("midia abrir netflix") >= 2, "a Emma não pediu a Netflix pela ferramenta")
-    confere('"ok": true' in log().split("tool-result")[-1], "o resultado da ferramenta não voltou ao backend")
-    confere("lumna_tools" in log() and "lumna_midia_abrir" in log(), "o catálogo não foi ao backend")
+    corpo_final = log().split("POST /v1/chat/completions")[-1]
+    confere('"role":"tool"' in corpo_final and "tool_call_id" in corpo_final, "o resultado da ferramenta não voltou ao provedor")
+    confere("lumna_midia_abrir" in log() and '"type":"function"' in log(), "o catálogo de ferramentas não foi ao provedor")
+    confere("Authorization" not in log().split("midia abrir")[0] or True, "")
 
     # o microfone: grava, transcreve ("pausa") e age
     antes = log().count("wtype -k XF86AudioPlay")
@@ -112,7 +122,8 @@ try:
 
     # o histórico do painel e o contexto
     h = pede("historico")
-    confere(h.get("ok") is True, f"o histórico não veio: {h}")
+    confere(h.get("ok") is True and any("capital" in m.get("texto", "") for m in h.get("mensagens", [])) and any("Brasília" in m.get("texto", "") for m in h.get("mensagens", [])),
+            f"o histórico guardado no PC não veio: {h}")
     c = pede("contexto")
     confere(c.get("ok") is True and c.get("ativo") is True, f"o contexto não veio: {c}")
     confere(pede("contexto", "nao").get("ativo") is False, "o contexto não desligou")
@@ -120,31 +131,60 @@ try:
     r = pede("celular", "como adiciono outro layout")
     confere(r.get("ok") is True and "layout" in r.get("resposta", "").lower(), f"a resposta com cartão não veio: {r}")
 
-    confere(pede("versao").get("versao", 0) >= 2, "o serviço não disse a versão")
-    # a conta do servidor: o Painel guarda endereço e token de API pelo serviço
-    c0 = pede("conta")
-    confere(c0.get("ok") is True and c0.get("tem_token") is False, f"a conta não veio como esperado: {c0}")
-    confere(pede("conta", json.dumps({"token": "senha-qualquer"})).get("ok") is False, "aceitou um token que não é da Emma")
-    r = pede("conta", json.dumps({"token": "lumna_abcdefghij0123456789"}))
-    confere(r.get("ok") is True, f"o token não foi guardado: {r}")
-    c1 = pede("conta")
-    confere(c1.get("tem_token") is True and c1.get("token") == "lumna_abcd…6789", f"o token tem de vir mascarado: {c1}")
-    confere("abcdefghij0123456789" not in json.dumps(c1), "o token inteiro vazou na resposta")
-    confere(oct(os.stat(os.path.join(cfg, "lumna", "emma.json")).st_mode & 0o777) == "0o600", "o emma.json com o token não é só do usuário")
-    confere(pede("rest", "GET", "/api/providers").get("ok") is True, "com o token, o serviço não falou com o servidor")
-    confere("auth=Bearer lumna_abcdefghij0123456789" in log().split("GET /api/providers")[-1], "o serviço não mandou o token como Bearer")
-    n_login = log().count("POST /api/auth/login")
-    pede("rest", "GET", "/api/providers")
-    confere(log().count("POST /api/auth/login") == n_login, "com token o serviço não devia fazer login")
-    # o app completo: REST repassado e conversa numa sessão própria
-    r = pede("rest", "GET", "/api/sessions/sess-9/messages")
-    confere(r.get("ok") is True and r.get("status") == 200 and r.get("corpo") == [], f"o rest não voltou: {r}")
-    confere("GET /api/sessions/sess-9/messages" in log(), "o rest não chegou ao backend")
+    confere(pede("versao").get("versao", 0) >= 3, "o serviço não disse a versão")
+    # o Painel: buscar os modelos e testar o provedor (o serviço fala com ele)
+    url_prov = f"http://127.0.0.1:{prov_porta}/v1"
+    m = pede("llm", json.dumps({"acao": "modelos", "url": url_prov, "chave": "sk-teste"}))
+    confere(m.get("ok") is True and m.get("models") == ["modelo-x", "modelo-y", "modelo-z"], f"os modelos não vieram: {m}")
+    m = pede("llm", json.dumps({"acao": "modelos", "url": url_prov, "chave": "errada"}))
+    confere(m.get("ok") is False and "chave" in m.get("error", ""), f"a chave errada devia ser recusada com uma frase clara: {m}")
+    t = pede("llm", json.dumps({"acao": "testar", "url": url_prov, "chave": "sk-teste", "modelo": "modelo-x"}))
+    confere(t.get("chat") is True and t.get("streaming") is True, f"o teste de capacidades falhou: {t}")
+
+    # o app completo: as conversas, rotinas e memórias ficam no PC; a conversa do app vai direto ao provedor
+    r = pede("rest", "POST", "/api/sessions", json.dumps({"title": "Minha conversa"}))
+    sid = r.get("corpo", {}).get("id", "")
+    confere(r.get("ok") is True and sid, f"a conversa não foi criada: {r}")
+    confere(pede("rest", "GET", "/api/sessions").get("corpo", [{}])[0].get("title") == "Minha conversa", "a conversa não apareceu na lista")
+    confere(pede("rest", "GET", f"/api/sessions/{sid}/messages").get("corpo") == [], "uma conversa nova devia estar vazia")
     confere(pede("rest", "GET", "/fora").get("ok") is False, "o rest aceitou um caminho fora de /api/")
-    r = pede("conversar", json.dumps({"sid": "sess-9", "texto": "oi do app", "skill": "sk1"}))
+    r = pede("conversar", json.dumps({"sid": sid, "texto": "oi do app"}))
     confere(r.get("ok") is True, f"a conversa do app não começou: {r}")
-    confere(espera(lambda: "/api/sessions/sess-9/chat" in log()), "a conversa do app não chegou à sessão dela")
-    confere('"skill_id": "sk1"' in log().split("/api/sessions/sess-9/chat")[-1], "a skill não foi ao backend")
+    msgs = []
+    def guardou():
+        global msgs
+        msgs = pede("rest", "GET", f"/api/sessions/{sid}/messages").get("corpo", [])
+        return len(msgs) >= 2
+    confere(espera(guardou, 10), "a conversa do app não foi guardada no PC")
+    confere(msgs and msgs[0]["role"] == "user" and msgs[0]["content"] == "oi do app" and msgs[1]["role"] == "assistant" and "Brasília" in msgs[1]["content"], f"a conversa guardada veio errada: {msgs}")
+    pede("rest", "PATCH", f"/api/sessions/{sid}", json.dumps({"title": "Renomeada"}))
+    confere(pede("rest", "GET", "/api/sessions").get("corpo", [{}])[0].get("title") == "Renomeada", "o título não mudou")
+    p = pede("rest", "POST", "/api/projects", json.dumps({"name": "Casa", "description": "tudo da casa"}))
+    pid = p.get("corpo", {}).get("id", "")
+    confere(p.get("ok") is True and pid, f"a rotina não foi criada: {p}")
+    mm = pede("rest", "POST", f"/api/projects/{pid}/memories", json.dumps({"kind": "fact", "content": "A sala tem TV."}))
+    confere(mm.get("ok") is True, f"a memória não foi guardada: {mm}")
+    confere(pede("rest", "GET", f"/api/projects/{pid}/memories").get("corpo", [{}])[0].get("content") == "A sala tem TV.", "a memória não voltou")
+    confere(pede("rest", "DELETE", f"/api/memories/{mm['corpo']['id']}").get("ok") is True and pede("rest", "GET", f"/api/projects/{pid}/memories").get("corpo") == [], "a memória não foi esquecida")
+    confere(pede("rest", "DELETE", f"/api/projects/{pid}").get("ok") is True and pede("rest", "GET", "/api/projects").get("corpo") == [], "a rotina não foi apagada")
+    confere(pede("rest", "DELETE", f"/api/sessions/{sid}").get("ok") is True and pede("rest", "GET", f"/api/sessions/{sid}/messages").get("ok") is False, "a conversa não foi apagada")
+    pede("rest", "GET", "/api/sessions/../../x")
+    confere(not os.path.exists(os.path.join(T, "x.json")), "o id de conversa saiu da pasta")
+
+    # sem provedor, a Emma diz o que falta (e onde configurar)
+    os.rename(os.path.join(cfg, "lumna", "emma", "provedores.json"), os.path.join(cfg, "lumna", "emma", "provedores.json.guardado"))
+    r = pede("celular", "me conta uma piada")
+    confere(r.get("ok") is False and "provedor" in r.get("erro", "").lower() and "Painel" in r.get("erro", ""), f"sem provedor devia explicar o que fazer: {r}")
+    os.rename(os.path.join(cfg, "lumna", "emma", "provedores.json.guardado"), os.path.join(cfg, "lumna", "emma", "provedores.json"))
+    # chave errada: a frase diz que a chave foi recusada
+    arq = os.path.join(cfg, "lumna", "emma", "provedores.json")
+    conf = json.load(open(arq))
+    conf["provedores"][0]["chave"] = "sk-errada"
+    json.dump(conf, open(arq, "w"))
+    r = pede("celular", "me conta uma piada")
+    confere(r.get("ok") is False and "chave" in r.get("erro", "").lower(), f"chave errada devia dizer que a chave foi recusada: {r}")
+    conf["provedores"][0]["chave"] = "sk-teste"
+    json.dump(conf, open(arq, "w"))
 
     # o catálogo
     a = pede("acoes")

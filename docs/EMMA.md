@@ -132,10 +132,10 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 - Na primeira vez, `/usr/lib/lumna/lumna-emma` cria `~/.config/lumna/emma/backend.env` (modo 600)
   com segredos aleatórios e uma conta local (`$USER@lumna.local` + senha aleatória). O painel lê
   esse arquivo e entra sozinho; dados em `~/.local/share/lumna-emma`.
-- **Sem login:** o backend, ao ligar, cria sozinho uma chave de API para o LUMNA OS e a deixa em `~/.config/lumna/emma/chave` (modo 600; `LUMNA_KEY_FILE`
-  muda o lugar, `off` desliga). O serviço lê esse arquivo e entra com ela: ninguém digita e-mail, senha nem token. Ela vale só para quem lê o arquivo (o
-  usuário), então outros programas e páginas da web não usam a API. Para um servidor em **outro computador**, Painel > Emma > Provedores > Conexão pede o endereço
-  e um token criado no harness (Configurações > Conta > Tokens de API). A conta local acima só entra se não houver chave.
+- **Direto com o provedor de IA:** a Emma conversa com o provedor na nuvem (Ollama, OpenAI, Gemini, Claude ou qualquer API compatível com OpenAI) usando a
+  URL, a chave e o modelo de Painel > Emma > Provedores e Roteamento (`~/.config/lumna/emma/provedores.json`, modo 600). Não há servidor no meio, login nem
+  token. As conversas, rotinas e memórias ficam em arquivos em `~/.local/share/lumna/emma` (serviço `lumna-emma`, `servicos/emmal.c` e `emmas.c`). O backend
+  Python (NewHarnessV2) só continua sendo usado para a voz (Fish Audio) por enquanto.
 - O backend escuta só em `127.0.0.1:8001`. Endpoints locais (Ollama no próprio PC) são liberados
   (`ALLOW_PRIVATE_URLS=true`).
 - O código vem do NewHarnessV2 (privado): `EMMA_SRC` no build local, `EMMA_REPO_TOKEN` no CI. Sem

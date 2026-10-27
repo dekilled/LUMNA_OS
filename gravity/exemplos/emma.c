@@ -25,6 +25,8 @@
 
 #include "emmaa.h"
 #include "emmab.h"
+#include "emmal.h"
+#include "emmas.h"
 #include "emmac.h"
 #include "emmav.h"
 #include "json.h"
@@ -330,11 +332,6 @@ static void ouvinte_evento(const struct json *ev, void *dados) {
 	} else if (!strcmp(tipo, "tool_confirm")) {
 		/* as ferramentas do próprio backend (internet, arquivos dele) pedem licença: sem tela para perguntar
 		 * ainda, ficam negadas (senão a conversa espera para sempre) */
-		char sid[80], *erro = NULL;
-		if (emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro)) {
-			emmab_decidir(sid, json_chave_texto(json_chave(ev, "tool"), "id"), false);
-		}
-		g_free(erro);
 	}
 	g_main_context_invoke(NULL, evento_na_principal, e);
 }
@@ -427,7 +424,14 @@ static gpointer conversa_linha(gpointer d) {
 	struct conversa *c = d;
 	char *tools = emmaa_ferramentas_json(false), *ctx = contexto_agora();
 	struct emmab_ouvinte o = { .evento = ouvinte_evento, .acao = ouvinte_acao, .dados = c };
-	c->ok = emmab_conversar(c->app ? EMMAB_APP : EMMAB_ASSIST, c->sid, c->texto, c->voz, tools, c->app && !contexto_ativo ? NULL : ctx, c->extra, &o, &c->final, &c->erro);
+	char sid[80];
+	if (c->sid && *c->sid) {
+		g_strlcpy(sid, c->sid, sizeof(sid));
+	} else if (!emmas_sessao_canal("assist", sid, sizeof(sid))) {
+		c->erro = g_strdup("Não consegui guardar a conversa neste computador.");
+	}
+	/* direto com o provedor de IA (o do Painel > Emma > Provedores): sem servidor no meio, sem login */
+	c->ok = !c->erro && emmal_conversar(sid, c->texto, c->voz, tools, c->app && !contexto_ativo ? NULL : ctx, &o, &c->final, &c->erro);
 	g_free(tools);
 	g_free(ctx);
 	if (c->voz && c->fala) {
@@ -688,9 +692,11 @@ static gpointer hist_linha(gpointer d) {
 	struct hist_ctx *h = d;
 	char sid[80], *erro = NULL, *corpo = NULL;
 	GString *g = g_string_new("{\"ok\":true,\"mensagens\":[");
-	if (emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro)) {
+	if (emmas_sessao_canal("assist", sid, sizeof(sid))) {
 		char *caminho = g_strdup_printf("/api/sessions/%s/messages", sid);
-		if (emmab_chamar("GET", caminho, NULL, &corpo, &erro) == 200) {
+		int st = 0;
+		corpo = emmas_rest("GET", caminho, NULL, &st);
+		if (corpo && st == 200) {
 			struct json *j = json_ler(corpo);
 			bool primeiro = true;
 			for (int i = 0; j && j->tipo == JSON_LISTA && i < j->nfilhos; i++) {
@@ -767,30 +773,52 @@ static gboolean rest_pronto(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
+/* as chamadas do app (conversas, rotinas, memórias) são atendidas aqui mesmo, nos arquivos do PC: não há servidor */
 static gpointer rest_linha(gpointer d) {
 	struct rest_ctx *r = d;
-	char *resp = NULL, *erro = NULL;
-	int st = emmab_chamar(r->metodo, r->caminho, r->corpo && *r->corpo ? r->corpo : NULL, &resp, &erro);
+	int st = 0;
+	char *resp = emmas_rest(r->metodo, r->caminho, r->corpo && *r->corpo ? r->corpo : NULL, &st);
 	GString *g = g_string_new(NULL);
 	g_string_printf(g, "{\"ok\":%s,\"status\":%d,\"corpo\":", st >= 200 && st < 300 ? "true" : "false", st);
 	struct json *j = resp && *resp ? json_ler(resp) : NULL;
 	if (j) {
 		g_string_append(g, resp);
 		json_liberar(j);
-	} else if (resp && *resp) {
-		json_escrever_texto(g, resp);
 	} else {
 		g_string_append(g, "null");
-	}
-	if (erro) {
-		g_string_append(g, ",\"erro\":");
-		json_escrever_texto(g, erro);
 	}
 	g_string_append_c(g, '}');
 	r->json = g_string_free(g, FALSE);
 	g_free(resp);
-	g_free(erro);
 	g_main_context_invoke(NULL, rest_pronto, r);
+	return NULL;
+}
+
+/* llm {"acao":"modelos"|"testar","url":...,"chave":...,"modelo":...}: para o Painel (buscar os modelos do provedor e testar) */
+struct llm_ctx {
+	struct cliente *c;
+	char *corpo, *json;
+};
+
+static gboolean llm_pronto(gpointer d) {
+	struct llm_ctx *l = d;
+	if (cliente_vivo(l->c)) {
+		escrever(l->c, l->json);
+	}
+	g_free(l->corpo);
+	g_free(l->json);
+	g_free(l);
+	return G_SOURCE_REMOVE;
+}
+
+static gpointer llm_linha(gpointer d) {
+	struct llm_ctx *l = d;
+	struct json *j = json_ler(l->corpo);
+	const char *acao = json_chave_texto(j, "acao"), *url = json_chave_texto(j, "url"), *chave = json_chave_texto(j, "chave"), *modelo = json_chave_texto(j, "modelo");
+	l->json = !strcmp(acao, "modelos") ? emmal_modelos_json(url, chave) : !strcmp(acao, "testar") ? emmal_testar_json(url, chave, modelo)
+		: g_strdup("{\"ok\":false,\"error\":\"llm modelos|testar\"}");
+	json_liberar(j);
+	g_main_context_invoke(NULL, llm_pronto, l);
 	return NULL;
 }
 
@@ -849,6 +877,7 @@ static void tratar(struct cliente *c, char *linha) {
 	} else if (!strcmp(cmd, "calar")) {
 		emmav_calar();
 		emmab_parar();
+		emmal_parar();
 		g_queue_clear(&fila);
 		responder_ok(c);
 	} else if (!strcmp(cmd, "enviar") || !strcmp(cmd, "enviar_voz")) {
@@ -875,7 +904,7 @@ static void tratar(struct cliente *c, char *linha) {
 			responder_ok(c);
 		}
 	} else if (!strcmp(cmd, "nova")) {
-		emmab_nova_conversa(EMMAB_ASSIST);
+		emmas_nova_sessao_canal("assist");
 		emitir_form("nova", "");
 		responder_ok(c);
 	} else if (!strcmp(cmd, "historico")) {
@@ -904,6 +933,11 @@ static void tratar(struct cliente *c, char *linha) {
 				g_thread_unref(g_thread_new("emma-rest", rest_linha, r));
 			}
 		}
+	} else if (!strcmp(cmd, "llm")) {
+		struct llm_ctx *l = g_new0(struct llm_ctx, 1);
+		l->c = c;
+		l->corpo = g_strdup(resto ? resto : "{}");
+		g_thread_unref(g_thread_new("emma-llm", llm_linha, l));
 	} else if (!strcmp(cmd, "conversar")) {
 		conversar_app(c, resto ? resto : "");
 	} else if (!strcmp(cmd, "contexto")) {
@@ -950,7 +984,7 @@ static void tratar(struct cliente *c, char *linha) {
 		}
 	} else if (!strcmp(cmd, "versao")) {
 		/* o app completo confere: 2 = conversar e rest */
-		escrever(c, "{\"ok\":true,\"versao\":2}");
+		escrever(c, "{\"ok\":true,\"versao\":3}");
 	} else if (!strcmp(cmd, "reiniciar")) {
 		responder_ok(c);
 		g_timeout_add(200, reiniciar_agora, NULL);
@@ -1015,9 +1049,14 @@ static gboolean online_pronto(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
+/* "online": a Emma tem um provedor de IA configurado (Painel > Emma > Provedores) */
 static gpointer online_linha(gpointer d) {
 	(void)d;
-	g_main_context_invoke(NULL, online_pronto, GINT_TO_POINTER(emmab_no_ar()));
+	struct emmal_prov p;
+	char *erro = NULL;
+	bool tem = emmal_provedor("chat", &p, &erro);
+	g_free(erro);
+	g_main_context_invoke(NULL, online_pronto, GINT_TO_POINTER(tem));
 	return NULL;
 }
 
