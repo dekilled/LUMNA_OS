@@ -68,10 +68,31 @@ static void emitir(const char *json) {
 	}
 }
 
+/* de que conversa vêm os eventos de agora: "assist" (o painel flutuante e o que se fala) ou "app" (o app completo, por sessão) */
+static const char *emit_canal = "assist";
+static char emit_sid[80];
+
+static bool evento_de_conversa(const char *e) {
+	return !strcmp(e, "ouvido") || !strcmp(e, "delta") || !strcmp(e, "resposta") || !strcmp(e, "ferramenta") || !strcmp(e, "confirmar") || !strcmp(e, "nova");
+}
+
+static void emitir_conv(const char *canal, const char *sid, const char *evento, const char *chaves_json) {
+	GString *g = g_string_new("{\"evento\":");
+	json_escrever_texto(g, evento);
+	if (chaves_json && *chaves_json) {
+		g_string_append_printf(g, ",%s", chaves_json);
+	}
+	if (evento_de_conversa(evento)) {
+		g_string_append_printf(g, ",\"canal\":\"%s\",\"sessao\":", canal);
+		json_escrever_texto(g, sid);
+	}
+	g_string_append_c(g, '}');
+	emitir(g->str);
+	g_string_free(g, TRUE);
+}
+
 static void emitir_form(const char *evento, const char *chaves_json) {
-	char *j = g_strdup_printf("{\"evento\":\"%s\"%s%s}", evento, chaves_json && *chaves_json ? "," : "", chaves_json ? chaves_json : "");
-	emitir(j);
-	g_free(j);
+	emitir_conv(emit_canal, emit_sid, evento, chaves_json);
 }
 
 static char *js(const char *s) {
@@ -192,6 +213,9 @@ static void decidir(const char *id, bool sim) {
 /* ---- uma conversa ---- */
 
 struct conversa {
+	char *sid;                 /* a sessão do app (NULL: a do painel) */
+	char *extra;               /* pedaço do corpo do chat: "skill_id":"..." */
+	bool app;
 	char *texto;
 	bool voz;
 	char *origem;
@@ -394,7 +418,7 @@ static gpointer conversa_linha(gpointer d) {
 	struct conversa *c = d;
 	char *tools = emmaa_ferramentas_json(false), *ctx = contexto_agora();
 	struct emmab_ouvinte o = { .evento = ouvinte_evento, .acao = ouvinte_acao, .dados = c };
-	c->ok = emmab_conversar(EMMAB_ASSIST, c->texto, c->voz, tools, ctx, &o, &c->final, &c->erro);
+	c->ok = emmab_conversar(c->app ? EMMAB_APP : EMMAB_ASSIST, c->sid, c->texto, c->voz, tools, c->app && !contexto_ativo ? NULL : ctx, c->extra, &o, &c->final, &c->erro);
 	g_free(tools);
 	g_free(ctx);
 	if (c->voz && c->fala) {
@@ -444,6 +468,8 @@ static gboolean conversa_pronta(gpointer d) {
 	g_free(c->origem);
 	g_free(c->final);
 	g_free(c->erro);
+	g_free(c->sid);
+	g_free(c->extra);
 	if (c->fala) {
 		g_string_free(c->fala, TRUE);
 	}
@@ -460,6 +486,8 @@ static void proxima_conversa(void) {
 	struct conversa *c = g_queue_pop_head(&fila);
 	ocupada = true;
 	pensando = true;
+	emit_canal = c->app ? "app" : "assist";
+	g_strlcpy(emit_sid, c->sid ? c->sid : "", sizeof(emit_sid));
 	recalcular_estado();
 	g_thread_unref(g_thread_new("emma-conversa", conversa_linha, c));
 }
@@ -467,7 +495,7 @@ static void proxima_conversa(void) {
 /* um texto entrou (digitado, falado ou vindo do celular): comando curto, ou conversa com a Emma */
 static void processar_texto(const char *texto, const char *origem, bool voz, struct cliente *espera) {
 	char *t = js(texto), *o = js(origem), *k = g_strdup_printf("\"texto\":%s,\"origem\":%s", t, o);
-	emitir_form("ouvido", k);
+	emitir_conv("assist", "", "ouvido", k);
 	g_free(k);
 	g_free(t);
 	g_free(o);
@@ -475,9 +503,9 @@ static void processar_texto(const char *texto, const char *origem, bool voz, str
 	if (emmaa_intencao(texto, &r)) {
 		char *nome = js("comando"), *resumo = js(r.resumo);
 		char *k2 = g_strdup_printf("\"nome\":%s,\"ok\":%s,\"resumo\":%s", nome, r.ok ? "true" : "false", resumo);
-		emitir_form("ferramenta", k2);
+		emitir_conv("assist", "", "ferramenta", k2);
 		char *k3 = g_strdup_printf("\"texto\":%s,\"origem\":\"local\",\"ok\":%s", resumo, r.ok ? "true" : "false");
-		emitir_form("resposta", k3);
+		emitir_conv("assist", "", "resposta", k3);
 		if (cliente_vivo(espera)) {
 			char *j = g_strdup_printf("{\"ok\":%s,\"resposta\":%s,\"local\":true}", r.ok ? "true" : "false", resumo);
 			escrever(espera, j);
@@ -711,6 +739,81 @@ static gpointer hist_linha(gpointer d) {
 static gboolean sair(gpointer d);
 static gboolean reiniciar_agora(gpointer d);
 
+/* uma chamada REST ao backend, repassada pelo serviço (o app em C não precisa de HTTP nem de token): rest METODO CAMINHO [CORPO] */
+struct rest_ctx {
+	struct cliente *c;
+	char *metodo, *caminho, *corpo, *json;
+};
+
+static gboolean rest_pronto(gpointer d) {
+	struct rest_ctx *r = d;
+	if (cliente_vivo(r->c)) {
+		escrever(r->c, r->json);
+	}
+	g_free(r->metodo);
+	g_free(r->caminho);
+	g_free(r->corpo);
+	g_free(r->json);
+	g_free(r);
+	return G_SOURCE_REMOVE;
+}
+
+static gpointer rest_linha(gpointer d) {
+	struct rest_ctx *r = d;
+	char *resp = NULL, *erro = NULL;
+	int st = emmab_chamar(r->metodo, r->caminho, r->corpo && *r->corpo ? r->corpo : NULL, &resp, &erro);
+	GString *g = g_string_new(NULL);
+	g_string_printf(g, "{\"ok\":%s,\"status\":%d,\"corpo\":", st >= 200 && st < 300 ? "true" : "false", st);
+	struct json *j = resp && *resp ? json_ler(resp) : NULL;
+	if (j) {
+		g_string_append(g, resp);
+		json_liberar(j);
+	} else if (resp && *resp) {
+		json_escrever_texto(g, resp);
+	} else {
+		g_string_append(g, "null");
+	}
+	if (erro) {
+		g_string_append(g, ",\"erro\":");
+		json_escrever_texto(g, erro);
+	}
+	g_string_append_c(g, '}');
+	r->json = g_string_free(g, FALSE);
+	g_free(resp);
+	g_free(erro);
+	g_main_context_invoke(NULL, rest_pronto, r);
+	return NULL;
+}
+
+/* conversar {"sid":"...","texto":"...","skill":"...","contexto":true}: uma mensagem numa sessão do app */
+static void conversar_app(struct cliente *c, const char *corpo) {
+	struct json *j = json_ler(corpo);
+	const char *sid = json_chave_texto(j, "sid"), *texto = json_chave_texto(j, "texto"), *skill = json_chave_texto(j, "skill");
+	if (!*sid || !*texto) {
+		json_liberar(j);
+		responder_erro(c, "falta sid ou texto");
+		return;
+	}
+	struct conversa *v = g_new0(struct conversa, 1);
+	v->app = true;
+	v->sid = g_strdup(sid);
+	v->texto = g_strdup(texto);
+	v->origem = g_strdup("app");
+	if (*skill) {
+		GString *e = g_string_new("\"skill_id\":");
+		json_escrever_texto(e, skill);
+		v->extra = g_string_free(e, FALSE);
+	}
+	char *t = js(texto), *k = g_strdup_printf("\"texto\":%s,\"origem\":\"app\"", t);
+	emitir_conv("app", sid, "ouvido", k);
+	g_free(k);
+	g_free(t);
+	json_liberar(j);
+	g_queue_push_tail(&fila, v);
+	proxima_conversa();
+	responder_ok(c);
+}
+
 static void tratar(struct cliente *c, char *linha) {
 	linha = g_strstrip(linha);
 	char *resto = strchr(linha, ' ');
@@ -770,6 +873,30 @@ static void tratar(struct cliente *c, char *linha) {
 		struct hist_ctx *h = g_new0(struct hist_ctx, 1);
 		h->c = c;
 		g_thread_unref(g_thread_new("emma-historico", hist_linha, h));
+	} else if (!strcmp(cmd, "rest")) {
+		/* rest METODO CAMINHO [CORPO] */
+		char *sp1 = resto ? strchr(resto, ' ') : NULL;
+		if (!sp1) {
+			responder_erro(c, "rest METODO CAMINHO [CORPO]");
+		} else {
+			*sp1++ = '\0';
+			char *corpo = strchr(sp1, ' ');
+			if (corpo) {
+				*corpo++ = '\0';
+			}
+			if (!g_str_has_prefix(sp1, "/api/")) {
+				responder_erro(c, "só caminhos /api/");
+			} else {
+				struct rest_ctx *r = g_new0(struct rest_ctx, 1);
+				r->c = c;
+				r->metodo = g_strdup(resto);
+				r->caminho = g_strdup(sp1);
+				r->corpo = g_strdup(corpo ? corpo : "");
+				g_thread_unref(g_thread_new("emma-rest", rest_linha, r));
+			}
+		}
+	} else if (!strcmp(cmd, "conversar")) {
+		conversar_app(c, resto ? resto : "");
 	} else if (!strcmp(cmd, "contexto")) {
 		if (resto && (!strcmp(resto, "sim") || !strcmp(resto, "nao"))) {
 			contexto_ativo = !strcmp(resto, "sim");

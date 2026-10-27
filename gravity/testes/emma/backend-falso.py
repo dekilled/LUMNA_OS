@@ -69,7 +69,7 @@ class H(BaseHTTPRequestHandler):
             c = json.loads(dados or b"{}")
         except Exception:
             c = {}
-        registrar(f"POST {self.path} {json.dumps(c, ensure_ascii=False)[:6000]}")
+        registrar(f"POST {self.path} {json.dumps(c, ensure_ascii=False)[:40000]}")
         if self.path == "/api/auth/login":
             return self.json({"access_token": "tok1", "refresh_token": "ref1"})
         if self.path == "/api/auth/refresh":

@@ -39,8 +39,9 @@ struct emmab_ouvinte {
 	void *dados;
 };
 /* manda uma mensagem e cuida da conversa até o fim; resposta é a última fala da Emma */
-bool emmab_conversar(int canal, const char *texto, bool voz, const char *lumna_tools_json, const char *contexto, const struct emmab_ouvinte *o,
-	char **resposta, char **erro);
+/* sid: a conversa (NULL: a do canal); extra: pedaço de JSON para o corpo do chat ("skill_id":"..."), ou NULL */
+bool emmab_conversar(int canal, const char *sid, const char *texto, bool voz, const char *lumna_tools_json, const char *contexto, const char *extra,
+	const struct emmab_ouvinte *o, char **resposta, char **erro);
 void emmab_parar(void);                       /* corta a resposta que está chegando */
 bool emmab_decidir(const char *sid, const char *call_id, bool permitir);
 

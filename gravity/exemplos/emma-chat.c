@@ -214,6 +214,9 @@ static void carregar_historico(void) {
 
 static void evento(const struct json *j) {
 	const char *ev = json_chave_texto(j, "evento");
+	if (!strcmp(json_chave_texto(j, "canal"), "app")) {
+		return;   /* as conversas do app completo são dele, não do painel */
+	}
 	if (!strcmp(ev, "estado")) {
 		g_strlcpy(estado, json_chave_texto(j, "estado"), sizeof(estado));
 		servidor = json_bool(json_chave(j, "online"), false);

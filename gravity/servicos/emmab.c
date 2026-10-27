@@ -432,10 +432,12 @@ static void enviar_resultado(const char *sid, const char *call_id, const struct 
 	g_free(caminho);
 }
 
-static bool conversar_uma(int canal, const char *texto, bool voz, const char *tools, const char *contexto, const struct emmab_ouvinte *o, char **resposta,
-	char **erro, bool *auth_de_novo) {
+static bool conversar_uma(int canal, const char *sid_fixo, const char *texto, bool voz, const char *tools, const char *contexto, const char *extra,
+	const struct emmab_ouvinte *o, char **resposta, char **erro, bool *auth_de_novo) {
 	char sid[80];
-	if (!emmab_sessao(canal, sid, sizeof(sid), erro)) {
+	if (sid_fixo && *sid_fixo) {
+		g_strlcpy(sid, sid_fixo, sizeof(sid));
+	} else if (!emmab_sessao(canal, sid, sizeof(sid), erro)) {
 		return false;
 	}
 	char *t = acesso(erro);
@@ -463,7 +465,7 @@ static bool conversar_uma(int canal, const char *texto, bool voz, const char *to
 	g_string_append_printf(c, ",\"mode\":\"chat\",\"voice\":%s,\"client_now\":", voz ? "true" : "false");
 	json_escrever_texto(c, agora ? g_strstrip(agora) : "");
 	g_free(agora);
-	g_string_append_printf(c, ",\"lumna_tools\":%s}", tools && *tools ? tools : "[]");
+	g_string_append_printf(c, ",\"lumna_tools\":%s%s%s}", tools && *tools ? tools : "[]", extra && *extra ? "," : "", extra && *extra ? extra : "");
 
 	sessoes();
 	char *url = g_strdup_printf("%s/api/sessions/%s/chat", emmab_url(), sid);
@@ -556,13 +558,13 @@ static bool conversar_uma(int canal, const char *texto, bool voz, const char *to
 	return ok;
 }
 
-bool emmab_conversar(int canal, const char *texto, bool voz, const char *lumna_tools_json, const char *contexto, const struct emmab_ouvinte *o,
-	char **resposta, char **erro) {
+bool emmab_conversar(int canal, const char *sid, const char *texto, bool voz, const char *lumna_tools_json, const char *contexto, const char *extra,
+	const struct emmab_ouvinte *o, char **resposta, char **erro) {
 	bool de_novo = false;
-	bool ok = conversar_uma(canal, texto, voz, lumna_tools_json, contexto, o, resposta, erro, &de_novo);
+	bool ok = conversar_uma(canal, sid, texto, voz, lumna_tools_json, contexto, extra, o, resposta, erro, &de_novo);
 	if (de_novo) {
 		esquecer_token();
-		ok = conversar_uma(canal, texto, voz, lumna_tools_json, contexto, o, resposta, erro, &de_novo);
+		ok = conversar_uma(canal, sid, texto, voz, lumna_tools_json, contexto, extra, o, resposta, erro, &de_novo);
 		if (de_novo && erro && !*erro) {
 			*erro = g_strdup("A Emma recusou o login: entre de novo no app da Emma.");
 		}

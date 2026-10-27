@@ -120,6 +120,16 @@ try:
     r = pede("celular", "como adiciono outro layout")
     confere(r.get("ok") is True and "layout" in r.get("resposta", "").lower(), f"a resposta com cartão não veio: {r}")
 
+    # o app completo: REST repassado e conversa numa sessão própria
+    r = pede("rest", "GET", "/api/sessions/sess-9/messages")
+    confere(r.get("ok") is True and r.get("status") == 200 and r.get("corpo") == [], f"o rest não voltou: {r}")
+    confere("GET /api/sessions/sess-9/messages" in log(), "o rest não chegou ao backend")
+    confere(pede("rest", "GET", "/fora").get("ok") is False, "o rest aceitou um caminho fora de /api/")
+    r = pede("conversar", json.dumps({"sid": "sess-9", "texto": "oi do app", "skill": "sk1"}))
+    confere(r.get("ok") is True, f"a conversa do app não começou: {r}")
+    confere(espera(lambda: "/api/sessions/sess-9/chat" in log()), "a conversa do app não chegou à sessão dela")
+    confere('"skill_id": "sk1"' in log().split("/api/sessions/sess-9/chat")[-1], "a skill não foi ao backend")
+
     # o catálogo
     a = pede("acoes")
     confere(any(x["nome"] == "midia.abrir" for x in a.get("acoes", [])), "o catálogo de ações veio sem a Mídia")
