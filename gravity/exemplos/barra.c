@@ -56,6 +56,7 @@ static void menu_alternar(Clay_ElementId id) {
 	gv_popup_fechar(CLAY_ID("menu-bt"));
 	gv_popup_fechar(CLAY_ID("menu-cal"));
 	gv_popup_fechar(CLAY_ID("menu-tray"));
+	gv_popup_fechar(CLAY_ID("menu-emma"));
 	if (!estava) {
 		gv_popup_abrir(id);
 	}
@@ -820,6 +821,59 @@ static Clay_Color cor_emma(void) {
 }
 
 
+static void emma_pedir(const char *pedido) {
+	char r[256];
+	emmac_pedido(pedido, r, sizeof(r));
+}
+
+static const char *emma_frase_estado(void) {
+	return !strcmp(emma_estado, "ouvindo") ? "Ouvindo…" : !strcmp(emma_estado, "transcrevendo") ? "Entendendo o que você disse…" : !strcmp(emma_estado, "pensando") ? "Pensando…" :
+		!strcmp(emma_estado, "falando") ? "Falando…" : "Rodando";
+}
+
+/* o processo da Emma: mostra que ela está rodando e deixa abrir o app, configurar, reiniciar e fechar (chamá-la é com o botão da dock) */
+static void menu_emma(void) {
+	GV_POPUP(CLAY_ID("menu-emma"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
+		bool parada = !strcmp(emma_estado, "offline");
+		topo_menu(5, "sparkle", "Emma", NULL);
+		CLAY(CLAY_ID("emma-estado"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 10, 8 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY(CLAY_ID("emma-ponto"), { .layout = { .sizing = { CLAY_SIZING_FIXED(10), CLAY_SIZING_FIXED(10) } },
+				.backgroundColor = parada ? gv_t.texto_suave : cor_emma(), .cornerRadius = CLAY_CORNER_RADIUS(5) }) {}
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
+				gv_texto(gv_str(parada ? "Parada" : emma_frase_estado()), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+				gv_texto(gv_str(parada ? "O serviço da Emma não está rodando" : emma_servidor ? "Servidor da Emma conectado" : "Servidor sem resposta: só comandos curtos"),
+					gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+		gv_separador(false, 0);
+		if (parada) {
+			if (gv_menu_item(CLAY_ID("emma-iniciar"), "play", "Iniciar", NULL)) {
+				executar("lumna-emma", NULL, NULL);
+				gv_popup_fechar(CLAY_ID("menu-emma"));
+			}
+		} else {
+			if (gv_menu_item(CLAY_ID("emma-abrir"), "external", "Abrir", NULL)) {
+				executar("lumna-emma-app", NULL, NULL);
+				gv_popup_fechar(CLAY_ID("menu-emma"));
+			}
+		}
+		if (gv_menu_item(CLAY_ID("emma-config"), "settings", "Configurações", NULL)) {
+			executar("lumna-painel", "--secao", "emma/voz");
+			gv_popup_fechar(CLAY_ID("menu-emma"));
+		}
+		if (!parada) {
+			if (gv_menu_item(CLAY_ID("emma-reiniciar"), "refresh", "Reiniciar", NULL)) {
+				emma_pedir("reiniciar");
+				gv_popup_fechar(CLAY_ID("menu-emma"));
+			}
+			if (gv_menu_item(CLAY_ID("emma-fechar"), "close", "Fechar", NULL)) {
+				emma_pedir("encerrar");
+				gv_popup_fechar(CLAY_ID("menu-emma"));
+			}
+		}
+	}
+}
+
 static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 	bool tocado = gv_tocado(id);
 	CLAY(id, {
@@ -851,6 +905,7 @@ static void desenhar(gv_app *app, void *dados) {
 				gv_popup_fechar(CLAY_ID("menu-som"));
 				gv_popup_fechar(CLAY_ID("menu-bt"));
 				gv_popup_fechar(CLAY_ID("menu-cal"));
+				gv_popup_fechar(CLAY_ID("menu-emma"));
 				gv_popup_abrir(CLAY_ID("menu-tray"));
 			}
 		}
@@ -907,7 +962,7 @@ static void desenhar(gv_app *app, void *dados) {
 		CLAY(CLAY_ID("dir"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6,
 			.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
 			bandeja_na_barra();
-			/* a Emma: o estado dela no ícone; tocar abre o menu dela (o microfone fica ali) */
+			/* o processo da Emma: o ícone mostra que ela roda (e o que faz); tocar abre o menu dele */
 			if (emma_fd < 0 && gv_agora() >= emma_tentar_em) {
 				emma_ligar(app);
 			}
@@ -919,14 +974,13 @@ static void desenhar(gv_app *app, void *dados) {
 				bool tocado = gv_tocado(id);
 				bool ativa = strcmp(emma_estado, "ocioso") && strcmp(emma_estado, "offline");
 				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(32) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-					.backgroundColor = ativa ? gv_alfa(cor_emma(), 0.16f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+					.backgroundColor = gv_popup_aberto(CLAY_ID("menu-emma")) ? gv_t.selecionado : ativa ? gv_alfa(cor_emma(), 0.16f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
 					.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
 					tocado |= gv_focavel(id, gv_t.raio_pequeno);
 					gv_icone(icone_emma(), 20, cor_emma());
 				}
 				if (tocado) {
-					/* abre o painel da Emma (de novo, fecha) */
-					executar("sh", "-c", "pkill -x lumna-emma-chat || lumna-emma-chat");
+					menu_alternar(CLAY_ID("menu-emma"));
 				}
 			}
 			if (icone_barra(CLAY_ID("wifi"), icone_rede(), gv_popup_aberto(CLAY_ID("menu-wifi")))) {
@@ -973,6 +1027,7 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_som();
 	menu_bluetooth();
 	menu_tray();
+	menu_emma();
 	struct tm hoje;
 	time_t agora2 = time(NULL);
 	localtime_r(&agora2, &hoje);

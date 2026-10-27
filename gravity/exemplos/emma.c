@@ -708,6 +708,9 @@ static gpointer hist_linha(gpointer d) {
 	return NULL;
 }
 
+static gboolean sair(gpointer d);
+static gboolean reiniciar_agora(gpointer d);
+
 static void tratar(struct cliente *c, char *linha) {
 	linha = g_strstrip(linha);
 	char *resto = strchr(linha, ' ');
@@ -781,6 +784,12 @@ static void tratar(struct cliente *c, char *linha) {
 		g_free(a);
 	} else if (!strcmp(cmd, "acoes")) {
 		pedido_acoes(c);
+	} else if (!strcmp(cmd, "reiniciar")) {
+		responder_ok(c);
+		g_timeout_add(200, reiniciar_agora, NULL);
+	} else if (!strcmp(cmd, "encerrar")) {
+		responder_ok(c);
+		g_timeout_add(200, sair, NULL);
 	} else {
 		responder_erro(c, "pedido desconhecido");
 	}
@@ -821,7 +830,7 @@ static gboolean chegou(GSocketService *s, GSocketConnection *con, GObject *src, 
 	c->in = g_data_input_stream_new(g_io_stream_get_input_stream(G_IO_STREAM(con)));
 	c->out = g_io_stream_get_output_stream(G_IO_STREAM(con));
 	c->vivo = true;
-	g_socket_set_timeout(g_socket_connection_get_socket(con), 3);
+	/* sem limite de tempo no socket: quem assina (a topbar, o painel) fica parado esperando eventos por horas */
 	g_ptr_array_add(clientes, c);
 	g_data_input_stream_read_line_async(c->in, G_PRIORITY_DEFAULT, NULL, cliente_linha, c);
 	return TRUE;
@@ -875,11 +884,32 @@ static gboolean sair(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
+static char **argv_original;
+
+/* o serviço recomeça do zero (a conversa e as contas ficam no backend; o que se perde é só o que estava em andamento) */
+static gboolean reiniciar_agora(gpointer d) {
+	(void)d;
+	emmav_calar();
+	emmab_parar();
+	char *caminho = emmac_socket_caminho();
+	g_unlink(caminho);
+	g_free(caminho);
+	execv("/proc/self/exe", argv_original);
+	return G_SOURCE_REMOVE;
+}
+
 int main(int argc, char **argv) {
 	if (argc > 1) {
 		return como_cliente(argc, argv);
 	}
 	signal(SIGPIPE, SIG_IGN);
+	argv_original = argv;
+	/* um só serviço: se já responde, este não faz nada (senão tomava o socket do outro) */
+	char resp[256];
+	if (emmac_pedido("estado", resp, sizeof(resp))) {
+		fprintf(stderr, "lumna-emma: já está rodando\n");
+		return 0;
+	}
 	clientes = g_ptr_array_new();
 	licencas = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	g_queue_init(&fila);

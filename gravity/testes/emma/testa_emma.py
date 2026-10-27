@@ -125,6 +125,31 @@ try:
     confere(any(x["nome"] == "midia.abrir" for x in a.get("acoes", [])), "o catálogo de ações veio sem a Mídia")
     confere(any(x["nome"] == "painel.abrir" for x in a.get("acoes", [])), "o catálogo de ações veio sem o painel.abrir")
 
+    # quem assina e fica parado não é derrubado (a topbar e o painel ficam horas sem receber nada)
+    assina = socket.socket(socket.AF_UNIX)
+    assina.connect(os.path.join(run, "lumna-emma.sock"))
+    assina.sendall(b"assinar\n")
+    assina.settimeout(2)
+    assina.recv(4096)  # o estado de entrada
+    time.sleep(4.5)
+    pede("enviar", "mudo")
+    try:
+        visto = b""
+        while b"ouvido" not in visto:
+            visto += assina.recv(4096)
+        confere(True, "")
+    except Exception as e:
+        confere(False, f"o assinante parado foi derrubado: {e}")
+    assina.close()
+
+    # o processo: um só, reinicia e fecha
+    segundo = subprocess.run([EMMA], env=env, capture_output=True, text=True, timeout=10)
+    confere(segundo.returncode == 0 and "já está rodando" in segundo.stderr, "um segundo serviço não deveria subir")
+    confere(pede("estado").get("ok") is True, "o primeiro serviço sumiu quando o segundo tentou subir")
+    pede("reiniciar")
+    time.sleep(0.6)
+    confere(espera(lambda: pede("estado").get("ok") is True, 6), "o serviço não voltou depois de reiniciar")
+
     # o celular: a fala que o app Controle transcreveu chega à Emma pelo lumna-controle
     if CONTROLE:
         os.remove(os.path.join(cfg, "lumna", "emma.json"))  # as permissões voltam ao padrão
@@ -152,6 +177,8 @@ try:
         r = asyncio.run(celular())
         confere(r.get("type") == "voice_reply" and r.get("ok") and "Volume" in r.get("text", ""), f"a voz do celular não voltou: {r}")
         confere("50%" in log(), "o volume do celular não foi ajustado")
+    pede("encerrar")
+    confere(espera(lambda: not os.path.exists(os.path.join(run, "lumna-emma.sock")), 5), "o serviço não fechou com 'encerrar'")
 finally:
     for p in procs:
         p.terminate()

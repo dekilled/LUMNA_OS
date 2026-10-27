@@ -13,7 +13,7 @@
  *   ícone ; nome ; app_id ; comando
  *   folder ; Arquivos ; lumna-arquivos ; lumna-arquivos
  *   -
- *   mic ; Emma ; lumna-emma ; lumna-emma
+ *   mic ; Emma ; lumna-emma-chat ; pkill -x lumna-emma-chat || lumna-emma-chat
  * O ícone é um do LUMNA (o desenho de linha) ou, se não houver, o do tema de ícones. Um app_id
  * que começa por "@" não é de janelas (o lançador: o losango abre e fecha o "Início").
  *
@@ -64,7 +64,7 @@ static const struct fixo padrao[] = {
 	{ "bag", "Loja", "lumna-loja", "lumna-loja" },
 	{ "sliders", "Painel de controle", "lumna-painel", "lumna-painel" },
 	{ .separador = true },
-	{ "mic", "Emma", "lumna-emma", "lumna-emma" },
+	{ "mic", "Emma", "lumna-emma-chat", "pkill -x lumna-emma-chat || lumna-emma-chat" },
 };
 
 static char caminho_config[1100];

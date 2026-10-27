@@ -169,6 +169,8 @@ então conta, conversas e permissões valem nos dois):
 - **Quem pede** (socket `$XDG_RUNTIME_DIR/lumna-emma.sock`, ver `servicos/emmac.h`): o ícone da topbar (estado e
   microfone), o controle do celular, `lumna-emma <pedido>` na linha de comando e, nos próximos passos, o chat lateral e
   o painel completo.
+- **O ícone da topbar é o processo**, não o chat: mostra que a Emma está rodando (e o que faz: ouvindo, pensando, falando) e o menu
+  tem Abrir (o app completo), Configurações (Painel → Emma), Reiniciar, Fechar e, com ela parada, Iniciar. Só roda um serviço por sessão.
 - **Comandos curtos sem a Emma** (`servicos/emmaa.c`, `emmaa_intencao`): "pausa", "continua", "próxima", "avança 30
   segundos", "volume 40", "aumenta o volume", "mudo", "abre a Netflix", "início", "modo mídia", "troca as telas"...
   Rápidos e sem internet. O resto vai para a Emma.
@@ -177,8 +179,8 @@ então conta, conversas e permissões valem nos dois):
   O catálogo antigo (arquivos, Wi-Fi, loja, serviços...) entra nas próximas levas.
 - **Painel flutuante** (`lumna-emma-chat`, `gravity/exemplos/emma-chat.c`): o chat rápido à direita, como no desenho (foto e estado,
   balões com hora, botões de próximo passo `[acao:]`/`[link:]`/`[sugestao:]`, cartão "Abrir configuração" quando a Emma usa
-  `painel.abrir`, contexto da janela em foco, Nova conversa, microfone, fixar e "Abrir app completo"). O topo da tela (ícone da
-  Emma) e o **Super+A** abrem e fecham; **Super+Shift+A** liga o microfone. Pedido rápido ("pausa") fecha sozinho se não estiver fixado.
+  `painel.abrir`, contexto da janela em foco, Nova conversa, microfone, fixar e "Abrir app completo"). O **botão da dock** (o microfone) e o
+  **Super+A** abrem e fecham (o "Oi Emma", quando existir, chama pelo mesmo caminho); **Super+Shift+A** liga o microfone. Pedido rápido ("pausa") fecha sozinho se não estiver fixado.
   As imagens da Emma ficam em `gravity/assets/emma/` (`avatar.jpg`, `fundo.jpg`); `LUMNA_EMMA_ASSETS` muda a pasta.
 - **Voz**: microfone do sistema (`parec`/`arecord`, 16 kHz) com detecção do fim da fala, `/api/stt`, e a resposta falada por
   `/api/tts` frase a frase. O atalho do microfone (`emma_voz` no `orbit.ini`) liga; apertar de novo encerra a fala e transcreve.
