@@ -3,7 +3,8 @@
 # (Hyprland, GNOME, KDE...), para testar no PC sem trocar de sessão:
 #
 #   ./testar-desktop.sh            compila o que faltar e abre
-#   ./testar-desktop.sh --refazer  recompila o Gravity e atualiza o Orbit antes de abrir
+#   ./testar-desktop.sh --refazer  recompila o Gravity e atualiza o Orbit antes de abrir (use depois de dar git pull aqui:
+#                                  sem isso ele abre os binários de antes e você não vê as mudanças)
 #
 # O Orbit vem do repositório dele (branch claude/orbit-compila) para ~/.cache/lumna/orbit.
 # Lá dentro sobem o papel de parede, a topbar, a dock e os avisos, num D-Bus só deles (os avisos
@@ -20,7 +21,7 @@ BIN=$CACHE/bin
 
 falta() {
 	echo "Falta: $1"
-	echo "No Arch: sudo pacman -S --needed base-devel git wayland wayland-protocols libxkbcommon cairo pango \\"
+	echo "No Arch: sudo pacman -S --needed base-devel git wayland wayland-protocols libxkbcommon libinput cairo pango \\"
 	echo "         glib2 gdk-pixbuf2 libpulse wlroots0.20 dbus foot libnotify \\"
 	echo "         networkmanager bluez bluez-utils polkit"
 	exit 1
@@ -30,7 +31,7 @@ if [ -z "$WAYLAND_DISPLAY" ]; then
 	echo "Abra isto de dentro de um desktop Wayland (o Orbit abre como uma janela dele)."
 	exit 1
 fi
-for p in wayland-client wayland-protocols wayland-scanner xkbcommon cairo pangocairo glib-2.0 gio-2.0 gdk-pixbuf-2.0 libpulse; do
+for p in wayland-client wayland-protocols wayland-scanner xkbcommon cairo pangocairo glib-2.0 gio-2.0 gdk-pixbuf-2.0 libpulse libinput; do
 	pkg-config --exists "$p" || falta "$p"
 done
 command -v dbus-run-session >/dev/null || falta "dbus-run-session (pacote dbus)"
@@ -61,7 +62,7 @@ if [ "$1" = "--refazer" ] || [ ! -x "$O/orbit" ]; then
 	rm -f "$O/orbit"
 	make -C "$O" clean >/dev/null 2>&1 || true
 	cp "$O/makefile.txt" "$O/Makefile"
-	make -C "$O" PKGS="$WLR wayland-server xkbcommon"
+	make -C "$O" PKGS="$WLR wayland-server xkbcommon libinput"
 fi
 
 # os nomes que as peças chamam umas às outras (a dock abre o lumna-lancador, o sino o lumna-avisos...)
