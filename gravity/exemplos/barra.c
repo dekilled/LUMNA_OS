@@ -57,6 +57,7 @@ static void menu_alternar(Clay_ElementId id) {
 	gv_popup_fechar(CLAY_ID("menu-cal"));
 	gv_popup_fechar(CLAY_ID("menu-tray"));
 	gv_popup_fechar(CLAY_ID("menu-emma"));
+	gv_popup_fechar(CLAY_ID("menu-copiados"));
 	if (!estava) {
 		gv_popup_abrir(id);
 	}
@@ -514,6 +515,77 @@ static void menu_bluetooth(void) {
 
 static const char *icone_bt(void) {
 	return bt.nadapt && bt.adapt[0].ligado ? "bluetooth" : "bluetooth";
+}
+
+/* ---- os copiados: o histórico de textos que o Orbit guarda (até 20) ---- */
+
+#define COPIADOS_MAX 20
+#define COPIADOS_PREVIA 84
+static struct {
+	int n;
+	char texto[COPIADOS_MAX][COPIADOS_PREVIA * 4 + 8];
+} copiados;
+static double copiados_lido = -10;
+
+static void copiados_ler(void) {
+	copiados_lido = gv_agora();
+	copiados.n = 0;
+	char resp[48 * 1024];
+	if (!orbit_pedido("copiados", resp, sizeof(resp))) {
+		return;
+	}
+	struct json *j = json_ler(resp);
+	const struct json *its = json_chave(j, "itens");
+	for (int i = 0; its && i < its->nfilhos && copiados.n < COPIADOS_MAX; i++) {
+		const char *t = json_chave_texto(json_item(its, i), "texto");
+		char *linha = g_strdup(t);
+		for (char *p = linha; *p; p++) {
+			if (*p == '\n' || *p == '\t' || *p == '\r') {
+				*p = ' '; /* uma linha só na lista */
+			}
+		}
+		g_strstrip(linha);
+		if (g_utf8_strlen(linha, -1) > COPIADOS_PREVIA) {
+			char *fim = g_utf8_offset_to_pointer(linha, COPIADOS_PREVIA);
+			*fim = '\0';
+			g_snprintf(copiados.texto[copiados.n++], sizeof(copiados.texto[0]), "%s…", linha);
+		} else {
+			g_strlcpy(copiados.texto[copiados.n++], linha, sizeof(copiados.texto[0]));
+		}
+		g_free(linha);
+	}
+	json_liberar(j);
+}
+
+static void menu_copiados(void) {
+	GV_POPUP(CLAY_ID("menu-copiados"), CLAY_ID("copiados"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
+		if (gv_agora() - copiados_lido > 1.0) {
+			copiados_ler(); /* aberto, acompanha o que se copia */
+		}
+		gv_acordar_em(1.0);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 12, 6 }, .childGap = 2 } }) {
+			gv_texto(CLAY_STRING("Área de transferência"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(CLAY_STRING("Os últimos textos copiados. Toque num para copiar de novo."), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		if (!copiados.n) {
+			mensagem("Nada copiado ainda.");
+		}
+		for (int i = 0; i < copiados.n; i++) {
+			if (gv_menu_item(CLAY_IDI("cp", (uint32_t)i), "copy", copiados.texto[i][0] ? copiados.texto[i] : "(espaços)", NULL)) {
+				char r[256];
+				orbit_pedido(gv_fmt("copiar %d", i).chars, r, sizeof(r));
+				gv_popup_fechar(CLAY_ID("menu-copiados"));
+			}
+		}
+		if (copiados.n) {
+			gv_separador(false, 0);
+			if (gv_menu_item(CLAY_ID("cp-limpar"), "trash", "Limpar o histórico", NULL)) {
+				char r[256];
+				orbit_pedido("limpar_copiados", r, sizeof(r));
+				copiados.n = 0;
+			}
+		}
+	}
 }
 
 static void menu_modo(void) {
@@ -993,6 +1065,10 @@ static void desenhar(gv_app *app, void *dados) {
 			if (icone_barra(CLAY_ID("bt"), icone_bt(), gv_popup_aberto(CLAY_ID("menu-bt")))) {
 				menu_alternar(CLAY_ID("menu-bt"));
 			}
+			if (modos_est.orbit && icone_barra(CLAY_ID("copiados"), "clipboard", gv_popup_aberto(CLAY_ID("menu-copiados")))) {
+				copiados_ler();
+				menu_alternar(CLAY_ID("menu-copiados"));
+			}
 			if (icone_barra(CLAY_ID("avisos"), "bell", false)) {
 				executar("lumna-avisos", "--centro", NULL);
 			}
@@ -1029,6 +1105,11 @@ static void desenhar(gv_app *app, void *dados) {
 			executar("lumna-painel", NULL, NULL);
 			gv_popup_fechar(CLAY_ID("menu-barra"));
 		}
+		if (modos_est.orbit && gv_menu_item(CLAY_ID("mb-copiados"), "clipboard", "Área de transferência", NULL)) {
+			gv_popup_fechar(CLAY_ID("menu-barra"));
+			copiados_ler();
+			menu_alternar(CLAY_ID("menu-copiados"));
+		}
 		if (gv_menu_item(CLAY_ID("mb-telas"), "screens", "Telas e modos", NULL)) {
 			executar("lumna-painel", "--secao", "telas/modos");
 			gv_popup_fechar(CLAY_ID("menu-barra"));
@@ -1044,6 +1125,7 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_bluetooth();
 	menu_tray();
 	menu_emma();
+	menu_copiados();
 	struct tm hoje;
 	time_t agora2 = time(NULL);
 	localtime_r(&agora2, &hoje);
