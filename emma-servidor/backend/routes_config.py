@@ -78,7 +78,7 @@ async def list_providers():
 @router.post("/providers")
 async def create_provider(body: ProviderIn):
     assert_public_url(body.base_url)
-    p = Provider(**body.model_dump(exclude={"api_key"}), api_key=body.api_key or "")
+    p = Provider(**body.model_dump(exclude={"api_key"}), api_key="".join((body.api_key or "").split()))  # LUMNA: sem espaço nem quebra de linha escondidos na chave
     res = await db.providers.insert_one(p.to_mongo())
     p.id = str(res.inserted_id)
     await audit("config", f"Provider criado: {p.name}")
@@ -89,8 +89,9 @@ async def create_provider(body: ProviderIn):
 async def update_provider(pid: str, body: ProviderIn):
     assert_public_url(body.base_url)
     upd = body.model_dump(exclude={"api_key"})
-    if body.api_key:
-        upd["api_key"] = enc(body.api_key)
+    chave = "".join((body.api_key or "").split())  # LUMNA: sem espaço nem quebra de linha escondidos na chave
+    if chave:
+        upd["api_key"] = enc(chave)
     await db.providers.update_one({"_id": oid(pid)}, {"$set": upd})
     await audit("config", f"Provider atualizado: {body.name}")
     return Provider.from_mongo(await db.providers.find_one({"_id": oid(pid)})).public()

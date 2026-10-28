@@ -290,8 +290,11 @@ static char *corpo_provedor(const struct prov *p) {
 	g_string_append(c, ",\"base_url\":");
 	json_escrever_texto(c, p->url);
 	if (p->chave[0]) {
+		char *limpa = g_strdup(p->chave); /* sem espaço nem quebra de linha escondidos (vindos de um copiar e colar) */
+		g_strstrip(limpa);
 		g_string_append(c, ",\"api_key\":");
-		json_escrever_texto(c, p->chave);
+		json_escrever_texto(c, limpa);
+		g_free(limpa);
 	}
 	g_string_append(c, ",\"models\":[");
 	char **ms;
