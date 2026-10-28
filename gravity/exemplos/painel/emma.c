@@ -106,6 +106,7 @@ struct job {
 	struct emmar r, r2;
 	char pedido[1000], resp[16384]; /* A_MODELOS e A_TESTAR: o serviço fala direto com o provedor ("llm") */
 	bool falou;
+	bool pelo_servidor; /* A_TESTAR sem chave aqui: o servidor testa com a chave que guardou */
 };
 
 /* ---- o arquivo local ---- */
@@ -307,6 +308,22 @@ static void trabalho(void *d) {
 	struct job *j = d;
 	if (j->acao == A_MODELOS || j->acao == A_TESTAR) {
 		j->falou = emmac_pedido(j->pedido, j->resp, sizeof(j->resp));
+		if (j->pelo_servidor && j->falou) {
+			/* a resposta do rest vem como {ok, status, corpo}: o relatório é o corpo */
+			struct json *raiz = json_ler(j->resp);
+			const struct json *corpo = json_chave(raiz, "corpo");
+			GString *g = g_string_new(NULL);
+			if (corpo && corpo->tipo == JSON_OBJETO) {
+				json_escrever(g, corpo);
+			} else {
+				g_string_append(g, "{\"chat\":false,\"error\":");
+				json_escrever_texto(g, *json_chave_texto(raiz, "erro") ? json_chave_texto(raiz, "erro") : "O servidor da Emma não testou o provedor.");
+				g_string_append_c(g, '}');
+			}
+			g_strlcpy(j->resp, g->str, sizeof(j->resp));
+			g_string_free(g, TRUE);
+			json_liberar(raiz);
+		}
 		return;
 	}
 	/* A_SYNC: tudo que estiver pendente */
@@ -574,7 +591,21 @@ static void chamar_provedor(enum acao a, int idx, const char *modelo) {
 	struct job *j = g_new0(struct job, 1);
 	j->acao = a;
 	j->idx = idx;
-	GString *c = g_string_new("llm {\"acao\":");
+	GString *c;
+	if (a == A_TESTAR && !provs[idx].chave[0] && provs[idx].hid[0] && provs[idx].sinc && modelo) {
+		/* a chave só está no servidor: ele mesmo testa */
+		j->pelo_servidor = true;
+		c = g_string_new(NULL);
+		g_string_printf(c, "rest POST /api/providers/%s/test {\"model\":", provs[idx].hid);
+		json_escrever_texto(c, modelo);
+		g_string_append_c(c, '}');
+		g_strlcpy(j->pedido, c->str, sizeof(j->pedido));
+		g_string_free(c, TRUE);
+		ocupado = true;
+		pn_tarefa(trabalho, pronto, j);
+		return;
+	}
+	c = g_string_new("llm {\"acao\":");
 	json_escrever_texto(c, a == A_MODELOS ? "modelos" : "testar");
 	g_string_append(c, ",\"url\":");
 	json_escrever_texto(c, provs[idx].url);
