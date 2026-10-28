@@ -233,6 +233,9 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 		wlr_wl_output_set_title(wlr, titulo);
 		wlr_wl_output_set_app_id(wlr, "lumna-orbit");
 	}
+	if (wlr_output_is_wl(wlr)) {
+		orbit_clip_ponte_iniciar(server, wlr_wl_backend_get_remote_display(wlr->backend));
+	}
 	if (server->inhibit_host_shortcuts && wlr_output_is_wl(wlr)) {
 		if (orbit_nested_inhibit(wlr_wl_backend_get_remote_display(wlr->backend), wlr_wl_output_get_surface(wlr))) {
 			wlr_log(WLR_INFO, "%s: pedi ao compositor de fora que deixe os atalhos (o Super) comigo enquanto a janela tem o foco", wlr->name);

@@ -541,4 +541,7 @@ void orbit_binds_pause(struct orbit_server *server, bool on);
 /* o modificador do Alt+Tab foi solto: acaba a volta */
 void orbit_cycle_end(struct orbit_server *server, uint32_t mods);
 
+/* clip.c: Orbit aninhado: copiar e colar (texto) entre o compositor de fora e este */
+void orbit_clip_ponte_iniciar(struct orbit_server *server, struct wl_display *remote);
+
 #endif
