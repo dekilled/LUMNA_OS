@@ -117,6 +117,13 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	}
 }
 
+/* O wlroots 0.20 não deixa destruir o handle dentro de um pedido dele (ativar, fechar...): enquanto percorre os ouvintes de um sinal ele
+ * põe marcadores na lista, e o handle confere que ela está vazia (assert). Um pedido da dock que mexe nas janelas chega aqui no meio
+ * disso. Os nossos ouvintes saem já (eles apontam para a janela, que pode acabar); o handle em si sai no próximo ciclo do laço. */
+static void foreign_destroy_depois(void *handle) {
+	wlr_foreign_toplevel_handle_v1_destroy(handle);
+}
+
 void orbit_foreign_destroy(struct orbit_view *view) {
 	if (!view->foreign) {
 		return;
@@ -126,7 +133,8 @@ void orbit_foreign_destroy(struct orbit_view *view) {
 	wl_list_remove(&view->foreign_maximize.link);
 	wl_list_remove(&view->foreign_fullscreen.link);
 	wl_list_remove(&view->foreign_minimize.link);
-	wlr_foreign_toplevel_handle_v1_destroy(view->foreign);
+	struct wlr_foreign_toplevel_handle_v1 *handle = view->foreign;
 	view->foreign = NULL;
 	view->foreign_output = NULL;
+	wl_event_loop_add_idle(wl_display_get_event_loop(view->server->display), foreign_destroy_depois, handle);
 }
