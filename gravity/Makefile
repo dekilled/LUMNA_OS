@@ -9,7 +9,7 @@ LDLIBS = $(shell pkg-config --libs $(PKGS)) -lm
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
 
-FONTES = src/gv_app.c src/gv_texto.c src/gv_tema.c src/gv_anim.c src/gv_svg.c src/gv_icones.c \
+FONTES = src/gv_app.c src/gv_texto.c src/gv_selecao.c src/gv_tema.c src/gv_anim.c src/gv_svg.c src/gv_icones.c \
 	src/gv_desenho.c src/gv_componentes.c src/gv_campo.c src/gv_escrita.c src/gv_rolagem.c src/gv_imagem.c src/gv_foco.c src/gv_janelas.c src/gv_clay.c
 PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 	text-input-unstable-v3-client-protocol.h text-input-unstable-v3-protocol.c \

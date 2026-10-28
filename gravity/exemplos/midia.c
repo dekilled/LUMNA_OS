@@ -590,6 +590,16 @@ static void desenhar_capa(gv_app *app, void *dados) {
 	if (!est.capa_visivel && est.servico && strcmp(est.capa, capa_servico)) {
 		sai = true; /* outra capa tomou o lugar */
 	}
+	/* a capa é da Mídia: quem trocou para outro modo (o Desktop...) não fica preso atrás dela até o serviço carregar */
+	static double modo_visto;
+	if (gv_agora() - modo_visto > 0.25) {
+		modo_visto = gv_agora();
+		struct modos_estado me;
+		if (modos_ler(&me) && me.orbit && modos_em_foco(&me) != MODO_MIDIA) {
+			gv_app_sair(app);
+			return;
+		}
+	}
 	/* a opacidade: 1 enquanto carrega, 0 em 400 ms depois que o serviço manda sair */
 	float alfa = 1.0f;
 	if (capa_saindo_desde >= 0) {

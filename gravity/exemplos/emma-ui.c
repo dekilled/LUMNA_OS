@@ -273,7 +273,7 @@ static void md_codigo(uint32_t k, int *n, const char *lingua, GString *codigo, f
 			}
 		}
 		char *esc = g_markup_escape_text(codigo->str, -1);
-		gv_texto_rico(CLAY_SID(gv_fmt("md-cd-%u-%d", k, idx)), esc, tam - 1, (Clay_Color){ 235, 235, 245, 255 }, true);
+		gv_texto_rico_sel(CLAY_SID(gv_fmt("md-cd-%u-%d", k, idx)), esc, tam - 1, (Clay_Color){ 235, 235, 245, 255 }, true);
 		g_free(esc);
 	}
 }
@@ -312,7 +312,7 @@ void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor) {
 				}
 				if (nivel <= 6 && sem[nivel] == ' ') {
 					char *in = md_inline(sem + nivel + 1, gv_t.acento), *m = g_strdup_printf("<b>%s</b>", in);
-					gv_texto_rico(CLAY_SID(gv_fmt("md-t-%u-%d", k, n++)), m, tam + (nivel == 1 ? 7 : nivel == 2 ? 4 : nivel == 3 ? 2 : 0), cor, false);
+					gv_texto_rico_sel(CLAY_SID(gv_fmt("md-t-%u-%d", k, n++)), m, tam + (nivel == 1 ? 7 : nivel == 2 ? 4 : nivel == 3 ? 2 : 0), cor, false);
 					g_free(m);
 					g_free(in);
 					continue;
@@ -337,7 +337,7 @@ void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor) {
 				char *in = md_inline(q->str, gv_t.acento);
 				CLAY(CLAY_SID(gv_fmt("md-q-%u-%d", k, n)), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 0, 2, 2 }, .childGap = 10 },
 					.border = { .color = gv_t.acento, .width = { .left = 3 } } }) {
-					gv_texto_rico(CLAY_SID(gv_fmt("md-qt-%u-%d", k, n)), in, tam, gv_t.texto_secundario, false);
+					gv_texto_rico_sel(CLAY_SID(gv_fmt("md-qt-%u-%d", k, n)), in, tam, gv_t.texto_secundario, false);
 				}
 				n++;
 				g_free(in);
@@ -364,7 +364,7 @@ void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor) {
 								continue;
 							}
 							char *in = md_inline(cel[j], gv_t.acento), *m = r == 0 ? g_strdup_printf("<b>%s</b>", in) : g_strdup(in);
-							gv_texto_rico(CLAY_SID(gv_fmt("md-tc-%u-%d-%u-%d", k, n, r, c++)), m, tam - 1, cor, false);
+							gv_texto_rico_sel(CLAY_SID(gv_fmt("md-tc-%u-%d-%u-%d", k, n, r, c++)), m, tam - 1, cor, false);
 							g_free(m);
 							g_free(in);
 						}
@@ -383,7 +383,7 @@ void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor) {
 						CLAY(CLAY_SID(gv_fmt("md-lm-%u-%d", k, n)), { .layout = { .sizing = { CLAY_SIZING_FIXED(numerado ? 26 : 14) } } }) {
 							gv_texto(gv_str(numerado ? numero : "•"), tam, gv_t.acento, GV_PESO_MEDIO);
 						}
-						gv_texto_rico(CLAY_SID(gv_fmt("md-lt-%u-%d", k, n)), in, tam, cor, false);
+						gv_texto_rico_sel(CLAY_SID(gv_fmt("md-lt-%u-%d", k, n)), in, tam, cor, false);
 					}
 					n++;
 					g_free(in);
@@ -405,7 +405,7 @@ void eu_markdown(uint32_t k, const char *texto, float tam, Clay_Color cor) {
 				}
 				i--;
 				char *in = md_inline(pr->str, gv_t.acento);
-				gv_texto_rico(CLAY_SID(gv_fmt("md-p-%u-%d", k, n++)), in, tam, cor, false);
+				gv_texto_rico_sel(CLAY_SID(gv_fmt("md-p-%u-%d", k, n++)), in, tam, cor, false);
 				g_free(in);
 				g_string_free(pr, TRUE);
 			}
@@ -506,7 +506,7 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 				if (rico) {
 					eu_markdown(k * 2 + 1, m->texto, gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 });
 				} else {
-					gv_texto(gv_str(m->texto), gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_NORMAL);
+					gv_texto_sel(CLAY_IDI("em-ut", k), gv_str(m->texto), gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 }, eu_largura_balao - 32);
 				}
 			}
 			gv_texto(gv_fmt("%s ✓✓", m->hora), gv_t.tamanho_corpo - 3, gv_t.texto_suave, GV_PESO_NORMAL);
@@ -525,7 +525,7 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 					if (rico) {
 						eu_markdown(k * 2, r.corpo, gv_t.tamanho_corpo + 1, gv_t.texto);
 					} else {
-						gv_texto(gv_str(r.corpo[0] ? r.corpo : "…"), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
+						gv_texto_sel(CLAY_IDI("em-et", k), gv_str(r.corpo[0] ? r.corpo : "…"), gv_t.tamanho_corpo + 1, gv_t.texto, eu_largura_balao - 32);
 					}
 				}
 			}

@@ -1805,9 +1805,11 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	Clay_SetPointerState((Clay_Vector2){ gv__entrada.x, gv__entrada.y }, gv__entrada.baixo || gv__entrada.apertou);
 	/* a rolagem é do gv_rolagem (inércia e elástico): o Clay só corta e desloca */
 	Clay_UpdateScrollContainers(false, (Clay_Vector2){ 0 }, dt);
+	gv__selecao_quadro_inicio();
 	Clay_BeginLayout();
 	desenhar(app, dados);
 	Clay_RenderCommandArray comandos = Clay_EndLayout(dt);
+	gv__selecao_processar();
 	popups_rever(app);
 	entrada_rever(app);
 

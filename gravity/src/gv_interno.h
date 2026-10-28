@@ -53,6 +53,14 @@ void gv__app_pedir(void); /* o quadro actual pede outro (animação a correr) */
 void gv__app_acordar_em(double segundos); /* um quadro daqui a pouco (sem desenhar até lá) */
 int gv__app_escala(void); /* a escala do ecrã da app (1, 2...) */
 
+/* ---- seleção de texto com o mouse (gv_selecao.c) ---- */
+void gv__selecao_quadro_inicio(void);                       /* antes do layout: esquece os blocos do quadro */
+void gv__selecao_registrar(uint32_t id, const char *markup, float tamanho, bool mono); /* um texto selecionável (na ordem em que aparece) */
+void gv__selecao_processar(void);                           /* depois do layout: cliques, arrastar, Ctrl+C */
+bool gv__selecao_faixa(uint32_t id, int *ini, int *fim);    /* o trecho (bytes) deste bloco que está selecionado */
+char *gv__rico_plano(const char *markup);                   /* o texto sem a marcação (g_free) */
+int gv__rico_indice_xy(const char *markup, float tamanho, bool mono, float largura, float x, float y); /* o byte sob o ponto */
+
 /* ---- foco (gv_foco.c) ---- */
 #define GV_POPUP_Z 100 /* o zIndex do primeiro popup; abaixo disto é a superfície principal */
 /* Entra na fila do Tab (preferido: o item a focar quando o seu popup abre). Devolve se está focado. */
@@ -159,6 +167,8 @@ struct gv_extra {
 			float tamanho;
 			Clay_Color cor;
 			bool mono;
+			uint32_t id; /* quando selecionável: o id do bloco (gv_selecao.c) */
+			bool sel;
 		} rico;
 		struct {
 			cairo_surface_t *sup; /* NULL: ainda não chegou (desenha só o fundo) */

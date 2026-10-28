@@ -16,7 +16,7 @@
 #include "modos.h"
 
 static int modo_agora = MODO_DESKTOP;
-static double inicio;
+static double inicio, abertura;
 static char saida[32];
 
 static char *arquivo_pid(void) {
@@ -45,10 +45,14 @@ static void tomar_lugar(void) {
 
 static void desenhar(gv_app *app, void *dados) {
 	Clay_ElementId pilula = CLAY_ID("pilula");
-	if (gv_por_cima(pilula)) {
-		inicio = gv_agora(); /* o cursor em cima segura */
+	if (gv_tocado(CLAY_ID("raiz")) && !gv_por_cima(pilula)) {
+		gv_app_sair(app); /* um clique fora do seletor o fecha */
+		return;
 	}
-	double resta = 1.8 - (gv_agora() - inicio);
+	if (gv_por_cima(pilula) && gv_agora() - abertura < 4.0) {
+		inicio = gv_agora(); /* o cursor em cima segura (até 4 s: parado em cima não prende para sempre) */
+	}
+	double resta = 1.4 - (gv_agora() - inicio);
 	if (resta <= 0) {
 		gv_app_sair(app);
 		return;
@@ -102,6 +106,6 @@ int main(void) {
 	if (!app) {
 		return 1;
 	}
-	inicio = gv_agora();
+	inicio = abertura = gv_agora();
 	return gv_app_correr(app, desenhar, NULL);
 }

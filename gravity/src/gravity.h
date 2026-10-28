@@ -168,6 +168,21 @@ void gv_texto(Clay_String texto, float tamanho, Clay_Color cor, enum gv_peso pes
  * que o elemento tiver (quem chama escapa o que for texto puro com g_markup_escape_text). mono: toda a fonte é monoespaçada.
  * O id tem de ser único; a altura certa chega no quadro seguinte à primeira vez, ou quando a largura muda. */
 void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono);
+/* ---- texto selecionável ----
+ * O texto do Gravity não se seleciona (um botão, um menu, um rótulo). Estes dois sim: arrastar com o mouse marca, clique duplo marca a
+ * palavra, clique triplo o parágrafo, Ctrl+C copia, Esc ou um clique fora desmarca. A seleção atravessa os blocos (de um parágrafo, ou
+ * de uma bolha, para o seguinte, na ordem em que aparecem). O id tem de ser estável de um quadro para o outro.
+ *   gv_texto_sel:      texto simples, de uma largura natural até largura_max (como um balão que acompanha o texto)
+ *   gv_texto_rico_sel: marcação do pango, na largura do elemento (como gv_texto_rico) */
+void gv_texto_sel(Clay_ElementId id, Clay_String texto, float tamanho, Clay_Color cor, float largura_max);
+void gv_texto_rico_sel(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono);
+/* O parâmetro de bloqueio: com true, os gv_texto_sel e gv_texto_rico_sel a seguir desenham iguais mas não deixam selecionar (e
+ * saem da seleção em curso). Volte a false ao sair do lugar onde não deve selecionar (um botão, um menu). */
+void gv_selecao_bloquear(bool bloquear);
+bool gv_selecao_ativa(void);                 /* há texto selecionado */
+const char *gv_selecao_texto(void);          /* o texto selecionado (vale até a próxima chamada) */
+void gv_selecao_copiar(void);                /* o selecionado vai para a área de transferência */
+void gv_selecao_limpar(void);
 #define gv_rotulo(literal) gv_texto(CLAY_STRING(literal), 0, gv_t.texto, GV_PESO_NORMAL)
 
 /* ---- ícones (os do LUMNA: o mesmo traço de 24 px do shell) ---- */

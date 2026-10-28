@@ -354,7 +354,27 @@ static void preparar_rico(PangoLayout *layout, const char *markup, float tamanho
 	pango_layout_set_wrap(layout, PANGO_WRAP_WORD_CHAR);
 }
 
-void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono) {
+/* o texto sem a marcação, como o pango o põe no layout */
+char *gv__rico_plano(const char *markup) {
+	char *texto = NULL;
+	if (pango_parse_markup(markup, -1, 0, NULL, &texto, NULL, NULL)) {
+		return texto;
+	}
+	return g_strdup(markup);
+}
+
+int gv__rico_indice_xy(const char *markup, float tamanho, bool mono, float largura, float x, float y) {
+	preparar_rico(medidor, markup, tamanho, largura, mono);
+	int indice = 0, depois = 0;
+	pango_layout_xy_to_index(medidor, (int)(x * PANGO_SCALE), (int)(y * PANGO_SCALE), &indice, &depois);
+	const char *t = pango_layout_get_text(medidor);
+	if (depois > 0 && t[indice]) {
+		indice = (int)(g_utf8_next_char(t + indice) - t);
+	}
+	return indice;
+}
+
+static void rico_comum(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono, bool sel) {
 	if (!larguras_ricas) {
 		larguras_ricas = g_hash_table_new(g_direct_hash, g_direct_equal);
 	}
@@ -378,6 +398,11 @@ void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Co
 	e->rico.tamanho = tamanho;
 	e->rico.cor = cor;
 	e->rico.mono = mono;
+	e->rico.id = id.id;
+	e->rico.sel = sel;
+	if (sel) {
+		gv__selecao_registrar(id.id, copia, tamanho, mono);
+	}
 	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(altura) } }, .custom = { .customData = e } }) {}
 	Clay_ElementData dados = Clay_GetElementData(id);
 	if (dados.found) {
@@ -389,6 +414,56 @@ void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Co
 	}
 }
 
+void gv_texto_rico(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono) {
+	rico_comum(id, markup, tamanho, cor, mono, false);
+}
+
+static bool selecao_bloqueada;
+void gv_selecao_bloquear(bool bloquear) {
+	selecao_bloqueada = bloquear;
+}
+
+void gv_texto_rico_sel(Clay_ElementId id, const char *markup, float tamanho, Clay_Color cor, bool mono) {
+	rico_comum(id, markup, tamanho, cor, mono, !selecao_bloqueada);
+}
+
+void gv_texto_sel(Clay_ElementId id, Clay_String texto, float tamanho, Clay_Color cor, float largura_max) {
+	char *cru = g_strndup(texto.chars, texto.length);
+	char *esc = g_markup_escape_text(cru, -1);
+	g_free(cru);
+	/* a largura natural (sem quebrar), limitada: o balão acompanha o texto */
+	preparar_rico(medidor, esc, tamanho, 0, false);
+	pango_layout_set_width(medidor, -1);
+	PangoRectangle logico;
+	pango_layout_get_extents(medidor, NULL, &logico);
+	float largura = logico.width / (float)PANGO_SCALE + 2;
+	if (largura_max > 0 && largura > largura_max) {
+		largura = largura_max;
+	}
+	preparar_rico(medidor, esc, tamanho, largura, false);
+	pango_layout_get_extents(medidor, NULL, &logico);
+	float altura = logico.height / (float)PANGO_SCALE;
+	struct gv_extra *e = gv__quadro_alloc(sizeof(*e));
+	char *copia = gv__quadro_alloc(strlen(esc) + 1);
+	if (!e || !copia) {
+		g_free(esc);
+		return;
+	}
+	memset(e, 0, sizeof(*e));
+	strcpy(copia, esc);
+	g_free(esc);
+	e->tipo = GV_EXTRA_RICO;
+	e->rico.markup = copia;
+	e->rico.tamanho = tamanho;
+	e->rico.cor = cor;
+	e->rico.id = id.id;
+	e->rico.sel = !selecao_bloqueada;
+	if (e->rico.sel) {
+		gv__selecao_registrar(id.id, copia, tamanho, false);
+	}
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(largura), CLAY_SIZING_FIXED(altura) } }, .custom = { .customData = e } }) {}
+}
+
 void gv__rico_desenhar(cairo_t *cr, Clay_BoundingBox caixa, const struct gv_extra *e) {
 	PangoLayout *layout = pango_cairo_create_layout(cr);
 	cairo_font_options_t *opcoes = cairo_font_options_create();
@@ -398,6 +473,20 @@ void gv__rico_desenhar(cairo_t *cr, Clay_BoundingBox caixa, const struct gv_extr
 	cairo_font_options_destroy(opcoes);
 	pango_layout_context_changed(layout);
 	preparar_rico(layout, e->rico.markup, e->rico.tamanho, caixa.width, e->rico.mono);
+	int sel_ini, sel_fim;
+	if (e->rico.sel && gv__selecao_faixa(e->rico.id, &sel_ini, &sel_fim)) {
+		/* o trecho selecionado: o fundo na cor do texto, translúcido */
+		PangoAttrList *al = pango_layout_get_attributes(layout);
+		al = al ? pango_attr_list_copy(al) : pango_attr_list_new();
+		PangoAttribute *fundo = pango_attr_background_new((guint16)(e->rico.cor.r * 257), (guint16)(e->rico.cor.g * 257), (guint16)(e->rico.cor.b * 257));
+		PangoAttribute *alfa = pango_attr_background_alpha_new(0x5000);
+		fundo->start_index = alfa->start_index = (guint)sel_ini;
+		fundo->end_index = alfa->end_index = (guint)sel_fim;
+		pango_attr_list_insert(al, fundo);
+		pango_attr_list_insert(al, alfa);
+		pango_layout_set_attributes(layout, al);
+		pango_attr_list_unref(al);
+	}
 	cairo_set_source_rgba(cr, e->rico.cor.r / 255.0, e->rico.cor.g / 255.0, e->rico.cor.b / 255.0, e->rico.cor.a / 255.0);
 	cairo_move_to(cr, caixa.x, caixa.y);
 	pango_cairo_show_layout(cr, layout);
