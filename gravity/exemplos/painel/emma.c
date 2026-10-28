@@ -106,7 +106,7 @@ struct job {
 	struct emmar r, r2;
 	char pedido[1000], resp[16384]; /* A_MODELOS e A_TESTAR: o serviço fala direto com o provedor ("llm") */
 	bool falou;
-	bool pelo_servidor; /* A_TESTAR sem chave aqui: o servidor testa com a chave que guardou */
+	bool pelo_servidor; /* o provedor está no servidor: ele testa e lista, com a chave que guardou */
 };
 
 /* ---- o arquivo local ---- */
@@ -592,13 +592,17 @@ static void chamar_provedor(enum acao a, int idx, const char *modelo) {
 	j->acao = a;
 	j->idx = idx;
 	GString *c;
-	if (a == A_TESTAR && !provs[idx].chave[0] && provs[idx].hid[0] && provs[idx].sinc && modelo) {
-		/* a chave só está no servidor: ele mesmo testa */
+	if (provs[idx].hid[0] && provs[idx].sinc && (a == A_MODELOS || modelo)) {
+		/* o provedor está no servidor: quem testa e lista os modelos é o servidor, com a chave que ele guardou */
 		j->pelo_servidor = true;
 		c = g_string_new(NULL);
-		g_string_printf(c, "rest POST /api/providers/%s/test {\"model\":", provs[idx].hid);
-		json_escrever_texto(c, modelo);
-		g_string_append_c(c, '}');
+		if (a == A_MODELOS) {
+			g_string_printf(c, "rest GET /api/providers/%s/models", provs[idx].hid);
+		} else {
+			g_string_printf(c, "rest POST /api/providers/%s/test {\"model\":", provs[idx].hid);
+			json_escrever_texto(c, modelo);
+			g_string_append_c(c, '}');
+		}
 		g_strlcpy(j->pedido, c->str, sizeof(j->pedido));
 		g_string_free(c, TRUE);
 		ocupado = true;
