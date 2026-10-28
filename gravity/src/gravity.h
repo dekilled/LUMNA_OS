@@ -378,7 +378,8 @@ enum gv_rolagem_eixo { GV_ROLAGEM_VERTICAL, GV_ROLAGEM_HORIZONTAL, GV_ROLAGEM_AM
  *   }
  * O userData da declaração é da rolagem. */
 Clay_ElementDeclaration gv_rolagem(Clay_ElementId id, enum gv_rolagem_eixo eixos, Clay_ElementDeclaration d);
-/* Leva a área a (x, y) — deslizando, se animado. */
+/* Leva a área a (x, y) — deslizando, se animado. Sem animar e com y enorme (1e7): vai ao fim na hora e fica lá enquanto o
+ * conteúdo cresce (um chat recebendo a resposta), até a pessoa rolar. */
 void gv_rolar_para(Clay_ElementId id, float x, float y, bool animado);
 /* Quanto a área já rolou. */
 Clay_Vector2 gv_rolagem_posicao(Clay_ElementId id);

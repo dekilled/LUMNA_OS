@@ -597,20 +597,6 @@ static bool conversar_uma(int canal, const char *sid_fixo, const char *texto, bo
 	if (!t) {
 		return false;
 	}
-	if (canal != EMMAB_APP && contexto && *contexto) {
-		GString *c = g_string_new("{\"system_prompt\":");
-		GString *p = g_string_new("MODO ASSISTENTE (LUMNA, por cima do que a pessoa está fazendo): responda curto e direto, em 1 a 3 frases. "
-			"AGIR VEM PRIMEIRO: se pedirem para fazer algo e uma ferramenta lumna_* faz isso, CHAME a ferramenta, sem perguntar. "
-			"Nunca diga que fez sem ter chamado.\n\nA pessoa está vendo agora: ");
-		g_string_append(p, contexto);
-		json_escrever_texto(c, p->str);
-		g_string_free(p, TRUE);
-		g_string_append_c(c, '}');
-		char *caminho = g_strdup_printf("/api/sessions/%s", sid);
-		emmab_chamar("PATCH", caminho, c->str, NULL, NULL);
-		g_free(caminho);
-		g_string_free(c, TRUE);
-	}
 	char *agora = NULL;
 	g_spawn_command_line_sync("date \"+%Y-%m-%d %H:%M (%A) %z\"", &agora, NULL, NULL, NULL);
 	GString *c = g_string_new("{\"content\":");
@@ -618,6 +604,12 @@ static bool conversar_uma(int canal, const char *sid_fixo, const char *texto, bo
 	g_string_append_printf(c, ",\"mode\":\"chat\",\"voice\":%s,\"client_now\":", voz ? "true" : "false");
 	json_escrever_texto(c, agora ? g_strstrip(agora) : "");
 	g_free(agora);
+	if (contexto && *contexto) {
+		/* o que a pessoa está vendo: o mesmo campo que o harness usa ("O QUE O USUÁRIO ESTÁ VENDO AGORA"); o prompt e a personalidade são do servidor */
+		g_string_append(c, ",\"screen\":");
+		json_escrever_texto(c, contexto);
+		g_string_append(c, ",\"screen_url\":\"janela aberta no computador (LUMNA OS)\"");
+	}
 	g_string_append_printf(c, ",\"lumna_tools\":%s%s%s}", tools && *tools ? tools : "[]", extra && *extra ? "," : "", extra && *extra ? extra : "");
 
 	sessoes();

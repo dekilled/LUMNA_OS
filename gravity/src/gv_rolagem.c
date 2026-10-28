@@ -38,6 +38,7 @@ struct rolagem {
 	double ultimo;       /* gv_agora() do último quadro */
 	double mexeu;        /* a última vez que rolou (para a barra) */
 	float barra;         /* 0..1: a barra a aparecer */
+	bool colar_fim;      /* gv_rolar_para(..., y enorme, false): fica no fim, sem animar, enquanto o conteúdo cresce, até a pessoa rolar */
 };
 
 static struct rolagem rolagens[GV_MAX_ROLAGENS];
@@ -118,9 +119,15 @@ Clay_ElementDeclaration gv_rolagem(Clay_ElementId id, enum gv_rolagem_eixo eixos
 	float p[2] = { gv__entrada.x, gv__entrada.y };
 	bool sobre = dados.found && Clay_PointerOver(id);
 	bool animando = false;
+	if (r->colar_fim) {
+		r->pos[1] = r->alvo[1] = max[1];
+		r->vel[1] = 0;
+		r->com_alvo = false;
+	}
 
 	/* ---- aperto ---- */
 	if (gv__entrada.apertou && sobre) {
+		r->colar_fim = false;
 		r->apertado = true;
 		r->capturou = false;
 		r->na_barra = false;
@@ -283,8 +290,14 @@ Clay_ElementDeclaration gv_rolagem(Clay_ElementId id, enum gv_rolagem_eixo eixos
 void gv_rolar_para(Clay_ElementId id, float x, float y, bool animado) {
 	struct rolagem *r = rolagem_de(id.id);
 	r->vel[0] = r->vel[1] = 0;
-	r->alvo[0] = fmaxf(0, x);
-	r->alvo[1] = fmaxf(0, y);
+	/* sem passar do fim: senão o elástico puxa de volta e a lista "desliza" sozinha */
+	Clay_ElementData dados = Clay_GetElementData(id);
+	Clay_ScrollContainerData sc = Clay_GetScrollContainerData(id);
+	float max_x = dados.found && sc.found ? fmaxf(0, sc.contentDimensions.width - dados.boundingBox.width) : 0;
+	float max_y = dados.found && sc.found ? fmaxf(0, sc.contentDimensions.height - dados.boundingBox.height) : 0;
+	r->colar_fim = !animado && y >= max_y && y >= 1e6f;
+	r->alvo[0] = fminf(fmaxf(0, x), max_x);
+	r->alvo[1] = fminf(fmaxf(0, y), max_y);
 	if (animado) {
 		r->com_alvo = true;
 	} else {
@@ -311,6 +324,7 @@ void gv__rolagens_fim_do_quadro(void) {
 	if (!r || (gv__entrada.roda_x == 0 && gv__entrada.roda_y == 0) || r->apertado) {
 		return;
 	}
+	r->colar_fim = false;
 	/* a roda soma ao alvo (várias voltas seguidas aceleram) e a área desliza até lá */
 	if (!r->com_alvo) {
 		r->alvo[0] = r->pos[0];

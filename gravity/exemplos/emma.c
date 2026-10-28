@@ -1109,6 +1109,14 @@ static gboolean servidor_pronto(gpointer d) {
 static gpointer online_linha(gpointer d) {
 	(void)d;
 	bool srv = emmab_pronto();
+	if (srv) {
+		char *cfg = NULL, *e = NULL;
+		if (emmab_chamar("GET", "/api/settings", NULL, &cfg, &e) == 200) {
+			emmal_guardar_persona(cfg);
+		}
+		g_free(cfg);
+		g_free(e);
+	}
 	struct emmal_prov p;
 	char *erro = NULL;
 	bool reserva = emmal_provedor("chat", &p, &erro);

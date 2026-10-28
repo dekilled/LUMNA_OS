@@ -25,6 +25,9 @@ bool emmal_conversar(const char *sid, const char *texto, bool voz, const char *l
 	char **resposta, char **erro);
 void emmal_parar(void); /* corta a resposta que está chegando */
 
+/* guarda a personalidade e as diretrizes do servidor (o JSON de GET /api/settings) para a reserva falar igual */
+void emmal_guardar_persona(const char *settings_json);
+
 /* para o Painel: os modelos que o provedor oferece, e o teste de capacidades. Devolvem um JSON (g_free) */
 char *emmal_modelos_json(const char *url, const char *chave);
 char *emmal_testar_json(const char *url, const char *chave, const char *modelo);
