@@ -37,6 +37,8 @@ struct campo {
 };
 
 static struct campo campos[GV_MAX_CAMPOS];
+/* uma ação do menu de contexto (Recortar, Copiar, Colar, Selecionar tudo): o campo a faz no quadro seguinte como se fosse o atalho */
+static uint32_t acao_menu, acao_menu_id;
 static uint32_t quadro;
 /* o foco é o da app inteira (gv_foco.c): tocar fora de tudo tira-o, e o teclado no ecrã some */
 void gv__campos_fim_do_quadro(void) {
@@ -319,6 +321,12 @@ static int campo(Clay_ElementId id, char *texto, size_t capacidade, const char *
 	/* várias linhas: quebram na largura da área do texto (a do quadro anterior) */
 	float largura_quebra = multi ? (c->caixa_texto.width > 0 ? c->caixa_texto.width : 300) : 0;
 
+	/* o botão direito: o menu de contexto (o campo fica com o foco, e a ação vale para ele) */
+	Clay_ElementId menu_id = parte(id, 9);
+	if (gv_menu_no_ponteiro(id, menu_id)) {
+		gv__foco_definir(id.id, false);
+	}
+
 	/* ---- toque e rato: pôr o cursor, arrastar para selecionar, dois toques: palavra ---- */
 	bool no_botao = gv_por_cima(botao_id);
 	if (gv__entrada.apertou && !gv__entrada.travado && gv_por_cima(id) && !no_botao) {
@@ -387,7 +395,19 @@ static int campo(Clay_ElementId id, char *texto, size_t capacidade, const char *
 	const char *compondo = "";
 	if (focado) {
 		int antes = (int)strlen(texto);
+		bool do_menu = acao_menu && acao_menu_id == id.id && gv__entrada.nteclas < GV_MAX_TECLAS;
+		uint32_t mods_antes = gv__entrada.mods;
+		int nteclas_antes = gv__entrada.nteclas;
+		if (do_menu) {
+			gv__entrada.teclas[gv__entrada.nteclas++] = acao_menu;
+			gv__entrada.mods |= GV_MOD_CTRL;
+			acao_menu = 0;
+		}
 		resultado |= teclas(texto, capacidade, c, tipo, id, tamanho, largura_quebra);
+		if (do_menu) {
+			gv__entrada.mods = mods_antes;
+			gv__entrada.nteclas = nteclas_antes;
+		}
 		if (gv__entrada.texto[0] && (tipo != GV_CAMPO_NUMERO || numero_valido(gv__entrada.texto))) {
 			if (inserir(texto, capacidade, c, gv__entrada.texto)) {
 				resultado |= GV_CAMPO_MUDOU;
@@ -603,6 +623,33 @@ static int campo(Clay_ElementId id, char *texto, size_t capacidade, const char *
 					gv__foco_definir(id.id, false);
 				}
 			}
+		}
+	}
+	GV_MENU_PONTEIRO(menu_id) {
+		bool marcado = c->cursor != c->ancora && !senha;
+		if (marcado && gv_menu_item(parte(id, 10), "cut", "Recortar", "Ctrl+X")) {
+			acao_menu = XKB_KEY_x;
+			acao_menu_id = id.id;
+			gv_popup_fechar(menu_id);
+			gv__app_pedir();
+		}
+		if (marcado && gv_menu_item(parte(id, 11), "copy", "Copiar", "Ctrl+C")) {
+			acao_menu = XKB_KEY_c;
+			acao_menu_id = id.id;
+			gv_popup_fechar(menu_id);
+			gv__app_pedir();
+		}
+		if (gv_menu_item(parte(id, 12), "paste", "Colar", "Ctrl+V")) {
+			acao_menu = XKB_KEY_v;
+			acao_menu_id = id.id;
+			gv_popup_fechar(menu_id);
+			gv__app_pedir();
+		}
+		if (texto[0] && gv_menu_item(parte(id, 13), "text", "Selecionar tudo", "Ctrl+A")) {
+			acao_menu = XKB_KEY_a;
+			acao_menu_id = id.id;
+			gv_popup_fechar(menu_id);
+			gv__app_pedir();
 		}
 	}
 	Clay_ElementData dados = Clay_GetElementData(caixa_id);

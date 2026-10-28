@@ -1022,6 +1022,22 @@ static void desenhar(gv_app *app, void *dados) {
 			gv_acordar_em(segundos ? 1.0 - fmod(gv_agora(), 1.0) + 0.01 : 60 - t.tm_sec + 0.05);
 		}
 	}
+	/* o botão direito no fundo da barra (os ícones e a bandeja, que pedem antes, ficam com o deles) */
+	gv_menu_no_ponteiro(CLAY_ID("barra"), CLAY_ID("menu-barra"));
+	GV_MENU_PONTEIRO(CLAY_ID("menu-barra")) {
+		if (gv_menu_item(CLAY_ID("mb-config"), "settings", "Configurações do sistema", NULL)) {
+			executar("lumna-painel", NULL, NULL);
+			gv_popup_fechar(CLAY_ID("menu-barra"));
+		}
+		if (gv_menu_item(CLAY_ID("mb-telas"), "screens", "Telas e modos", NULL)) {
+			executar("lumna-painel", "--secao", "telas/modos");
+			gv_popup_fechar(CLAY_ID("menu-barra"));
+		}
+		if (gv_menu_item(CLAY_ID("mb-emma"), "emma", "Configurar a Emma", NULL)) {
+			executar("lumna-painel", "--secao", "emma/provedores");
+			gv_popup_fechar(CLAY_ID("menu-barra"));
+		}
+	}
 	menu_modo();
 	menu_wifi();
 	menu_som();

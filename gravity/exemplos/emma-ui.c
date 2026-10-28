@@ -501,12 +501,28 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 	if (m->usuario) {
 		CLAY(CLAY_IDI("em-u", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4, .childAlignment = { .x = CLAY_ALIGN_X_RIGHT } } }) {
 			bool rico = eu_tem_markdown(m->texto);
-			CLAY(CLAY_IDI("em-ub", k), { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
+			Clay_ElementId bolha_u = CLAY_IDI("em-ub", k), menu_u = CLAY_IDI("em-um", k);
+			gv_menu_no_ponteiro(bolha_u, menu_u);
+			CLAY(bolha_u, { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
 				.backgroundColor = EU_VIOLETA, .cornerRadius = CLAY_CORNER_RADIUS(18) }) {
 				if (rico) {
 					eu_markdown(k * 2 + 1, m->texto, gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 });
 				} else {
 					gv_texto_sel(CLAY_IDI("em-ut", k), gv_str(m->texto), gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 }, eu_largura_balao - 32);
+				}
+			}
+			GV_MENU_PONTEIRO(menu_u) {
+				if (gv_selecao_ativa() && gv_menu_item(CLAY_IDI("em-um-sel", k), "copy", "Copiar seleção", "Ctrl+C")) {
+					gv_selecao_copiar();
+					gv_popup_fechar(menu_u);
+				}
+				if (gv_menu_item(CLAY_IDI("em-um-copiar", k), "copy", "Copiar a mensagem", NULL)) {
+					gv_copiar(m->texto);
+					gv_popup_fechar(menu_u);
+				}
+				if (enviar && gv_menu_item(CLAY_IDI("em-um-de-novo", k), "repeat", "Enviar de novo", NULL)) {
+					enviar(m->texto);
+					gv_popup_fechar(menu_u);
 				}
 			}
 			gv_texto(gv_fmt("%s ✓✓", m->hora), gv_t.tamanho_corpo - 3, gv_t.texto_suave, GV_PESO_NORMAL);
@@ -520,12 +536,24 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 		CLAY(CLAY_IDI("em-ec", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
 			if (r.corpo[0] || m->parcial) {
 				bool rico = eu_tem_markdown(r.corpo);
-				CLAY(CLAY_IDI("em-eb", k), { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
+				Clay_ElementId bolha_e = CLAY_IDI("em-eb", k), menu_e = CLAY_IDI("em-em", k);
+				gv_menu_no_ponteiro(bolha_e, menu_e);
+				CLAY(bolha_e, { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
 					.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(18) }) {
 					if (rico) {
 						eu_markdown(k * 2, r.corpo, gv_t.tamanho_corpo + 1, gv_t.texto);
 					} else {
 						gv_texto_sel(CLAY_IDI("em-et", k), gv_str(r.corpo[0] ? r.corpo : "…"), gv_t.tamanho_corpo + 1, gv_t.texto, eu_largura_balao - 32);
+					}
+				}
+				GV_MENU_PONTEIRO(menu_e) {
+					if (gv_selecao_ativa() && gv_menu_item(CLAY_IDI("em-em-sel", k), "copy", "Copiar seleção", "Ctrl+C")) {
+						gv_selecao_copiar();
+						gv_popup_fechar(menu_e);
+					}
+					if (r.corpo[0] && gv_menu_item(CLAY_IDI("em-em-copiar", k), "copy", "Copiar a resposta", NULL)) {
+						gv_copiar(r.corpo);
+						gv_popup_fechar(menu_e);
 					}
 				}
 			}

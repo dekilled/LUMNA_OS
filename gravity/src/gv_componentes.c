@@ -603,3 +603,55 @@ bool gv_menu_contexto(Clay_ElementId id) {
 	return gv__foco_tecla(id, XKB_KEY_Menu) ||
 		((gv__entrada.mods & GV_MOD_SHIFT) && gv__foco_tecla(id, XKB_KEY_F10));
 }
+
+/* ---- o menu de contexto no ponteiro ---- */
+
+#define GV_MENUS_PONTEIRO 16
+struct menu_ponteiro {
+	uint32_t id;
+	Clay_Vector2 onde;
+	bool abrir; /* abre no quadro seguinte, já com a âncora no lugar novo */
+};
+static struct menu_ponteiro menus_ponteiro[GV_MENUS_PONTEIRO];
+
+static struct menu_ponteiro *menu_ponteiro_de(uint32_t id) {
+	int livre = -1;
+	for (int i = 0; i < GV_MENUS_PONTEIRO; i++) {
+		if (menus_ponteiro[i].id == id) {
+			return &menus_ponteiro[i];
+		}
+		if (!menus_ponteiro[i].id && livre < 0) {
+			livre = i;
+		}
+	}
+	if (livre < 0) {
+		livre = 0;
+	}
+	menus_ponteiro[livre].id = id;
+	menus_ponteiro[livre].abrir = false;
+	return &menus_ponteiro[livre];
+}
+
+bool gv_menu_no_ponteiro(Clay_ElementId alvo, Clay_ElementId menu) {
+	struct menu_ponteiro *m = menu_ponteiro_de(menu.id);
+	if (m->abrir) {
+		m->abrir = false;
+		gv_popup_abrir(menu);
+	}
+	if (gv_menu_contexto(alvo)) {
+		m->onde = gv_ponteiro();
+		gv_popup_fechar(menu);
+		m->abrir = true;
+		gv__app_pedir();
+		return true;
+	}
+	return false;
+}
+
+Clay_ElementId gv_menu_ancora(Clay_ElementId menu) {
+	struct menu_ponteiro *m = menu_ponteiro_de(menu.id);
+	Clay_ElementId a = Clay__HashStringWithOffset(menu.stringId, menu.offset * 64 + 7000003u, menu.baseId);
+	CLAY(a, { .layout = { .sizing = { CLAY_SIZING_FIXED(1), CLAY_SIZING_FIXED(1) } },
+		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = m->onde, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+	return a;
+}
