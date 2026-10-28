@@ -173,6 +173,7 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - ⏳ "Oi Emma" (ouvir sempre);
 - ✅ Provedores: as telas do harness (Configurações > Providers) no Painel: Ollama Cloud, OpenAI, Gemini, Claude ou um endereço seu, com a URL, a chave de API, os modelos (`/models`) e o teste de capacidades. A lista fica sempre na tela e guardada no PC; o serviço manda para o servidor da Emma (o motor) e traz de lá o que já existir, sem tela de login nem token. Se o servidor estiver desligado, a Emma conversa direto com o provedor (reserva);
 - ✅ Roteamento: qual provedor e modelo atende Chat, Planner, RAG, Coder e Visão (o primeiro provedor já vira o padrão);
+- ✅ Personalidade: a personalidade e as diretrizes da Emma (caixas de texto de várias linhas); gravam nas Configurações do servidor e numa cópia automática (persona.json) para a conversa direta;
 - ⏳ Imagens, Voz (Fish Audio, voz local, "Oi Emma"), Embeddings, Personalidade (SFW/NSFW) e Permissões das ações, MCP: as outras telas do harness, na sequência;
 - ⏳ Privacidade;
 - ⏳ Automações.

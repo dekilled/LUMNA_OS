@@ -25,6 +25,11 @@ void pn_areas_abrir(void);
 
 /* Emma → Provedores e modelos (emma.c) */
 void pn_emma_prov_desenhar(void);
+void pn_emma_pers_desenhar(void);
+bool pn_emma_pers_pendente(void);
+void pn_emma_pers_aplicar(void);
+void pn_emma_pers_descartar(void);
+void pn_emma_pers_abrir(void);
 void pn_emma_prov_abrir(void);
 void pn_emma_rota_desenhar(void);
 bool pn_emma_rota_pendente(void);
@@ -135,6 +140,8 @@ static const pn_secao emma[] = {
 		pn_emma_prov_abrir },
 	{ "roteamento", "sliders", "Roteamento", "Qual provedor e modelo atende cada tarefa.", pn_emma_rota_desenhar, NULL, pn_emma_rota_pendente,
 		pn_emma_rota_aplicar, pn_emma_rota_descartar, NULL, pn_emma_prov_abrir },
+	{ "personalidade", "sparkle", "Personalidade", "Quem a Emma é e as regras dela.", pn_emma_pers_desenhar, NULL, pn_emma_pers_pendente, pn_emma_pers_aplicar,
+		pn_emma_pers_descartar, NULL, pn_emma_pers_abrir },
 	{ "privacidade", "shield", "Privacidade", "O que a Emma guarda.", NULL, "O histórico;Apagar as conversas" },
 	{ "automacoes", "zap", "Automações", "Tarefas que a Emma faz sozinha.", NULL, "As automações e quando correm" },
 };
