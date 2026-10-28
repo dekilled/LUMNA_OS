@@ -500,6 +500,19 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			return;
 		}
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "copiados")) {
+		char *lista = orbit_copiados_lista();
+		put(b, "{\"ok\":true,\"itens\":%s}", lista ? lista : "[]");
+		free(lista);
+	} else if (!strcmp(cmd, "copiar")) {
+		if (!arg1 || !orbit_copiados_usar(atoi(arg1))) {
+			fail(b, "uso: copiar N (um número da lista de copiados)");
+			return;
+		}
+		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "limpar_copiados")) {
+		orbit_copiados_limpar();
+		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "exec")) {
 		if (!rest || !*rest) {
 			fail(b, "falta o comando");

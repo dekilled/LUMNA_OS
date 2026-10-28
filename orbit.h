@@ -544,4 +544,10 @@ void orbit_cycle_end(struct orbit_server *server, uint32_t mods);
 /* clip.c: Orbit aninhado: copiar e colar (texto) entre o compositor de fora e este */
 void orbit_clip_ponte_iniciar(struct orbit_server *server, struct wl_display *remote);
 
+/* copiados.c: o histórico dos últimos textos copiados (20) */
+void orbit_copiados_iniciar(struct orbit_server *server);
+char *orbit_copiados_lista(void); /* JSON; free() */
+bool orbit_copiados_usar(int n);
+void orbit_copiados_limpar(void);
+
 #endif

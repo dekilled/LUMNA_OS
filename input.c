@@ -452,4 +452,5 @@ void orbit_input_bind(struct orbit_server *server) {
 	wl_signal_add(&server->seat->events.request_set_cursor, &server->request_cursor);
 	server->request_set_selection.notify = seat_request_set_selection;
 	wl_signal_add(&server->seat->events.request_set_selection, &server->request_set_selection);
+	orbit_copiados_iniciar(server);
 }

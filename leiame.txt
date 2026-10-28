@@ -53,6 +53,7 @@ Módulos
   input.c     ponteiro, gestos da borda, tablet, tampa e teclado
   touch.c     toque: wl_touch de verdade, ou o dedo como rato
   im.c        teclado virtual e método de entrada (escrever sem teclado físico)
+  copiados.c  o histórico dos últimos 20 textos copiados
   clip.c      a ponte de copiar e colar (texto) com o compositor de fora, no modo aninhado
   ipc.c       o socket do orbit-msg
   keybinds.c  tabela de atalhos
@@ -277,6 +278,11 @@ wlroots, nested.c do lado do compositor de fora). O que se copia lá fora cola a
 de fora só avisa da cópia quando a janela do Orbit tem o foco, e só aceita uma cópia daqui depois de um toque de tecla
 ou de botão nela (o serial que ele exige); uma cópia que chega antes disso espera o primeiro toque. No log:
 "área de transferência (texto) ligada ao compositor de fora". Só texto; imagens e arquivos não passam.
+
+Histórico de copiados (copiados.c): o Orbit guarda os últimos 20 textos que passaram pela área de transferência (a nova entra
+na frente, a repetida só sobe, a vigésima primeira sai). Só texto e só na memória (sai ao reiniciar); quem copia com a marca
+de gerenciador de senhas (x-kde-passwordManagerHint) não entra. orbit-msg copiados lista, copiar N devolve o N-ésimo à área
+de transferência, limpar_copiados esvazia. A barra do LUMNA mostra a lista (o ícone da prancheta).
 
 Diagnóstico de teclado: ORBIT_TECLAS=1 faz o Orbit escrever no log cada tecla que chega (o nome, apertada ou solta,
 os modificadores e o atraso em relação à hora em que o sistema de fora a mandou), e se virou um atalho dele.
