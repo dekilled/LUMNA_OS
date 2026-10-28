@@ -362,10 +362,11 @@ static void trabalho(void *d) {
 					pi = i;
 				}
 			}
-			if (pi < 0 || !j->hid_out[pi][0]) {
-				if (j->rotas[t].lid[0]) {
-					completo = false;
-				}
+			if (pi < 0) {
+				continue; /* a rota era de um provedor apagado: some do servidor também (lá cai no primeiro provedor) */
+			}
+			if (!j->hid_out[pi][0]) {
+				completo = false; /* o provedor ainda não chegou no servidor: manda a rota na próxima volta */
 				continue;
 			}
 			g_string_append_printf(c, "%s", primeiro ? "" : ",");

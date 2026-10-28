@@ -43,11 +43,20 @@ def why_failed(e: Exception) -> str:
 async def resolve(task: str) -> tuple[Provider, str]:
     s = await get_settings()
     target = s.routing.get(task) or s.routing.get("chat")
-    if not target or not target.provider_id:
-        raise HTTPException(400, f"Nenhum provider configurado para a tarefa '{task}'")
-    p = Provider.from_mongo(await db.providers.find_one({"_id": oid(target.provider_id)}))
+    p = None
+    if target and target.provider_id:
+        try:
+            p = Provider.from_mongo(await db.providers.find_one({"_id": oid(target.provider_id)}))
+        except Exception:
+            p = None
     if not p:
-        raise HTTPException(400, f"Provider da tarefa '{task}' não existe mais")
+        # LUMNA: a rota aponta para um provider apagado (ou não há rota): usa o primeiro que existe, em vez de parar a conversa
+        todos = [Provider.from_mongo(d) for d in await db.providers.find({}).to_list(None)]
+        p = next((x for x in todos if x.api_key), todos[0] if todos else None)
+        if not p:
+            raise HTTPException(400, f"Nenhum provider configurado para a tarefa '{task}'")
+        model = target.model if target and target.model in p.models else ""
+        return p, model or (p.models[0] if p.models else "")
     return p, target.model or (p.models[0] if p.models else "")
 
 
