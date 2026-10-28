@@ -210,6 +210,9 @@ static void ler_local(void) {
 		g_strlcpy(v->mascara, json_chave_texto(q, "mascara"), sizeof(v->mascara));
 		v->tem_chave = json_bool(json_chave(q, "tem_chave"), false);
 		v->sinc = json_bool(json_chave(q, "sinc"), false);
+		if (v->chave[0] && v->hid[0]) {
+			v->sinc = false; /* a chave deste arquivo vale: manda de novo ao servidor (alguém pode tê-la corrigido aqui à mão) */
+		}
 		preparar_edicao(nprov);
 		nprov++;
 	}
