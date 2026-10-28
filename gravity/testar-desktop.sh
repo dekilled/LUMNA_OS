@@ -3,6 +3,7 @@
 # (Hyprland, GNOME, KDE...), para testar no PC sem trocar de sessão:
 #
 #   ./testar-desktop.sh            compila o que faltar e abre
+#   ./testar-desktop.sh --tela-cheia  abre a janela do Orbit já em tela cheia (Super+F11 alterna; vale junto com --refazer)
 #   ./testar-desktop.sh --refazer  recompila o Gravity e atualiza o Orbit antes de abrir (use depois de dar git pull aqui:
 #                                  sem isso ele abre os binários de antes e você não vê as mudanças)
 #
@@ -10,6 +11,13 @@
 # Lá dentro sobem o papel de parede, a topbar, a dock e os avisos, num D-Bus só deles (os avisos
 # não tiram as notificações do seu desktop). Alt+Enter abre um terminal; fechar a janela sai.
 # Para testar os avisos lá dentro: abra o terminal (Alt+Enter) e corra notify-send "Olá" "LUMNA".
+REFAZER=0
+for a in "$@"; do
+	case "$a" in
+	--refazer) REFAZER=1 ;;
+	--tela-cheia) export ORBIT_TELA_CHEIA=1 ;; # a janela do Orbit abre em tela cheia (depois, Super+F11 alterna)
+	esac
+done
 set -e
 
 AQUI=$(cd "$(dirname "$0")" && pwd)
@@ -37,7 +45,7 @@ done
 command -v dbus-run-session >/dev/null || falta "dbus-run-session (pacote dbus)"
 
 # o Gravity: a biblioteca e as peças do desktop
-if [ "$1" = "--refazer" ] || [ ! -x "$AQUI/avisos" ]; then
+if [ "$REFAZER" = 1 ] || [ ! -x "$AQUI/avisos" ]; then
 	make -C "$AQUI" -j"$(nproc)"
 fi
 
@@ -55,7 +63,7 @@ if [ ! -d "$ORBIT_DIR/.git" ]; then
 	git clone --depth 1 -b "$ORBIT_BRANCH" "$ORBIT_REPO" "$ORBIT_DIR"
 fi
 O="$ORBIT_DIR/src/compositor/orbit"
-if [ "$1" = "--refazer" ] || [ ! -x "$O/orbit" ]; then
+if [ "$REFAZER" = 1 ] || [ ! -x "$O/orbit" ]; then
 	# sempre a versão mais nova antes de compilar (um clone de uma tentativa que falhou também)
 	git -C "$ORBIT_DIR" remote set-url origin "$ORBIT_REPO"
 	git -C "$ORBIT_DIR" pull --ff-only
