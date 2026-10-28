@@ -1274,8 +1274,16 @@ static void quadro_pronto(void *dados, struct wl_callback *cb, uint32_t tempo) {
 
 static const struct wl_callback_listener quadro_ouvinte = { .done = quadro_pronto };
 
+static bool medidas_cheias;
+
 static void clay_erro(Clay_ErrorData erro) {
-	fprintf(stderr, "gravity: layout: %.*s\n", erro.errorText.length, erro.errorText.chars);
+	if (!medidas_cheias) { /* repete o mesmo aviso a cada quadro: um basta */
+		fprintf(stderr, "gravity: layout: %.*s\n", erro.errorText.length, erro.errorText.chars);
+	}
+	if (erro.errorType == CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED ||
+		(erro.errorType == CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED && strstr(erro.errorText.chars, "measure"))) {
+		medidas_cheias = true;
+	}
 }
 
 /* O tema muda com a app a correr: o Painel grava o tema.ini e todas as apps se repintam na hora.
@@ -1431,6 +1439,7 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 		gv_app_vigiar(app, app->repete_fd, repeticao_pronta, NULL);
 	}
 
+	Clay_SetMaxMeasureTextCacheWordCount(131072); /* o padrão (16384) enche com algumas respostas longas */
 	uint32_t memoria = Clay_MinMemorySize();
 	app->arena = Clay_CreateArenaWithCapacityAndMemory(memoria, malloc(memoria));
 	Clay_Initialize(app->arena, (Clay_Dimensions){ app->largura, app->altura }, (Clay_ErrorHandler){ .errorHandlerFunction = clay_erro });
@@ -1828,6 +1837,17 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	wl_callback_add_listener(app->quadro_cb, &quadro_ouvinte, app);
 	wl_surface_commit(app->superficie);
 	buffer->ocupado = true;
+	static int seguidos;
+	if (medidas_cheias) {
+		/* este quadro saiu com textos sem medida: limpa o cache e desenha outro já (no máximo 3 seguidos) */
+		medidas_cheias = false;
+		gv__clay_limpar_medidas();
+		if (++seguidos <= 3) {
+			app->precisa = true;
+		}
+	} else {
+		seguidos = 0;
+	}
 	if (app->bloqueio && !app->principal_desenhada) {
 		app->principal_desenhada = true;
 		for (int i = 0; i < GV_MAX_SAIDAS; i++) {

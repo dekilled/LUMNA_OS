@@ -48,6 +48,7 @@ struct gv_entrada {
 };
 extern struct gv_entrada gv__entrada;
 void gv__entrada_fim_do_quadro(void);
+void gv__clay_limpar_medidas(void); /* o cache de medidas de texto do Clay encheu: recomeça */
 void gv__app_pedir(void); /* o quadro actual pede outro (animação a correr) */
 void gv__app_acordar_em(double segundos); /* um quadro daqui a pouco (sem desenhar até lá) */
 int gv__app_escala(void); /* a escala do ecrã da app (1, 2...) */
