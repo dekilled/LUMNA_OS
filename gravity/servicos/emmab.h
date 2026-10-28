@@ -1,5 +1,5 @@
 /*
- * O backend da Emma (NewHarnessV2, por padrão em 127.0.0.1:8001), para o serviço lumna-emma. Sem login: entra com o token
+ * O backend da Emma (o emma-servidor do LUMNA, por padrão em 127.0.0.1:8011), para o serviço lumna-emma. Sem login: entra com o token
  * único que o próprio servidor deixa em ~/.config/lumna/emma/chave ao ligar. Em ~/.config/lumna/emma.json ficam o endereço,
  * os ids das conversas e as permissões das ações.
  *

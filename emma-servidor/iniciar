@@ -28,7 +28,7 @@ if [ ! -s "$env" ]; then
 # Gerado pelo LUMNA na primeira vez. Não é usado para entrar: o LUMNA usa o token em $conf/chave.
 JWT_SECRET=$(rand 'hex(32)')
 SECRETS_KEY=$(rand 'hex(32)')
-ADMIN_EMAIL=$USER@lumna.local
+ADMIN_EMAIL=$(id -un)@lumna.local
 ADMIN_PASSWORD=$(rand 'urlsafe(24)')
 CONF
 fi
@@ -38,4 +38,4 @@ set +a
 export WORKSPACE_ROOT="$data/workspace" SQLITE_PATH="$data/emma.db" CORS_ORIGINS="" \
   ALLOW_PRIVATE_URLS="${ALLOW_PRIVATE_URLS:-true}" LUMNA_HARNESS_DIR="$aqui" LUMNA_KEY_FILE="$conf/chave" PYTHONDONTWRITEBYTECODE=1
 cd "$aqui/backend"
-exec "$venv/bin/uvicorn" server:app --host 127.0.0.1 --port "${EMMA_PORT:-8001}" --no-access-log
+exec "$venv/bin/uvicorn" server:app --host 127.0.0.1 --port "${EMMA_PORT:-8011}" --no-access-log

@@ -27,4 +27,4 @@ export WORKSPACE_ROOT="$data/workspace" SQLITE_PATH="$data/emma.db" CORS_ORIGINS
   ALLOW_PRIVATE_URLS="${ALLOW_PRIVATE_URLS:-true}" LUMNA_HARNESS_DIR=/usr/lib/lumna-emma \
   PYTHONPATH=/usr/lib/lumna-emma/lib PYTHONDONTWRITEBYTECODE=1
 cd /usr/lib/lumna-emma/backend
-exec python -m uvicorn server:app --host 127.0.0.1 --port "${EMMA_PORT:-8001}" --no-access-log
+exec python -m uvicorn server:app --host 127.0.0.1 --port "${EMMA_PORT:-8011}" --no-access-log

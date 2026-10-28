@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define URL_PADRAO "http://127.0.0.1:8001"
+#define URL_PADRAO "http://127.0.0.1:8011" /* a porta do servidor do LUMNA (emma-servidor), longe da 8001 de um harness aberto à parte */
 #define TOKEN_VALE_S (50 * 60)
 
 static GMutex trinco;
@@ -108,6 +108,9 @@ const char *emmab_url(void) {
 	static char url[200];
 	const char *env = g_getenv("LUMNA_EMMA_URL");
 	char *c = env && *env ? NULL : emmab_config_texto("url");
+	if (c && strstr(c, ":8001")) { /* endereço antigo, do harness de fora: o LUMNA agora tem o servidor dele */
+		g_clear_pointer(&c, g_free);
+	}
 	g_strlcpy(url, env && *env ? env : c ? c : URL_PADRAO, sizeof(url));
 	g_free(c);
 	size_t n = strlen(url);
