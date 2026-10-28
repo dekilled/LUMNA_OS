@@ -1209,6 +1209,13 @@ static int como_cliente(int argc, char **argv) {
 		return 1;
 	}
 	puts(r);
+	if (!strcmp(p->str, "encerrar")) {
+		/* só volta quando o serviço saiu mesmo (e o servidor junto): um lumna-emma aberto logo depois não o encontra mais */
+		char e[256];
+		for (int i = 0; i < 100 && emmac_pedido("estado", e, sizeof(e)); i++) {
+			g_usleep(100 * 1000);
+		}
+	}
 	g_string_free(p, TRUE);
 	return strstr(r, "\"ok\":false") ? 2 : 0;
 }
