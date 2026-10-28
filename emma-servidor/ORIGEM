@@ -1,0 +1,1 @@
+4699ac4 Chave do LUMNA OS sem login: ao ligar, o servidor cria um token único e o deixa em ~/.config/lumna/emma/chave (modo 600); o backend aceita Bearer lumna_… (guardado só o hash)

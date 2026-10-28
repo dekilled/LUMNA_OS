@@ -34,7 +34,7 @@ def sobe(cmd, **kw):
     return p
 
 
-env = dict(os.environ, XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
+env = dict(os.environ, LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
            LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
            PATH=os.path.join(AQUI, "bin") + ":" + os.environ["PATH"], DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent")
 env.pop("WAYLAND_DISPLAY", None)

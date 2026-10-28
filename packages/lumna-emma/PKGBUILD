@@ -1,5 +1,5 @@
 # Emma no LUMNA: o backend da Emma (projeto NewHarnessV2) como serviço do usuário.
-# O código vem de fora deste repositório: EMMA_SRC aponta para a cópia do NewHarnessV2
+# O código está em emma-servidor/ (copiado do NewHarnessV2); EMMA_SRC aponta para outra cópia, se preciso
 # (o iso/build.sh passa; sem ela, o ISO sai sem este pacote e o painel pede um servidor).
 pkgname=lumna-emma
 pkgver=0.0.1
@@ -14,7 +14,7 @@ options=(!strip !debug)
 install=lumna-emma.install
 
 _root="$(realpath "$startdir/../..")"
-_emma="${EMMA_SRC:-$_root/../NewHarnessV2}"
+_emma="${EMMA_SRC:-$_root/emma-servidor}"   # a cópia que faz parte do LUMNA (emma-servidor/ORIGEM diz de que commit veio)
 
 build() {
   [ -f "$_emma/backend/server.py" ] || { echo "EMMA_SRC sem backend/server.py: $_emma" >&2; return 1; }

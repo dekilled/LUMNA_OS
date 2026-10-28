@@ -1099,14 +1099,79 @@ static gboolean online_pronto(gpointer d) {
 }
 
 /* "online": o servidor da Emma responde e deixa o LUMNA entrar, ou ao menos há um provedor de IA configurado para a reserva */
+/* ---- o servidor da Emma faz parte do LUMNA: se não está no ar, o serviço o liga (emma-servidor/iniciar) e religa se cair ---- */
+
+static GPid servidor_pid;
+static gint64 servidor_tentou;   /* monotônico: a última vez que ligou (não insiste mais que uma vez por minuto) */
+
+static char *servidor_iniciador(void) {
+	const char *env = g_getenv("LUMNA_EMMA_SERVIDOR");
+	if (env && *env) {
+		return strcmp(env, "off") ? g_strdup(env) : NULL;
+	}
+	char *exe = g_file_read_link("/proc/self/exe", NULL), *pasta = exe ? g_path_get_dirname(exe) : NULL;
+	char *cand[] = { pasta ? g_build_filename(pasta, "..", "emma-servidor", "iniciar", NULL) : NULL, g_strdup("/usr/lib/lumna/lumna-emma") };
+	char *r = NULL;
+	for (guint i = 0; i < G_N_ELEMENTS(cand); i++) {
+		if (!r && cand[i] && g_file_test(cand[i], G_FILE_TEST_IS_EXECUTABLE)) {
+			r = g_strdup(cand[i]);
+		}
+		g_free(cand[i]);
+	}
+	g_free(exe);
+	g_free(pasta);
+	return r;
+}
+
+static void servidor_saiu(GPid pid, gint status, gpointer d) {
+	(void)d;
+	(void)status;
+	g_spawn_close_pid(pid);
+	if (pid == servidor_pid) {
+		servidor_pid = 0;
+	}
+}
+
+static void servidor_ligar(void) {
+	if (servidor_pid || g_get_monotonic_time() - servidor_tentou < 60 * G_USEC_PER_SEC) {
+		return;
+	}
+	char *ini = servidor_iniciador();
+	if (!ini) {
+		return;
+	}
+	servidor_tentou = g_get_monotonic_time();
+	char *dir = g_build_filename(g_get_user_state_dir(), "lumna", NULL), *log = g_build_filename(dir, "emma-servidor.log", NULL);
+	g_mkdir_with_parents(dir, 0700);
+	char *cmd = g_strdup_printf("exec %s >>'%s' 2>&1", ini, log); /* a saída vai para ~/.local/state/lumna/emma-servidor.log */
+	char *argv[] = { "/bin/sh", "-c", cmd, NULL };
+	GError *e = NULL;
+	if (g_spawn_async(NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, &servidor_pid, &e)) {
+		g_child_watch_add(servidor_pid, servidor_saiu, NULL);
+		g_message("liguei o servidor da Emma: %s", ini);
+	} else {
+		g_warning("não consegui ligar o servidor da Emma (%s): %s", ini, e->message);
+		g_clear_error(&e);
+	}
+	g_free(cmd);
+	g_free(log);
+	g_free(dir);
+	g_free(ini);
+}
+
+/* bit 0: o servidor deixou o LUMNA entrar; bit 1: alguém responde na porta (um servidor de fora, sem a chave: não liga outro) */
 static gboolean servidor_pronto(gpointer d) {
-	servidor_ok = GPOINTER_TO_INT(d);
+	int v = GPOINTER_TO_INT(d);
+	servidor_ok = v & 1;
+	if (!(v & 1) && !(v & 2)) {
+		servidor_ligar();
+	}
 	return G_SOURCE_REMOVE;
 }
 
 static gpointer online_linha(gpointer d) {
 	(void)d;
-	bool srv = emmab_pronto();
+	bool srv = emmab_pronto(), no_ar = srv || emmab_no_ar();
 	if (srv) {
 		char *cfg = NULL, *e = NULL;
 		if (emmab_chamar("GET", "/api/settings", NULL, &cfg, &e) == 200) {
@@ -1119,7 +1184,7 @@ static gpointer online_linha(gpointer d) {
 	char *erro = NULL;
 	bool reserva = emmal_provedor("chat", &p, &erro);
 	g_free(erro);
-	g_main_context_invoke(NULL, servidor_pronto, GINT_TO_POINTER(srv));
+	g_main_context_invoke(NULL, servidor_pronto, GINT_TO_POINTER((srv ? 1 : 0) | (no_ar ? 2 : 0)));
 	g_main_context_invoke(NULL, online_pronto, GINT_TO_POINTER(srv || reserva));
 	return NULL;
 }
@@ -1149,6 +1214,9 @@ static int como_cliente(int argc, char **argv) {
 }
 
 static gboolean sair(gpointer d) {
+	if (servidor_pid) {
+		kill(servidor_pid, SIGTERM);
+	}
 	(void)d;
 	g_main_loop_quit(loop);
 	return G_SOURCE_REMOVE;
