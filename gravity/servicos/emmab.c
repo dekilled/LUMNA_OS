@@ -11,12 +11,6 @@
 #define TOKEN_VALE_S (50 * 60)
 
 static GMutex trinco;
-/* depois de o servidor recusar o login, espera um pouco antes de tentar de novo: insistir só trava a conta ("Muitas tentativas") */
-static gint64 pausa_ate;
-static char pausa_msg[240];
-#define PAUSA_LOGIN_S 120
-static char *token;
-static gint64 token_ate;                  /* monotônico, em µs */
 static SoupSession *sessao_curta, *sessao_longa;
 static GCancellable *corte;               /* a resposta que está chegando */
 static char sessao_id[EMMAB_NN][80];
@@ -202,41 +196,11 @@ bool emmab_pronto(void) {
 
 /* ---- entrar ---- */
 
-static bool conta_local(char **email, char **senha) {
-	char *p = g_build_filename(g_get_user_config_dir(), "lumna", "emma", "backend.env", NULL), *t = NULL;
-	bool ok = false;
-	if (g_file_get_contents(p, &t, NULL, NULL)) {
-		char **ls = g_strsplit(t, "\n", -1);
-		for (int i = 0; ls[i]; i++) {
-			char *l = g_strstrip(ls[i]);
-			char *eq = strchr(l, '=');
-			if (!eq) {
-				continue;
-			}
-			*eq = '\0';
-			char *v = g_strstrip(eq + 1);
-			size_t n = strlen(v);
-			if (n >= 2 && (v[0] == '"' || v[0] == '\'') && v[n - 1] == v[0]) {
-				v[n - 1] = '\0';
-				v++;
-			}
-			if (!strcmp(g_strstrip(l), "ADMIN_EMAIL")) {
-				g_free(*email);
-				*email = g_strdup(v);
-			} else if (!strcmp(l, "ADMIN_PASSWORD")) {
-				g_free(*senha);
-				*senha = g_strdup(v);
-			}
-		}
-		g_strfreev(ls);
-		ok = *email && **email && *senha && **senha;
-	}
-	g_free(t);
-	g_free(p);
-	return ok;
-}
+/* ---- entrar: sem login. Um token único, que o próprio servidor da Emma deixa neste computador ---- */
 
-/* o token de API do servidor da Emma (criado no harness, em Configurações > Conta): $LUMNA_EMMA_TOKEN, ou o guardado em emma.json */
+#define CHAVE_ARQUIVO "chave" /* ~/.config/lumna/emma/chave: o servidor cria ao ligar (só o usuário lê) */
+
+/* o token: $LUMNA_EMMA_TOKEN, um guardado em emma.json (um servidor em outro computador), ou a chave que o servidor deixa aqui */
 static char *token_api(void) {
 	const char *env = g_getenv("LUMNA_EMMA_TOKEN");
 	if (env && *env) {
@@ -246,8 +210,7 @@ static char *token_api(void) {
 	if (t) {
 		return t;
 	}
-	/* a chave que o próprio servidor deixa neste computador (~/.config/lumna/emma/chave): entra sem ninguém digitar nada */
-	char *p = g_build_filename(g_get_user_config_dir(), "lumna", "emma", "chave", NULL), *txt = NULL;
+	char *p = g_build_filename(g_get_user_config_dir(), "lumna", "emma", CHAVE_ARQUIVO, NULL), *txt = NULL;
 	if (g_file_get_contents(p, &txt, NULL, NULL)) {
 		g_strstrip(txt);
 		if (g_str_has_prefix(txt, "lumna_") && !strpbrk(txt, " \t\r\n")) {
@@ -258,15 +221,6 @@ static char *token_api(void) {
 	g_free(txt);
 	g_free(p);
 	return t;
-}
-
-bool emmab_email_ler(char *email, size_t tam) {
-	char *e = NULL, *senha = NULL;
-	conta_local(&e, &senha);
-	g_strlcpy(email, e ? e : "", tam);
-	g_free(e);
-	g_free(senha);
-	return email[0] != '\0';
 }
 
 bool emmab_token_ler(char *mascara, size_t tam) {
@@ -284,18 +238,10 @@ bool emmab_token_ler(char *mascara, size_t tam) {
 	return mascara[0] != '\0';
 }
 
-/* ADMIN_EMAIL=... ADMIN_PASSWORD=... entre aspas que o leitor de conta_local entende (sem o mesmo tipo de aspas dentro) */
-static char *valor_env(const char *v) {
-	if (!strchr(v, '"')) {
-		return g_strdup_printf("\"%s\"", v);
-	}
-	return !strchr(v, '\'') ? g_strdup_printf("'%s'", v) : NULL;
-}
-
-bool emmab_conta_gravar(const char *url, const char *token, const char *email, const char *senha, char **erro) {
-	if (token && *token && (!g_str_has_prefix(token, "lumna_") || strpbrk(token, " \t\r\n\"\\"))) {
+bool emmab_conta_gravar(const char *url, const char *tok, char **erro) {
+	if (tok && *tok && (!g_str_has_prefix(tok, "lumna_") || strpbrk(tok, " \t\r\n\"\\"))) {
 		if (erro) {
-			*erro = g_strdup("Isso não parece um token da Emma: ele começa com lumna_ (gere em Configurações > Conta, no harness).");
+			*erro = g_strdup("Isso não parece um token da Emma: ele começa com lumna_.");
 		}
 		return false;
 	}
@@ -305,9 +251,9 @@ bool emmab_conta_gravar(const char *url, const char *token, const char *email, c
 		emmab_config_gravar("url", v->str);
 		g_string_free(v, TRUE);
 	}
-	if (token && *token) {
+	if (tok && *tok) {
 		GString *v = g_string_new(NULL);
-		json_escrever_texto(v, token);
+		json_escrever_texto(v, tok);
 		bool ok = emmab_config_gravar("token", v->str);
 		g_string_free(v, TRUE);
 		if (!ok) {
@@ -317,49 +263,22 @@ bool emmab_conta_gravar(const char *url, const char *token, const char *email, c
 			return false;
 		}
 	}
-	if ((email && *email) || (senha && *senha)) {
-		char *e0 = NULL, *s0 = NULL;
-		conta_local(&e0, &s0);
-		char *e1 = valor_env(email && *email ? email : e0 ? e0 : ""), *s1 = valor_env(senha && *senha ? senha : s0 ? s0 : "");
-		bool ok = false;
-		if (e1 && s1 && !strpbrk(email ? email : "", "\n\r") && !strpbrk(senha ? senha : "", "\n\r")) {
-			char *dir = g_build_filename(g_get_user_config_dir(), "lumna", "emma", NULL), *p = g_build_filename(dir, "backend.env", NULL);
-			char *conteudo = g_strdup_printf("ADMIN_EMAIL=%s\nADMIN_PASSWORD=%s\n", e1, s1), *tmp = g_strconcat(p, ".tmp", NULL);
-			g_mkdir_with_parents(dir, 0700);
-			ok = g_file_set_contents(tmp, conteudo, -1, NULL) && g_chmod(tmp, 0600) == 0 && g_rename(tmp, p) == 0;
-			g_free(tmp);
-			g_free(conteudo);
-			g_free(p);
-			g_free(dir);
-		}
-		g_free(e1);
-		g_free(s1);
-		g_free(e0);
-		g_free(s0);
-		if (!ok) {
-			if (erro) {
-				*erro = g_strdup("Não consegui guardar o e-mail e a senha (sem quebra de linha nem os dois tipos de aspas).");
-			}
-			return false;
-		}
-		emmab_config_gravar("refresh_token", NULL); /* a sessão de antes era de outra conta */
-	}
-	emmab_reentrar();
 	return true;
 }
 
 void emmab_reentrar(void) {
-	g_mutex_lock(&trinco);
-	g_free(token);
-	token = NULL;
-	pausa_ate = 0;
-	g_mutex_unlock(&trinco);
 }
 
-static void guardar_token(const char *t) {
-	g_free(token);
-	token = g_strdup(t);
-	token_ate = g_get_monotonic_time() + (gint64)TOKEN_VALE_S * G_USEC_PER_SEC;
+/* nunca faz login (senha errada tranca a conta do harness): só o token; sem ele, o servidor fica de fora e a Emma usa a reserva */
+static char *acesso(char **erro) {
+	char *t = token_api();
+	if (!t && erro && !*erro) {
+		*erro = g_strdup("O servidor da Emma ainda não deixou a chave do LUMNA (~/.config/lumna/emma/chave): atualize e reinicie o servidor.");
+	}
+	return t;
+}
+
+static void esquecer_token(void) {
 }
 
 static char *texto_de(const char *json, const char *chave) {
@@ -368,105 +287,6 @@ static char *texto_de(const char *json, const char *chave) {
 	char *r = t ? g_strdup(t) : NULL;
 	json_liberar(j);
 	return r;
-}
-
-/* o token de acesso: o guardado, renovado pelo refresh token, ou um login com a conta local */
-static char *acesso(char **erro) {
-	char *api = token_api();
-	if (api) {
-		return api; /* o token de API vale como está: sem login, sem renovar */
-	}
-	g_mutex_lock(&trinco);
-	if (token && g_get_monotonic_time() < token_ate) {
-		char *t = g_strdup(token);
-		g_mutex_unlock(&trinco);
-		return t;
-	}
-	if (g_get_monotonic_time() < pausa_ate) {
-		if (erro && !*erro) {
-			*erro = g_strdup(pausa_msg);
-		}
-		g_mutex_unlock(&trinco);
-		return NULL;
-	}
-	g_mutex_unlock(&trinco);
-	sessoes();
-	char *r = NULL, *refresh = emmab_config_texto("refresh_token"), *novo = NULL;
-	bool recusado = false;
-	if (refresh) {
-		GString *c = g_string_new("{\"refresh_token\":");
-		json_escrever_texto(c, refresh);
-		g_string_append_c(c, '}');
-		int st = pedir(sessao_curta, "POST", "/api/auth/refresh", NULL, c->str, &r, erro);
-		g_string_free(c, TRUE);
-		if (st == 200) {
-			novo = texto_de(r, "access_token");
-		} else if (st == 0) {
-			g_free(r);
-			g_free(refresh);
-			return NULL;
-		}
-		g_free(r);
-		r = NULL;
-	}
-	g_free(refresh);
-	if (!novo) {
-		char *email = NULL, *senha = NULL;
-		if (conta_local(&email, &senha)) {
-			GString *c = g_string_new("{\"email\":");
-			json_escrever_texto(c, email);
-			g_string_append(c, ",\"password\":");
-			json_escrever_texto(c, senha);
-			g_string_append(c, ",\"remember\":true}");
-			int st = pedir(sessao_curta, "POST", "/api/auth/login", NULL, c->str, &r, erro);
-			g_string_free(c, TRUE);
-			if (st == 200) {
-				novo = texto_de(r, "access_token");
-				char *rf = texto_de(r, "refresh_token");
-				GString *v = g_string_new(NULL);
-				if (rf) {
-					json_escrever_texto(v, rf);
-					emmab_config_gravar("refresh_token", v->str);
-				}
-				g_string_free(v, TRUE);
-				g_free(rf);
-				GString *e = g_string_new(NULL);
-				json_escrever_texto(e, email);
-				emmab_config_gravar("email", e->str);
-				g_string_free(e, TRUE);
-			} else {
-				if (erro && !*erro) {
-					char *d = detalhe(r);
-					*erro = d ? d : g_strdup_printf("A Emma recusou o login (%d).", st);
-				}
-				recusado = st != 0;
-			}
-			g_free(r);
-		} else if (erro && !*erro) {
-			*erro = g_strdup("Coloque o endereço e o token da Emma (Painel > Emma > Provedores e modelos).");
-		}
-		g_free(email);
-		g_free(senha);
-	}
-	if (novo) {
-		g_mutex_lock(&trinco);
-		guardar_token(novo);
-		pausa_ate = 0;
-		g_mutex_unlock(&trinco);
-	} else if (recusado) {
-		g_mutex_lock(&trinco);
-		pausa_ate = g_get_monotonic_time() + (gint64)PAUSA_LOGIN_S * G_USEC_PER_SEC;
-		g_snprintf(pausa_msg, sizeof(pausa_msg), "%s", erro && *erro ? *erro : "O servidor recusou o login.");
-		g_mutex_unlock(&trinco);
-	}
-	return novo;
-}
-
-static void esquecer_token(void) {
-	g_mutex_lock(&trinco);
-	g_free(token);
-	token = NULL;
-	g_mutex_unlock(&trinco);
 }
 
 int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro) {

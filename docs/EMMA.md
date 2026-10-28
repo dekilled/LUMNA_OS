@@ -132,8 +132,9 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 - Na primeira vez, `/usr/lib/lumna/lumna-emma` cria `~/.config/lumna/emma/backend.env` (modo 600)
   com segredos aleatórios e uma conta local (`$USER@lumna.local` + senha aleatória). O painel lê
   esse arquivo e entra sozinho; dados em `~/.local/share/lumna-emma`.
-- **O servidor da Emma é o motor** (skills, memória, RAG e as conversas dele). O LUMNA entra nele sozinho, sem tela de login: com a **chave local** que o próprio
-  backend cria ao ligar em `~/.config/lumna/emma/chave` (modo 600; `LUMNA_KEY_FILE` muda o lugar, `off` desliga), ou com a conta local abaixo.
+- **O servidor da Emma é o motor** (skills, memória, RAG e as conversas dele). O LUMNA entra nele **sem login nenhum**: com o token único que o próprio
+  backend cria ao ligar em `~/.config/lumna/emma/chave` (modo 600; `LUMNA_KEY_FILE` muda o lugar, `off` desliga). O LUMNA nunca tenta e-mail e senha
+  (uma senha errada trancaria a conta do harness); sem o token, o servidor fica de fora e vale a reserva.
 - **Reserva sem servidor:** se o servidor estiver desligado, a Emma conversa **direto com o provedor de IA** (Ollama, OpenAI, Gemini, Claude ou qualquer API compatível com
   OpenAI) com a URL, a chave e o modelo de Painel > Emma > Provedores e Roteamento (`~/.config/lumna/emma/provedores.json`, modo 600). Sem skills, memória nem RAG; as conversas
   da reserva ficam em `~/.local/share/lumna/emma` (`servicos/emmal.c` e `emmas.c`). Quando o servidor volta, ele volta a ser o motor.

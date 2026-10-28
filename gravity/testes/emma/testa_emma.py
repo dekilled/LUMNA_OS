@@ -14,7 +14,7 @@ cfg = os.path.join(T, "cfg")
 run = os.path.join(T, "run")
 os.makedirs(os.path.join(cfg, "lumna", "emma"))
 os.makedirs(run, mode=0o700)
-open(os.path.join(cfg, "lumna", "emma", "backend.env"), "w").write("ADMIN_EMAIL=eu@lumna.local\nADMIN_PASSWORD=segredo\n")
+open(os.path.join(cfg, "lumna", "emma", "chave"), "w").write("lumna_chavedeteste0123456789\n")  # o token único que o servidor deixa
 
 # a fala: 0,6 s de ruído baixo, 1,6 s de "voz" alta, 1,6 s de silêncio (PCM 16 kHz)
 pcm = bytearray()
@@ -139,7 +139,9 @@ try:
     confere(espera(lambda: "/api/sessions/sess-9/chat" in log()), "a conversa do app não chegou à sessão dela no servidor")
     confere('"skill_id": "sk1"' in log().split("/api/sessions/sess-9/chat")[-1], "a skill não foi ao servidor")
     c0 = pede("conta")
-    confere(c0.get("ok") is True and c0.get("tem_token") is False, f"a conta não veio como esperado: {c0}")
+    confere(c0.get("ok") is True and c0.get("tem_token") is True and "0123456789" not in json.dumps(c0), f"o token do servidor não foi achado (ou vazou inteiro): {c0}")
+    confere("/api/auth/login" not in log() and "/api/auth/refresh" not in log(), "o LUMNA tentou fazer login: não pode (trava a conta do harness)")
+    confere("auth=Bearer lumna_chavedeteste0123456789" in log(), "o LUMNA não mandou o token do servidor")
 
     # o Painel: buscar os modelos e testar o provedor (o serviço fala direto com ele, com ou sem servidor)
     url_prov = f"http://127.0.0.1:{prov_porta}/v1"

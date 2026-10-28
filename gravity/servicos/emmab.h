@@ -1,8 +1,7 @@
 /*
- * O backend da Emma (NewHarnessV2, por padrão em 127.0.0.1:8001), para o serviço lumna-emma. Entra com a
- * conta local do pacote lumna-emma (~/.config/lumna/emma/backend.env) ou com o que o app da Emma guardou
- * em ~/.config/lumna/emma.json (o mesmo arquivo do shell antigo: url, email, refresh_token, os ids das
- * conversas e as permissões das ações).
+ * O backend da Emma (NewHarnessV2, por padrão em 127.0.0.1:8001), para o serviço lumna-emma. Sem login: entra com o token
+ * único que o próprio servidor deixa em ~/.config/lumna/emma/chave ao ligar. Em ~/.config/lumna/emma.json ficam o endereço,
+ * os ids das conversas e as permissões das ações.
  *
  * Tudo aqui bloqueia: chame de uma linha à parte. Para testar: $LUMNA_EMMA_URL (no lugar do endereço).
  */
@@ -18,12 +17,11 @@
 enum { EMMAB_APP, EMMAB_ASSIST, EMMAB_NN };
 
 const char *emmab_url(void);
-/* a conta de que o serviço entra no backend: o endereço e o token de API (criado no harness; guardados em emma.json, só do usuário).
- * NULL ou vazio: fica como está. O que valia antes (a conta local de backend.env) segue valendo enquanto não houver token */
-bool emmab_conta_gravar(const char *url, const char *token, const char *email, const char *senha, char **erro);
-bool emmab_email_ler(char *email, size_t tam);   /* o e-mail da conta local ("" : nenhum) */
+/* sem login: o serviço entra no servidor com um token único, que o próprio servidor deixa em ~/.config/lumna/emma/chave ao ligar
+ * (ou um guardado com emmab_conta_gravar, para um servidor em outro computador) */
+bool emmab_conta_gravar(const char *url, const char *token, char **erro);
 bool emmab_token_ler(char *mascara, size_t tam);  /* "lumna_abcd…wxyz" (nunca o token inteiro); "" se não há */
-void emmab_reentrar(void);                        /* esquece o acesso guardado: o próximo pedido pega de novo */
+void emmab_reentrar(void);
 bool emmab_no_ar(void);
 bool emmab_pronto(void);                      /* o backend responde E deixa o LUMNA entrar (a chave local, o token ou a conta) */                       /* o backend respondeu agora */
 

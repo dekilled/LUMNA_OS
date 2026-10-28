@@ -22,6 +22,7 @@ def registrar(linha):
             f.write(linha + "\n")
 
 
+TOKEN = "lumna_chavedeteste0123456789"
 PROVS = []
 ROUTING = {}
 SENHA = {"ok": "segredo"}
@@ -50,8 +51,19 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def sem_token(self):
+        """Como o servidor de verdade: sem o token, 401 (o LUMNA não faz login)."""
+        if self.path in ("/api/", "/api/auth/login", "/api/auth/refresh"):
+            return False
+        if self.headers.get("Authorization", "") != f"Bearer {TOKEN}":
+            self.json({"detail": "Não autenticado"}, 401)
+            return True
+        return False
+
     def do_GET(self):
         registrar(f"GET {self.path} auth={self.headers.get('Authorization', '')}")
+        if self.sem_token():
+            return
         if self.path == "/api/providers":
             return self.json([prov_publico(p) for p in PROVS])
         if self.path == "/api/settings":
@@ -82,6 +94,8 @@ class H(BaseHTTPRequestHandler):
     def do_PATCH(self):
         dados = self.corpo()
         registrar(f"PATCH {self.path} {dados.decode()[:300]}")
+        if self.sem_token():
+            return
         if self.path.startswith("/api/providers/"):
             c = json.loads(dados or b"{}")
             for p in PROVS:
@@ -96,6 +110,8 @@ class H(BaseHTTPRequestHandler):
     def do_PUT(self):
         dados = self.corpo()
         registrar(f"PUT {self.path} {dados.decode()[:600]}")
+        if self.sem_token():
+            return
         if self.path == "/api/settings":
             ROUTING.clear()
             ROUTING.update(json.loads(dados or b"{}").get("routing", {}))
@@ -104,6 +120,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         registrar(f"DELETE {self.path}")
+        if self.sem_token():
+            return
         if self.path.startswith("/api/providers/"):
             pid = self.path.rsplit("/", 1)[1]
             PROVS[:] = [p for p in PROVS if p["id"] != pid]
@@ -128,6 +146,8 @@ class H(BaseHTTPRequestHandler):
         except Exception:
             c = {}
         registrar(f"POST {self.path} {json.dumps(c, ensure_ascii=False)[:40000]}")
+        if self.sem_token():
+            return
         if self.path == "/api/auth/login":
             return self.json({"access_token": "tok1", "refresh_token": "ref1"})
         if self.path == "/api/auth/refresh":
