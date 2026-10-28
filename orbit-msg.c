@@ -23,6 +23,7 @@ static void usage(const char *self) {
 		"  ecra [ID] | flutuar [ID] | dividir | acao NOME | exec COMANDO\n"
 		"  modo [seguinte|anterior|desktop|gaming|midia [SAIDA]] | modo_layout tela|estender\n"
 		"  toque baixo|move|cima DEDO X Y | subscrever\n"
+		"  tela_cheia [sim|nao|alternar] | copiados | copiar N | limpar_copiados\n"
 		"  (também -t get_outputs, -t get_tree, -t get_workspaces)\n",
 		self);
 }

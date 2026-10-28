@@ -235,6 +235,10 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	}
 	if (wlr_output_is_wl(wlr)) {
 		orbit_clip_ponte_iniciar(server, wlr_wl_backend_get_remote_display(wlr->backend));
+		server->nested_output = wlr;
+		if (server->host_fullscreen_cfg) {
+			orbit_host_fullscreen(server, 1);
+		}
 	}
 	if (server->inhibit_host_shortcuts && wlr_output_is_wl(wlr)) {
 		if (orbit_nested_inhibit(wlr_wl_backend_get_remote_display(wlr->backend), wlr_wl_output_get_surface(wlr))) {
@@ -254,4 +258,19 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 void orbit_outputs_bind(struct orbit_server *server) {
 	server->new_output.notify = server_new_output;
 	wl_signal_add(&server->backend->events.new_output, &server->new_output);
+}
+
+bool orbit_host_fullscreen(struct orbit_server *server, int modo) {
+	struct wlr_output *wlr = server->nested_output;
+	if (!wlr || !wlr_output_is_wl(wlr)) {
+		return false;
+	}
+	bool ligar = modo == 2 ? !server->host_fullscreen : modo != 0;
+	if (!orbit_nested_tela_cheia(wlr, sizeof(struct wlr_output), wlr_wl_output_get_surface(wlr), ligar)) {
+		wlr_log(WLR_ERROR, "não consegui pedir a tela cheia ao compositor de fora (a janela fica como está)");
+		return false;
+	}
+	server->host_fullscreen = ligar;
+	wlr_log(WLR_INFO, "janela do Orbit: %s", ligar ? "tela cheia" : "tela cheia desligada");
+	return true;
 }

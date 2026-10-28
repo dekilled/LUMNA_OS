@@ -173,6 +173,10 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 	} else if (strcasecmp(key, "atalhos_do_sistema") == 0 || strcasecmp(key, "inibir_atalhos") == 0) {
 		server->inhibit_host_shortcuts = strcasecmp(value, "nao") != 0 && strcasecmp(value, "não") != 0 && strcasecmp(value, "no") != 0 &&
 			strcmp(value, "0") != 0;
+	} else if (strcasecmp(key, "tela_cheia") == 0 || strcasecmp(key, "fullscreen") == 0) {
+		/* aninhado: a janela do Orbit abre em tela cheia no compositor de fora */
+		server->host_fullscreen_cfg = strcasecmp(value, "nao") != 0 && strcasecmp(value, "não") != 0 && strcasecmp(value, "no") != 0 &&
+			strcmp(value, "0") != 0;
 	} else if (strcasecmp(key, "emma") == 0) {
 		copy_cmd(server->emma, value);
 	} else if (strcasecmp(key, "emma_voz") == 0) {
@@ -332,6 +336,10 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->emma, "pkill -x lumna-emma-chat || lumna-emma-chat");
 	copy_cmd(server->emma_mic, "lumna-emma ouvir");
 	server->inhibit_host_shortcuts = true;
+	{
+		const char *tc = getenv("ORBIT_TELA_CHEIA"); /* aninhado: abrir em tela cheia (o orbit.ini [geral] tela_cheia vale por cima) */
+		server->host_fullscreen_cfg = tc && *tc && strcmp(tc, "0") != 0;
+	}
 	orbit_mode_config_load(server);
 	orbit_input_config_load(server);
 	orbit_screens_config_load(server);

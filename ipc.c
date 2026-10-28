@@ -500,6 +500,13 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			return;
 		}
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "tela_cheia")) {
+		int modo = !arg1 || !strcmp(arg1, "alternar") ? 2 : (!strcmp(arg1, "nao") || !strcmp(arg1, "não") || !strcmp(arg1, "0")) ? 0 : 1;
+		if (!orbit_host_fullscreen(server, modo)) {
+			fail(b, "só no Orbit aninhado (rodando numa janela de outro Wayland), e o compositor de fora tem de aceitar");
+			return;
+		}
+		put(b, "{\"ok\":true,\"tela_cheia\":%s}", server->host_fullscreen ? "true" : "false");
 	} else if (!strcmp(cmd, "copiados")) {
 		char *lista = orbit_copiados_lista();
 		put(b, "{\"ok\":true,\"itens\":%s}", lista ? lista : "[]");

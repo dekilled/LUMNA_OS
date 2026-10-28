@@ -337,3 +337,48 @@ void orbit_nested_clip_limpar(void) {
 	fonte_fora = NULL;
 	wl_display_flush(clip_remote);
 }
+
+/* ---- tela cheia ---- */
+
+bool orbit_nested_tela_cheia(const void *saida_wlr, unsigned long tam, struct wl_surface *surface, bool ligar) {
+	static struct wl_proxy *toplevel;
+	static const void *de;
+	if (!saida_wlr || !surface) {
+		return false;
+	}
+	if (de != saida_wlr) {
+		toplevel = NULL;
+		de = saida_wlr;
+	}
+	if (!toplevel) {
+		/* depois do struct wlr_output vêm: backend, link (2 ponteiros), surface, own_surface, frame_callback, xdg_surface, xdg_toplevel */
+		const uintptr_t *w = (const uintptr_t *)((const char *)saida_wlr + tam);
+		int pos = -1;
+		for (int i = 0; i < 24; i++) {
+			if (w[i] == (uintptr_t)surface) {
+				pos = i;
+				break;
+			}
+		}
+		if (pos < 0) {
+			return false;
+		}
+		for (int i = pos + 1; i < pos + 10; i++) {
+			uintptr_t v = w[i];
+			if (v < 0x10000 || (v & 7)) {
+				continue; /* um número ou nada: só os ponteiros de verdade se olham */
+			}
+			const char *classe = wl_proxy_get_class((struct wl_proxy *)v);
+			if (classe && !strcmp(classe, "xdg_toplevel")) {
+				toplevel = (struct wl_proxy *)v;
+				break;
+			}
+		}
+		if (!toplevel) {
+			return false;
+		}
+	}
+	/* xdg_toplevel: set_fullscreen (11, com a saída, NULL: a que for) e unset_fullscreen (12) */
+	wl_proxy_marshal_flags(toplevel, ligar ? 11 : 12, NULL, wl_proxy_get_version(toplevel), 0, NULL);
+	return true;
+}

@@ -273,6 +273,12 @@ No log aparece "pedi ao compositor de fora que deixe os atalhos" ou, se ele não
 não sabe), "o Super vai ser dele": aí troque o modificador em [atalho] (Alt+..., Ctrl+Alt+...). Numa máquina
 virtual (QEMU, VirtualBox, WSL) o Super é do sistema de fora e o protocolo não chega lá: use outro modificador.
 
+Tela cheia (a janela do Orbit no compositor de fora): [geral] tela_cheia = sim no orbit.ini abre já em tela cheia; também
+ORBIT_TELA_CHEIA=1 no ambiente (testar-desktop.sh --tela-cheia). Com ele rodando: orbit-msg tela_cheia sim|nao|alternar, a
+ação tela_cheia (atalhos.ini) e Super+F11. O wlroots não entrega o xdg_toplevel da janela, então o Orbit o acha ao lado da
+superfície da saída e pede a tela cheia; se o formato interno do wlroots mudar e não achar, o log diz "não consegui pedir a
+tela cheia" e a janela fica como está.
+
 Copiar e colar (texto) entre o sistema de fora e o Orbit: o Orbit liga as duas áreas de transferência (clip.c do lado do
 wlroots, nested.c do lado do compositor de fora). O que se copia lá fora cola aqui dentro e o contrário. O compositor
 de fora só avisa da cópia quando a janela do Orbit tem o foco, e só aceita uma cópia daqui depois de um toque de tecla

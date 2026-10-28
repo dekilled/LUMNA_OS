@@ -125,6 +125,7 @@ enum orbit_action {
 	ORBIT_SWAP_OUTPUTS, /* trocar os espaços de trabalho entre as telas */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 	ORBIT_MODE_PREV,
+	ORBIT_HOST_FULLSCREEN, /* aninhado: a janela do Orbit em tela cheia (ou de volta) */
 };
 
 struct orbit_bind {
@@ -267,6 +268,8 @@ struct orbit_server {
 	char media_menu[ORBIT_CMD_LEN]; /* o seletor de serviços da Mídia */
 	char emma[ORBIT_CMD_LEN];       /* abre ou fecha o painel da Emma */
 	char emma_mic[ORBIT_CMD_LEN];   /* liga o microfone da Emma (lumna-emma ouvir) */
+	struct wlr_output *nested_output; /* aninhado: a saída que é uma janela do compositor de fora */
+	bool host_fullscreen, host_fullscreen_cfg; /* a janela dele em tela cheia (agora, e [geral] tela_cheia = sim) */
 	bool inhibit_host_shortcuts;    /* aninhado: pede ao Wayland de fora que deixe os atalhos (o Super) com o Orbit */
 	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
 	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
@@ -549,5 +552,8 @@ void orbit_copiados_iniciar(struct orbit_server *server);
 char *orbit_copiados_lista(void); /* JSON; free() */
 bool orbit_copiados_usar(int n);
 void orbit_copiados_limpar(void);
+
+/* aninhado: pôr a janela do Orbit em tela cheia no compositor de fora. modo: 0 sai, 1 entra, 2 alterna; false se não é aninhado ou não deu */
+bool orbit_host_fullscreen(struct orbit_server *server, int modo);
 
 #endif
