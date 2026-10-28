@@ -76,5 +76,5 @@ ln -sf "$AQUI/../session/lumna-modo" "$BIN/lumna-modo"
 echo "Abrindo o desktop novo numa janela (feche-a para sair)..."
 export PATH="$BIN:$PATH"
 export ORBIT_BORDA=0 # as janelas desenham a própria moldura, de cantos redondos
-exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-controle & lumna-emma & lumna-midia servico &
+exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-controle & { mkdir -p ~/.local/state/lumna; lumna-emma 2>>~/.local/state/lumna/emma.log; } & lumna-midia servico &
 	sleep 1; notify-send -a LUMNA "Bem-vindo ao desktop novo" "Os avisos chegam aqui. O sino na topbar abre a central." 2>/dev/null'
