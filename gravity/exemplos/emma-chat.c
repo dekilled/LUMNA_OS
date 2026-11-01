@@ -27,7 +27,7 @@ static bool servidor;
 static double nivel;
 static char erro[300];
 static char campo[512];
-static char conf_id[24], conf_nome[96], conf_desc[256];  /* uma ação que pede licença */
+static char conf_id[24], conf_nome[96], conf_desc[512], conf_detalhe[4096];  /* uma ação que pede licença */
 static char ctx_titulo[160];
 static bool ctx_ativo = true;
 static bool fixado;
@@ -127,6 +127,7 @@ static void evento(const struct json *j) {
 		g_strlcpy(conf_id, json_chave_texto(j, "id"), sizeof(conf_id));
 		g_strlcpy(conf_nome, json_chave_texto(j, "nome"), sizeof(conf_nome));
 		g_strlcpy(conf_desc, json_chave_texto(j, "descricao"), sizeof(conf_desc));
+		g_strlcpy(conf_detalhe, json_chave_texto(j, "detalhe"), sizeof(conf_detalhe));
 		rolar_fim = true;
 	} else if (!strcmp(ev, "erro")) {
 		g_strlcpy(erro, json_chave_texto(j, "mensagem"), sizeof(erro));
@@ -256,6 +257,7 @@ static void desenhar(gv_app *a, void *dados) {
 					.backgroundColor = gv_alfa(gv_t.aviso, 0.12f), .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_alfa(gv_t.aviso, 0.5f), .width = GV_BORDA(1) } }) {
 					gv_texto(gv_fmt("A Emma quer: %s", conf_nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
 					gv_texto(gv_str(conf_desc), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				eu_detalhe(conf_detalhe, gv_t.tamanho_corpo - 2);
 					CLAY(CLAY_ID("em-lic-b"), { .layout = { .childGap = 10 } }) {
 						if (gv_botao(CLAY_ID("em-lic-nao"), NULL, "Agora não", GV_BOTAO_ELEVADO)) {
 							char p[64];

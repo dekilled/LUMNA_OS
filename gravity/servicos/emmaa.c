@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "emmab.h"
+#include "emmaq.h"
 #include "midia.h"
 #include "midiac.h"
 #include "modos.h"
@@ -54,6 +55,30 @@ static const struct emmaa_def catalogo[] = {
 		"aplicativos/instalados, aplicativos/atualizacoes, telas/monitores, telas/modos, teclado/teclado, teclado/atalhos, teclado/mouse, data/hora, data/fuso, "
 		"sobre/computador, sobre/atualizacoes, armazenamento/uso, armazenamento/limpeza, armazenamento/discos, energia/perfil.",
 		"{\"secao\":{\"type\":\"string\",\"description\":\"categoria/seção, como teclado/mouse\"}}", "secao", EMMAA_AGIR, "auto" },
+	{ "arquivos.listar", "Listar uma pasta",
+		"Lista os arquivos de uma pasta do computador. Sem pasta, é a pasta da Emma (~/Emma). Na pasta pessoal se lê à vontade; fora dela (ou em pasta oculta) a pessoa tem de aprovar.",
+		"{\"pasta\":{\"type\":\"string\",\"description\":\"O caminho da pasta (~ é a pasta pessoal; sem barra no começo é dentro de ~/Emma)\"}}", "", EMMAA_LER, "auto" },
+	{ "arquivos.ler", "Ler um arquivo",
+		"Lê um arquivo de texto (até 64 KB). Na pasta pessoal se lê à vontade; fora dela (ou em pasta oculta) a pessoa tem de aprovar. Chaves, senhas e os segredos do LUMNA nunca se leem.",
+		"{\"caminho\":{\"type\":\"string\",\"description\":\"O caminho do arquivo\"}}", "caminho", EMMAA_LER, "auto" },
+	{ "arquivos.escrever", "Escrever um arquivo",
+		"Cria, substitui ou acrescenta texto a um arquivo. A pasta da Emma é ~/Emma, com Histórias e Scripts: lá escreve direto (o que for substituído fica copiado em ~/Emma/.copias). "
+		"Na pasta pessoal cria arquivos novos direto; sobrescrever um arquivo da pessoa, mexer em pasta oculta ou escrever fora da pasta pessoal pede a aprovação dela, que vê o caminho, o motivo e o conteúdo. "
+		"Dê sempre o motivo. Para uma história, use ~/Emma/Histórias; para um script, ~/Emma/Scripts.",
+		"{\"caminho\":{\"type\":\"string\",\"description\":\"O caminho do arquivo (cria as pastas que faltarem)\"},"
+		"\"conteudo\":{\"type\":\"string\",\"description\":\"O texto inteiro do arquivo (ou só o trecho a acrescentar)\"},"
+		"\"acrescentar\":{\"type\":\"boolean\",\"description\":\"true acrescenta ao fim em vez de substituir\"},"
+		"\"motivo\":{\"type\":\"string\",\"description\":\"Para que isso serve, numa frase (a pessoa lê antes de aprovar)\"}}",
+		"caminho,conteudo,motivo", EMMAA_AGIR, "auto" },
+	{ "arquivos.apagar", "Apagar um arquivo",
+		"Manda um arquivo ou pasta para a lixeira (não some de vez). Sempre pede a aprovação da pessoa.",
+		"{\"caminho\":{\"type\":\"string\"},\"motivo\":{\"type\":\"string\",\"description\":\"Por que apagar, numa frase\"}}", "caminho,motivo", EMMAA_PERIGO, "ask" },
+	{ "comando.executar", "Executar um comando",
+		"Executa um comando de terminal (sh -c), por padrão na pasta ~/Emma, por no máximo 60 segundos, e devolve a saída. SEMPRE pede a aprovação da pessoa, que vê o comando e o código dos scripts que ele chama. "
+		"Para algo maior, escreva um script em ~/Emma/Scripts e chame-o. Dê sempre o motivo.",
+		"{\"comando\":{\"type\":\"string\"},\"motivo\":{\"type\":\"string\",\"description\":\"Para que serve, numa frase\"},"
+		"\"pasta\":{\"type\":\"string\",\"description\":\"A pasta onde rodar (opcional)\"},\"segundos\":{\"type\":\"number\",\"description\":\"O prazo, até 120 (padrão 60)\"}}",
+		"comando,motivo", EMMAA_PERIGO, "ask" },
 	{ "notificar", "Notificar", "Mostra um aviso na tela.", "{\"titulo\":{\"type\":\"string\"},\"texto\":{\"type\":\"string\"}}", "titulo", EMMAA_AGIR, "auto" },
 };
 
@@ -531,8 +556,141 @@ void emmaa_iniciar(void) {
 	mpris_iniciar();
 }
 
+/* ---- arquivos e comandos ---- */
+
+static _Thread_local bool aprovado_agora;
+
+static bool e_de_arquivos(const char *n) {
+	return g_str_has_prefix(n, "arquivos.") || !strcmp(n, "comando.executar");
+}
+
+bool emmaa_assincrona(const struct emmaa_def *d) {
+	return !strcmp(d->nome, "comando.executar");
+}
+
+static char *cortar(const char *t, int max) {
+	if ((int)strlen(t) <= max) {
+		return g_strdup(t);
+	}
+	char *c = g_utf8_make_valid(t, max);
+	char *r = g_strdup_printf("%s\n[…mais %d bytes]", c, (int)strlen(t) - max);
+	g_free(c);
+	return r;
+}
+
+int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, char **descricao, char **detalhe, char **porque) {
+	*descricao = *detalhe = *porque = NULL;
+	const char *n = d->nome;
+	if (!e_de_arquivos(n)) {
+		return 0;
+	}
+	const char *caminho = !strcmp(n, "arquivos.listar") ? json_chave_texto(args, "pasta") : json_chave_texto(args, "caminho");
+	const char *motivo = json_chave_texto(args, "motivo");
+	enum emmaq_op op = !strcmp(n, "arquivos.listar") ? EMMAQ_LISTAR : !strcmp(n, "arquivos.ler") ? EMMAQ_LER : !strcmp(n, "arquivos.apagar") ? EMMAQ_APAGAR
+		: !strcmp(n, "comando.executar") ? EMMAQ_EXECUTAR : json_bool(json_chave(args, "acrescentar"), false) ? EMMAQ_ANEXAR : EMMAQ_ESCREVER;
+	const char *pasta_cmd = json_chave_texto(args, "pasta");
+	struct emmaq_juizo j = emmaq_julgar(op, op == EMMAQ_EXECUTAR ? pasta_cmd : caminho);
+	int r = j.veredito == EMMAQ_NEGAR ? 2 : j.veredito == EMMAQ_APROVAR ? 1 : 0;
+	if (r == 2) {
+		*porque = g_strdup(j.porque);
+	} else if (r == 1) {
+		GString *g = g_string_new(NULL);
+		GString *s = g_string_new(NULL);
+		if (op == EMMAQ_EXECUTAR) {
+			char *det = emmaq_detalhe_comando(json_chave_texto(args, "comando"), pasta_cmd);
+			g_string_append(g, det);
+			g_free(det);
+			g_string_append_printf(s, "Executar um comando");
+		} else {
+			const char *o = op == EMMAQ_LISTAR ? "Listar a pasta" : op == EMMAQ_LER ? "Ler" : op == EMMAQ_APAGAR ? "Mandar para a lixeira" : op == EMMAQ_ANEXAR ? "Acrescentar a" : "Escrever em";
+			g_string_append_printf(g, "%s %s", o, j.real);
+			g_string_append_printf(s, "%s %s", o, j.real);
+			if (op == EMMAQ_ESCREVER || op == EMMAQ_ANEXAR) {
+				const char *c = json_chave_texto(args, "conteudo");
+				char *corte = cortar(c, 3000);
+				g_string_append_printf(g, "\n\n--- conteúdo (%d bytes) ---\n%s", (int)strlen(c), corte);
+				g_free(corte);
+			}
+		}
+		if (*motivo) {
+			g_string_append_printf(g, "\n\nMotivo: %s", motivo);
+			g_string_append_printf(s, ". Motivo: %s", motivo);
+		}
+		if (j.porque) {
+			g_string_append_printf(g, "\n\nPor que pede a sua aprovação: %s", j.porque);
+		}
+		*detalhe = g_string_free(g, FALSE);
+		*descricao = g_string_free(s, FALSE);
+	}
+	emmaq_juizo_limpar(&j);
+	return r;
+}
+
+static void arquivos_executar(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r) {
+	const char *n = d->nome;
+	bool cmd = !strcmp(n, "comando.executar");
+	const char *caminho = !strcmp(n, "arquivos.listar") ? json_chave_texto(args, "pasta") : json_chave_texto(args, "caminho");
+	bool anexar = json_bool(json_chave(args, "acrescentar"), false);
+	enum emmaq_op op = !strcmp(n, "arquivos.listar") ? EMMAQ_LISTAR : !strcmp(n, "arquivos.ler") ? EMMAQ_LER : !strcmp(n, "arquivos.apagar") ? EMMAQ_APAGAR
+		: cmd ? EMMAQ_EXECUTAR : anexar ? EMMAQ_ANEXAR : EMMAQ_ESCREVER;
+	struct emmaq_juizo j = emmaq_julgar(op, cmd ? json_chave_texto(args, "pasta") : caminho);
+	if (j.veredito == EMMAQ_NEGAR || (j.veredito == EMMAQ_APROVAR && !aprovado_agora)) {
+		falha(r, j.veredito == EMMAQ_NEGAR ? j.porque : "Isso precisa da sua aprovação.");
+		emmaq_juizo_limpar(&j);
+		return;
+	}
+	char *erro = NULL, *saida = NULL;
+	bool bom = true;
+	if (cmd) {
+		const char *c = json_chave_texto(args, "comando");
+		int seg = (int)json_numero(json_chave(args, "segundos"), 60);
+		seg = seg < 1 ? 60 : seg > 120 ? 120 : seg;
+		if (!*c || strlen(c) > 4000) {
+			erro = g_strdup("Comando vazio ou longo demais.");
+		} else {
+			saida = emmaq_executar(c, json_chave_texto(args, "pasta"), seg, &bom, &erro);
+		}
+	} else if (op == EMMAQ_LISTAR) {
+		saida = emmaq_listar(j.real, &erro);
+	} else if (op == EMMAQ_LER) {
+		saida = emmaq_ler(j.real, &erro);
+	} else if (op == EMMAQ_APAGAR) {
+		saida = emmaq_apagar(j.real, &erro);
+	} else {
+		saida = emmaq_escrever(j.real, json_chave_texto(args, "conteudo"), anexar, &erro);
+	}
+	if (erro || !saida) {
+		falha(r, erro ? erro : "Não deu certo.");
+	} else {
+		r->ok = bom;
+		g_free(r->resumo);
+		g_free(r->conteudo);
+		r->conteudo = g_strdup(saida);
+		if (cmd) {
+			r->resumo = g_strdup(bom ? "Executei o comando." : "O comando não deu certo.");
+		} else if (op == EMMAQ_LER || op == EMMAQ_LISTAR) {
+			r->resumo = g_strdup_printf("%s %s.", op == EMMAQ_LER ? "Li" : "Listei", j.real);
+		} else {
+			r->resumo = g_strdup(saida);
+		}
+	}
+	g_free(erro);
+	g_free(saida);
+	emmaq_juizo_limpar(&j);
+}
+
+void emmaa_executar_aprovado(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r) {
+	aprovado_agora = true;
+	emmaa_executar(d, args, r);
+	aprovado_agora = false;
+}
+
 void emmaa_executar(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r) {
 	const char *n = d->nome;
+	if (e_de_arquivos(n)) {
+		arquivos_executar(d, args, r);
+		return;
+	}
 	if (!strcmp(n, "midia.estado")) {
 		midia_estado(r);
 	} else if (!strcmp(n, "midia.abrir")) {

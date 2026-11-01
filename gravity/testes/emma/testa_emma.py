@@ -34,6 +34,7 @@ def sobe(cmd, **kw):
     return p
 
 
+os.environ["EMMA_TESTE_FORA"] = os.path.join(tempfile.gettempdir(), f"emma-fora-{os.getpid()}.txt")  # um arquivo FORA da pasta pessoal (o HOME do teste é T)
 env = dict(os.environ, LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
            LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
            PATH=os.path.join(AQUI, "bin") + ":" + os.environ["PATH"], DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent")
@@ -110,6 +111,68 @@ try:
     pede("ouvir")
     confere(espera(lambda: "/api/stt" in log(), 12), "o áudio não chegou ao /api/stt")
     confere(espera(lambda: log().count("wtype -k XF86AudioPlay") > antes, 8), "a fala 'pausa' não virou ação")
+
+    # arquivos e comandos: a política de cada chamada (direto, com aprovação, recusado)
+    import threading
+    home = T
+
+    def conversa_aprovando(texto, decisao):
+        ass = socket.socket(socket.AF_UNIX)
+        ass.connect(os.path.join(run, "lumna-emma.sock"))
+        ass.sendall(b"assinar\n")
+        ass.settimeout(1)
+        res = {}
+        th = threading.Thread(target=lambda: res.update(pede("celular", texto)))
+        th.start()
+        visto, confirmar, t0 = b"", None, time.time()
+        while time.time() - t0 < 8 and not confirmar and th.is_alive():
+            try:
+                visto += ass.recv(65536)
+            except socket.timeout:
+                pass
+            for linha in visto.decode(errors="ignore").splitlines():
+                if linha.startswith("{") and '"evento":"confirmar"' in linha:
+                    try:
+                        confirmar = json.loads(linha)
+                    except ValueError:
+                        pass
+        if confirmar and decisao:
+            pede("confirmar", confirmar["id"], decisao)
+        th.join(20)
+        ass.close()
+        return res, confirmar
+
+    # escrever na pasta dela: direto, sem pedir
+    r, conf = conversa_aprovando("escreve historia do dragao", None)
+    historia = os.path.join(home, "Emma", "Histórias", "conto.md")
+    confere(conf is None, f"escrever na pasta da Emma não devia pedir aprovação: {conf}")
+    confere(os.path.exists(historia) and open(historia).read() == "Era uma vez a Emma.\n", "a história não foi guardada em ~/Emma/Histórias")
+    # ler um segredo: recusa direta, sem nem perguntar
+    r, conf = conversa_aprovando("le segredo", None)
+    confere(conf is None, "ler a chave do LUMNA não devia nem pedir aprovação (é recusado)")
+    confere('não mexe' in log().split("tool-result")[-1] or "A Emma não mexe" in log(), "a recusa não voltou ao servidor")
+    # escrever fora da pasta pessoal: pede, mostra tudo, e só escreve se deixarem
+    fora = os.environ["EMMA_TESTE_FORA"]
+    r, conf = conversa_aprovando("escreve fora", "nao")
+    confere(conf is not None, "escrever fora da pasta pessoal devia pedir aprovação")
+    if conf:
+        d = conf.get("detalhe", "")
+        confere(fora in d and "conteudo-de-fora" in d and "teste de aprovação" in d and "fora da sua pasta pessoal" in d,
+                f"o cartão não mostra o quê, onde, por quê e o conteúdo: {d!r}")
+    confere(not os.path.exists(fora), "escreveu fora mesmo sem a aprovação")
+    r, conf = conversa_aprovando("escreve fora", "sim")
+    confere(os.path.exists(fora) and open(fora).read() == "conteudo-de-fora\n", "não escreveu fora depois da aprovação")
+    # comando: sempre pede, mostra o comando, e devolve a saída
+    r, conf = conversa_aprovando("roda comando", "sim")
+    confere(conf is not None and "$ echo ola-do-comando" in conf.get("detalhe", ""), f"o cartão do comando não mostra o comando: {conf}")
+    confere("ola-do-comando" in log().split("tool-result")[-1], "a saída do comando não voltou ao servidor")
+    antes_cmd = log().count("ola-do-comando")
+    r, conf = conversa_aprovando("roda comando", "nao")
+    confere(conf is not None and "deixou" in log().split("tool-result")[-1], "negar o comando devia voltar 'você não deixou' ao servidor")
+    confere(log().split("tool-result")[-1].count("ola-do-comando") == 0 and log().count("ola-do-comando") == antes_cmd,
+            "o comando rodou mesmo sem a aprovação")
+    if os.path.exists(fora):
+        os.unlink(fora)
 
     # uma ação desligada no Painel
     open(os.path.join(cfg, "lumna", "emma.json"), "w").write(json.dumps({"permissions": {"audio.volume": "off"}}))

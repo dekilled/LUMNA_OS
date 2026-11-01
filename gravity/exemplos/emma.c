@@ -148,6 +148,7 @@ struct pedido_acao {
 	GCond cond;
 	bool pronto;
 	bool esperando_licenca;
+	bool aprovado; /* a pessoa deixou esta chamada (a política de arquivos e comandos só passa o que pedia aprovação assim) */
 	char id[24];
 };
 
@@ -173,6 +174,37 @@ static void acao_terminar(struct pedido_acao *p) {
 	g_mutex_unlock(&p->trinco);
 }
 
+static gboolean acao_terminar_idle(gpointer d) {
+	acao_terminar(d);
+	return G_SOURCE_REMOVE;
+}
+
+/* um comando pode demorar: roda numa linha à parte, para o serviço seguir atendendo (a conversa espera o resultado, como nas outras) */
+static gpointer acao_linha(gpointer d) {
+	struct pedido_acao *p = d;
+	const struct emmaa_def *def = emmaa_achar_ferramenta(p->nome);
+	if (p->aprovado) {
+		emmaa_executar_aprovado(def, p->args, &p->res);
+	} else {
+		emmaa_executar(def, p->args, &p->res);
+	}
+	g_idle_add(acao_terminar_idle, p);
+	return NULL;
+}
+
+static void acao_rodar(const struct emmaa_def *def, struct pedido_acao *p) {
+	if (emmaa_assincrona(def)) {
+		g_thread_unref(g_thread_new("emma-acao", acao_linha, p));
+		return;
+	}
+	if (p->aprovado) {
+		emmaa_executar_aprovado(def, p->args, &p->res);
+	} else {
+		emmaa_executar(def, p->args, &p->res);
+	}
+	acao_terminar(p);
+}
+
 static gboolean acao_na_principal(gpointer d) {
 	struct pedido_acao *p = d;
 	const struct emmaa_def *def = emmaa_achar_ferramenta(p->nome);
@@ -187,21 +219,33 @@ static gboolean acao_na_principal(gpointer d) {
 		p->res.ok = false;
 		p->res.resumo = g_strdup("Essa ação está desligada nas permissões da Emma.");
 		acao_terminar(p);
-	} else if (!strcmp(perm, "ask")) {
+		return G_SOURCE_REMOVE;
+	}
+	/* a política desta chamada (arquivos e comandos): roda, pede a aprovação (com o quê, onde, por quê e o código) ou recusa */
+	char *desc_c = NULL, *detalhe = NULL, *porque = NULL;
+	int ver = emmaa_avaliar(def, p->args, &desc_c, &detalhe, &porque);
+	if (ver == 2) {
+		p->res.ok = false;
+		p->res.resumo = g_strdup(porque);
+		acao_terminar(p);
+	} else if (ver == 1 || !strcmp(perm, "ask")) {
 		g_snprintf(p->id, sizeof(p->id), "c%d", ++proximo_id);
 		p->esperando_licenca = true;
 		g_hash_table_insert(licencas, g_strdup(p->id), p);
-		char *id = js(p->id), *rot = js(def->rotulo), *desc = js(def->descricao);
-		char *k = g_strdup_printf("\"id\":%s,\"nome\":%s,\"descricao\":%s", id, rot, desc);
+		char *id = js(p->id), *rot = js(def->rotulo), *desc = js(desc_c ? desc_c : def->descricao), *det = js(detalhe ? detalhe : "");
+		char *k = g_strdup_printf("\"id\":%s,\"nome\":%s,\"descricao\":%s,\"detalhe\":%s", id, rot, desc, det);
 		emitir_form("confirmar", k);
 		g_free(k);
 		g_free(id);
 		g_free(rot);
 		g_free(desc);
+		g_free(det);
 	} else {
-		emmaa_executar(def, p->args, &p->res);
-		acao_terminar(p);
+		acao_rodar(def, p);
 	}
+	g_free(desc_c);
+	g_free(detalhe);
+	g_free(porque);
 	return G_SOURCE_REMOVE;
 }
 
@@ -214,12 +258,13 @@ static void decidir(const char *id, bool sim) {
 	p->esperando_licenca = false;
 	const struct emmaa_def *def = emmaa_achar_ferramenta(p->nome);
 	if (sim && def) {
-		emmaa_executar(def, p->args, &p->res);
+		p->aprovado = true;
+		acao_rodar(def, p);
 	} else {
 		p->res.ok = false;
 		p->res.resumo = g_strdup("Você não deixou.");
+		acao_terminar(p);
 	}
-	acao_terminar(p);
 }
 
 /* ---- uma conversa ---- */

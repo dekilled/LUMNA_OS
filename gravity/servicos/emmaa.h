@@ -46,6 +46,14 @@ char *emmaa_ferramentas_json(bool bloqueado);
 const char *emmaa_permissao(const struct emmaa_def *d);
 bool emmaa_seguro_bloqueado(const struct emmaa_def *d);
 
+/* A decisão para ESTA chamada, pela política de arquivos e comandos (emmaq.h): 0 roda direto, 1 pede a aprovação (descricao e detalhe
+ * dizem o que, onde, por quê e o código), 2 recusa (porque). As outras ações dão sempre 0. Libere as três com g_free. */
+int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, char **descricao, char **detalhe, char **porque);
+/* roda numa linha à parte (pode demorar: um comando) */
+bool emmaa_assincrona(const struct emmaa_def *d);
+/* como emmaa_executar, para o que a pessoa já aprovou (a política só deixa passar o que pedia aprovação se vier por aqui) */
+void emmaa_executar_aprovado(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r);
+
 /* executa sem perguntar nada (quem chama já decidiu) */
 void emmaa_executar(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r);
 void emmaa_res_limpar(struct emmaa_res *r);

@@ -7,7 +7,7 @@ Cada pedido que chega vai para o ARQUIVO_DE_LOG, uma linha "METODO CAMINHO CORPO
 texto que estiver em ARQUIVO_DO_STT. No chat: "netflix" faz a Emma chamar lumna_midia_abrir e esperar o
 resultado; "volume" chama lumna_audio_volume; qualquer outra coisa é uma resposta em duas frases.
 """
-import json, sys, threading, time
+import json, os, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORTA, LOG = int(sys.argv[1]), sys.argv[2]
@@ -181,7 +181,16 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         ferramenta = None
-        if "netflix" in texto:
+        fora = os.environ.get("EMMA_TESTE_FORA", "/tmp/emma-fora.txt")
+        if "escreve historia" in texto:
+            ferramenta = ("lumna_arquivos_escrever", {"caminho": "Histórias/conto.md", "conteudo": "Era uma vez a Emma.\n", "motivo": "guardar a história"}, "Guardei a história.")
+        elif "escreve fora" in texto:
+            ferramenta = ("lumna_arquivos_escrever", {"caminho": fora, "conteudo": "conteudo-de-fora\n", "motivo": "teste de aprovação"}, "Escrevi lá fora.")
+        elif "roda comando" in texto:
+            ferramenta = ("lumna_comando_executar", {"comando": "echo ola-do-comando", "motivo": "testar o comando"}, "Rodei o comando.")
+        elif "le segredo" in texto:
+            ferramenta = ("lumna_arquivos_ler", {"caminho": "~/.config/lumna/emma/chave"}, "Tentei ler.")
+        elif "netflix" in texto:
             ferramenta = ("lumna_midia_abrir", {"servico": "netflix"}, "Abri a Netflix. Bom filme!")
         elif "layout" in texto:
             ferramenta = ("lumna_painel_abrir", {"secao": "teclado/teclado"},

@@ -659,3 +659,28 @@ void eu_abrir_secao(const char *secao) {
 void eu_lancar(const char *programa) {
 	lancar(programa, NULL, NULL);
 }
+
+void eu_detalhe(const char *detalhe, float tam) {
+	if (!detalhe || !*detalhe) {
+		return;
+	}
+	/* as primeiras linhas: o cartão não vira uma página (o texto inteiro está na resposta que o servidor recebe, não aqui) */
+	GString *g = g_string_new(NULL);
+	int linhas = 0;
+	for (const char *p = detalhe; *p && linhas < 22 && g->len < 3600; p++) {
+		g_string_append_c(g, *p);
+		linhas += *p == '\n';
+	}
+	bool cortou = detalhe[g->len] != '\0';
+	char *valido = g_utf8_make_valid(g->str, -1), *esc = g_markup_escape_text(valido, -1);
+	CLAY(CLAY_ID("eu-detalhe"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(10), .childGap = 4 },
+		.backgroundColor = (Clay_Color){ 0, 0, 0, 80 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+		gv_texto_rico_sel(CLAY_ID("eu-detalhe-t"), esc, tam, gv_t.texto, true);
+		if (cortou) {
+			gv_texto(CLAY_STRING("… (o resto não cabe aqui)"), tam - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+	}
+	g_free(esc);
+	g_free(valido);
+	g_string_free(g, TRUE);
+}

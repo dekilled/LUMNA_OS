@@ -194,3 +194,26 @@ então conta, conversas e permissões valem nos dois):
   O `lumna-controle` recebe `{"type":"voice","text":"..."}`, passa para a Emma e devolve `{"type":"voice_reply",...}`.
 
 Testes: `gravity/testes/emma.sh` (backend, Mídia e comandos de mentira).
+
+
+## Arquivos e comandos (a Emma no seu computador)
+
+Ferramentas do serviço `lumna-emma` (roda como você): `arquivos.listar`, `arquivos.ler`, `arquivos.escrever`, `arquivos.apagar` e
+`comando.executar`. A política de cada chamada (servicos/emmaq.c) decide entre rodar direto, pedir a sua aprovação e recusar:
+
+| O quê | Resultado |
+|---|---|
+| Ler ou listar na pasta pessoal | direto |
+| Escrever em `~/Emma` (Histórias, Scripts...) | direto; o que for substituído fica copiado em `~/Emma/.copias` |
+| Criar um arquivo novo na pasta pessoal | direto |
+| Sobrescrever ou acrescentar a um arquivo seu que não é dela | pede aprovação |
+| Pasta ou arquivo oculto (`.config`, `.bashrc`...) | pede aprovação |
+| Qualquer coisa fora da pasta pessoal (ler, escrever) | pede aprovação |
+| Apagar | pede aprovação (vai para a lixeira) |
+| Executar um comando | sempre pede aprovação (60 s no máximo, na pasta `~/Emma`) |
+| Chaves e banco do próprio LUMNA, `~/.ssh`, `~/.gnupg`, cofres de senhas, `/etc/sudoers`, `/etc/shadow` | recusa, mesmo com aprovação |
+
+O cartão de aprovação mostra o quê, onde, por quê e o código (o conteúdo a escrever; o comando e o texto dos scripts pequenos que
+ele chama). Caminhos são resolvidos antes de julgar (`..` e links não escapam da política), e a política é conferida de novo na hora de
+executar. A permissão da ferramenta em `emma.json` só pode deixar mais restrito. Testes: `testes/emma/politica_teste.c` e o fluxo
+de aprovação em `testes/emma/testa_emma.py`.

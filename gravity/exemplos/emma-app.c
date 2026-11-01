@@ -66,7 +66,7 @@ static char campo[2000], busca[96], novo_nome[96], novo_desc[200], nova_memoria[
 static int tipo_memoria;
 static bool renomeando, excluindo, rolar_fim = true, ctx_ativo = true;
 static char erro[300];
-static char conf_id[24], conf_nome[96], conf_desc[256];
+static char conf_id[24], conf_nome[96], conf_desc[512], conf_detalhe[4096];
 static char *dir_fundo;
 static char rotina_excluir[40];
 
@@ -364,6 +364,7 @@ static void aplicar_evento(const struct json *j) {
 		g_strlcpy(conf_id, json_chave_texto(j, "id"), sizeof(conf_id));
 		g_strlcpy(conf_nome, json_chave_texto(j, "nome"), sizeof(conf_nome));
 		g_strlcpy(conf_desc, json_chave_texto(j, "descricao"), sizeof(conf_desc));
+		g_strlcpy(conf_detalhe, json_chave_texto(j, "detalhe"), sizeof(conf_detalhe));
 		rolar_fim = true;
 	} else if (!strcmp(ev, "erro")) {
 		g_strlcpy(erro, json_chave_texto(j, "mensagem"), sizeof(erro));
@@ -738,10 +739,11 @@ static void conversa(void) {
 			eu_bolha(i, msgs->pdata[i], enviar);
 		}
 		if (conf_id[0]) {
-			CLAY(CLAY_ID("ap-lic"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIT(0, 520) }, .padding = CLAY_PADDING_ALL(14), .childGap = 8 },
+			CLAY(CLAY_ID("ap-lic"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0, 640) }, .padding = CLAY_PADDING_ALL(14), .childGap = 8 },
 				.backgroundColor = gv_alfa(gv_t.aviso, 0.12f), .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_alfa(gv_t.aviso, 0.5f), .width = GV_BORDA(1) } }) {
 				gv_texto(gv_fmt("A Emma quer: %s", conf_nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
 				gv_texto(gv_str(conf_desc), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				eu_detalhe(conf_detalhe, gv_t.tamanho_corpo - 2);
 				CLAY(CLAY_ID("ap-lic-b"), { .layout = { .childGap = 10 } }) {
 					bool nao = gv_botao(CLAY_ID("ap-lic-nao"), NULL, "Agora não", GV_BOTAO_ELEVADO), sim = gv_botao(CLAY_ID("ap-lic-sim"), "check", "Pode", GV_BOTAO_CHEIO);
 					if (nao || sim) {
