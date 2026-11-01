@@ -94,6 +94,17 @@ async def list_messages(sid: str):
     return [Message.from_mongo(d).out() for d in docs]
 
 
+@router.delete("/sessions/{sid}/messages/{mid}")
+async def delete_message(sid: str, mid: str):
+    """LUMNA: apaga uma mensagem da conversa (o app da Emma: "Apagar" e "Regenerar" no menu da bolha)."""
+    await _session(sid)
+    doc = await db.messages.find_one({"_id": oid(mid), "session_id": sid})
+    if not doc:
+        raise HTTPException(404, "Mensagem não encontrada")
+    await db.messages.delete_one({"_id": oid(mid)})
+    return {"ok": True}
+
+
 # ---- Chat ----
 class LumnaToolDef(BaseModel):
     """One action of the LUMNA OS shell, offered to the model as a tool for this answer."""

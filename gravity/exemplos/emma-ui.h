@@ -22,9 +22,15 @@ struct eu_msg {
 	bool usuario;
 	char *texto;
 	char hora[8];
+	char id[40];     /* o id no servidor (vazio: ainda não se sabe; o app descobre ao precisar) */
 	bool parcial;
 	GArray *ferramentas; /* struct eu_ferramenta */
 };
+
+/* O menu da bolha pede ações que mexem na lista de mensagens (apagar, regenerar, guardar na memória); quem tem a lista (o app) as faz
+ * depois do desenho. acao: "apagar", "regenerar" ou "memoria". NULL: o menu só tem as de copiar. */
+extern void (*eu_acao_mensagem)(int indice, const char *acao);
+extern const char *eu_memoria_de; /* o nome da rotina que recebe "Guardar na memória" (NULL: a opção não aparece) */
 
 /* o violeta dos balões e do enviar (um tom mais fundo que o acento dos botões, como no desenho) */
 extern const Clay_Color EU_VIOLETA;

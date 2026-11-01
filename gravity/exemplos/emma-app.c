@@ -214,6 +214,7 @@ static void abrir_sessao(const char *id, const char *tit) {
 			}
 			char *h = hora_local(json_chave_texto(m, "created_at"));
 			struct eu_msg *n = eu_msg_nova(msgs, !strcmp(json_chave_texto(m, "role"), "user"), json_chave_texto(m, "content"), h);
+			g_strlcpy(n->id, json_chave_texto(m, "id"), sizeof(n->id));
 			g_free(h);
 			const struct json *ts = json_chave(m, "tools");
 			for (int k = 0; ts && k < ts->nfilhos; k++) {
@@ -957,7 +958,119 @@ static void vista_rotinas(void) {
 	}
 }
 
+/* ---- ações do menu da bolha: apagar, regenerar, guardar na memória ---- */
+
+static int acao_indice = -1;
+static char acao_nome[16];
+
+static void acao_pedir(int indice, const char *acao) {
+	acao_indice = indice;
+	g_strlcpy(acao_nome, acao, sizeof(acao_nome));
+	gv_app_redesenhar(NULL);
+}
+
+/* as mensagens que chegaram ao vivo ainda não têm id: pergunta ao servidor e casa pelo fim da conversa */
+static void garantir_ids(void) {
+	bool falta = false;
+	for (guint i = 0; i < msgs->len; i++) {
+		falta |= !((struct eu_msg *)msgs->pdata[i])->id[0] && !((struct eu_msg *)msgs->pdata[i])->parcial;
+	}
+	if (!falta || !sid[0]) {
+		return;
+	}
+	char *c = g_strdup_printf("/api/sessions/%s/messages", sid);
+	struct resposta r;
+	if (rest("GET", c, NULL, &r) && r.corpo) {
+		GPtrArray *ids = g_ptr_array_new_with_free_func(g_free);
+		for (int i = 0; i < r.corpo->nfilhos; i++) {
+			const struct json *m = json_item(r.corpo, i);
+			if (!*json_chave_texto(m, "marker")) {
+				g_ptr_array_add(ids, g_strdup(json_chave_texto(m, "id")));
+			}
+		}
+		int k = (int)ids->len - 1;
+		for (int i = (int)msgs->len - 1; i >= 0 && k >= 0; i--, k--) {
+			struct eu_msg *m = msgs->pdata[i];
+			if (!m->id[0]) {
+				g_strlcpy(m->id, g_ptr_array_index(ids, k), sizeof(m->id));
+			}
+		}
+		g_ptr_array_free(ids, TRUE);
+	}
+	liberar(&r);
+	g_free(c);
+}
+
+static bool apagar_no_servidor(const struct eu_msg *m) {
+	if (!m->id[0]) {
+		return false;
+	}
+	char *c = g_strdup_printf("/api/sessions/%s/messages/%s", sid, m->id);
+	struct resposta r;
+	bool ok = rest("DELETE", c, NULL, &r);
+	if (!ok) {
+		g_strlcpy(erro, r.msg, sizeof(erro));
+	}
+	liberar(&r);
+	g_free(c);
+	return ok;
+}
+
+static void executar_acao_mensagem(void) {
+	int k = acao_indice;
+	acao_indice = -1;
+	if (k < 0 || k >= (int)msgs->len || !sid[0]) {
+		return;
+	}
+	garantir_ids();
+	struct eu_msg *m = msgs->pdata[k];
+	if (!strcmp(acao_nome, "memoria")) {
+		if (rotina_atual < 0 || !m->texto[0]) {
+			return;
+		}
+		struct eu_resposta resp;
+		eu_ler_resposta(m->texto, &resp);
+		GString *c = g_string_new("{\"kind\":\"fact\",\"content\":");
+		json_escrever_texto(c, resp.corpo);
+		g_string_append_c(c, '}');
+		char *caminho = g_strdup_printf("/api/projects/%s/memories", g_array_index(rotinas, struct rotina, rotina_atual).id);
+		struct resposta r;
+		if (!rest("POST", caminho, c->str, &r)) {
+			g_strlcpy(erro, r.msg, sizeof(erro));
+		} else {
+			erro[0] = '\0';
+			carregar_memorias();
+		}
+		liberar(&r);
+		g_free(caminho);
+		g_string_free(c, TRUE);
+		g_free(resp.corpo);
+	} else if (!strcmp(acao_nome, "apagar")) {
+		if (apagar_no_servidor(m)) {
+			g_ptr_array_remove_index(msgs, (guint)k);
+		}
+	} else if (!strcmp(acao_nome, "regenerar")) {
+		/* a resposta e a fala que a puxou saem, e a fala vai de novo: a Emma responde outra vez, no fim da conversa */
+		int u = k - 1;
+		while (u >= 0 && !((struct eu_msg *)msgs->pdata[u])->usuario) {
+			u--;
+		}
+		if (u < 0 || !apagar_no_servidor(m) || !apagar_no_servidor(msgs->pdata[u])) {
+			return;
+		}
+		char *texto = g_strdup(((struct eu_msg *)msgs->pdata[u])->texto);
+		g_ptr_array_remove_index(msgs, (guint)k);
+		g_ptr_array_remove_index(msgs, (guint)u);
+		enviar(texto);
+		g_free(texto);
+	}
+}
+
 static void desenhar(gv_app *a, void *dados) {
+	if (acao_indice >= 0) {
+		executar_acao_mensagem();
+	}
+	eu_memoria_de = rotina_atual >= 0 && rotina_atual < (int)rotinas->len ? g_array_index(rotinas, struct rotina, rotina_atual).nome : NULL;
 	(void)dados;
 	if (emma_fd < 0) {
 		emma_fd = emmac_assinar();
@@ -1032,6 +1145,7 @@ int main(void) {
 	skills = g_array_new(FALSE, TRUE, sizeof(struct skill));
 	eu_iniciar();
 	eu_largura_balao = 680;
+	eu_acao_mensagem = acao_pedir;
 	dir_fundo = eu_achar_asset("fundo.jpg");
 	app = gv_app_criar(&(gv_opcoes){ .titulo = "Emma", .app_id = "lumna-emma-app", .largura = 1180, .altura = 760 });
 	if (!app) {

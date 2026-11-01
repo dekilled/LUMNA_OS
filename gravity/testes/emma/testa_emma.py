@@ -183,6 +183,12 @@ try:
         return len(msgs) >= 2
     confere(espera(guardou, 10), "a conversa do app não foi guardada no PC")
     confere(msgs and msgs[0]["role"] == "user" and msgs[0]["content"] == "oi do app" and msgs[1]["role"] == "assistant" and "Brasília" in msgs[1]["content"], f"a conversa guardada veio errada: {msgs}")
+    # apagar uma mensagem (o menu da bolha): some da conversa, a outra fica; um id que não existe dá erro
+    apagada = pede("rest", "DELETE", f"/api/sessions/{sid}/messages/{msgs[1]['id']}")
+    confere(apagada.get("ok") is True, f"a mensagem não foi apagada: {apagada}")
+    restantes = pede("rest", "GET", f"/api/sessions/{sid}/messages").get("corpo", [])
+    confere(len(restantes) == len(msgs) - 1 and all(m["id"] != msgs[1]["id"] for m in restantes), f"a conversa não perdeu só aquela mensagem: {restantes}")
+    confere(pede("rest", "DELETE", f"/api/sessions/{sid}/messages/naoexiste").get("ok") is False, "apagar uma mensagem que não existe devia dar erro")
     pede("rest", "PATCH", f"/api/sessions/{sid}", json.dumps({"title": "Renomeada"}))
     confere(pede("rest", "GET", "/api/sessions").get("corpo", [{}])[0].get("title") == "Renomeada", "o título não mudou")
     p = pede("rest", "POST", "/api/projects", json.dumps({"name": "Casa", "description": "tudo da casa"}))

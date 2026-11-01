@@ -488,6 +488,43 @@ static char *rota_sessoes(const char *metodo, const char *rest, const char *quer
 			r = g_string_free(g, FALSE);
 			sessao_liberar(&s);
 		}
+	} else if (!strcmp(metodo, "DELETE") && strstr(rest, "/messages/")) { /* /api/sessions/{id}/messages/{mid}: apaga uma mensagem */
+		const char *no = strstr(rest, "/messages/");
+		char *sid = g_strndup(rest, (gsize)(no - rest));
+		const char *mid = no + 10;
+		struct sessao s;
+		if (!sessao_ler(sid, &s)) { /* (o trinco já é de emmas_rest) */
+			r = erro_json(status, 404, "Sessão não encontrada");
+		} else {
+			char *txt = g_strdup_printf("[%s]", s.msgs->str);
+			struct json *arr = json_ler(txt);
+			g_free(txt);
+			GString *novo = g_string_new(NULL);
+			bool achou = false;
+			for (int i = 0; arr && i < arr->nfilhos; i++) {
+				const struct json *m = json_item(arr, i);
+				if (!strcmp(json_chave_texto(m, "id"), mid)) {
+					achou = true;
+					continue;
+				}
+				if (novo->len) {
+					g_string_append_c(novo, ',');
+				}
+				json_escrever(novo, m);
+			}
+			if (achou) {
+				g_string_free(s.msgs, TRUE);
+				s.msgs = novo;
+				sessao_gravar(&s);
+				r = g_strdup("{\"ok\":true}");
+			} else {
+				g_string_free(novo, TRUE);
+				r = erro_json(status, 404, "Mensagem não encontrada");
+			}
+			json_liberar(arr);
+			sessao_liberar(&s);
+		}
+		g_free(sid);
 	} else if (g_str_has_suffix(rest, "/messages")) { /* /api/sessions/{id}/messages */
 		char *sid = g_strndup(rest, strlen(rest) - 9);
 		struct sessao s;

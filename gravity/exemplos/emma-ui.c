@@ -136,6 +136,8 @@ void eu_juntar_ferramenta(struct eu_msg *m, const struct json *t) {
 /* ---- Markdown ---- */
 
 float eu_largura_balao = 340;
+void (*eu_acao_mensagem)(int indice, const char *acao);
+const char *eu_memoria_de;
 
 /* o texto de uma linha em marcação do pango: **negrito**, *itálico*, `código`, ~~riscado~~, [texto](endereço) */
 static char *md_inline(const char *t, Clay_Color acento) {
@@ -524,6 +526,10 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 					enviar(m->texto);
 					gv_popup_fechar(menu_u);
 				}
+				if (eu_acao_mensagem && gv_menu_item(CLAY_IDI("em-um-apagar", k), "trash", "Apagar a mensagem", NULL)) {
+					eu_acao_mensagem((int)k, "apagar");
+					gv_popup_fechar(menu_u);
+				}
 			}
 			gv_texto(gv_fmt("%s ✓✓", m->hora), gv_t.tamanho_corpo - 3, gv_t.texto_suave, GV_PESO_NORMAL);
 		}
@@ -553,6 +559,19 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 					}
 					if (r.corpo[0] && gv_menu_item(CLAY_IDI("em-em-copiar", k), "copy", "Copiar a resposta", NULL)) {
 						gv_copiar(r.corpo);
+						gv_popup_fechar(menu_e);
+					}
+					if (eu_acao_mensagem && !m->parcial && r.corpo[0] && eu_memoria_de &&
+						gv_menu_item(CLAY_IDI("em-em-memoria", k), "heart", gv_fmt("Guardar na memória de “%s”", eu_memoria_de).chars, NULL)) {
+						eu_acao_mensagem((int)k, "memoria");
+						gv_popup_fechar(menu_e);
+					}
+					if (eu_acao_mensagem && !m->parcial && gv_menu_item(CLAY_IDI("em-em-regenerar", k), "refresh", "Regenerar a resposta", NULL)) {
+						eu_acao_mensagem((int)k, "regenerar");
+						gv_popup_fechar(menu_e);
+					}
+					if (eu_acao_mensagem && !m->parcial && gv_menu_item(CLAY_IDI("em-em-apagar", k), "trash", "Apagar a mensagem", NULL)) {
+						eu_acao_mensagem((int)k, "apagar");
 						gv_popup_fechar(menu_e);
 					}
 				}
