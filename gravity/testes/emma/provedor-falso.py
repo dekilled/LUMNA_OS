@@ -88,6 +88,9 @@ class H(BaseHTTPRequestHandler):
                 falar(["Encontrei essa opção nas configurações. Qual layout você quer usar?\n[acao: Adicionar layout]\n[sugestao: Português (Brasil)]"])
             else:
                 falar(["Pronto, feito."])
+        elif "conto" in ultimo_user:
+            # como o Gemma: a chamada escrita em TEXTO (bloco tool_code), com quebras de linha de verdade e aspas dentro do conteúdo
+            falar(["Claro! Vou guardar o conto.\n\n```tool_code\n", "lumna_arquivos_escrever(caminho='~/Emma/Histórias/conto-e2e.txt', conteudo='Era uma vez um servidor.\n\n\"Oi\", disse ele, d\'água fria.\nFim.', motivo='guardar o conto')\n", "```"])
         elif "netflix" in ultimo_user:
             chamar("lumna_midia_abrir", {"servico": "netflix"})
         elif "layout" in ultimo_user:

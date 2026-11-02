@@ -509,6 +509,56 @@ def _py_call(src: str) -> Optional[tuple[str, dict]]:
     return name, args
 
 
+_CALL_HEAD_RE = re.compile(r"^\s*(?:print\s*\(\s*)?(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)\s*\(")
+_KW_RE = re.compile(r"\s*([A-Za-z_]\w*)\s*=\s*")
+_ESC = {"n": "\n", "t": "\t", "r": "\r"}
+
+
+def _unescape(s: str) -> str:
+    return re.sub(r"\\(.)", lambda m: _ESC.get(m.group(1), m.group(1)), s, flags=re.S)
+
+
+def _py_call_lenient(src: str) -> Optional[tuple[str, dict]]:
+    """name(k='texto longo\ncom quebras de linha de verdade e "aspas" dentro', n=5): what models write when the text isn't valid Python
+    (a raw line break or an unescaped quote inside a '...' string makes ast refuse it, and the call would be lost). Read, never run:
+    a quoted value ends at the quote that is followed by ", key=" or by the end of the call."""
+    m = _CALL_HEAD_RE.match(src)
+    if not m:
+        return None
+    name = m.group(1)
+    body = re.sub(r"\)+\s*$", "", src[m.end():].rstrip())  # the ')' that closes the call (and the print)
+    args: dict = {}
+    pos = 0
+    while pos < len(body):
+        km = _KW_RE.match(body, pos)
+        if not km:
+            break
+        key, pos = km.group(1), km.end()
+        if body.startswith(('"""', "\'\'\'"), pos):
+            q = body[pos:pos + 3]
+            end = body.find(q, pos + 3)
+            if end < 0:
+                return name, {"__bad__": True}
+            args[key] = _unescape(body[pos + 3:end])
+            pos = end + 3
+        elif pos < len(body) and body[pos] in "\"'":
+            q = body[pos]
+            close = re.compile(re.escape(q) + r"(?=\s*(?:,\s*[A-Za-z_]\w*\s*=|$))").search(body, pos + 1)
+            if not close:
+                return name, {"__bad__": True}
+            args[key] = _unescape(body[pos + 1:close.start()])
+            pos = close.end()
+        else:
+            tok = re.compile(r"[^,]*").match(body, pos)
+            try:
+                args[key] = ast.literal_eval(tok.group(0).strip())
+            except (ValueError, SyntaxError):
+                return name, {"__bad__": True}
+            pos = tok.end()
+        pos = re.compile(r"\s*,?\s*").match(body, pos).end()
+    return (name, args) if args else None
+
+
 def _json_call(src: str) -> Optional[tuple[str, dict]]:
     try:
         v = json.loads(src)
@@ -542,7 +592,7 @@ def find_call(text: str, names: set[str], start: int = 0) -> Optional[tuple[str,
         if m.group(1).lower() not in CALL_FENCES:
             continue
         body = m.group(2).strip()
-        call = _json_call(body) if body.startswith("{") else _py_call(body)
+        call = _json_call(body) if body.startswith("{") else (_py_call(body) or _py_call_lenient(body))
         if call and call[0] in names:
             found.append((m.start(), m.end(), call[0], call[1], ""))
             break
