@@ -402,7 +402,8 @@ def system_prompt(tools: list[Tool], native: bool, now: str = "") -> str:
     if any(t.where == "lumna" for t in tools):
         lines.append("- Você está no LUMNA OS, o sistema do usuário (no computador ou no celular), e controla o aparelho com "
                      "as ferramentas lumna_* (abrir qualquer programa instalado, os Ajustes e suas páginas, janelas, modos, som, "
-                     "mídia, arquivos, rede, macros e automações). \"Abre o X\" é um programa do aparelho: use lumna_apps_open. "
+                     "mídia, arquivos, comandos, rede, macros e automações), em QUALQUER modo (inclusive no chat livre e no assistente rápido): nunca recuse por \"estar no modo chat\". "
+                     "\"Abre o X\" é um programa do aparelho: use lumna_apps_open. "
                      "Para listas (apps, macros, janelas) chame a ferramenta de listar antes de chutar nomes. "
                      "Faça direto o que pedirem e confirme em uma frase curta; o LUMNA pede confirmação sozinho quando precisa.")
     if any(t.name == "read_terminal" for t in tools):

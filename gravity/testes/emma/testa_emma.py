@@ -35,7 +35,7 @@ def sobe(cmd, **kw):
 
 
 os.environ["EMMA_TESTE_FORA"] = os.path.join(tempfile.gettempdir(), f"emma-fora-{os.getpid()}.txt")  # um arquivo FORA da pasta pessoal (o HOME do teste é T)
-env = dict(os.environ, LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
+env = dict(os.environ, LUMNA_EMMA_ESPERA_TESTE="3", LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
            LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
            PATH=os.path.join(AQUI, "bin") + ":" + os.environ["PATH"], DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent")
 env.pop("WAYLAND_DISPLAY", None)
@@ -173,6 +173,13 @@ try:
             "o comando rodou mesmo sem a aprovação")
     if os.path.exists(fora):
         os.unlink(fora)
+
+    # uma aprovação que ninguém responde expira: o cartão some, a ação é negada e a conversa SEGUE (não fica "pensando" para sempre)
+    r, conf = conversa_aprovando("escreve fora", None)
+    confere(conf is not None, "o pedido de aprovação não chegou")
+    confere(r.get("ok") is not None and "Escrevi" in str(r.get("resposta", "")) or r.get("ok") is True, f"a conversa não seguiu depois que a aprovação expirou: {r}")
+    confere(not os.path.exists(fora), "escreveu fora sem ninguém aprovar")
+    confere(pede("estado").get("estado") == "ocioso", "o serviço continuou 'pensando' depois que a aprovação expirou")
 
     # uma ação desligada no Painel
     open(os.path.join(cfg, "lumna", "emma.json"), "w").write(json.dumps({"permissions": {"audio.volume": "off"}}))

@@ -205,6 +205,27 @@ static void acao_rodar(const struct emmaa_def *def, struct pedido_acao *p) {
 	acao_terminar(p);
 }
 
+/* a licença passou do prazo (ou a ação demorou demais): nega e termina o pedido, e o cartão sai da tela */
+static gboolean acao_expirar(gpointer d) {
+	struct pedido_acao *p = d;
+	if (p->esperando_licenca) {
+		g_hash_table_remove(licencas, p->id);
+		p->esperando_licenca = false;
+	}
+	g_mutex_lock(&p->trinco);
+	bool ja = p->pronto;
+	g_mutex_unlock(&p->trinco);
+	if (!ja) {
+		p->res.ok = false;
+		g_free(p->res.resumo);
+		p->res.resumo = g_strdup("Sem resposta a tempo.");
+		g_free(p->res.conteudo);
+		p->res.conteudo = g_strdup("A pessoa não respondeu ao pedido de licença a tempo.");
+		acao_terminar(p);
+	}
+	return G_SOURCE_REMOVE;
+}
+
 static gboolean acao_na_principal(gpointer d) {
 	struct pedido_acao *p = d;
 	const struct emmaa_def *def = emmaa_achar_ferramenta(p->nome);
@@ -400,21 +421,39 @@ static void ouvinte_acao(const char *nome, const struct json *args, struct emmab
 	p->args = json_ler(g->len ? g->str : "{}");
 	g_string_free(g, TRUE);
 	g_main_context_invoke(NULL, acao_na_principal, p);
-	gint64 limite = g_get_monotonic_time() + 45 * G_USEC_PER_SEC;
+	/* uma ação comum responde logo (45 s de folga); um comando pode levar até 2 minutos; e uma aprovação espera a pessoa LER o cartão
+	 * (até 5 minutos). Passou disso, a licença expira: o cartão some, a ação é negada e a conversa segue, em vez de ficar "pensando". */
+	const char *teste = g_getenv("LUMNA_EMMA_ESPERA_TESTE"); /* só os testes: os prazos viram este número de segundos */
+	int fixo = teste ? atoi(teste) : 0;
+	gint64 inicio = g_get_monotonic_time(), limite = inicio + (fixo > 0 ? fixo : 45) * G_USEC_PER_SEC;
 	g_mutex_lock(&p->trinco);
 	while (!p->pronto) {
-		if (!g_cond_wait_until(&p->cond, &p->trinco, limite)) {
-			break;
+		if (g_cond_wait_until(&p->cond, &p->trinco, limite)) {
+			continue;
+		}
+		gint64 agora = g_get_monotonic_time();
+		bool licenca = p->esperando_licenca;
+		const struct emmaa_def *dd = emmaa_achar_ferramenta(p->nome);
+		gint64 teto = inicio + (fixo > 0 ? fixo : licenca ? 300 : dd && emmaa_assincrona(dd) ? 140 : 45) * G_USEC_PER_SEC;
+		if (agora < teto) {
+			limite = agora + 2 * G_USEC_PER_SEC;
+			continue;
+		}
+		g_mutex_unlock(&p->trinco);
+		g_main_context_invoke(NULL, acao_expirar, p); /* a principal nega e termina o pedido: o cartão sai da tela */
+		g_mutex_lock(&p->trinco);
+		limite = g_get_monotonic_time() + 5 * G_USEC_PER_SEC;
+		if (!p->pronto && !g_cond_wait_until(&p->cond, &p->trinco, limite)) {
+			break; /* nem a principal respondeu: o pedido vaza (raro e pequeno) e a conversa segue */
 		}
 	}
 	bool acabou = p->pronto;
 	g_mutex_unlock(&p->trinco);
 	if (!acabou) {
-		/* ninguém respondeu à licença: nega (a principal solta o pedido quando chegar tarde) */
 		r->ok = false;
 		r->resumo = g_strdup("Sem resposta a tempo.");
 		r->conteudo = g_strdup("A pessoa não respondeu ao pedido de licença.");
-		return; /* o pedido fica vazando até a principal decidir: raro, e pequeno */
+		return;
 	}
 	r->ok = p->res.ok;
 	r->resumo = p->res.resumo;

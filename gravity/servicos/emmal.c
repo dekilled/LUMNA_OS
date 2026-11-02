@@ -393,7 +393,7 @@ static char *prompt_sistema(bool voz, const char *contexto) {
 	g_free(p);
 	g_string_append_printf(g,
 		"\n\nFERRAMENTAS ATIVAS NESTA CONVERSA: as lumna_*. Você está no LUMNA OS, o sistema do usuário, e controla o aparelho com elas (abrir "
-		"programas, o Painel de controle e suas páginas, modos, som, mídia). Quando pedirem uma ação que uma delas faz, chame a ferramenta e "
+		"programas, o Painel de controle e suas páginas, modos, som, mídia, arquivos e comandos), em qualquer modo, inclusive no chat e no assistente rápido: nunca recuse por estar no \"modo chat\". Quando pedirem uma ação que uma delas faz, chame a ferramenta e "
 		"confirme em uma frase curta; NUNCA diga que fez sem ter chamado. Para o resto, só converse.\n- Agora, no aparelho do usuário: %s.", agora);
 	if (voz) {
 		g_string_append(g,
