@@ -24,6 +24,8 @@ struct emmaq_juizo {
 };
 
 /* a pasta da Emma (~/Emma); g_free */
+/* cria ~/Emma, com Histórias e Scripts, se ainda não existem (o serviço faz ao ligar: a pasta está lá antes de ela precisar) */
+void emmaq_preparar(void);
 char *emmaq_pasta_dela(void);
 /* julga uma operação sobre um caminho (relativo: dentro de ~/Emma; ~ vale a pessoal). Libere com emmaq_juizo_limpar */
 struct emmaq_juizo emmaq_julgar(enum emmaq_op op, const char *caminho);

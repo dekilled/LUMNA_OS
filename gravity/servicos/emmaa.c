@@ -553,6 +553,7 @@ static void apps_abrir(const char *nome, struct emmaa_res *r) {
 }
 
 void emmaa_iniciar(void) {
+	emmaq_preparar(); /* ~/Emma, Histórias e Scripts já existem quando ela precisar */
 	mpris_iniciar();
 }
 

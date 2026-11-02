@@ -77,6 +77,20 @@ int main(void) {
 	g_free(alvo);
 	g_free(p);
 
+	/* a pasta dela é criada antes de precisar */
+	emmaq_preparar();
+	p = g_build_filename(casa, "Emma", "Histórias", NULL);
+	confere(g_file_test(p, G_FILE_TEST_IS_DIR), "emmaq_preparar não criou ~/Emma/Histórias");
+	g_free(p);
+	p = g_build_filename(casa, "Emma", "Scripts", NULL);
+	confere(g_file_test(p, G_FILE_TEST_IS_DIR), "emmaq_preparar não criou ~/Emma/Scripts");
+	g_free(p);
+	/* os erros dizem a verdade */
+	char *e0 = NULL;
+	char *l0 = emmaq_listar("/tmp/nao-existe-emma-xyz", &e0);
+	confere(!l0 && e0 && strstr(e0, "não existe"), "listar uma pasta que não existe devia dizer que não existe");
+	g_free(e0);
+
 	/* ---- as execuções ---- */
 	char *erro = NULL, *r;
 	struct emmaq_juizo j = emmaq_julgar(EMMAQ_ESCREVER, "Histórias/conto.md");

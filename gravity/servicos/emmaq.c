@@ -23,6 +23,17 @@ char *emmaq_pasta_dela(void) {
 	return g_build_filename(casa(), "Emma", NULL);
 }
 
+void emmaq_preparar(void) {
+	char *dela = emmaq_pasta_dela();
+	const char *subs[] = { "Histórias", "Scripts" };
+	for (guint i = 0; i < G_N_ELEMENTS(subs); i++) {
+		char *p = g_build_filename(dela, subs[i], NULL);
+		g_mkdir_with_parents(p, 0755);
+		g_free(p);
+	}
+	g_free(dela);
+}
+
 /* tira os ".", ".." e as barras repetidas, sem tocar no disco */
 static char *limpar(const char *absoluto) {
 	char **partes = g_strsplit(absoluto, "/", -1);
@@ -218,9 +229,13 @@ static char *erro_de(const char *fmt, const char *a, const char *b) {
 }
 
 char *emmaq_listar(const char *real, char **erro) {
-	GDir *d = g_dir_open(real, 0, NULL);
+	GError *e = NULL;
+	GDir *d = g_dir_open(real, 0, &e);
 	if (!d) {
-		*erro = erro_de("Não consegui abrir a pasta %s.", real, NULL);
+		*erro = g_error_matches(e, G_FILE_ERROR, G_FILE_ERROR_NOENT) ? erro_de("A pasta %s não existe.", real, NULL)
+			: g_error_matches(e, G_FILE_ERROR, G_FILE_ERROR_ACCES) ? erro_de("O sistema não deixa abrir a pasta %s (sem permissão).", real, NULL)
+			: erro_de("Não consegui abrir a pasta %s.", real, NULL);
+		g_clear_error(&e);
 		return NULL;
 	}
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
@@ -252,13 +267,17 @@ char *emmaq_listar(const char *real, char **erro) {
 }
 
 char *emmaq_ler(const char *real, char **erro) {
+	if (!g_file_test(real, G_FILE_TEST_EXISTS)) {
+		*erro = erro_de("%s não existe.", real, NULL);
+		return NULL;
+	}
 	if (!g_file_test(real, G_FILE_TEST_IS_REGULAR)) {
-		*erro = erro_de("%s não é um arquivo (ou não existe).", real, NULL);
+		*erro = erro_de("%s não é um arquivo (é uma pasta ou algo especial).", real, NULL);
 		return NULL;
 	}
 	FILE *f = fopen(real, "rb");
 	if (!f) {
-		*erro = erro_de("Não consegui abrir %s: %s.", real, g_strerror(errno));
+		*erro = errno == EACCES ? erro_de("O sistema não deixa ler %s (sem permissão).", real, NULL) : erro_de("Não consegui abrir %s: %s.", real, g_strerror(errno));
 		return NULL;
 	}
 	char *buf = g_malloc(LER_MAX + 1);
