@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE /* realpath (o Makefile compila com -std=c11 -D_POSIX_C_SOURCE=200809L) */
 #include "emmaq.h"
 
 #include <errno.h>
