@@ -62,7 +62,7 @@ static char sid[40];                /* a sessão aberta ("" : a conversa ainda n
 static char titulo[120] = "Nova conversa";
 static GPtrArray *msgs;
 static char skill_id[40], skill_nome[96];
-static char campo[2000], busca[96], novo_nome[96], novo_desc[200], nova_memoria[400], nome_edicao[120];
+static char campo[65536], busca[96], novo_nome[96], novo_desc[200], nova_memoria[400], nome_edicao[120];
 static int tipo_memoria;
 static bool renomeando, excluindo, rolar_fim = true, ctx_ativo = true;
 static char erro[300];

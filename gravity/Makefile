@@ -156,7 +156,7 @@ emma: $(EMMA) servicos/emmaa.h servicos/emmaq.h servicos/emmab.h servicos/emmal.
 
 # o painel flutuante da Emma (à direita)
 emma-app: exemplos/emma-app.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emmac.c servicos/emmac.h servicos/emmar.c servicos/emmar.h servicos/json.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos -Iexemplos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/emma-app.c exemplos/emma-ui.c servicos/emmac.c servicos/emmar.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+	$(CC) $(CFLAGS) -Iservicos -Iexemplos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/emma-app.c exemplos/emma-ui.c servicos/emmac.c servicos/emmar.c servicos/json.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
 emma-chat: exemplos/emma-chat.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emmac.c servicos/emmac.h servicos/json.c servicos/modos.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -Iexemplos -o $@ exemplos/emma-chat.c exemplos/emma-ui.c servicos/emmac.c servicos/json.c servicos/modos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -Iexemplos -o $@ exemplos/emma-chat.c exemplos/emma-ui.c servicos/emmac.c servicos/json.c servicos/modos.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)

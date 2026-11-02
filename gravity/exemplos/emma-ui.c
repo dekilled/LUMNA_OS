@@ -1,6 +1,7 @@
 /* ver emma-ui.h */
 #define _GNU_SOURCE
 #include "emma-ui.h"
+#include "destaque.h"
 
 #include <string.h>
 #include <sys/wait.h>
@@ -274,7 +275,8 @@ static void md_codigo(uint32_t k, int *n, const char *lingua, GString *codigo, f
 				gv_copiar(codigo->str);
 			}
 		}
-		char *esc = g_markup_escape_text(codigo->str, -1);
+		static const struct destaque_cores cores = { "#ff7b9c", "#9ece6a", "#7f8aa3", "#ff9e64", "#7dcfff" };
+		char *esc = destaque_markup(lingua, codigo->str, &cores);
 		gv_texto_rico_sel(CLAY_SID(gv_fmt("md-cd-%u-%d", k, idx)), esc, tam - 1, (Clay_Color){ 235, 235, 245, 255 }, true);
 		g_free(esc);
 	}

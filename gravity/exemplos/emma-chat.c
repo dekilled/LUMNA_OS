@@ -26,7 +26,7 @@ static char estado[16] = "offline";
 static bool servidor;
 static double nivel;
 static char erro[300];
-static char campo[512];
+static char campo[16384];
 static char conf_id[24], conf_nome[96], conf_desc[512], conf_detalhe[4096];  /* uma ação que pede licença */
 static char ctx_titulo[160];
 static bool ctx_ativo = true;
