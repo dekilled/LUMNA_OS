@@ -12,6 +12,11 @@
 
 static GMutex trinco;
 static SoupSession *sessao_curta, *sessao_longa;
+static bool contaminada; /* a última chamada de ferramenta: conteúdo de fora na conversa (o servidor avisa) */
+
+bool emmab_contaminada(void) {
+	return contaminada;
+}
 static GCancellable *corte;               /* a resposta que está chegando */
 static char sessao_id[EMMAB_NN][80];
 static gint64 sessao_usada;
@@ -503,6 +508,7 @@ static bool conversar_uma(int canal, const char *sid_fixo, const char *texto, bo
 				const struct json *tool = json_chave(ev, "tool");
 				const char *cid = json_chave_texto(tool, "id"), *nome = json_chave_texto(tool, "name");
 				struct emmab_acao r = { 0 };
+				contaminada = json_bool(json_chave(tool, "tainted"), false);
 				o->acao(nome, json_chave(tool, "args"), &r, o->dados);
 				enviar_resultado(sid, cid, &r);
 				g_free(r.resumo);

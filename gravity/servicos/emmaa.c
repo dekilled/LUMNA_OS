@@ -579,7 +579,7 @@ static char *cortar(const char *t, int max) {
 	return r;
 }
 
-int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, char **descricao, char **detalhe, char **porque) {
+int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, bool contaminada, char **descricao, char **detalhe, char **porque) {
 	*descricao = *detalhe = *porque = NULL;
 	const char *n = d->nome;
 	if (!e_de_arquivos(n)) {
@@ -592,6 +592,12 @@ int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, char **des
 	const char *pasta_cmd = json_chave_texto(args, "pasta");
 	struct emmaq_juizo j = emmaq_julgar(op, op == EMMAQ_EXECUTAR ? pasta_cmd : caminho);
 	int r = j.veredito == EMMAQ_NEGAR ? 2 : j.veredito == EMMAQ_APROVAR ? 1 : 0;
+	if (r == 0 && contaminada && (op == EMMAQ_ESCREVER || op == EMMAQ_ANEXAR)) {
+		/* o texto veio da web ou de uma tela: um texto malicioso poderia estar mandando escrever; a pessoa confere antes */
+		r = 1;
+		g_free(j.porque);
+		j.porque = g_strdup("Conteúdo de fora (a web ou uma tela) entrou nesta conversa: por segurança, escrever arquivos pede a sua aprovação.");
+	}
 	if (r == 2) {
 		*porque = g_strdup(j.porque);
 	} else if (r == 1) {

@@ -483,7 +483,9 @@ async def chat(sid: str, body: ChatIn):
         yield sse({"type": "meta", "user_message": user_msg.out(), "citations": citations, "model": model, "provider": provider.name, "task": task, "mode": mode, "mode_id": recipe.key if recipe else None, "memories_used": len(memories), "summary": bool(session.summary), "tools": [x.name for x in tool_list]})
         acc = {"text": "", "round": ""}
         trail: list[dict] = []
-        tainted = bool(screen)  # what is on the screen came from outside: actions after it ask first
+        # What is on the screen came from outside: actions after it ask first. LUMNA: the context the shell sends (the focused window)
+        # is not content from outside, and the shell's own actions are decided by the shell (see below), so it doesn't taint.
+        tainted = bool(screen_image) or (bool(screen) and not body.lumna_tools)
 
         def show(piece: str) -> Optional[str]:
             """A piece of visible answer; a new round after tools starts on its own paragraph."""
@@ -613,7 +615,10 @@ async def chat(sid: str, body: ChatIn):
                     else:
                         allowed = True
                         key = f"{sid}:{rec['id']}"
-                        if lumna_tools.permission(settings.tools, c.name, tool) == "ask" or (tool.risk == "act" and tainted):
+                        # LUMNA: the shell's actions (where == "lumna") are decided by the shell itself, per call (its policy and its approval
+                        # card), so the server doesn't ask for them: it has no way to show the card, and asking here only made every one
+                        # of them come back "Você não permitiu". It tells the shell whether the conversation is tainted (tool_client).
+                        if tool.where != "lumna" and (lumna_tools.permission(settings.tools, c.name, tool) == "ask" or (tool.risk == "act" and tainted)):
                             fut = asyncio.get_running_loop().create_future()
                             _pending[key] = (fut, bool)
                             reason = ("conteúdo da internet entrou na conversa" if tool.risk == "act" and tainted
@@ -633,7 +638,7 @@ async def chat(sid: str, body: ChatIn):
                             # the page runs it after the answer.
                             fut = asyncio.get_running_loop().create_future()
                             _pending[key] = (fut, dict)
-                            yield sse({"type": "tool_client", "tool": {**rec, "check": deferred}})
+                            yield sse({"type": "tool_client", "tool": {**rec, "check": deferred, "tainted": tainted}})
                             try:
                                 async for ping in _wait(fut, LUMNA_TIMEOUT if tool.where == "lumna" else CLIENT_TIMEOUT):
                                     yield ping

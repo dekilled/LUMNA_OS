@@ -148,6 +148,7 @@ struct pedido_acao {
 	GCond cond;
 	bool pronto;
 	bool esperando_licenca;
+	bool contaminada; /* o servidor avisou: conteúdo de fora na conversa */
 	bool aprovado; /* a pessoa deixou esta chamada (a política de arquivos e comandos só passa o que pedia aprovação assim) */
 	char id[24];
 };
@@ -244,7 +245,7 @@ static gboolean acao_na_principal(gpointer d) {
 	}
 	/* a política desta chamada (arquivos e comandos): roda, pede a aprovação (com o quê, onde, por quê e o código) ou recusa */
 	char *desc_c = NULL, *detalhe = NULL, *porque = NULL;
-	int ver = emmaa_avaliar(def, p->args, &desc_c, &detalhe, &porque);
+	int ver = emmaa_avaliar(def, p->args, p->contaminada, &desc_c, &detalhe, &porque);
 	if (ver == 2) {
 		p->res.ok = false;
 		p->res.resumo = g_strdup(porque);
@@ -420,6 +421,7 @@ static void ouvinte_acao(const char *nome, const struct json *args, struct emmab
 	}
 	p->args = json_ler(g->len ? g->str : "{}");
 	g_string_free(g, TRUE);
+	p->contaminada = emmab_contaminada();
 	g_main_context_invoke(NULL, acao_na_principal, p);
 	/* uma ação comum responde logo (45 s de folga); um comando pode levar até 2 minutos; e uma aprovação espera a pessoa LER o cartão
 	 * (até 5 minutos). Passou disso, a licença expira: o cartão some, a ação é negada e a conversa segue, em vez de ficar "pensando". */

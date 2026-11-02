@@ -60,4 +60,7 @@ bool emmab_config_gravar(const char *chave, const char *valor_json);
 /* as permissões das ações ("auto", "ask", "off") que a pessoa mudou */
 GHashTable *emmab_permissoes(void);
 
+/* a chamada de ferramenta que está sendo atendida veio de uma conversa em que entrou conteúdo de fora (a web, uma tela)? */
+bool emmab_contaminada(void);
+
 #endif
