@@ -182,7 +182,14 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         ferramenta = None
         fora = os.environ.get("EMMA_TESTE_FORA", "/tmp/emma-fora.txt")
-        if "escreve historia" in texto:
+        casa = os.environ.get("EMMA_TESTE_CASA", "/tmp")
+        if "cria pasta" in texto:
+            ferramenta = ("lumna_arquivos_criar_pasta", {"caminho": f"{casa}/Downloads/Prints"}, "Criei a pasta.")
+        elif "organiza" in texto:
+            ferramenta = ("lumna_arquivos_mover", {"movimentos": [{"de": f"{casa}/Downloads/a.png", "para": f"{casa}/Downloads/Prints"},
+                                                                   {"de": f"{casa}/Downloads/b.png", "para": f"{casa}/Downloads/Prints"},
+                                                                   {"de": f"{casa}/Downloads/c.png", "para": f"{casa}/Downloads/Prints"}], "motivo": "organizar os prints"}, "Organizei.")
+        elif "escreve historia" in texto:
             ferramenta = ("lumna_arquivos_escrever", {"caminho": "Histórias/conto.md", "conteudo": "Era uma vez a Emma.\n", "motivo": "guardar a história"}, "Guardei a história.")
         elif "escreve fora" in texto:
             ferramenta = ("lumna_arquivos_escrever", {"caminho": fora, "conteudo": "conteudo-de-fora\n", "motivo": "teste de aprovação"}, "Escrevi lá fora.")

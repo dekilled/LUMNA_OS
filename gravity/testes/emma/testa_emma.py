@@ -34,6 +34,7 @@ def sobe(cmd, **kw):
     return p
 
 
+os.environ["EMMA_TESTE_CASA"] = T  # o HOME do teste
 os.environ["EMMA_TESTE_FORA"] = os.path.join(tempfile.gettempdir(), f"emma-fora-{os.getpid()}.txt")  # um arquivo FORA da pasta pessoal (o HOME do teste é T)
 env = dict(os.environ, LUMNA_EMMA_ESPERA_TESTE="3", LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
            LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
@@ -173,6 +174,25 @@ try:
             "o comando rodou mesmo sem a aprovação")
     if os.path.exists(fora):
         os.unlink(fora)
+
+    # criar pasta: direto, sem cartão. Mover: UM cartão com a lista inteira, e o que já existe no destino é pulado.
+    os.makedirs(os.path.join(home, "Downloads"), exist_ok=True)
+    for nome in ("a.png", "b.png", "c.png"):
+        open(os.path.join(home, "Downloads", nome), "w").write(nome)
+    r, conf = conversa_aprovando("cria pasta dos prints", None)
+    confere(conf is None, f"criar uma pasta na pasta pessoal não devia pedir aprovação: {conf}")
+    confere(os.path.isdir(os.path.join(home, "Downloads", "Prints")), "a pasta não foi criada")
+    open(os.path.join(home, "Downloads", "Prints", "c.png"), "w").write("ja estava la")  # um destino que já existe
+    r, conf = conversa_aprovando("organiza os prints", "sim")
+    confere(conf is not None, "mover arquivos devia pedir aprovação")
+    if conf:
+        d = conf.get("detalhe", "")
+        confere("Mover 3 itens" in d and "a.png" in d and "b.png" in d and "c.png" in d and "Prints" in d and "organizar os prints" in d,
+                f"o cartão não lista todos os movimentos: {d!r}")
+    confere(os.path.exists(os.path.join(home, "Downloads", "Prints", "a.png")) and not os.path.exists(os.path.join(home, "Downloads", "a.png")), "a.png não foi movido")
+    confere(os.path.exists(os.path.join(home, "Downloads", "Prints", "b.png")) and not os.path.exists(os.path.join(home, "Downloads", "b.png")), "b.png não foi movido")
+    confere(open(os.path.join(home, "Downloads", "Prints", "c.png")).read() == "ja estava la" and os.path.exists(os.path.join(home, "Downloads", "c.png")),
+            "c.png foi sobrescrito (ou sumiu): um destino que existe tem de ser pulado")
 
     # uma aprovação que ninguém responde expira: o cartão some, a ação é negada e a conversa SEGUE (não fica "pensando" para sempre)
     r, conf = conversa_aprovando("escreve fora", None)

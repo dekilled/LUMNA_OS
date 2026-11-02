@@ -209,6 +209,9 @@ struct emmaq_juizo emmaq_julgar(enum emmaq_op op, const char *caminho) {
 	} else if (tem_oculto(j.real)) {
 		j.veredito = EMMAQ_APROVAR;
 		j.porque = g_strdup_printf("%s é uma pasta ou arquivo oculto, de configuração de programas.", j.real);
+	} else if (op == EMMAQ_MOVER && !na_dela) {
+		j.veredito = EMMAQ_APROVAR;
+		j.porque = g_strdup("Mover, copiar ou renomear arquivos seus pede a sua aprovação (com a lista inteira).");
 	} else if ((op == EMMAQ_ESCREVER || op == EMMAQ_ANEXAR) && existe && !na_dela) {
 		j.veredito = EMMAQ_APROVAR;
 		j.porque = g_strdup_printf("%s já existe e não é um arquivo da Emma: mudar ele altera algo seu.", j.real);
@@ -484,4 +487,57 @@ char *emmaq_detalhe_comando(const char *comando, const char *pasta) {
 	g_hash_table_destroy(vistos);
 	g_strfreev(toks);
 	return g_string_free(g, FALSE);
+}
+
+char *emmaq_criar_pasta(const char *real, char **erro) {
+	if (g_file_test(real, G_FILE_TEST_IS_DIR)) {
+		return g_strdup_printf("A pasta %s já existia.", real);
+	}
+	if (g_file_test(real, G_FILE_TEST_EXISTS)) {
+		*erro = erro_de("%s já existe e não é uma pasta.", real, NULL);
+		return NULL;
+	}
+	if (g_mkdir_with_parents(real, 0755) != 0) {
+		*erro = errno == EACCES ? erro_de("O sistema não deixa criar a pasta %s (sem permissão).", real, NULL) : erro_de("Não consegui criar a pasta %s.", real, NULL);
+		return NULL;
+	}
+	return g_strdup_printf("Criei a pasta %s.", real);
+}
+
+char *emmaq_destino(const char *de_real, const char *para_real) {
+	if (g_file_test(para_real, G_FILE_TEST_IS_DIR)) {
+		char *base = g_path_get_basename(de_real), *r = g_build_filename(para_real, base, NULL);
+		g_free(base);
+		return r;
+	}
+	return g_strdup(para_real);
+}
+
+char *emmaq_mover(const char *de, const char *para, bool copiar, char **erro) {
+	if (!g_file_test(de, G_FILE_TEST_EXISTS) && !g_file_test(de, G_FILE_TEST_IS_SYMLINK)) {
+		*erro = erro_de("%s não existe.", de, NULL);
+		return NULL;
+	}
+	if (g_file_test(para, G_FILE_TEST_EXISTS) || g_file_test(para, G_FILE_TEST_IS_SYMLINK)) {
+		*erro = erro_de("O destino %s já existe (não sobrescrevo).", para, NULL);
+		return NULL;
+	}
+	if (dentro(para, de)) {
+		*erro = erro_de("Não dá para pôr %s dentro de si mesma.", de, NULL);
+		return NULL;
+	}
+	char *pai = g_path_get_dirname(para);
+	g_mkdir_with_parents(pai, 0755);
+	g_free(pai);
+	GFile *a = g_file_new_for_path(de), *b = g_file_new_for_path(para);
+	GError *e = NULL;
+	bool ok = copiar ? g_file_copy(a, b, G_FILE_COPY_NOFOLLOW_SYMLINKS, NULL, NULL, NULL, &e) : g_file_move(a, b, G_FILE_COPY_NOFOLLOW_SYMLINKS, NULL, NULL, NULL, &e);
+	g_object_unref(a);
+	g_object_unref(b);
+	if (!ok) {
+		*erro = g_strdup_printf("Não consegui %s %s: %s.", copiar ? "copiar" : "mover", de, e ? e->message : "");
+		g_clear_error(&e);
+		return NULL;
+	}
+	return g_strdup_printf("%s %s → %s", copiar ? "Copiei" : "Movi", de, para);
 }

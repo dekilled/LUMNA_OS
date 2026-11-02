@@ -70,6 +70,17 @@ static const struct emmaa_def catalogo[] = {
 		"\"acrescentar\":{\"type\":\"boolean\",\"description\":\"true acrescenta ao fim em vez de substituir\"},"
 		"\"motivo\":{\"type\":\"string\",\"description\":\"Para que isso serve, numa frase (a pessoa lê antes de aprovar)\"}}",
 		"caminho,conteudo,motivo", EMMAA_AGIR, "auto" },
+	{ "arquivos.criar_pasta", "Criar uma pasta",
+		"Cria uma pasta (e as que faltarem no caminho). Na pasta pessoal (não oculta) cria direto, sem pedir; fora dela a pessoa aprova. Use isto em vez de um comando mkdir.",
+		"{\"caminho\":{\"type\":\"string\",\"description\":\"O caminho da pasta\"}}", "caminho", EMMAA_AGIR, "auto" },
+	{ "arquivos.mover", "Mover ou copiar arquivos",
+		"Move, copia ou renomeia arquivos e pastas. Para organizar (vários arquivos), chame UMA vez com todos os movimentos: a pessoa vê a lista inteira num cartão só e aprova uma vez. "
+		"Nunca sobrescreve: se o destino já existe, aquele item é pulado e você avisa. \"para\" pode ser uma pasta (o item vai para dentro dela) ou o caminho final (renomear). Use isto em vez de comandos mv e cp.",
+		"{\"movimentos\":{\"type\":\"array\",\"description\":\"Cada item: de (o caminho de hoje) e para (a pasta ou o caminho novo)\","
+		"\"items\":{\"type\":\"object\",\"properties\":{\"de\":{\"type\":\"string\"},\"para\":{\"type\":\"string\"}},\"required\":[\"de\",\"para\"]}},"
+		"\"copiar\":{\"type\":\"boolean\",\"description\":\"true copia em vez de mover\"},"
+		"\"motivo\":{\"type\":\"string\",\"description\":\"Para que, numa frase (a pessoa lê antes de aprovar)\"}}",
+		"movimentos,motivo", EMMAA_AGIR, "auto" },
 	{ "arquivos.apagar", "Apagar um arquivo",
 		"Manda um arquivo ou pasta para a lixeira (não some de vez). Sempre pede a aprovação da pessoa.",
 		"{\"caminho\":{\"type\":\"string\"},\"motivo\":{\"type\":\"string\",\"description\":\"Por que apagar, numa frase\"}}", "caminho,motivo", EMMAA_PERIGO, "ask" },
@@ -579,15 +590,93 @@ static char *cortar(const char *t, int max) {
 	return r;
 }
 
+#define MOVER_MAX 200
+
+/* os movimentos de uma chamada: o caminho de cada "de" e o final de cada "para" (resolvidos), g_free em cada um */
+static int movimentos_de(const struct json *args, char *de[], char *para[]) {
+	const struct json *ms = json_chave(args, "movimentos");
+	int n = 0;
+	for (int i = 0; ms && ms->tipo == JSON_LISTA && i < ms->nfilhos && n < MOVER_MAX; i++) {
+		const struct json *m = json_item(ms, i);
+		const char *a = json_chave_texto(m, "de"), *b = json_chave_texto(m, "para");
+		if (!*a || !*b) {
+			continue;
+		}
+		struct emmaq_juizo ja = emmaq_julgar(EMMAQ_MOVER, a), jb = emmaq_julgar(EMMAQ_MOVER, b);
+		de[n] = g_strdup(ja.real);
+		para[n] = emmaq_destino(ja.real, jb.real);
+		n++;
+		emmaq_juizo_limpar(&ja);
+		emmaq_juizo_limpar(&jb);
+	}
+	return n;
+}
+
+static int mover_avaliar(const struct json *args, char **descricao, char **detalhe, char **porque) {
+	char *de[MOVER_MAX], *para[MOVER_MAX];
+	int n = movimentos_de(args, de, para);
+	int r = 0;
+	bool copiar = json_bool(json_chave(args, "copiar"), false);
+	GString *g = g_string_new(NULL);
+	if (n == 0) {
+		*porque = g_strdup("Nenhum movimento válido (cada item precisa de \"de\" e \"para\").");
+		g_string_free(g, TRUE);
+		return 2;
+	}
+	for (int i = 0; i < n && r != 2; i++) {
+		for (int k = 0; k < 2; k++) {
+			struct emmaq_juizo j = emmaq_julgar(EMMAQ_MOVER, k ? para[i] : de[i]);
+			if (j.veredito == EMMAQ_NEGAR) {
+				r = 2;
+				*porque = g_strdup(j.porque);
+			} else if (j.veredito == EMMAQ_APROVAR && r == 0) {
+				r = 1;
+			}
+			emmaq_juizo_limpar(&j);
+		}
+	}
+	if (r == 1) {
+		g_string_append_printf(g, "%s %d %s:\n", copiar ? "Copiar" : "Mover", n, n == 1 ? "item" : "itens");
+		for (int i = 0; i < n; i++) {
+			if (i < 40) {
+				char *a = g_path_get_basename(de[i]), *pai_a = g_path_get_dirname(de[i]);
+				g_string_append_printf(g, "  %s\n      de  %s\n      para %s\n", a, pai_a, para[i]);
+				g_free(a);
+				g_free(pai_a);
+			}
+		}
+		if (n > 40) {
+			g_string_append_printf(g, "  … e mais %d.\n", n - 40);
+		}
+		const char *motivo = json_chave_texto(args, "motivo");
+		if (*motivo) {
+			g_string_append_printf(g, "\nMotivo: %s", motivo);
+		}
+		g_string_append(g, "\n\nPor que pede a sua aprovação: mover, copiar ou renomear arquivos seus pede a sua aprovação, com a lista inteira. Nada é sobrescrito: o que já existe no destino é pulado.");
+		*detalhe = g_string_free(g, FALSE);
+		*descricao = g_strdup_printf("%s %d %s. Motivo: %s", copiar ? "Copiar" : "Mover", n, n == 1 ? "arquivo" : "arquivos", *motivo ? motivo : "organizar");
+	} else {
+		g_string_free(g, TRUE);
+	}
+	for (int i = 0; i < n; i++) {
+		g_free(de[i]);
+		g_free(para[i]);
+	}
+	return r;
+}
+
 int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, bool contaminada, char **descricao, char **detalhe, char **porque) {
 	*descricao = *detalhe = *porque = NULL;
 	const char *n = d->nome;
 	if (!e_de_arquivos(n)) {
 		return 0;
 	}
+	if (!strcmp(n, "arquivos.mover")) {
+		return mover_avaliar(args, descricao, detalhe, porque);
+	}
 	const char *caminho = !strcmp(n, "arquivos.listar") ? json_chave_texto(args, "pasta") : json_chave_texto(args, "caminho");
 	const char *motivo = json_chave_texto(args, "motivo");
-	enum emmaq_op op = !strcmp(n, "arquivos.listar") ? EMMAQ_LISTAR : !strcmp(n, "arquivos.ler") ? EMMAQ_LER : !strcmp(n, "arquivos.apagar") ? EMMAQ_APAGAR
+	enum emmaq_op op = !strcmp(n, "arquivos.criar_pasta") ? EMMAQ_CRIAR_PASTA : !strcmp(n, "arquivos.listar") ? EMMAQ_LISTAR : !strcmp(n, "arquivos.ler") ? EMMAQ_LER : !strcmp(n, "arquivos.apagar") ? EMMAQ_APAGAR
 		: !strcmp(n, "comando.executar") ? EMMAQ_EXECUTAR : json_bool(json_chave(args, "acrescentar"), false) ? EMMAQ_ANEXAR : EMMAQ_ESCREVER;
 	const char *pasta_cmd = json_chave_texto(args, "pasta");
 	struct emmaq_juizo j = emmaq_julgar(op, op == EMMAQ_EXECUTAR ? pasta_cmd : caminho);
@@ -609,7 +698,7 @@ int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, bool conta
 			g_free(det);
 			g_string_append_printf(s, "Executar um comando");
 		} else {
-			const char *o = op == EMMAQ_LISTAR ? "Listar a pasta" : op == EMMAQ_LER ? "Ler" : op == EMMAQ_APAGAR ? "Mandar para a lixeira" : op == EMMAQ_ANEXAR ? "Acrescentar a" : "Escrever em";
+			const char *o = op == EMMAQ_CRIAR_PASTA ? "Criar a pasta" : op == EMMAQ_LISTAR ? "Listar a pasta" : op == EMMAQ_LER ? "Ler" : op == EMMAQ_APAGAR ? "Mandar para a lixeira" : op == EMMAQ_ANEXAR ? "Acrescentar a" : "Escrever em";
 			g_string_append_printf(g, "%s %s", o, j.real);
 			g_string_append_printf(s, "%s %s", o, j.real);
 			if (op == EMMAQ_ESCREVER || op == EMMAQ_ANEXAR) {
@@ -633,13 +722,59 @@ int emmaa_avaliar(const struct emmaa_def *d, const struct json *args, bool conta
 	return r;
 }
 
+static void mover_executar(const struct json *args, struct emmaa_res *r) {
+	char *de[MOVER_MAX], *para[MOVER_MAX];
+	int n = movimentos_de(args, de, para);
+	bool copiar = json_bool(json_chave(args, "copiar"), false);
+	bool pede = false;
+	char *recusa = NULL;
+	for (int i = 0; i < n && !recusa; i++) {
+		for (int k = 0; k < 2; k++) {
+			struct emmaq_juizo j = emmaq_julgar(EMMAQ_MOVER, k ? para[i] : de[i]);
+			if (j.veredito == EMMAQ_NEGAR) {
+				recusa = g_strdup(j.porque);
+			} else if (j.veredito == EMMAQ_APROVAR) {
+				pede = true;
+			}
+			emmaq_juizo_limpar(&j);
+		}
+	}
+	if (n == 0 || recusa || (pede && !aprovado_agora)) {
+		falha(r, recusa ? recusa : n == 0 ? "Nenhum movimento válido." : "Isso precisa da sua aprovação.");
+	} else {
+		GString *out = g_string_new(NULL);
+		int feitos = 0;
+		for (int i = 0; i < n; i++) {
+			char *erro = NULL, *msg = emmaq_mover(de[i], para[i], copiar, &erro);
+			g_string_append_printf(out, "%s%s", out->len ? "\n" : "", msg ? msg : erro);
+			feitos += msg != NULL;
+			g_free(msg);
+			g_free(erro);
+		}
+		r->ok = feitos > 0;
+		g_free(r->resumo);
+		g_free(r->conteudo);
+		r->resumo = g_strdup_printf("%s %d de %d itens.", copiar ? "Copiei" : "Movi", feitos, n);
+		r->conteudo = g_string_free(out, FALSE);
+	}
+	g_free(recusa);
+	for (int i = 0; i < n; i++) {
+		g_free(de[i]);
+		g_free(para[i]);
+	}
+}
+
 static void arquivos_executar(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r) {
 	const char *n = d->nome;
+	if (!strcmp(n, "arquivos.mover")) {
+		mover_executar(args, r);
+		return;
+	}
 	bool cmd = !strcmp(n, "comando.executar");
 	const char *caminho = !strcmp(n, "arquivos.listar") ? json_chave_texto(args, "pasta") : json_chave_texto(args, "caminho");
 	bool anexar = json_bool(json_chave(args, "acrescentar"), false);
-	enum emmaq_op op = !strcmp(n, "arquivos.listar") ? EMMAQ_LISTAR : !strcmp(n, "arquivos.ler") ? EMMAQ_LER : !strcmp(n, "arquivos.apagar") ? EMMAQ_APAGAR
-		: cmd ? EMMAQ_EXECUTAR : anexar ? EMMAQ_ANEXAR : EMMAQ_ESCREVER;
+	enum emmaq_op op = !strcmp(n, "arquivos.criar_pasta") ? EMMAQ_CRIAR_PASTA : !strcmp(n, "arquivos.listar") ? EMMAQ_LISTAR : !strcmp(n, "arquivos.ler") ? EMMAQ_LER
+		: !strcmp(n, "arquivos.apagar") ? EMMAQ_APAGAR : cmd ? EMMAQ_EXECUTAR : anexar ? EMMAQ_ANEXAR : EMMAQ_ESCREVER;
 	struct emmaq_juizo j = emmaq_julgar(op, cmd ? json_chave_texto(args, "pasta") : caminho);
 	if (j.veredito == EMMAQ_NEGAR || (j.veredito == EMMAQ_APROVAR && !aprovado_agora)) {
 		falha(r, j.veredito == EMMAQ_NEGAR ? j.porque : "Isso precisa da sua aprovação.");
@@ -663,6 +798,8 @@ static void arquivos_executar(const struct emmaa_def *d, const struct json *args
 		saida = emmaq_ler(j.real, &erro);
 	} else if (op == EMMAQ_APAGAR) {
 		saida = emmaq_apagar(j.real, &erro);
+	} else if (op == EMMAQ_CRIAR_PASTA) {
+		saida = emmaq_criar_pasta(j.real, &erro);
 	} else {
 		saida = emmaq_escrever(j.real, json_chave_texto(args, "conteudo"), anexar, &erro);
 	}
@@ -677,6 +814,8 @@ static void arquivos_executar(const struct emmaa_def *d, const struct json *args
 			r->resumo = g_strdup(bom ? "Executei o comando." : "O comando não deu certo.");
 		} else if (op == EMMAQ_LER || op == EMMAQ_LISTAR) {
 			r->resumo = g_strdup_printf("%s %s.", op == EMMAQ_LER ? "Li" : "Listei", j.real);
+		} else if (op == EMMAQ_CRIAR_PASTA) {
+			r->resumo = g_strdup(saida);
 		} else {
 			r->resumo = g_strdup(saida);
 		}

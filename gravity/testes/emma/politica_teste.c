@@ -77,6 +77,50 @@ int main(void) {
 	g_free(alvo);
 	g_free(p);
 
+	/* criar pasta, mover */
+	confere(v(EMMAQ_CRIAR_PASTA, "~/Downloads/Prints do LUMNA") == EMMAQ_LIVRE, "criar uma pasta na pasta pessoal é livre");
+	confere(v(EMMAQ_CRIAR_PASTA, "~/.config/qualquer") == EMMAQ_APROVAR, "criar uma pasta oculta pede aprovação");
+	confere(v(EMMAQ_CRIAR_PASTA, "/opt/nova") == EMMAQ_APROVAR, "criar uma pasta fora da pasta pessoal pede aprovação");
+	confere(v(EMMAQ_CRIAR_PASTA, "~/.ssh/nova") == EMMAQ_NEGAR, "criar dentro de ~/.ssh é recusado");
+	confere(v(EMMAQ_MOVER, "~/Downloads/a.png") == EMMAQ_APROVAR, "mover arquivo seu pede aprovação");
+	confere(v(EMMAQ_MOVER, "~/Emma/Histórias/x.md") == EMMAQ_LIVRE, "mover dentro da pasta da Emma é livre");
+	confere(v(EMMAQ_MOVER, "~/.ssh/id_rsa") == EMMAQ_NEGAR, "mover uma chave é recusado");
+	{
+		char *erro = NULL, *msg;
+		char *pasta = g_build_filename(casa, "Downloads", "Prints", NULL);
+		msg = emmaq_criar_pasta(pasta, &erro);
+		confere(msg && strstr(msg, "Criei") && g_file_test(pasta, G_FILE_TEST_IS_DIR), "criou a pasta");
+		g_free(msg);
+		msg = emmaq_criar_pasta(pasta, &erro);
+		confere(msg && strstr(msg, "já existia"), "criar de novo diz que já existia");
+		g_free(msg);
+		char *a = g_build_filename(casa, "Downloads", "a.png", NULL), *b = g_build_filename(casa, "Downloads", "b.png", NULL);
+		escrever(a, "aaa");
+		escrever(b, "bbb");
+		char *dest = emmaq_destino(a, pasta);
+		confere(g_str_has_suffix(dest, "/Downloads/Prints/a.png"), "o destino numa pasta que existe vai para dentro dela");
+		msg = emmaq_mover(a, dest, false, &erro);
+		confere(msg && g_file_test(dest, G_FILE_TEST_EXISTS) && !g_file_test(a, G_FILE_TEST_EXISTS), "moveu o arquivo");
+		g_free(msg);
+		escrever(a, "novo a");
+		msg = emmaq_mover(a, dest, false, &erro);
+		confere(!msg && erro && strstr(erro, "já existe"), "não sobrescreve um destino que existe");
+		g_free(erro);
+		erro = NULL;
+		char *copia = g_build_filename(pasta, "b-copia.png", NULL);
+		msg = emmaq_mover(b, copia, true, &erro);
+		confere(msg && g_file_test(copia, G_FILE_TEST_EXISTS) && g_file_test(b, G_FILE_TEST_EXISTS), "copiou e o original ficou");
+		g_free(msg);
+		msg = emmaq_mover(pasta, g_build_filename(pasta, "dentro", NULL), false, &erro);
+		confere(!msg && erro && strstr(erro, "dentro de si mesma"), "não põe uma pasta dentro dela mesma");
+		g_free(erro);
+		g_free(copia);
+		g_free(dest);
+		g_free(a);
+		g_free(b);
+		g_free(pasta);
+	}
+
 	/* a pasta dela é criada antes de precisar */
 	emmaq_preparar();
 	p = g_build_filename(casa, "Emma", "Histórias", NULL);
