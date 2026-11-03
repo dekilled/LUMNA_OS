@@ -19,6 +19,7 @@ import reminders  # registers the reminder tools
 import yeelight  # registers the lamp tools
 import isolated_shell
 import modes
+import continua
 import nsfw_profile
 import terminal_log  # registers read_terminal
 import tools as lumna_tools
@@ -36,6 +37,7 @@ MODES = ("chat", "plan", "build", "workspace")
 # ---- Sessions ----
 class SessionIn(BaseModel):
     project_id: Optional[str] = None
+    origin: str = ""  # "assistente": a conversa contínua da popup (continua.py)
     title: str = "Nova sessão"
     mode: str = "chat"
     assist_log: bool = False  # created by the assistant panel (see commands.py)
@@ -424,6 +426,8 @@ async def chat(sid: str, body: ChatIn):
         system += "\n\n" + extra
     if plan_msg:
         system += "\n\n" + modes.build_note(plan_msg["plan_doc"], plan_msg.get("plan_done") or [])
+    if note := await continua.nota(session, history, body.client_now):
+        system += "\n\n" + note
     # Spoken conversation: short answers unless this turn asks for detail; a ceiling so she never rambles.
     max_tokens = None
     if body.voice:

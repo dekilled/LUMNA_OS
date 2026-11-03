@@ -19,7 +19,6 @@ bool emmab_contaminada(void) {
 }
 static GCancellable *corte;               /* a resposta que está chegando */
 static char sessao_id[EMMAB_NN][80];
-static gint64 sessao_usada;
 
 
 static const char *canal_chave(int c) {
@@ -326,11 +325,8 @@ int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, cha
 
 bool emmab_sessao(int canal, char *sid, size_t n, char **erro) {
 	g_mutex_lock(&trinco);
-	/* a do assistente recomeça depois de 10 min parada, como no popup do shell antigo */
-	bool velha = canal == EMMAB_ASSIST && sessao_usada && g_get_monotonic_time() - sessao_usada > 10 * 60 * G_USEC_PER_SEC;
-	if (canal == EMMAB_ASSIST) {
-		sessao_usada = g_get_monotonic_time();
-	}
+	/* a do assistente é uma só, para sempre: nunca recomeça por tempo parado (quem cumprimenta depois de uma pausa é o servidor) */
+	bool velha = false;
 	char guardada[80];
 	g_strlcpy(guardada, sessao_id[canal], sizeof(guardada));
 	g_mutex_unlock(&trinco);
@@ -356,7 +352,7 @@ bool emmab_sessao(int canal, char *sid, size_t n, char **erro) {
 	g_free(salva);
 	char *r = NULL;
 	int st = emmab_chamar("POST", "/api/sessions",
-		canal == EMMAB_APP ? "{\"title\":\"Nova sessão\"}" : "{\"title\":\"LUMNA Assistente\",\"assist_log\":true}", &r, erro);
+		canal == EMMAB_APP ? "{\"title\":\"Nova sessão\"}" : "{\"title\":\"Assistente\",\"origin\":\"assistente\"}", &r, erro);
 	char *novo = st == 200 ? texto_de(r, "id") : NULL;
 	g_free(r);
 	if (!novo) {

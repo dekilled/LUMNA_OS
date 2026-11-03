@@ -1040,7 +1040,7 @@ static void tratar(struct cliente *c, char *linha) {
 			responder_ok(c);
 		}
 	} else if (!strcmp(cmd, "nova")) {
-		emmab_nova_conversa(EMMAB_ASSIST);
+		/* a conversa do assistente é uma só: "nova" limpa a tela da popup, mas a linha continua (o servidor guarda tudo) */
 		emmas_nova_sessao_canal("assist");
 		emitir_form("nova", "");
 		responder_ok(c);
