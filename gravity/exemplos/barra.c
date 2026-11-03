@@ -849,6 +849,8 @@ static void perfil_resposta(const char *resp, void *dados) {
 			gv_popup_fechar(CLAY_ID("menu-perfil"));
 		} else {
 			g_strlcpy(perfil_erro, json_chave_texto(j, "erro"), sizeof(perfil_erro));
+			memset(perfil_pin, 0, sizeof(perfil_pin)); /* errou: limpa e devolve o foco ao campo (o clique no botão o levou embora) */
+			perfil_focado = false;
 		}
 		json_liberar(j);
 	} else {
@@ -959,6 +961,7 @@ static void menu_perfil(void) {
 			if ((gv_botao_ext(CLAY_ID("perfil-entrar"), &(gv_botao_opcoes){ .icone = "eye", .texto = "Entrar no NSFW", .estilo = GV_BOTAO_CHEIO, .altura = 38, .crescer = true,
 				    .desativado = !perfil_pin[0] }) || (r & GV_CAMPO_ENTER)) && perfil_pin[0]) {
 				char *a = g_strdup_printf("nsfw %s", perfil_pin);
+				perfil_focado = false; /* o foco volta ao campo no próximo quadro, qualquer que seja o resultado */
 				perfil_pedir(a);
 				memset(a, 0, strlen(a));
 				g_free(a);
