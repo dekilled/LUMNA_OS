@@ -20,6 +20,7 @@
 
 #include "bandeja.h"
 #include "bluetooth.h"
+#include <xkbcommon/xkbcommon-keysyms.h>
 #include "emmac.h"
 #include "json.h"
 #include "gravity.h"
@@ -835,6 +836,7 @@ static gv_app *emma_app;
 /* o perfil: SFW (seguro para outros verem a tela) ou NSFW; entrar no NSFW pede o PIN do bloqueio, voltar ao SFW é livre */
 static bool perfil_nsfw;
 static char perfil_pin[16], perfil_erro[160];
+static bool perfil_focado; /* o campo do PIN já recebeu o foco desde que o popup abriu */
 
 static void perfil_resposta(const char *resp, void *dados) {
 	(void)dados;
@@ -947,6 +949,10 @@ static void menu_perfil(void) {
 			gv_texto(CLAY_STRING("Você está no perfil SFW: a Emma, as conversas e as memórias de visita. O NSFW tem as suas próprias e só abre com o PIN do bloqueio."),
 				gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 			int r = gv_campo(CLAY_ID("perfil-pin"), perfil_pin, sizeof(perfil_pin), "PIN do bloqueio", GV_CAMPO_SENHA);
+			if (!perfil_focado) { /* o campo só existe a partir deste quadro: é agora que dá para focar */
+				gv_focar(CLAY_ID("perfil-pin"));
+				perfil_focado = true;
+			}
 			if (perfil_erro[0]) {
 				gv_texto(gv_str(perfil_erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
 			}
@@ -1019,6 +1025,24 @@ static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
+	/* um popup que pede para digitar (o PIN do perfil, a senha do Wi-Fi) precisa do teclado: a barra, que não o usa, o pede enquanto ele está aberto
+	 * (sai quando o popup fecha: tocar fora, Esc ou entrar) */
+	{
+		static bool teclado_pedido;
+		bool quer = gv_popup_aberto(CLAY_ID("menu-perfil")) || (wf_ap[0] && gv_popup_aberto(CLAY_ID("menu-wifi")));
+		if (quer && gv_tecla() == XKB_KEY_Escape) {
+			gv_popup_fechar(CLAY_ID("menu-perfil"));
+			wf_ap[0] = '\0';
+			quer = false;
+		}
+		if (!gv_popup_aberto(CLAY_ID("menu-perfil"))) {
+			perfil_focado = false;
+		}
+		if (quer != teclado_pedido) {
+			teclado_pedido = quer;
+			gv_app_camada_ancoras(app, GV_ANCORA_CIMA | GV_ANCORA_ESQUERDA | GV_ANCORA_DIREITA, quer);
+		}
+	}
 	rede_estado_copiar(&rede);
 	bt_estado_copiar(&bt);
 	som_ler(&som);
@@ -1128,7 +1152,6 @@ static void desenhar(gv_app *app, void *dados) {
 					} else {
 						perfil_erro[0] = '\0';
 						menu_alternar(CLAY_ID("menu-perfil"));
-						gv_focar(CLAY_ID("perfil-pin"));
 					}
 				}
 			}
