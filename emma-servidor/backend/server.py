@@ -25,7 +25,7 @@ from routes_projects import router as projects_router  # noqa: E402
 from search import router as search_router  # noqa: E402
 from diagnose import router as diagnose_router  # noqa: E402
 from reminders import router as reminders_router  # noqa: E402
-from commands import migrate as migrate_commands, router as commands_router  # noqa: E402
+from commands import migrate as migrate_commands, migrate_origin, router as commands_router  # noqa: E402
 import yeelight  # noqa: E402
 import app_update  # noqa: E402
 import wake  # noqa: E402
@@ -125,6 +125,7 @@ async def startup():
     await ensure_local_key()
     await seed()
     await migrate_commands()
+    await migrate_origin()  # as conversas longas da popup de antes do campo origin voltam para a área Assistente
     app_update.on_start()
     await wake.on_start()
     app.state.light_scheduler = asyncio.create_task(yeelight.run_scheduler())

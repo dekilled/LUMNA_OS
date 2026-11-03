@@ -57,16 +57,21 @@ async def _session(sid: str) -> Session:
 
 
 @router.get("/sessions")
-async def list_sessions(project_id: Optional[str] = None):
-    q = {"project_id": project_id if project_id and project_id != "none" else None}
+async def list_sessions(project_id: Optional[str] = None, origin: Optional[str] = None):
+    # LUMNA: ?origin=assistente lista as conversas que nasceram na popup e passaram de um comando (de qualquer projeto);
+    # sem isso, a lista é a do Chat/projeto e elas ficam de fora, para não misturar.
+    q = {"origin": "assistente"} if origin == "assistente" else {"project_id": project_id if project_id and project_id != "none" else None}
     docs = await db.sessions.find(await nsfw_profile.scope(q)).sort("updated_at", -1).to_list(400)
     # Commands from the assistant panel live in the command log (GET /api/commands), not here.
-    return [Session.from_mongo(d).out() for d in docs if not d.get("assist_log")][:200]
+    docs = [d for d in docs if not d.get("assist_log") and (origin == "assistente" or d.get("origin") != "assistente")]
+    return [Session.from_mongo(d).out() for d in docs][:200]
 
 
 @router.post("/sessions")
 async def create_session(body: SessionIn):
     s = Session(**body.model_dump(), nsfw=await nsfw_profile.nsfw())
+    if s.assist_log:
+        s.origin = "assistente"
     res = await db.sessions.insert_one(s.to_mongo())
     s.id = str(res.inserted_id)
     return s.out()
@@ -80,7 +85,8 @@ async def patch_session(sid: str, body: SessionPatch):
         if upd["project_id"] and not await db.projects.find_one({"_id": oid(upd["project_id"])}):
             raise HTTPException(404, "Projeto não encontrado")
         upd["project_id"] = upd["project_id"] or None
-        upd["assist_log"] = False  # mover é adotar a conversa: sai do registro da popup
+        upd["assist_log"] = False  # mover é adotar a conversa: sai do registro da popup...
+        upd["origin"] = ""         # ...e da área Assistente: passa a ser do Chat ou do projeto
     await db.sessions.update_one({"_id": oid(sid)}, {"$set": upd})
     return (await _session(sid)).out()
 
@@ -480,7 +486,10 @@ async def chat(sid: str, body: ChatIn):
 
     upd = {"mode": mode, "mode_id": recipe.key if recipe else None, "updated_at": now_iso()}
     if session.assist_log and any(m["role"] == "user" for m in history):
-        upd["assist_log"] = False  # a reply in the assistant panel: a real conversation, to the sidebar
+        upd["assist_log"] = False  # a reply in the assistant panel: a real conversation (stays in the Assistente area: origin)
+        if session.title == "LUMNA Assistente":
+            first = next((m["content"] for m in history if m["role"] == "user"), "")
+            upd["title"] = re.sub(r"\s+", " ", first)[:60] or "Assistente"
     if session.title == "Nova sessão":
         upd["title"] = re.sub(r"\s+", " ", body.content)[:60] or (docs[0].get("name") if docs else "") or "Anexo"
     await db.sessions.update_one({"_id": oid(sid)}, {"$set": upd})

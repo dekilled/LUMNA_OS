@@ -27,7 +27,8 @@ enum escopo { E_CHAT, E_PROJETOS, E_ASSISTENTE };
 struct sessao {
 	char id[40];
 	char titulo[120];
-	char dia[12]; /* só no Assistente: AAAA-MM-DD, para agrupar */
+	char dia[12];     /* só no Assistente: AAAA-MM-DD, para agrupar */
+	char quando[40];  /* só no Assistente: o instante, para ordenar */
 };
 
 struct rotina {
@@ -120,6 +121,10 @@ static char *hora_local(const char *iso) {
 
 /* ---- as listas ---- */
 
+static gint ordem_recente(gconstpointer a, gconstpointer b) {
+	return strcmp(((const struct sessao *)b)->quando, ((const struct sessao *)a)->quando);
+}
+
 static void carregar_sessoes(void) {
 	g_array_set_size(sessoes, 0);
 	if (escopo == E_ASSISTENTE) {
@@ -134,11 +139,26 @@ static void carregar_sessoes(void) {
 				g_strdelimit(u, "\n", ' ');
 				g_strlcpy(n.titulo, u, sizeof(n.titulo));
 				g_free(u);
-				g_strlcpy(n.dia, json_chave_texto(s, "at"), sizeof(n.dia)); /* os 10 primeiros: a data */
+				g_strlcpy(n.quando, json_chave_texto(s, "at"), sizeof(n.quando));
+				g_strlcpy(n.dia, n.quando, sizeof(n.dia)); /* os 10 primeiros: a data */
 				g_array_append_val(sessoes, n);
 			}
 		}
 		liberar(&r);
+		/* as que passaram de um comando viraram conversa, mas continuam daqui */
+		if (rest("GET", "/api/sessions?origin=assistente", NULL, &r) && r.corpo) {
+			for (int i = 0; i < r.corpo->nfilhos; i++) {
+				const struct json *s = json_item(r.corpo, i);
+				struct sessao n = { 0 };
+				g_strlcpy(n.id, json_chave_texto(s, "id"), sizeof(n.id));
+				g_strlcpy(n.titulo, json_chave_texto(s, "title"), sizeof(n.titulo));
+				g_strlcpy(n.quando, json_chave_texto(s, "updated_at"), sizeof(n.quando));
+				g_strlcpy(n.dia, n.quando, sizeof(n.dia));
+				g_array_append_val(sessoes, n);
+			}
+		}
+		liberar(&r);
+		g_array_sort(sessoes, ordem_recente);
 		return;
 	}
 	char *c = g_strdup_printf("/api/sessions?project_id=%s", escopo == E_PROJETOS && rotina_atual >= 0 ? g_array_index(rotinas, struct rotina, rotina_atual).id : "none");

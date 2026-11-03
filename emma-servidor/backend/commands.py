@@ -82,6 +82,24 @@ async def deferred_result(sid: str, body: DeferredResultIn):
     raise HTTPException(404, "Ação não encontrada")
 
 
+async def migrate_origin():
+    """Conversas longas da popup de antes do campo `origin` (título "LUMNA Assistente", já fora do registro): voltam para a área
+    Assistente, com o título do que foi dito; as que nunca foram da popup não têm esse título e ficam como estão."""
+    n = 0
+    for s in await db.sessions.find({"title": "LUMNA Assistente", "assist_log": False}).to_list(5000):
+        if s.get("origin"):
+            continue
+        sid = str(s["_id"])
+        users = [m for m in await db.messages.find({"session_id": sid}).sort("created_at", 1).to_list(500) if m["role"] == "user"]
+        upd = {"origin": "assistente"}
+        if users:
+            upd["title"] = re.sub(r"\s+", " ", users[0]["content"])[:60] or "Assistente"
+        await db.sessions.update_one({"_id": s["_id"]}, {"$set": upd})
+        n += 1
+    if n:
+        log.info("%d conversa(s) longa(s) da popup voltaram para a área Assistente", n)
+
+
 async def migrate():
     """Sessions from the panel before the log existed (title "Assistente"): a single exchange goes to
     the log, titled after what was said; longer ones stay in the sidebar. Runs once per session."""

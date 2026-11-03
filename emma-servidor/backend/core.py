@@ -195,6 +195,8 @@ class Session(BaseDocument):
     # From the assistant panel (AIO) and still a single exchange: shown in the command log, not in the
     # sidebar. A second message from the user (a real conversation) clears it (see commands.py).
     assist_log: bool = False
+    # LUMNA: de onde a conversa nasceu ("assistente" = a popup rápida). Sobrevive à promoção: a conversa longa continua na área Assistente, fora do Chat.
+    origin: str = ""
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
