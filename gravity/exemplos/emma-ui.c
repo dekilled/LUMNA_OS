@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include "emma-ui.h"
 #include "destaque.h"
+#include "emmac.h"
 
 #include <string.h>
 #include <sys/wait.h>
@@ -533,13 +534,86 @@ void eu_cartao_secao(uint32_t k, const struct eu_ferramenta *f) {
 	}
 }
 
+/* ---- imagens nas bolhas ---- */
+
+static GHashTable *imagens_baixadas; /* id -> caminho local ("" se não deu) */
+static GHashTable *imagens_pedidas;  /* ids já pedidos ao serviço */
+
+void eu_imagem_guardar(const char *id, const char *caminho) {
+	if (!imagens_baixadas) {
+		imagens_baixadas = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+	}
+	g_hash_table_replace(imagens_baixadas, g_strdup(id), g_strdup(caminho));
+	gv_acordar_em(0.01);
+}
+
+static void imagem_baixada(const char *resp, void *dados) {
+	char *id = dados;
+	struct json *j = resp ? json_ler(resp) : NULL;
+	eu_imagem_guardar(id, j && json_bool(json_chave(j, "ok"), false) ? json_chave_texto(j, "caminho") : "");
+	json_liberar(j);
+	g_free(id);
+}
+
+/* o arquivo da imagem, ou NULL enquanto baixa; "" se não deu */
+static const char *imagem_caminho(const struct eu_img *im) {
+	if (im->caminho[0]) {
+		return im->caminho;
+	}
+	const char *c = imagens_baixadas && im->id[0] ? g_hash_table_lookup(imagens_baixadas, im->id) : NULL;
+	if (c || !im->id[0]) {
+		return c ? c : "";
+	}
+	if (!imagens_pedidas) {
+		imagens_pedidas = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	}
+	if (!g_hash_table_contains(imagens_pedidas, im->id)) {
+		g_hash_table_add(imagens_pedidas, g_strdup(im->id));
+		char *p = g_strdup_printf("baixar %s", im->id);
+		emmac_pedido_async(p, imagem_baixada, g_strdup(im->id));
+		g_free(p);
+	}
+	return NULL;
+}
+
+/* a fileira de imagens de uma mensagem; clicar abre no visualizador do sistema (ampliar, salvar) */
+static void imagens_da_mensagem(uint32_t k, const struct eu_msg *m, bool direita) {
+	if (!m->nimg) {
+		return;
+	}
+	CLAY(CLAY_IDI("em-imgs", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .x = direita ? CLAY_ALIGN_X_RIGHT : CLAY_ALIGN_X_LEFT } } }) {
+		for (int i = 0; i < m->nimg; i++) {
+			Clay_ElementId id = CLAY_IDI("em-img", k * 8 + (uint32_t)i);
+			const char *c = imagem_caminho(&m->img[i]);
+			if (c && c[0]) {
+				float prop = gv_imagem_proporcao(c);
+				float larg = m->nimg == 1 ? 300 : 150, alt = prop > 0 ? larg / prop : larg;
+				alt = alt < 60 ? 60 : alt > 320 ? 320 : alt;
+				bool tocado = gv_tocado(id);
+				CLAY(id, gv_imagem(id, c, GV_AJUSTE_COBRIR, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(larg), CLAY_SIZING_FIXED(alt) } },
+					.cornerRadius = CLAY_CORNER_RADIUS(14), .border = { .color = gv_por_cima(id) ? gv_t.acento : gv_t.borda, .width = GV_BORDA(1) } })) {}
+				if (tocado) {
+					char *argv[] = { "xdg-open", (char *)c, NULL };
+					g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+				}
+			} else {
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(150), CLAY_SIZING_FIXED(90) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(14) }) {
+					gv_texto(gv_str(c ? "imagem indisponível" : "carregando…"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+				}
+			}
+		}
+	}
+}
+
 void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) {
 	if (m->usuario) {
 		CLAY(CLAY_IDI("em-u", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4, .childAlignment = { .x = CLAY_ALIGN_X_RIGHT } } }) {
+			imagens_da_mensagem(k, m, true);
 			bool rico = eu_tem_markdown(m->texto);
 			Clay_ElementId bolha_u = CLAY_IDI("em-ub", k), menu_u = CLAY_IDI("em-um", k);
 			gv_menu_no_ponteiro(bolha_u, menu_u);
-			CLAY(bolha_u, { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
+			if (m->texto[0] || !m->nimg) CLAY(bolha_u, { .layout = { .sizing = { rico ? CLAY_SIZING_GROW(0, eu_largura_balao) : CLAY_SIZING_FIT(0, eu_largura_balao) }, .padding = { 16, 16, 12, 12 } },
 				.backgroundColor = EU_VIOLETA, .cornerRadius = CLAY_CORNER_RADIUS(18) }) {
 				if (rico) {
 					eu_markdown(k * 2 + 1, m->texto, gv_t.tamanho_corpo + 1, (Clay_Color){ 255, 255, 255, 255 });
@@ -574,6 +648,7 @@ void eu_bolha(uint32_t k, const struct eu_msg *m, void (*enviar)(const char *)) 
 	CLAY(CLAY_IDI("em-e", k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
 		eu_avatar(CLAY_IDI("em-ea", k), 34);
 		CLAY(CLAY_IDI("em-ec", k), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+			imagens_da_mensagem(k, m, false);
 			if (r.corpo[0] || m->parcial) {
 				bool rico = eu_tem_markdown(r.corpo);
 				Clay_ElementId bolha_e = CLAY_IDI("em-eb", k), menu_e = CLAY_IDI("em-em", k);

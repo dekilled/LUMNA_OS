@@ -12,6 +12,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +35,7 @@ static struct {
 	struct wl_data_device *dispositivo;
 	struct wl_data_offer *oferta;     /* o que está copiado agora (de outra app) */
 	bool oferta_texto;
+	const char *oferta_imagem;        /* o tipo da imagem copiada ("image/png"...), ou NULL */
 	struct wl_data_source *fonte;     /* o que nós copiámos */
 	char *copiado;
 
@@ -60,11 +63,19 @@ static struct {
 
 /* ---- área de transferência ---- */
 
+/* o que cada oferta tem fica na própria oferta (user_data, em bits): 1 texto, 2 png, 4 jpeg, 8 webp */
 static void oferta_tipo(void *dados, struct wl_data_offer *oferta, const char *tipo) {
+	uintptr_t bits = (uintptr_t)wl_data_offer_get_user_data(oferta);
 	if (!strcmp(tipo, MIME_TEXTO) || !strcmp(tipo, "text/plain") || !strcmp(tipo, "UTF8_STRING")) {
-		/* guarda na própria oferta que ela tem texto */
-		wl_data_offer_set_user_data(oferta, (void *)1);
+		bits |= 1;
+	} else if (!strcmp(tipo, "image/png")) {
+		bits |= 2;
+	} else if (!strcmp(tipo, "image/jpeg")) {
+		bits |= 4;
+	} else if (!strcmp(tipo, "image/webp")) {
+		bits |= 8;
 	}
+	wl_data_offer_set_user_data(oferta, (void *)bits);
 }
 
 static void oferta_acoes(void *d, struct wl_data_offer *o, uint32_t a) {}
@@ -91,7 +102,9 @@ static void disp_selecao(void *d, struct wl_data_device *dev, struct wl_data_off
 		wl_data_offer_destroy(e.oferta);
 	}
 	e.oferta = oferta;
-	e.oferta_texto = oferta && wl_data_offer_get_user_data(oferta) != NULL;
+	uintptr_t bits = oferta ? (uintptr_t)wl_data_offer_get_user_data(oferta) : 0;
+	e.oferta_texto = bits & 1;
+	e.oferta_imagem = bits & 2 ? "image/png" : bits & 4 ? "image/jpeg" : bits & 8 ? "image/webp" : NULL;
 }
 
 static const struct wl_data_device_listener disp_ouvinte = {
@@ -203,6 +216,63 @@ const char *gv_colar(void) {
 	Clay_String s = gv_str(buf);
 	free(buf);
 	return s.chars;
+}
+
+/* há uma imagem copiada (de outro programa) e nenhum texto? É o caso de um print ou "copiar imagem" */
+bool gv_area_tem_imagem(void) {
+	return !(e.fonte && e.copiado) && e.oferta && e.oferta_imagem && !e.oferta_texto;
+}
+
+/* grava a imagem copiada em pasta/colado-AAAAMMDD-HHMMSS.ext e devolve o caminho em saida; false se não deu */
+bool gv_colar_imagem(const char *pasta, char *saida, size_t tam) {
+	if (!e.oferta || !e.oferta_imagem) {
+		return false;
+	}
+	int canos[2];
+	if (pipe2(canos, O_CLOEXEC) < 0) {
+		return false;
+	}
+	const char *tipo = e.oferta_imagem;
+	wl_data_offer_receive(e.oferta, tipo, canos[1]);
+	close(canos[1]);
+	wl_display_flush(e.display);
+	size_t cap = 1 << 20, n = 0;
+	const size_t LIMITE = 20u << 20; /* o servidor também limita: nada além de 20 MB */
+	char *buf = malloc(cap);
+	struct pollfd p = { .fd = canos[0], .events = POLLIN };
+	while (buf && n < LIMITE && poll(&p, 1, 1500) > 0) {
+		if (n + 65536 > cap) {
+			char *maior = realloc(buf, cap * 2);
+			if (!maior) {
+				break;
+			}
+			buf = maior;
+			cap *= 2;
+		}
+		ssize_t r = read(canos[0], buf + n, cap - n);
+		if (r <= 0) {
+			break;
+		}
+		n += (size_t)r;
+	}
+	close(canos[0]);
+	bool ok = false;
+	if (buf && n > 0 && n < LIMITE) {
+		mkdir(pasta, 0700);
+		time_t agora = time(NULL);
+		struct tm t;
+		localtime_r(&agora, &t);
+		char hora[32];
+		strftime(hora, sizeof(hora), "%Y%m%d-%H%M%S", &t);
+		snprintf(saida, tam, "%s/colado-%s.%s", pasta, hora, !strcmp(tipo, "image/png") ? "png" : !strcmp(tipo, "image/jpeg") ? "jpg" : "webp");
+		FILE *f = fopen(saida, "wb");
+		if (f) {
+			ok = fwrite(buf, 1, n, f) == n;
+			fclose(f);
+		}
+	}
+	free(buf);
+	return ok;
 }
 
 /* ---- text-input ---- */

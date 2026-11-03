@@ -59,6 +59,9 @@ char *emmab_config_texto(const char *chave);
 bool emmab_config_gravar(const char *chave, const char *valor_json);
 /* o perfil em uso (SFW/NSFW): a conversa do assistente é uma por perfil */
 void emmab_perfil_definir(bool nsfw);
+/* imagens da conversa: sobe um arquivo (devolve o id do anexo) e baixa um anexo para o cache (devolve o caminho local) */
+bool emmab_anexar(const char *arquivo, char *id, size_t n, char **erro);
+bool emmab_anexo_baixar(const char *id, char *caminho, size_t n, char **erro);
 /* as permissões das ações ("auto", "ask", "off") que a pessoa mudou */
 GHashTable *emmab_permissoes(void);
 

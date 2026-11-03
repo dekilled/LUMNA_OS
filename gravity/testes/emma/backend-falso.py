@@ -34,6 +34,7 @@ def prov_publico(p):
 
 
 PERFIL = {"nsfw": False}
+ANEXOS = {}
 
 
 class H(BaseHTTPRequestHandler):
@@ -71,6 +72,13 @@ class H(BaseHTTPRequestHandler):
             return self.json([prov_publico(p) for p in PROVS])
         if self.path == "/api/profile":
             return self.json({"nsfw": PERFIL["nsfw"], "on_start": False})
+        if self.path.startswith("/api/attachments/") and self.path[17:] in ANEXOS:
+            b = ANEXOS[self.path[17:]]
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            return self.wfile.write(b)
         if self.path == "/api/settings":
             return self.json({"routing": ROUTING})
         if self.path.startswith("/api/providers/") and self.path.endswith("/models"):
@@ -134,6 +142,13 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         dados = self.corpo()
+        if self.path == "/api/attachments":  # o upload de uma imagem (multipart): guarda os bytes depois do cabeçalho da parte
+            registrar(f"POST {self.path} bytes={len(dados)}")
+            if self.headers.get("Authorization", "") != f"Bearer {TOKEN}":
+                return self.json({"detail": "Não autenticado"}, 401)
+            corpo = dados.split(b"\r\n\r\n", 1)[-1].rsplit(b"\r\n--", 1)[0]
+            ANEXOS["att-1"] = corpo
+            return self.json({"id": "att-1", "mime": "image/png", "name": "foto.png"})
         if self.path.endswith("/stt"):
             registrar(f"POST {self.path} audio={len(dados)}")
             texto = open(STT).read().strip() if STT else ""

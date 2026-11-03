@@ -332,6 +332,171 @@ int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, cha
 	return 0;
 }
 
+/* ---- anexos (imagens) ---- */
+
+static const char *extensao_imagem(const guint8 *d, gsize n) {
+	if (n >= 8 && !memcmp(d, "\x89PNG", 4)) {
+		return "png";
+	}
+	if (n >= 3 && d[0] == 0xff && d[1] == 0xd8) {
+		return "jpg";
+	}
+	if (n >= 12 && !memcmp(d, "RIFF", 4) && !memcmp(d + 8, "WEBP", 4)) {
+		return "webp";
+	}
+	if (n >= 6 && !memcmp(d, "GIF8", 4)) {
+		return "gif";
+	}
+	return NULL;
+}
+
+/* sobe uma imagem para o servidor (POST /api/attachments); devolve o id do anexo */
+bool emmab_anexar(const char *arquivo, char *id, size_t n, char **erro) {
+	sessoes();
+	gchar *dados = NULL;
+	gsize tam = 0;
+	if (!g_file_get_contents(arquivo, &dados, &tam, NULL)) {
+		if (erro) {
+			*erro = g_strdup("não consegui ler a imagem");
+		}
+		return false;
+	}
+	if (!extensao_imagem((const guint8 *)dados, tam)) {
+		if (erro) {
+			*erro = g_strdup("só imagens PNG, JPEG, WebP ou GIF");
+		}
+		g_free(dados);
+		return false;
+	}
+	char *nome = g_path_get_basename(arquivo);
+	for (int vez = 0; vez < 2; vez++) {
+		char *t = acesso(erro);
+		if (!t) {
+			break;
+		}
+		SoupMultipart *mp = soup_multipart_new("multipart/form-data");
+		GBytes *bytes = g_bytes_new(dados, tam);
+		soup_multipart_append_form_file(mp, "file", nome, "application/octet-stream", bytes);
+		g_bytes_unref(bytes);
+		char *url = g_strdup_printf("%s/api/attachments", emmab_url());
+		SoupMessage *m = soup_message_new_from_multipart(url, mp);
+		g_free(url);
+		soup_multipart_free(mp);
+		char *a = g_strdup_printf("Bearer %s", t);
+		soup_message_headers_replace(soup_message_get_request_headers(m), "Authorization", a);
+		g_free(a);
+		g_free(t);
+		GError *e = NULL;
+		SoupSession *s = soup_session_new_with_options("timeout", 60, "idle-timeout", 60, NULL);
+		GBytes *r = soup_session_send_and_read(s, m, NULL, &e);
+		int st = r ? (int)soup_message_get_status(m) : 0;
+		char *corpo = NULL;
+		if (r) {
+			gsize rn;
+			const char *d = g_bytes_get_data(r, &rn);
+			corpo = g_strndup(d, rn);
+			g_bytes_unref(r);
+		}
+		g_object_unref(s);
+		g_object_unref(m);
+		g_clear_error(&e);
+		if (st == 401 && vez == 0) {
+			esquecer_token();
+			g_free(corpo);
+			continue;
+		}
+		char *novo = st == 200 ? texto_de(corpo, "id") : NULL;
+		if (novo) {
+			g_strlcpy(id, novo, n);
+			g_free(novo);
+			g_free(corpo);
+			g_free(nome);
+			g_free(dados);
+			return true;
+		}
+		if (erro && !*erro) {
+			char *d = detalhe(corpo);
+			*erro = d ? d : st == 0 ? g_strdup_printf("a Emma não respondeu em %s", emmab_url()) : g_strdup_printf("o servidor recusou a imagem (%d)", st);
+		}
+		g_free(corpo);
+		break;
+	}
+	g_free(nome);
+	g_free(dados);
+	return false;
+}
+
+/* baixa um anexo para ~/.cache/lumna/emma/anexos/ID.ext (uma vez só) e devolve o caminho */
+bool emmab_anexo_baixar(const char *id, char *caminho, size_t n, char **erro) {
+	for (const char *c = id; *c; c++) {
+		if (!g_ascii_isalnum(*c) && *c != '-' && *c != '_') { /* o id vira nome de arquivo: nada de barras nem pontos */
+			if (erro) {
+				*erro = g_strdup("anexo inválido");
+			}
+			return false;
+		}
+	}
+	char *pasta = g_build_filename(g_get_user_cache_dir(), "lumna", "emma", "anexos", NULL);
+	g_mkdir_with_parents(pasta, 0700);
+	static const char *exts[] = { "png", "jpg", "webp", "gif" };
+	for (int i = 0; i < 4; i++) {
+		char *f = g_strdup_printf("%s/%s.%s", pasta, id, exts[i]);
+		if (g_file_test(f, G_FILE_TEST_IS_REGULAR)) {
+			g_strlcpy(caminho, f, n);
+			g_free(f);
+			g_free(pasta);
+			return true;
+		}
+		g_free(f);
+	}
+	sessoes();
+	bool ok = false;
+	for (int vez = 0; vez < 2 && !ok; vez++) {
+		char *t = acesso(erro);
+		if (!t) {
+			break;
+		}
+		char *url = g_strdup_printf("%s/api/attachments/%s", emmab_url(), id);
+		SoupMessage *m = soup_message_new("GET", url);
+		g_free(url);
+		char *a = g_strdup_printf("Bearer %s", t);
+		soup_message_headers_replace(soup_message_get_request_headers(m), "Authorization", a);
+		g_free(a);
+		g_free(t);
+		GError *e = NULL;
+		GBytes *r = soup_session_send_and_read(sessao_longa, m, NULL, &e);
+		int st = r ? (int)soup_message_get_status(m) : 0;
+		if (st == 401 && vez == 0) {
+			esquecer_token();
+		} else if (st == 200) {
+			gsize rn;
+			const guint8 *d = g_bytes_get_data(r, &rn);
+			const char *ext = extensao_imagem(d, rn);
+			if (ext) {
+				char *f = g_strdup_printf("%s/%s.%s", pasta, id, ext);
+				if (g_file_set_contents(f, (const char *)d, (gssize)rn, NULL)) {
+					g_strlcpy(caminho, f, n);
+					ok = true;
+				}
+				g_free(f);
+			}
+			vez = 2;
+		} else {
+			if (erro && !*erro) {
+				*erro = g_strdup_printf("não consegui baixar a imagem (%d)", st);
+			}
+			vez = 2;
+		}
+		if (r) {
+			g_bytes_unref(r);
+		}
+		g_clear_error(&e);
+		g_object_unref(m);
+	}
+	g_free(pasta);
+	return ok;
+}
+
 /* ---- conversas ---- */
 
 bool emmab_sessao(int canal, char *sid, size_t n, char **erro) {

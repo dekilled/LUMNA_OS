@@ -266,6 +266,8 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 						c->cursor = c->ancora = ini;
 						resultado |= GV_CAMPO_MUDOU;
 					}
+				} else if (letra == XKB_KEY_v && gv_area_tem_imagem()) {
+					resultado |= GV_CAMPO_IMAGEM;
 				} else if (letra == XKB_KEY_v) {
 					const char *colado = gv_colar();
 					if (colado) {

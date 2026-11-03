@@ -221,6 +221,9 @@ uint32_t gv_modificadores(void);
 void gv_copiar(const char *texto);
 /* O texto copiado (desta app ou de outra), até ao fim do quadro; NULL se não houver. */
 const char *gv_colar(void);
+/* uma imagem copiada (um print, "copiar imagem") e nenhum texto: gv_colar_imagem grava em pasta/colado-DATA.ext e devolve o caminho (até 20 MB) */
+bool gv_area_tem_imagem(void);
+bool gv_colar_imagem(const char *pasta, char *saida, size_t tam);
 
 /* ---- componentes ---- */
 
@@ -260,7 +263,7 @@ enum gv_campo_tipo {
 	GV_CAMPO_EMAIL,
 	GV_CAMPO_URL,
 };
-enum { GV_CAMPO_MUDOU = 1, GV_CAMPO_ENTER = 2 };
+enum { GV_CAMPO_MUDOU = 1, GV_CAMPO_ENTER = 2, GV_CAMPO_IMAGEM = 4 /* Ctrl+V com uma imagem copiada: o app decide o que fazer (gv_colar_imagem) */ };
 int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo);
 /* Um campo de várias linhas (uma mensagem, uma nota): o texto quebra na largura, o campo cresce
  * de linhas_min até linhas_max (0, 0: de 3 a 8) e depois rola por dentro. Enter quebra a linha;

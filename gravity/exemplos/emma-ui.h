@@ -18,8 +18,16 @@ struct eu_ferramenta {
 	bool ok;
 };
 
+/* uma imagem da mensagem: o id no servidor e/ou o arquivo local (a que a pessoa acabou de mandar já está aqui; as do histórico vêm do servidor) */
+struct eu_img {
+	char id[40];
+	char caminho[512];
+};
+
 struct eu_msg {
 	bool usuario;
+	struct eu_img img[4];
+	int nimg;
 	char *texto;
 	char hora[8];
 	char id[40];     /* o id no servidor (vazio: ainda não se sabe; o app descobre ao precisar) */
@@ -57,6 +65,8 @@ void eu_msg_liberar(gpointer p);
 struct eu_msg *eu_msg_nova(GPtrArray *msgs, bool usuario, const char *texto, const char *hora);
 struct eu_msg *eu_msg_parcial(GPtrArray *msgs); /* a resposta que ainda está chegando (ou NULL) */
 void eu_juntar_ferramenta(struct eu_msg *m, const struct json *t);
+/* as imagens do histórico ficam no servidor: o balão pede a cada uma (baixa para o cache, uma vez) e desenha quando chega */
+void eu_imagem_guardar(const char *id, const char *caminho); /* "" = não deu */
 
 /* Markdown (títulos, listas, citações, tabelas, blocos de código com Copiar, **negrito**, *itálico*, `código`, [links]) */
 extern float eu_largura_balao;          /* a largura máxima de um balão */

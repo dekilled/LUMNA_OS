@@ -857,6 +857,51 @@ static gpointer perfil_linha(gpointer d) {
 	return NULL;
 }
 
+/* ---- imagens: "anexar ARQUIVO" sobe uma (devolve o id) e "baixar ID" traz uma do servidor para o cache (devolve o caminho) ---- */
+
+struct anexo_ctx {
+	struct cliente *c;
+	char *arg;
+	bool baixar;
+	char *json;
+};
+
+static gboolean anexo_pronto(gpointer d) {
+	struct anexo_ctx *a = d;
+	if (a->c && cliente_vivo(a->c)) {
+		escrever(a->c, a->json);
+	}
+	g_free(a->json);
+	g_free(a->arg);
+	g_free(a);
+	return G_SOURCE_REMOVE;
+}
+
+static gpointer anexo_linha(gpointer d) {
+	struct anexo_ctx *a = d;
+	char saida[1024] = "", *erro = NULL;
+	bool ok = false;
+	if (!servidor_ok) {
+		erro = g_strdup("A Emma precisa do servidor no ar para ver imagens.");
+	} else if (a->baixar) {
+		ok = emmab_anexo_baixar(a->arg, saida, sizeof(saida), &erro);
+	} else {
+		ok = emmab_anexar(a->arg, saida, sizeof(saida), &erro);
+	}
+	if (ok) {
+		char *v = js(saida);
+		a->json = g_strdup_printf("{\"ok\":true,\"%s\":%s}", a->baixar ? "caminho" : "id", v);
+		g_free(v);
+	} else {
+		char *e = js(erro ? erro : "não deu");
+		a->json = g_strdup_printf("{\"ok\":false,\"erro\":%s}", e);
+		g_free(e);
+	}
+	g_free(erro);
+	g_main_context_invoke(NULL, anexo_pronto, a);
+	return NULL;
+}
+
 /* o histórico da conversa do painel: buscado numa linha à parte e respondido quando chegar */
 struct hist_ctx {
 	struct cliente *c;
@@ -1052,7 +1097,8 @@ static gpointer llm_linha(gpointer d) {
 static void conversar_app(struct cliente *c, const char *corpo) {
 	struct json *j = json_ler(corpo);
 	const char *sid = json_chave_texto(j, "sid"), *texto = json_chave_texto(j, "texto"), *skill = json_chave_texto(j, "skill");
-	if (!*sid || !*texto) {
+	const struct json *anx = json_chave(j, "anexos");
+	if (!*sid || (!*texto && !(anx && anx->nfilhos))) {
 		json_liberar(j);
 		responder_erro(c, "falta sid ou texto");
 		return;
@@ -1062,11 +1108,26 @@ static void conversar_app(struct cliente *c, const char *corpo) {
 	v->sid = g_strdup(sid);
 	v->texto = g_strdup(texto);
 	v->origem = g_strdup("app");
+	GString *e = g_string_new(NULL);
 	if (*skill) {
-		GString *e = g_string_new("\"skill_id\":");
+		g_string_append(e, "\"skill_id\":");
 		json_escrever_texto(e, skill);
-		v->extra = g_string_free(e, FALSE);
 	}
+	const struct json *anexos = json_chave(j, "anexos"); /* os ids das imagens que a pessoa anexou */
+	if (anexos && anexos->nfilhos) {
+		g_string_append_printf(e, "%s\"attachments\":[", e->len ? "," : "");
+		for (int i = 0; i < anexos->nfilhos && i < 6; i++) {
+			const struct json *x = json_item(anexos, i);
+			if (x && x->tipo == JSON_TEXTO) {
+				if (i) {
+					g_string_append_c(e, ',');
+				}
+				json_escrever_texto(e, x->s);
+			}
+		}
+		g_string_append_c(e, ']');
+	}
+	v->extra = e->len ? g_string_free(e, FALSE) : (g_string_free(e, TRUE), NULL);
 	char *t = js(texto), *k = g_strdup_printf("\"texto\":%s,\"origem\":\"app\"", t);
 	emitir_conv("app", sid, "ouvido", k);
 	g_free(k);
@@ -1134,6 +1195,12 @@ static void tratar(struct cliente *c, char *linha) {
 		emmas_nova_sessao_canal("assist");
 		emitir_form("nova", "");
 		responder_ok(c);
+	} else if (!strcmp(cmd, "anexar") || !strcmp(cmd, "baixar")) {
+		struct anexo_ctx *a = g_new0(struct anexo_ctx, 1);
+		a->c = c;
+		a->arg = g_strdup(resto ? resto : "");
+		a->baixar = !strcmp(cmd, "baixar");
+		g_thread_unref(g_thread_new("emma-anexo", anexo_linha, a));
 	} else if (!strcmp(cmd, "perfil")) {
 		struct perfil_ctx *p = g_new0(struct perfil_ctx, 1);
 		p->c = c;

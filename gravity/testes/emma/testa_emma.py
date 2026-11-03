@@ -136,6 +136,21 @@ try:
     r = pede("perfil", "sfw")
     confere(r.get("ok") is True and r.get("nsfw") is False, f"voltar ao SFW devia ser livre: {r}")
 
+    # imagens: sobe um arquivo, baixa para o cache, e a mensagem leva o id do anexo ao servidor
+    import base64
+    png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+    foto = os.path.join(T, "foto.png")
+    open(foto, "wb").write(png)
+    r = pede("anexar", foto)
+    confere(r.get("ok") is True and r.get("id") == "att-1", f"anexar devia devolver o id: {r}")
+    confere(pede("anexar", os.path.join(T, "fala.raw")).get("ok") is False, "um arquivo que não é imagem foi aceito")
+    r = pede("baixar", "att-1")
+    confere(r.get("ok") is True and os.path.exists(r.get("caminho", "")) and open(r["caminho"], "rb").read() == png, f"baixar devia trazer a imagem: {r}")
+    confere(pede("baixar", "../etc").get("ok") is False, "um id com barras foi aceito")
+    r = pede("conversar", json.dumps({"sid": "sess-1", "texto": "", "anexos": ["att-1"]}))
+    confere(r.get("ok") is True, f"uma mensagem só com imagem devia ser aceita: {r}")
+    confere(espera(lambda: '"attachments": ["att-1"]' in log()), "o chat não levou os anexos ao servidor")
+
     # arquivos e comandos: a política de cada chamada (direto, com aprovação, recusado)
     import threading
     home = T

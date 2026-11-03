@@ -9,7 +9,9 @@
 #define _GNU_SOURCE
 #include <glib.h>
 #include <stdio.h>
+#include <glib/gstdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
@@ -259,6 +261,13 @@ static void abrir_sessao(const char *id, const char *tit) {
 			char *h = hora_local(json_chave_texto(m, "created_at"));
 			struct eu_msg *n = eu_msg_nova(msgs, !strcmp(json_chave_texto(m, "role"), "user"), json_chave_texto(m, "content"), h);
 			g_strlcpy(n->id, json_chave_texto(m, "id"), sizeof(n->id));
+			const struct json *ax = json_chave(m, "attachments");
+			for (int k = 0; ax && k < ax->nfilhos && n->nimg < 4; k++) {
+				const struct json *x = json_item(ax, k);
+				if (x && x->tipo == JSON_TEXTO) {
+					g_strlcpy(n->img[n->nimg++].id, x->s, sizeof(n->img[0].id));
+				}
+			}
 			g_free(h);
 			const struct json *ts = json_chave(m, "tools");
 			for (int k = 0; ts && k < ts->nfilhos; k++) {
@@ -327,8 +336,93 @@ static bool garantir_sessao(void) {
 	return ok;
 }
 
+/* ---- imagens para a Emma ver: coladas (Ctrl+V) ou escolhidas na lista de recentes ---- */
+
+struct anexo {
+	char id[40];
+	char caminho[512];
+	bool enviando, falhou;
+};
+static struct anexo anexos[4];
+static int n_anexos;
+static struct eu_img pendentes[4]; /* as imagens da mensagem que acabou de sair: a bolha as pega quando o serviço devolver o "ouvido" */
+static int n_pendentes;
+
+static void anexo_enviado(const char *resp, void *dados) {
+	char *caminho = dados;
+	struct json *j = resp ? json_ler(resp) : NULL;
+	for (int i = 0; i < n_anexos; i++) {
+		if (anexos[i].enviando && !strcmp(anexos[i].caminho, caminho)) {
+			anexos[i].enviando = false;
+			if (j && json_bool(json_chave(j, "ok"), false)) {
+				g_strlcpy(anexos[i].id, json_chave_texto(j, "id"), sizeof(anexos[i].id));
+			} else {
+				anexos[i].falhou = true;
+				g_strlcpy(erro, j && *json_chave_texto(j, "erro") ? json_chave_texto(j, "erro") : "Não consegui mandar a imagem.", sizeof(erro));
+			}
+			break;
+		}
+	}
+	json_liberar(j);
+	g_free(caminho);
+	gv_acordar_em(0.01);
+}
+
+static void anexar_arquivo(const char *caminho) {
+	if (n_anexos >= 4) {
+		g_strlcpy(erro, "No máximo 4 imagens por mensagem.", sizeof(erro));
+		return;
+	}
+	for (int i = 0; i < n_anexos; i++) {
+		if (!strcmp(anexos[i].caminho, caminho)) {
+			return;
+		}
+	}
+	struct anexo *a = &anexos[n_anexos++];
+	memset(a, 0, sizeof(*a));
+	g_strlcpy(a->caminho, caminho, sizeof(a->caminho));
+	a->enviando = true;
+	erro[0] = '\0';
+	char *p = g_strdup_printf("anexar %s", caminho);
+	emmac_pedido_async(p, anexo_enviado, g_strdup(caminho));
+	g_free(p);
+}
+
+static void tirar_anexo(int i) {
+	for (int k = i; k + 1 < n_anexos; k++) {
+		anexos[k] = anexos[k + 1];
+	}
+	n_anexos--;
+}
+
+static bool anexos_prontos(void) {
+	for (int i = 0; i < n_anexos; i++) {
+		if (anexos[i].enviando) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/* há o que enviar: texto, ou imagens já no servidor */
+static bool pode_enviar(void) {
+	return (campo[0] || n_anexos) && anexos_prontos();
+}
+
+static void colar_imagem(void) {
+	char *pasta = g_build_filename(g_get_user_cache_dir(), "lumna", "emma", "colados", NULL);
+	g_mkdir_with_parents(pasta, 0700);
+	char caminho[512];
+	if (gv_colar_imagem(pasta, caminho, sizeof(caminho))) {
+		anexar_arquivo(caminho);
+	} else {
+		g_strlcpy(erro, "Não consegui pegar a imagem copiada.", sizeof(erro));
+	}
+	g_free(pasta);
+}
+
 static void enviar_texto(const char *texto) {
-	if (!*texto || !garantir_sessao()) {
+	if ((!*texto && !n_anexos) || !garantir_sessao()) {
 		return;
 	}
 	if (!msgs->len) {
@@ -358,12 +452,28 @@ static void enviar_texto(const char *texto) {
 		g_string_append(c, ",\"skill\":");
 		json_escrever_texto(c, skill_id);
 	}
+	n_pendentes = 0;
+	if (n_anexos) {
+		g_string_append(c, ",\"anexos\":[");
+		for (int i = 0; i < n_anexos; i++) {
+			if (!anexos[i].id[0]) {
+				continue;
+			}
+			g_string_append_printf(c, "%s", n_pendentes ? "," : "");
+			json_escrever_texto(c, anexos[i].id);
+			g_strlcpy(pendentes[n_pendentes].id, anexos[i].id, sizeof(pendentes[0].id));
+			g_strlcpy(pendentes[n_pendentes].caminho, anexos[i].caminho, sizeof(pendentes[0].caminho));
+			n_pendentes++;
+		}
+		g_string_append_c(c, ']');
+	}
 	g_string_append_c(c, '}');
 	char *p = g_strdup_printf("conversar %s", c->str);
 	char resp[300];
 	bool falou = emmac_pedido(p, resp, sizeof(resp));
 	struct json *j = falou ? json_ler(resp) : NULL;
 	skill_id[0] = skill_nome[0] = erro[0] = '\0';
+	n_anexos = 0;
 	if (!falou || !json_bool(json_chave(j, "ok"), false)) {
 		g_strlcpy(erro, !falou ? "O serviço da Emma não respondeu." : *json_chave_texto(j, "erro") ? json_chave_texto(j, "erro") : "A Emma não aceitou a mensagem.", sizeof(erro));
 	}
@@ -401,7 +511,11 @@ static void aplicar_evento(const struct json *j) {
 	}
 	if (!strcmp(ev, "ouvido")) {
 		erro[0] = '\0';
-		eu_msg_nova(msgs, true, json_chave_texto(j, "texto"), NULL);
+		struct eu_msg *nova = eu_msg_nova(msgs, true, json_chave_texto(j, "texto"), NULL);
+		for (int i = 0; i < n_pendentes; i++) {
+			nova->img[nova->nimg++] = pendentes[i];
+		}
+		n_pendentes = 0;
 		rolar_fim = true;
 	} else if (!strcmp(ev, "delta")) {
 		struct eu_msg *m = eu_msg_parcial(msgs);
@@ -906,6 +1020,77 @@ static void conversa(void) {
 	}
 }
 
+/* as imagens mais novas das pastas de imagens (e de prints), para escolher sem abrir um seletor de arquivos */
+struct recente {
+	char caminho[512];
+	gint64 quando;
+};
+
+static gint recente_ordem(gconstpointer a, gconstpointer b) {
+	gint64 x = ((const struct recente *)a)->quando, y = ((const struct recente *)b)->quando;
+	return x < y ? 1 : x > y ? -1 : 0;
+}
+
+static void recentes_da_pasta(const char *pasta, GArray *saida) {
+	GDir *d = g_dir_open(pasta, 0, NULL);
+	const char *nome;
+	while (d && (nome = g_dir_read_name(d))) {
+		if (nome[0] == '.' || !(g_str_has_suffix(nome, ".png") || g_str_has_suffix(nome, ".jpg") || g_str_has_suffix(nome, ".jpeg") || g_str_has_suffix(nome, ".webp") || g_str_has_suffix(nome, ".gif"))) {
+			continue;
+		}
+		struct recente r = { 0 };
+		char *c = g_build_filename(pasta, nome, NULL);
+		GStatBuf st;
+		if (g_stat(c, &st) == 0 && S_ISREG(st.st_mode)) {
+			g_strlcpy(r.caminho, c, sizeof(r.caminho));
+			r.quando = st.st_mtime;
+			g_array_append_val(saida, r);
+		}
+		g_free(c);
+	}
+	if (d) {
+		g_dir_close(d);
+	}
+}
+
+static void menu_imagens(void) {
+	GV_POPUP(CLAY_ID("ap-menu-imagem"), CLAY_ID("ap-imagem"), .lado = GV_POPUP_ACIMA, .alinhar = GV_ALINHAR_FIM, .largura = 380) {
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(8), .childGap = 2 } }) {
+			gv_texto(CLAY_STRING("Cole uma imagem com Ctrl+V, ou escolha uma das mais recentes:"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			static GArray *rec;
+			static double lido = -10;
+			if (!rec) {
+				rec = g_array_new(FALSE, TRUE, sizeof(struct recente));
+			}
+			if (gv_agora() - lido > 2.0) { /* aberto, acompanha os prints novos */
+				lido = gv_agora();
+				g_array_set_size(rec, 0);
+				const char *fotos = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES);
+				if (fotos) {
+					recentes_da_pasta(fotos, rec);
+					char *prints = g_build_filename(fotos, "Screenshots", NULL);
+					recentes_da_pasta(prints, rec);
+					g_free(prints);
+				}
+				g_array_sort(rec, recente_ordem);
+			}
+			int mostradas = 0;
+			for (guint i = 0; i < rec->len && mostradas < 8; i++, mostradas++) {
+				const struct recente *r = &g_array_index(rec, struct recente, i);
+				char *nome = g_path_get_basename(r->caminho);
+				if (gv_menu_item(CLAY_IDI("ap-rec", i), "image", nome, NULL)) {
+					anexar_arquivo(r->caminho);
+					gv_popup_fechar(CLAY_ID("ap-menu-imagem"));
+				}
+				g_free(nome);
+			}
+			if (!mostradas) {
+				gv_texto(CLAY_STRING("Nenhuma imagem na pasta Imagens."), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+	}
+}
+
 static void compositor_de_mensagem(void) {
 	bool ouvindo = !strcmp(estado, "ouvindo");
 	CLAY(CLAY_ID("ap-comp"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 56, 56, 6, 20 }, .childGap = 8 } }) {
@@ -918,6 +1103,23 @@ static void compositor_de_mensagem(void) {
 				}
 			}
 		}
+		if (n_anexos) { /* as imagens que vão junto: miniatura, e o x tira */
+			CLAY(CLAY_ID("ap-anexos"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
+				for (int i = 0; i < n_anexos; i++) {
+					Clay_ElementId id = CLAY_IDI("ap-anx", (uint32_t)i);
+					CLAY(id, gv_imagem(id, anexos[i].caminho, GV_AJUSTE_COBRIR, (Clay_ElementDeclaration){
+						.layout = { .sizing = { CLAY_SIZING_FIXED(72), CLAY_SIZING_FIXED(72) }, .childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_TOP }, .padding = CLAY_PADDING_ALL(4) },
+						.cornerRadius = CLAY_CORNER_RADIUS(12), .border = { .color = anexos[i].falhou ? gv_t.perigo : gv_t.borda_controle, .width = GV_BORDA(1) } })) {
+						if (anexos[i].enviando) {
+							gv_texto(CLAY_STRING("…"), gv_t.tamanho_corpo, (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_MEDIO);
+						} else if (eu_botao_icone(CLAY_IDI("ap-anx-x", (uint32_t)i), "close", false)) {
+							tirar_anexo(i);
+							break;
+						}
+					}
+				}
+			}
+		}
 		CLAY(CLAY_ID("ap-entrada"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 8, 8 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(28), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } }) {
 			if (eu_botao_icone(CLAY_ID("ap-skills"), "sparkle", vista == V_SKILLS)) {
@@ -925,10 +1127,17 @@ static void compositor_de_mensagem(void) {
 				carregar_skills();
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				if ((gv_campo_chat(CLAY_ID("ap-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte ou peça algo à Emma…  (Shift+Enter quebra a linha)", 8, false) & GV_CAMPO_ENTER) && campo[0]) {
+				int rc = gv_campo_chat(CLAY_ID("ap-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte ou peça algo à Emma…  (Shift+Enter quebra a linha)", 8, false);
+				if (rc & GV_CAMPO_IMAGEM) {
+					colar_imagem();
+				}
+				if ((rc & GV_CAMPO_ENTER) && pode_enviar()) {
 					enviar(campo);
 					campo[0] = '\0';
 				}
+			}
+			if (eu_botao_icone(CLAY_ID("ap-imagem"), "image", gv_popup_aberto(CLAY_ID("ap-menu-imagem")))) {
+				gv_popup_alternar(CLAY_ID("ap-menu-imagem"));
 			}
 			if (eu_botao_icone(CLAY_ID("ap-mic"), "mic", ouvindo)) {
 				pedir("ouvir");
@@ -940,11 +1149,12 @@ static void compositor_de_mensagem(void) {
 				t |= gv_focavel(env, 22);
 				gv_icone("send", 20, (Clay_Color){ 255, 255, 255, 255 });
 			}
-			if (t && campo[0]) {
+			if (t && pode_enviar()) {
 				enviar(campo);
 				campo[0] = '\0';
 			}
 		}
+		menu_imagens();
 	}
 }
 
