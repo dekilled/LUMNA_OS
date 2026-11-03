@@ -14,6 +14,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "emma-ui.h"
+#include "destaque.h"
 #include "emmac.h"
 #include "emmar.h"
 #include "gravity.h"
@@ -269,7 +270,7 @@ static bool garantir_sessao(void) {
 	return ok;
 }
 
-static void enviar(const char *texto) {
+static void enviar_texto(const char *texto) {
 	if (!*texto || !garantir_sessao()) {
 		return;
 	}
@@ -312,6 +313,17 @@ static void enviar(const char *texto) {
 	json_liberar(j);
 	g_free(p);
 	g_string_free(c, TRUE);
+}
+
+/* código colado sem as crases vai como bloco (com a linguagem que der pra adivinhar): a Emma e a conversa o veem como código */
+static void enviar(const char *texto) {
+	if (destaque_parece_codigo(texto)) {
+		char *b = g_strdup_printf("```%s\n%s%s```", destaque_adivinhar(texto), texto, g_str_has_suffix(texto, "\n") ? "" : "\n");
+		enviar_texto(b);
+		g_free(b);
+		return;
+	}
+	enviar_texto(texto);
 }
 
 static void aplicar_evento(const struct json *j) {

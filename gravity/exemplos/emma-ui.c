@@ -263,6 +263,32 @@ bool eu_tem_markdown(const char *t) {
 	return false;
 }
 
+static char salvo_em[64], salvo_arq[256];
+
+/* guarda o bloco em ~/Emma/Scripts (a pasta dela: livre, sem pedir) com um nome que não repete nada */
+static void salvar_codigo(const char *id, const char *lingua, const char *codigo) {
+	char *dir = g_build_filename(g_get_home_dir(), "Emma", "Scripts", NULL);
+	g_mkdir_with_parents(dir, 0755);
+	GDateTime *agora = g_date_time_new_now_local();
+	char *hora = g_date_time_format(agora, "%Y%m%d-%H%M%S");
+	g_date_time_unref(agora);
+	char *nome = g_strdup_printf("codigo-%s.%s", hora, destaque_extensao(lingua));
+	char *caminho = g_build_filename(dir, nome, NULL);
+	GError *e = NULL;
+	if (g_file_set_contents(caminho, codigo, -1, &e)) {
+		g_strlcpy(salvo_em, id, sizeof(salvo_em));
+		g_strlcpy(salvo_arq, nome, sizeof(salvo_arq));
+	} else {
+		g_strlcpy(salvo_em, id, sizeof(salvo_em));
+		g_snprintf(salvo_arq, sizeof(salvo_arq), "não deu: %s", e->message);
+		g_error_free(e);
+	}
+	g_free(caminho);
+	g_free(nome);
+	g_free(hora);
+	g_free(dir);
+}
+
 static void md_codigo(uint32_t k, int *n, const char *lingua, GString *codigo, float tam) {
 	int idx = (*n)++;
 	CLAY(CLAY_SID(gv_fmt("md-cod-%u-%d", k, idx)), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 6, 12 }, .childGap = 2 },
@@ -273,6 +299,12 @@ static void md_codigo(uint32_t k, int *n, const char *lingua, GString *codigo, f
 			}
 			if (gv_botao_ext(CLAY_SID(gv_fmt("md-cp-%u-%d", k, idx)), &(gv_botao_opcoes){ .icone = "copy", .texto = "Copiar", .estilo = GV_BOTAO_SIMPLES, .altura = 28 })) {
 				gv_copiar(codigo->str);
+			}
+			char id[64];
+			g_snprintf(id, sizeof(id), "%u-%d", k, idx);
+			bool salvo = !strcmp(salvo_em, id);
+			if (gv_botao_ext(CLAY_SID(gv_fmt("md-sv-%u-%d", k, idx)), &(gv_botao_opcoes){ .icone = "save", .texto = salvo ? "Salvo em Scripts" : "Salvar em Scripts", .estilo = GV_BOTAO_SIMPLES, .altura = 28 })) {
+				salvar_codigo(id, lingua, codigo->str);
 			}
 		}
 		static const struct destaque_cores cores = { "#ff7b9c", "#9ece6a", "#7f8aa3", "#ff9e64", "#7dcfff" };

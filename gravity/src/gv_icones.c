@@ -40,6 +40,7 @@ static const struct icone icones[] = {
 	{ "code", "M9 8l-4 4 4 4M15 8l4 4-4 4M13 6l-2 12" },
 	{ "computer", "M3 4h18v12H3zM8 20h8M12 16v4" },
 	{ "copy", "M8 8h12v12H8zM16 8V4H4v12h4" },
+	{ "save", "M5 4h12l3 3v13H5zM8 4v5h8V4M8 20v-6h8v6" },
 	{ "crop", "M6 2v16h16M2 6h16v16" },
 	{ "cut", "M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.1 7.9L20 20M8.1 16.1L20 4" },
 	{ "desktop", "M3 4h18v12H3zM8 20h8M12 16v4" },
