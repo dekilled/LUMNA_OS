@@ -45,6 +45,7 @@ class SessionPatch(BaseModel):
     title: Optional[str] = None
     mode: Optional[str] = None
     system_prompt: Optional[str] = None
+    project_id: Optional[str] = None  # LUMNA: "" tira do projeto (volta ao Chat); um id move para o projeto
 
 
 async def _session(sid: str) -> Session:
@@ -75,6 +76,11 @@ async def create_session(body: SessionIn):
 async def patch_session(sid: str, body: SessionPatch):
     await _session(sid)
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "project_id" in upd:
+        if upd["project_id"] and not await db.projects.find_one({"_id": oid(upd["project_id"])}):
+            raise HTTPException(404, "Projeto não encontrado")
+        upd["project_id"] = upd["project_id"] or None
+        upd["assist_log"] = False  # mover é adotar a conversa: sai do registro da popup
     await db.sessions.update_one({"_id": oid(sid)}, {"$set": upd})
     return (await _session(sid)).out()
 

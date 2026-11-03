@@ -21,10 +21,13 @@
 #include "json.h"
 
 enum vista { V_CHAT, V_MEMORIA, V_SKILLS, V_ROTINAS };
+/* as três áreas da barra: conversa pura, projetos (discutir e começar coisas) e o que veio da popup rápida */
+enum escopo { E_CHAT, E_PROJETOS, E_ASSISTENTE };
 
 struct sessao {
 	char id[40];
 	char titulo[120];
+	char dia[12]; /* só no Assistente: AAAA-MM-DD, para agrupar */
 };
 
 struct rotina {
@@ -58,6 +61,7 @@ static GArray *sessoes;   /* struct sessao, da rotina escolhida */
 static GArray *rotinas;   /* struct rotina */
 static GArray *memorias;  /* struct memoria */
 static GArray *skills;    /* struct skill */
+static enum escopo escopo = E_CHAT;
 static int rotina_atual = -1;       /* -1: o chat livre */
 static char sid[40];                /* a sessão aberta ("" : a conversa ainda não existe) */
 static char titulo[120] = "Nova conversa";
@@ -118,7 +122,26 @@ static char *hora_local(const char *iso) {
 
 static void carregar_sessoes(void) {
 	g_array_set_size(sessoes, 0);
-	char *c = g_strdup_printf("/api/sessions?project_id=%s", rotina_atual >= 0 ? g_array_index(rotinas, struct rotina, rotina_atual).id : "none");
+	if (escopo == E_ASSISTENTE) {
+		struct resposta r;
+		if (rest("GET", "/api/commands?limit=120", NULL, &r) && r.corpo) {
+			const struct json *is = json_chave(r.corpo, "items");
+			for (int i = 0; is && i < is->nfilhos; i++) {
+				const struct json *s = json_item(is, i);
+				struct sessao n = { 0 };
+				g_strlcpy(n.id, json_chave_texto(s, "session_id"), sizeof(n.id));
+				char *u = g_utf8_make_valid(json_chave_texto(s, "user"), -1);
+				g_strdelimit(u, "\n", ' ');
+				g_strlcpy(n.titulo, u, sizeof(n.titulo));
+				g_free(u);
+				g_strlcpy(n.dia, json_chave_texto(s, "at"), sizeof(n.dia)); /* os 10 primeiros: a data */
+				g_array_append_val(sessoes, n);
+			}
+		}
+		liberar(&r);
+		return;
+	}
+	char *c = g_strdup_printf("/api/sessions?project_id=%s", escopo == E_PROJETOS && rotina_atual >= 0 ? g_array_index(rotinas, struct rotina, rotina_atual).id : "none");
 	struct resposta r;
 	if (rest("GET", c, NULL, &r) && r.corpo) {
 		for (int i = 0; i < r.corpo->nfilhos; i++) {
@@ -236,7 +259,21 @@ static void abrir_sessao(const char *id, const char *tit) {
 	vista = V_CHAT;
 }
 
+static void escolher_escopo(enum escopo e) {
+	escopo = e;
+	if (e == E_PROJETOS && rotina_atual < 0 && rotinas->len) {
+		rotina_atual = 0;
+	} else if (e != E_PROJETOS) {
+		rotina_atual = -1;
+	}
+	zerar_conversa();
+	busca[0] = '\0';
+	carregar_sessoes();
+	vista = V_CHAT;
+}
+
 static void escolher_rotina(int i) {
+	escopo = i >= 0 ? E_PROJETOS : E_CHAT;
 	rotina_atual = i;
 	zerar_conversa();
 	busca[0] = '\0';
@@ -407,6 +444,9 @@ static void emma_mudou(gv_app *a, int fd, void *dados) {
 /* ---- as ações sobre o servidor ---- */
 
 static void nova_conversa(void) {
+	if (escopo == E_ASSISTENTE) { /* o Assistente só guarda o que veio da popup: uma conversa nova nasce no Chat */
+		escolher_escopo(E_CHAT);
+	}
 	zerar_conversa();
 	vista = V_CHAT;
 	gv_focar(CLAY_ID("ap-campo"));
@@ -424,6 +464,39 @@ static void renomear_conversa(const char *novo) {
 	if (rest("PATCH", caminho, c->str, &r)) {
 		g_strlcpy(titulo, novo, sizeof(titulo));
 		carregar_sessoes();
+	} else {
+		g_strlcpy(erro, r.msg, sizeof(erro));
+	}
+	liberar(&r);
+	g_free(caminho);
+	g_string_free(c, TRUE);
+}
+
+/* leva a conversa aberta para um projeto ("" = de volta ao Chat); a que veio da popup passa a ser conversa de verdade */
+static void mover_conversa(const char *projeto_id) {
+	if (!sid[0]) {
+		return;
+	}
+	GString *c = g_string_new("{\"project_id\":");
+	json_escrever_texto(c, projeto_id);
+	g_string_append_c(c, '}');
+	char *caminho = g_strdup_printf("/api/sessions/%s", sid);
+	struct resposta r;
+	if (rest("PATCH", caminho, c->str, &r)) {
+		char id[40], tit[120];
+		g_strlcpy(id, sid, sizeof(id));
+		g_strlcpy(tit, titulo, sizeof(tit));
+		int proj = -1;
+		for (guint i = 0; i < rotinas->len; i++) {
+			if (!strcmp(g_array_index(rotinas, struct rotina, i).id, projeto_id)) {
+				proj = (int)i;
+			}
+		}
+		escopo = proj >= 0 ? E_PROJETOS : E_CHAT;
+		rotina_atual = proj;
+		carregar_sessoes();
+		g_strlcpy(sid, id, sizeof(sid));
+		g_strlcpy(titulo, tit, sizeof(titulo));
 	} else {
 		g_strlcpy(erro, r.msg, sizeof(erro));
 	}
@@ -563,20 +636,29 @@ static void barra_lateral(void) {
 			vista = V_SKILLS;
 			carregar_skills();
 		}
-		titulo_secao("ROTINAS");
-		if (item_lateral(CLAY_ID("ap-rot-livre"), "chat", "Chat livre", rotina_atual < 0 && vista != V_ROTINAS)) {
-			escolher_rotina(-1);
+		titulo_secao("ÁREAS");
+		if (item_lateral(CLAY_ID("ap-esc-chat"), "chat", "Chat", escopo == E_CHAT && vista != V_ROTINAS)) {
+			escolher_escopo(E_CHAT);
 		}
-		for (guint i = 0; i < rotinas->len; i++) {
-			const struct rotina *r = &g_array_index(rotinas, struct rotina, i);
-			if (item_lateral(CLAY_IDI("ap-rot", i), "folder", r->nome, rotina_atual == (int)i && vista != V_ROTINAS)) {
-				escolher_rotina((int)i);
+		if (item_lateral(CLAY_ID("ap-esc-proj"), "folder", "Projetos", escopo == E_PROJETOS && vista != V_ROTINAS)) {
+			escolher_escopo(E_PROJETOS);
+		}
+		if (item_lateral(CLAY_ID("ap-esc-ass"), "mic", "Assistente", escopo == E_ASSISTENTE && vista != V_ROTINAS)) {
+			escolher_escopo(E_ASSISTENTE);
+		}
+		if (escopo == E_PROJETOS) {
+			titulo_secao("PROJETOS");
+			for (guint i = 0; i < rotinas->len; i++) {
+				const struct rotina *r = &g_array_index(rotinas, struct rotina, i);
+				if (item_lateral(CLAY_IDI("ap-rot", i), "folder", r->nome, rotina_atual == (int)i && vista != V_ROTINAS)) {
+					escolher_rotina((int)i);
+				}
+			}
+			if (item_lateral(CLAY_ID("ap-rot-gerir"), "settings", "Gerenciar projetos", vista == V_ROTINAS)) {
+				vista = V_ROTINAS;
 			}
 		}
-		if (item_lateral(CLAY_ID("ap-rot-gerir"), "settings", "Gerenciar rotinas", vista == V_ROTINAS)) {
-			vista = V_ROTINAS;
-		}
-		titulo_secao("SESSÕES");
+		titulo_secao(escopo == E_CHAT ? "CONVERSAS" : escopo == E_PROJETOS ? "CONVERSAS DO PROJETO" : "DA POPUP RÁPIDA");
 		Clay_ElementId lista = CLAY_ID("ap-sessoes");
 		CLAY(lista, gv_rolagem(lista, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 2 } })) {
 			char *filtro = busca[0] ? g_utf8_casefold(busca, -1) : NULL;
@@ -592,13 +674,18 @@ static void barra_lateral(void) {
 					}
 				}
 				mostradas++;
+				if (escopo == E_ASSISTENTE && (i == 0 || strncmp(s->dia, g_array_index(sessoes, struct sessao, i - 1).dia, 10))) {
+					char dia[11];
+					g_strlcpy(dia, s->dia, sizeof(dia));
+					titulo_secao(dia[0] ? dia : "—");
+				}
 				if (item_lateral(CLAY_IDI("ap-ses", i), NULL, s->titulo, !strcmp(s->id, sid) && vista == V_CHAT)) {
 					abrir_sessao(s->id, s->titulo);
 				}
 			}
 			if (!mostradas) {
 				CLAY_AUTO_ID({ .layout = { .padding = { 12, 12, 6, 6 } } }) {
-					gv_texto(gv_str(busca[0] ? "Nada com esse nome." : "Nenhuma conversa ainda."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+					gv_texto(gv_str(busca[0] ? "Nada com esse nome." : escopo == E_ASSISTENTE ? "Nada veio da popup ainda." : "Nenhuma conversa ainda."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 				}
 			}
 			g_free(filtro);
@@ -611,7 +698,7 @@ static void barra_lateral(void) {
 
 static void cabecalho(void) {
 	CLAY(CLAY_ID("ap-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 24, 20, 14, 14 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-		const char *nome = vista == V_MEMORIA ? "Memória" : vista == V_SKILLS ? "Skills" : vista == V_ROTINAS ? "Rotinas" : titulo;
+		const char *nome = vista == V_MEMORIA ? "Memória" : vista == V_SKILLS ? "Skills" : vista == V_ROTINAS ? "Projetos" : titulo;
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } }, .clip = { .horizontal = true } }) {
 			if (renomeando && vista == V_CHAT) {
 				int r = gv_campo(CLAY_ID("ap-renomear"), nome_edicao, sizeof(nome_edicao), "Nome da conversa", GV_CAMPO_TEXTO);
@@ -658,6 +745,22 @@ static void cabecalho(void) {
 						vista = V_CHAT;
 						gv_popup_fechar(CLAY_ID("ap-menu"));
 						gv_focar(CLAY_ID("ap-renomear"));
+					}
+					if (escopo != E_CHAT && gv_menu_item(CLAY_ID("ap-m-chat"), "chat", "Mover para o Chat", NULL)) {
+						mover_conversa("");
+						gv_popup_fechar(CLAY_ID("ap-menu"));
+					}
+					for (guint i = 0; i < rotinas->len && i < 8; i++) {
+						const struct rotina *r = &g_array_index(rotinas, struct rotina, i);
+						if (escopo == E_PROJETOS && rotina_atual == (int)i) {
+							continue;
+						}
+						char *rot = g_strdup_printf("Mover para o projeto %s", r->nome);
+						if (gv_menu_item(CLAY_IDI("ap-m-proj", i), "folder", rot, NULL)) {
+							mover_conversa(r->id);
+							gv_popup_fechar(CLAY_ID("ap-menu"));
+						}
+						g_free(rot);
 					}
 					if (gv_menu_item(CLAY_ID("ap-m-exc"), "trash", "Excluir conversa", NULL)) {
 						excluindo = true;
@@ -856,8 +959,8 @@ static void vista_memoria(void) {
 	CLAY(lista, gv_rolagem(lista, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
 		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 10, .padding = { 24, 24, 8, 24 } } })) {
 		if (rotina_atual < 0) {
-			gv_texto(CLAY_STRING("A memória fica dentro de cada rotina."), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
-			gv_texto(CLAY_STRING("Escolha uma rotina na barra à esquerda (ou crie uma em Gerenciar rotinas) para ver e guardar o que a Emma deve lembrar."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+			gv_texto(CLAY_STRING("A memória fica dentro de cada projeto."), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(CLAY_STRING("Escolha um projeto na barra à esquerda (ou crie um em Gerenciar projetos) para ver e guardar o que a Emma deve lembrar."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 		} else {
 			gv_texto(gv_fmt("O que a Emma lembra em \"%s\"", g_array_index(rotinas, struct rotina, rotina_atual).nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
 			CLAY(CLAY_ID("ap-mem-novo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
@@ -919,10 +1022,10 @@ static void vista_rotinas(void) {
 	Clay_ElementId lista = CLAY_ID("ap-ro-l");
 	CLAY(lista, gv_rolagem(lista, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){
 		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 10, .padding = { 24, 24, 8, 24 } } })) {
-		gv_texto(CLAY_STRING("Uma rotina junta conversas, memórias e (em breve) as macros e automações de um assunto."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+		gv_texto(CLAY_STRING("Um projeto junta conversas, memórias e (em breve) as macros e automações de um assunto."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 		CLAY(CLAY_ID("ap-ro-novo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 			CLAY(CLAY_ID("ap-ro-n-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(240) } } }) {
-				gv_campo(CLAY_ID("ap-ro-nome"), novo_nome, sizeof(novo_nome), "Nome da rotina", GV_CAMPO_TEXTO);
+				gv_campo(CLAY_ID("ap-ro-nome"), novo_nome, sizeof(novo_nome), "Nome do projeto", GV_CAMPO_TEXTO);
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
 				gv_campo(CLAY_ID("ap-ro-desc"), novo_desc, sizeof(novo_desc), "Para que serve (opcional)", GV_CAMPO_TEXTO);
