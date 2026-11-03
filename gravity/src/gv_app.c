@@ -19,6 +19,8 @@
 #include <sys/inotify.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <pthread.h>
+#include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <time.h>
 #include <unistd.h>
@@ -328,6 +330,62 @@ static void entrada_rever(gv_app *app) {
 
 void gv_app_sair(gv_app *app) {
 	app->a_correr = false;
+}
+
+/* ---- executar na linha principal, vindo de outra thread ---- */
+
+struct tarefa {
+	void (*fn)(void *);
+	void *dados;
+	struct tarefa *proxima;
+};
+static struct tarefa *tarefas, *tarefas_fim;
+static pthread_mutex_t tarefas_trinco = PTHREAD_MUTEX_INITIALIZER;
+static int tarefas_fd = -1;
+
+void gv_na_linha_principal(void (*fn)(void *), void *dados) {
+	struct tarefa *t = calloc(1, sizeof(*t));
+	if (!t) {
+		return;
+	}
+	t->fn = fn;
+	t->dados = dados;
+	pthread_mutex_lock(&tarefas_trinco);
+	if (tarefas_fim) {
+		tarefas_fim->proxima = t;
+	} else {
+		tarefas = t;
+	}
+	tarefas_fim = t;
+	pthread_mutex_unlock(&tarefas_trinco);
+	if (tarefas_fd >= 0) {
+		uint64_t um = 1;
+		ssize_t r = write(tarefas_fd, &um, sizeof(um)); /* acorda o poll */
+		(void)r;
+	}
+}
+
+static void tarefas_prontas(gv_app *app, int fd, void *dados) {
+	uint64_t n;
+	ssize_t r = read(fd, &n, sizeof(n));
+	(void)r;
+	for (;;) {
+		pthread_mutex_lock(&tarefas_trinco);
+		struct tarefa *t = tarefas;
+		if (t) {
+			tarefas = t->proxima;
+			if (!tarefas) {
+				tarefas_fim = NULL;
+			}
+		}
+		pthread_mutex_unlock(&tarefas_trinco);
+		if (!t) {
+			break;
+		}
+		t->fn(t->dados);
+		free(t);
+	}
+	gv_app_redesenhar(app);
 }
 
 void gv_app_vigiar(gv_app *app, int fd, void (*pronto)(gv_app *, int, void *), void *dados) {
@@ -1432,6 +1490,10 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	gv__imagens_iniciar(app);
 	gv__janelas_seat(app->seat);
 
+	tarefas_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+	if (tarefas_fd >= 0) {
+		gv_app_vigiar(app, tarefas_fd, tarefas_prontas, NULL);
+	}
 	app->repete_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
 	app->repete_taxa = 25;
 	app->repete_atraso = 600;

@@ -60,66 +60,52 @@ bool emmac_pedido(const char *pedido, char *resposta, size_t tam) {
 	return ok && n > 0;
 }
 
+/* quem entrega o resultado de um pedido assíncrono na linha principal: por padrão o laço do GLib; os apps do Gravity (que não rodam o do GLib) apontam
+ * isto para gv_na_linha_principal */
+void (*emmac_entregar)(void (*fn)(void *), void *dados);
+
 struct pedido_async {
 	void (*pronto)(const char *, void *);
 	void *dados;
-	GSocketConnection *con;
-	GDataInputStream *in;
 	char *pedido;
+	char *resposta; /* NULL: o serviço não respondeu */
 };
 
-static void pa_fim(struct pedido_async *p, const char *resposta) {
-	p->pronto(resposta, p->dados);
-	if (p->con) {
-		g_io_stream_close(G_IO_STREAM(p->con), NULL, NULL);
-		g_object_unref(p->con);
-	}
-	if (p->in) {
-		g_object_unref(p->in);
-	}
+static void pa_entregue(void *d) {
+	struct pedido_async *p = d;
+	p->pronto(p->resposta, p->dados);
+	g_free(p->resposta);
 	g_free(p->pedido);
 	g_free(p);
 }
 
-static void pa_lido(GObject *o, GAsyncResult *r, gpointer d) {
-	struct pedido_async *p = d;
-	char *linha = g_data_input_stream_read_line_finish(G_DATA_INPUT_STREAM(o), r, NULL, NULL);
-	pa_fim(p, linha);
-	g_free(linha);
+static gboolean pa_entregue_glib(gpointer d) {
+	pa_entregue(d);
+	return G_SOURCE_REMOVE;
 }
 
-static void pa_escrito(GObject *o, GAsyncResult *r, gpointer d) {
+static gpointer pa_thread(gpointer d) {
 	struct pedido_async *p = d;
-	if (g_output_stream_write_all_finish(G_OUTPUT_STREAM(o), r, NULL, NULL)) {
-		g_data_input_stream_read_line_async(p->in, G_PRIORITY_DEFAULT, NULL, pa_lido, p);
+	char *buf = g_malloc(65536);
+	if (emmac_pedido(p->pedido, buf, 65536)) {
+		p->resposta = buf;
 	} else {
-		pa_fim(p, NULL);
+		g_free(buf);
 	}
-}
-
-static void pa_ligado(GObject *o, GAsyncResult *r, gpointer d) {
-	struct pedido_async *p = d;
-	p->con = g_socket_client_connect_finish(G_SOCKET_CLIENT(o), r, NULL);
-	g_object_unref(o);
-	if (!p->con) {
-		pa_fim(p, NULL);
-		return;
+	if (emmac_entregar) {
+		emmac_entregar(pa_entregue, p);
+	} else {
+		g_idle_add(pa_entregue_glib, p);
 	}
-	p->in = g_data_input_stream_new(g_io_stream_get_input_stream(G_IO_STREAM(p->con)));
-	g_output_stream_write_all_async(g_io_stream_get_output_stream(G_IO_STREAM(p->con)), p->pedido, strlen(p->pedido), G_PRIORITY_DEFAULT, NULL, pa_escrito, p);
+	return NULL;
 }
 
 void emmac_pedido_async(const char *pedido, void (*pronto)(const char *, void *), void *dados) {
 	struct pedido_async *p = g_new0(struct pedido_async, 1);
 	p->pronto = pronto;
 	p->dados = dados;
-	p->pedido = g_strdup_printf("%s\n", pedido);
-	char *c = emmac_socket_caminho();
-	GSocketAddress *a = g_unix_socket_address_new(c);
-	g_free(c);
-	GSocketClient *cli = g_socket_client_new();
-	g_socket_client_connect_async(cli, G_SOCKET_CONNECTABLE(a), NULL, pa_ligado, p);
-	g_object_unref(a);
+	p->pedido = g_strdup(pedido);
+	g_thread_unref(g_thread_new("emmac-pedido", pa_thread, p));
 }
 
 int emmac_assinar(void) {

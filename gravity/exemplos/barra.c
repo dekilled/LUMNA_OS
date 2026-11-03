@@ -1241,6 +1241,7 @@ int main(void) {
 	if (!app) {
 		return 1;
 	}
+	emmac_entregar = gv_na_linha_principal; /* o laço do Gravity não roda o do GLib: os pedidos assíncronos voltam por aqui */
 	ler_ajustes();
 	modos_atualizar();
 	popup_medir();

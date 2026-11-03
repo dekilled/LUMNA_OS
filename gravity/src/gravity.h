@@ -143,6 +143,8 @@ void gv_app_maximizar(gv_app *app);
 void gv_app_mover(gv_app *app);
 /* Pede outro quadro (os componentes e as animações já pedem sozinhos). NULL: a app actual. */
 void gv_app_redesenhar(gv_app *app);
+/* Roda fn(dados) na linha principal do Gravity, a partir de QUALQUER thread (o resultado de um pedido de rede, por exemplo). */
+void gv_na_linha_principal(void (*fn)(void *), void *dados);
 /* Pede um quadro daqui a uns segundos (um relógio, um aviso que some), sem desenhar até lá. */
 void gv_acordar_em(double segundos);
 /* Um descritor a vigiar no ciclo da app (um socket, um pipe); a função corre quando há o que ler. */

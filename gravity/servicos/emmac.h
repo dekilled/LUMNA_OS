@@ -27,6 +27,8 @@
 bool emmac_pedido(const char *pedido, char *resposta, size_t tam);
 /* o mesmo, sem travar: pronto(resposta ou NULL) volta na linha principal */
 void emmac_pedido_async(const char *pedido, void (*pronto)(const char *resposta, void *dados), void *dados);
+/* onde o resultado de emmac_pedido_async é entregue (a linha principal): NULL = o laço do GLib; os apps do Gravity põem gv_na_linha_principal */
+extern void (*emmac_entregar)(void (*fn)(void *), void *dados);
 int emmac_assinar(void);               /* descritor que acorda a cada evento; -1 se o serviço não responde */
 /* lê o que chegou: devolve uma linha por vez (g_free) ou NULL se não há mais; *caiu se a conexão fechou */
 char *emmac_assinar_ler(int fd, bool *caiu);

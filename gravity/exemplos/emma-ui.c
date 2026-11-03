@@ -13,6 +13,7 @@ const Clay_Color EU_VIOLETA = { 110, 78, 232, 255 };
 char *eu_avatar_caminho;
 
 void eu_iniciar(void) {
+	emmac_entregar = gv_na_linha_principal; /* idem: o laço do Gravity não roda o do GLib */
 	if (!eu_avatar_caminho) {
 		eu_avatar_caminho = eu_achar_asset("avatar.jpg");
 	}
