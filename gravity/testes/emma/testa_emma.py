@@ -113,6 +113,29 @@ try:
     confere(espera(lambda: "/api/stt" in log(), 12), "o áudio não chegou ao /api/stt")
     confere(espera(lambda: log().count("wtype -k XF86AudioPlay") > antes, 8), "a fala 'pausa' não virou ação")
 
+    # o perfil SFW/NSFW: o NSFW só abre com o PIN do bloqueio (conferido aqui, no serviço); voltar ao SFW é livre
+    import hashlib
+    confere(pede("perfil").get("nsfw") is False, "o serviço devia abrir no SFW")
+    r = pede("perfil", "nsfw", "1234")
+    confere(r.get("ok") is False and "PIN" in r.get("erro", ""), f"sem PIN no bloqueio, o NSFW devia recusar: {r}")
+    sal = "00112233445566778899aabbccddeeff"
+    h = hashlib.sha256(f"{sal}:2468".encode()).digest()
+    for _ in range(120000):
+        h = hashlib.sha256(h).digest()
+    os.makedirs(os.path.join(cfg, "lumna"), exist_ok=True)
+    open(os.path.join(cfg, "lumna", "mobile-pin"), "w").write(f"4:{sal}:{h.hex()}")
+    r = pede("perfil", "nsfw", "1111")
+    confere(r.get("ok") is False and "incorreto" in r.get("erro", ""), f"PIN errado devia recusar: {r}")
+    confere(pede("perfil").get("nsfw") is False, "PIN errado não podia mudar o perfil")
+    confere('"nsfw": true' not in log(), "PIN errado chegou ao servidor")
+    r = pede("perfil", "nsfw", "2468")
+    confere(r.get("ok") is True and r.get("nsfw") is True, f"PIN certo devia entrar no NSFW: {r}")
+    confere('"trusted": true' in log(), "o servidor não soube que o PIN foi conferido")
+    r = pede("perfil")
+    confere(r.get("nsfw") is True, f"o perfil devia ficar NSFW: {r}")
+    r = pede("perfil", "sfw")
+    confere(r.get("ok") is True and r.get("nsfw") is False, f"voltar ao SFW devia ser livre: {r}")
+
     # arquivos e comandos: a política de cada chamada (direto, com aprovação, recusado)
     import threading
     home = T

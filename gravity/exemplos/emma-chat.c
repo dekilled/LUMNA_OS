@@ -133,6 +133,10 @@ static void evento(const struct json *j) {
 		g_strlcpy(erro, json_chave_texto(j, "mensagem"), sizeof(erro));
 	} else if (!strcmp(ev, "nova")) {
 		g_ptr_array_set_size(msgs, 0);
+	} else if (!strcmp(ev, "perfil")) { /* outro perfil, outra conversa: a de um nunca aparece no outro */
+		g_ptr_array_set_size(msgs, 0);
+		conf_id[0] = erro[0] = '\0';
+		carregar_historico();
 	}
 }
 

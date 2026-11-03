@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "emmaa.h"
+#include "entrar.h"
 #include "emmab.h"
 #include "emmal.h"
 #include "emmas.h"
@@ -105,6 +106,8 @@ static char *js(const char *s) {
 }
 
 /* ---- o estado ---- */
+
+static bool perfil_atual; /* SFW (false) ou NSFW (true): ver o perfil mais abaixo */
 
 static void recalcular_estado(void) {
 	const char *e = ouvindo ? "ouvindo" : transcrevendo ? "transcrevendo" : emmav_falando() ? "falando" : pensando ? "pensando" : "ocioso";
@@ -767,6 +770,93 @@ static void pedido_acoes(struct cliente *c) {
 	g_string_free(g, TRUE);
 }
 
+/* ---- o perfil SFW / NSFW (o servidor guarda; o PIN do bloqueio libera o NSFW; voltar ao SFW é livre) ---- */
+
+struct perfil_ctx {
+	struct cliente *c;
+	char *arg; /* "", "sfw" ou "nsfw PIN" */
+	char *json;
+	int nsfw;  /* -1: não mudou/erro */
+};
+
+static double perfil_falhas[5];
+static int perfil_nfalhas;
+
+static gboolean perfil_pronto(gpointer d) {
+	struct perfil_ctx *p = d;
+	if (p->nsfw >= 0 && (bool)p->nsfw != perfil_atual) {
+		perfil_atual = p->nsfw;
+		char k[32];
+		g_snprintf(k, sizeof(k), "\"nsfw\":%s", perfil_atual ? "true" : "false");
+		emitir_conv("assist", "", "perfil", k);
+	}
+	if (p->c && cliente_vivo(p->c)) {
+		escrever(p->c, p->json);
+	}
+	g_free(p->json);
+	g_free(p->arg);
+	g_free(p);
+	return G_SOURCE_REMOVE;
+}
+
+static gpointer perfil_linha(gpointer d) {
+	struct perfil_ctx *p = d;
+	p->nsfw = -1;
+	char *erro = NULL, *corpo = NULL;
+	const char *quer = NULL; /* o corpo do POST, se for mudar */
+	if (!strncmp(p->arg, "sfw", 3)) {
+		quer = "{\"nsfw\":false}";
+	} else if (!strncmp(p->arg, "nsfw", 4)) {
+		const char *pin = p->arg + 4;
+		while (*pin == ' ') {
+			pin++;
+		}
+		double agora = g_get_monotonic_time() / 1e6;
+		int recentes = 0;
+		for (int i = 0; i < perfil_nfalhas; i++) {
+			recentes += agora - perfil_falhas[i] < 300;
+		}
+		if (entrar_pin_tamanho() == 0) {
+			erro = g_strdup("Não há PIN no bloqueio. Crie um no Painel antes de usar o NSFW.");
+		} else if (recentes >= 5) {
+			erro = g_strdup("Muitas tentativas. Espere uns minutos.");
+		} else if (!entrar_pin_confere(pin)) {
+			perfil_falhas[perfil_nfalhas++ % 5] = agora;
+			if (perfil_nfalhas > 5) {
+				perfil_nfalhas = 5;
+			}
+			erro = g_strdup("PIN incorreto");
+		} else {
+			perfil_nfalhas = 0;
+			quer = "{\"nsfw\":true,\"trusted\":true}";
+		}
+	}
+	int st = 0;
+	if (!erro && emmab_pronto()) {
+		st = quer ? emmab_chamar("POST", "/api/profile", quer, &corpo, &erro) : emmab_chamar("GET", "/api/profile", NULL, &corpo, &erro);
+	} else if (!erro) {
+		erro = g_strdup("O servidor da Emma não está no ar.");
+	}
+	if (st == 200 && corpo) {
+		struct json *j = json_ler(corpo);
+		if (j) {
+			p->nsfw = json_bool(json_chave(j, "nsfw"), false) ? 1 : 0;
+			emmab_perfil_definir(p->nsfw);
+			p->json = g_strdup_printf("{\"ok\":true,\"nsfw\":%s}", p->nsfw ? "true" : "false");
+			json_liberar(j);
+		}
+	}
+	if (!p->json) {
+		char *e = js(erro ? erro : "não deu");
+		p->json = g_strdup_printf("{\"ok\":false,\"erro\":%s}", e);
+		g_free(e);
+	}
+	g_free(erro);
+	g_free(corpo);
+	g_main_context_invoke(NULL, perfil_pronto, p);
+	return NULL;
+}
+
 /* o histórico da conversa do painel: buscado numa linha à parte e respondido quando chegar */
 struct hist_ctx {
 	struct cliente *c;
@@ -1044,6 +1134,11 @@ static void tratar(struct cliente *c, char *linha) {
 		emmas_nova_sessao_canal("assist");
 		emitir_form("nova", "");
 		responder_ok(c);
+	} else if (!strcmp(cmd, "perfil")) {
+		struct perfil_ctx *p = g_new0(struct perfil_ctx, 1);
+		p->c = c;
+		p->arg = g_strdup(resto ? resto : "");
+		g_thread_unref(g_thread_new("emma-perfil", perfil_linha, p));
 	} else if (!strcmp(cmd, "historico")) {
 		struct hist_ctx *h = g_new0(struct hist_ctx, 1);
 		h->c = c;
@@ -1260,6 +1355,21 @@ static gpointer online_linha(gpointer d) {
 	bool srv = emmab_pronto(), no_ar = srv || emmab_no_ar();
 	if (srv) {
 		char *cfg = NULL, *e = NULL;
+		/* o app abriu: SFW, a não ser que "abrir sempre no NSFW" esteja ligado; o servidor responde em qual perfil está */
+		char *pf = NULL;
+		static bool boot_feito; /* uma vez só: o /boot do servidor VOLTA ao SFW, e esta verificação roda sempre */
+		if (!boot_feito && emmab_chamar("POST", "/api/profile/boot", "{}", &pf, &e) == 200 && pf) {
+			boot_feito = true;
+			struct json *j = json_ler(pf);
+			if (j) {
+				emmab_perfil_definir(json_bool(json_chave(j, "nsfw"), false));
+				perfil_atual = json_bool(json_chave(j, "nsfw"), false);
+				json_liberar(j);
+			}
+		}
+		g_free(pf);
+		g_free(e);
+		e = NULL;
 		if (emmab_chamar("GET", "/api/settings", NULL, &cfg, &e) == 200) {
 			emmal_guardar_persona(cfg);
 		}

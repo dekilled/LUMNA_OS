@@ -21,8 +21,19 @@ static GCancellable *corte;               /* a resposta que está chegando */
 static char sessao_id[EMMAB_NN][80];
 
 
+static bool perfil_nsfw; /* a conversa contínua do assistente é uma por perfil: o SFW e o NSFW nunca se misturam */
+
 static const char *canal_chave(int c) {
-	return c == EMMAB_ASSIST ? "assist_session_id" : "session_id";
+	return c == EMMAB_ASSIST ? (perfil_nsfw ? "assist_session_id_nsfw" : "assist_session_id") : "session_id";
+}
+
+void emmab_perfil_definir(bool nsfw) {
+	g_mutex_lock(&trinco);
+	if (perfil_nsfw != nsfw) {
+		perfil_nsfw = nsfw;
+		sessao_id[EMMAB_ASSIST][0] = '\0'; /* a do outro perfil volta quando ele voltar: está guardada no emma.json */
+	}
+	g_mutex_unlock(&trinco);
 }
 
 /* ---- ~/.config/lumna/emma.json ---- */

@@ -33,6 +33,9 @@ def prov_publico(p):
     return {**{x: p[x] for x in ("id", "name", "preset", "base_url", "models")}, "has_key": bool(k), "api_key_masked": f"••••{k[-4:]}" if k else ""}
 
 
+PERFIL = {"nsfw": False}
+
+
 class H(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -66,6 +69,8 @@ class H(BaseHTTPRequestHandler):
             return
         if self.path == "/api/providers":
             return self.json([prov_publico(p) for p in PROVS])
+        if self.path == "/api/profile":
+            return self.json({"nsfw": PERFIL["nsfw"], "on_start": False})
         if self.path == "/api/settings":
             return self.json({"routing": ROUTING})
         if self.path.startswith("/api/providers/") and self.path.endswith("/models"):
@@ -148,6 +153,13 @@ class H(BaseHTTPRequestHandler):
         registrar(f"POST {self.path} {json.dumps(c, ensure_ascii=False)[:40000]}")
         if self.sem_token():
             return
+        if self.path == "/api/profile/boot":
+            return self.json({"nsfw": PERFIL["nsfw"], "on_start": False})
+        if self.path == "/api/profile":  # o servidor de verdade só deixa entrar no NSFW com senha ou trusted (o PIN conferido pelo LUMNA)
+            if c.get("nsfw") and not c.get("trusted"):
+                return self.json({"detail": "Senha incorreta"}, 403)
+            PERFIL["nsfw"] = bool(c.get("nsfw"))
+            return self.json({"nsfw": PERFIL["nsfw"], "on_start": False})
         if self.path == "/api/auth/login":
             return self.json({"access_token": "tok1", "refresh_token": "ref1"})
         if self.path == "/api/auth/refresh":

@@ -58,6 +58,7 @@ static void menu_alternar(Clay_ElementId id) {
 	gv_popup_fechar(CLAY_ID("menu-tray"));
 	gv_popup_fechar(CLAY_ID("menu-emma"));
 	gv_popup_fechar(CLAY_ID("menu-copiados"));
+	gv_popup_fechar(CLAY_ID("menu-perfil"));
 	if (!estava) {
 		gv_popup_abrir(id);
 	}
@@ -831,7 +832,41 @@ static bool emma_servidor;                 /* o backend da Emma (a conversa) res
 static double emma_tentar_em;
 static gv_app *emma_app;
 
+/* o perfil: SFW (seguro para outros verem a tela) ou NSFW; entrar no NSFW pede o PIN do bloqueio, voltar ao SFW é livre */
+static bool perfil_nsfw;
+static char perfil_pin[16], perfil_erro[160];
+
+static void perfil_resposta(const char *resp, void *dados) {
+	(void)dados;
+	struct json *j = resp ? json_ler(resp) : NULL;
+	if (j) {
+		if (json_bool(json_chave(j, "ok"), false)) {
+			perfil_nsfw = json_bool(json_chave(j, "nsfw"), false);
+			perfil_erro[0] = '\0';
+			memset(perfil_pin, 0, sizeof(perfil_pin));
+			gv_popup_fechar(CLAY_ID("menu-perfil"));
+		} else {
+			g_strlcpy(perfil_erro, json_chave_texto(j, "erro"), sizeof(perfil_erro));
+		}
+		json_liberar(j);
+	} else {
+		g_strlcpy(perfil_erro, "A Emma não respondeu.", sizeof(perfil_erro));
+	}
+	if (emma_app) {
+		gv_app_redesenhar(emma_app);
+	}
+}
+
+static void perfil_pedir(const char *arg) {
+	char *p = g_strdup_printf("perfil %s", arg);
+	emmac_pedido_async(p, perfil_resposta, NULL);
+	g_free(p);
+}
+
 static void emma_evento(const struct json *j) {
+	if (!strcmp(json_chave_texto(j, "evento"), "perfil")) {
+		perfil_nsfw = json_bool(json_chave(j, "nsfw"), false);
+	}
 	if (!strcmp(json_chave_texto(j, "evento"), "estado")) {
 		g_strlcpy(emma_estado, json_chave_texto(j, "estado"), sizeof(emma_estado));
 		emma_servidor = json_bool(json_chave(j, "online"), false);
@@ -870,6 +905,7 @@ static void emma_ligar(gv_app *app) {
 	emma_fd = emmac_assinar();
 	if (emma_fd >= 0) {
 		gv_app_vigiar(app, emma_fd, emma_mudou, NULL);
+		perfil_pedir(""); /* em que perfil o servidor está */
 	} else {
 		emma_tentar_em = gv_agora() + 4;
 	}
@@ -901,6 +937,28 @@ static void emma_pedir(const char *pedido) {
 static const char *emma_frase_estado(void) {
 	return !strcmp(emma_estado, "ouvindo") ? "Ouvindo…" : !strcmp(emma_estado, "transcrevendo") ? "Entendendo o que você disse…" : !strcmp(emma_estado, "pensando") ? "Pensando…" :
 		!strcmp(emma_estado, "falando") ? "Falando…" : "Rodando";
+}
+
+/* o perfil: quem está olhando a tela? No SFW a Emma e as conversas são as de "visita"; o NSFW pede o PIN do bloqueio */
+static void menu_perfil(void) {
+	GV_POPUP(CLAY_ID("menu-perfil"), CLAY_ID("perfil"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
+		topo_menu(6, "shield", "Perfil da Emma", NULL);
+		CLAY(CLAY_ID("perfil-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 4, 14 }, .childGap = 10 } }) {
+			gv_texto(CLAY_STRING("Você está no perfil SFW: a Emma, as conversas e as memórias de visita. O NSFW tem as suas próprias e só abre com o PIN do bloqueio."),
+				gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			int r = gv_campo(CLAY_ID("perfil-pin"), perfil_pin, sizeof(perfil_pin), "PIN do bloqueio", GV_CAMPO_SENHA);
+			if (perfil_erro[0]) {
+				gv_texto(gv_str(perfil_erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+			}
+			if ((gv_botao_ext(CLAY_ID("perfil-entrar"), &(gv_botao_opcoes){ .icone = "eye", .texto = "Entrar no NSFW", .estilo = GV_BOTAO_CHEIO, .altura = 38, .crescer = true,
+				    .desativado = !perfil_pin[0] }) || (r & GV_CAMPO_ENTER)) && perfil_pin[0]) {
+				char *a = g_strdup_printf("nsfw %s", perfil_pin);
+				perfil_pedir(a);
+				memset(a, 0, strlen(a));
+				g_free(a);
+			}
+		}
+	}
 }
 
 /* o processo da Emma: mostra que ela está rodando e deixa abrir o app, configurar, reiniciar e fechar (chamá-la é com o botão da dock) */
@@ -1055,6 +1113,25 @@ static void desenhar(gv_app *app, void *dados) {
 					menu_alternar(CLAY_ID("menu-emma"));
 				}
 			}
+			if (emma_fd >= 0 && emma_servidor) { /* o perfil só existe com o servidor da Emma; vermelho = NSFW, para ninguém esquecer */
+				Clay_ElementId id = CLAY_ID("perfil");
+				bool tocado = gv_tocado(id);
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(32) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = gv_popup_aberto(CLAY_ID("menu-perfil")) ? gv_t.selecionado : perfil_nsfw ? gv_alfa(gv_t.perigo, 0.16f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+					.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+					tocado |= gv_focavel(id, gv_t.raio_pequeno);
+					gv_icone(perfil_nsfw ? "eye" : "shield", 20, perfil_nsfw ? gv_t.perigo : gv_t.icone);
+				}
+				if (tocado) {
+					if (perfil_nsfw) {
+						perfil_pedir("sfw"); /* voltar ao SFW é livre */
+					} else {
+						perfil_erro[0] = '\0';
+						menu_alternar(CLAY_ID("menu-perfil"));
+						gv_focar(CLAY_ID("perfil-pin"));
+					}
+				}
+			}
 			if (icone_barra(CLAY_ID("wifi"), icone_rede(), gv_popup_aberto(CLAY_ID("menu-wifi")))) {
 				menu_alternar(CLAY_ID("menu-wifi"));
 				rede_varrer("");
@@ -1125,6 +1202,7 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_bluetooth();
 	menu_tray();
 	menu_emma();
+	menu_perfil();
 	menu_copiados();
 	struct tm hoje;
 	time_t agora2 = time(NULL);

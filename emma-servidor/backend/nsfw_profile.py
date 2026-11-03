@@ -85,6 +85,8 @@ async def migrate() -> None:
 class ProfileIn(BaseModel):
     nsfw: bool
     password: str = Field(default="", max_length=200)
+    # LUMNA: o cliente já conferiu o PIN do bloqueio (o servidor não tem login: quem fala com ele é o próprio sistema)
+    trusted: bool = False
 
 
 async def _state() -> dict:
@@ -99,7 +101,7 @@ async def get_profile():
 
 @router.post("/profile")
 async def set_profile(body: ProfileIn, request: Request):
-    if body.nsfw and not await nsfw():
+    if body.nsfw and not await nsfw() and not body.trusted:
         now = time.time()
         _fails[:] = [t for t in _fails if now - t < 300]
         if len(_fails) >= 5:

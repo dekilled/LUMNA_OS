@@ -57,6 +57,8 @@ bool emmab_tts(const char *texto, const char *saida, char **erro);
 /* ~/.config/lumna/emma.json: lê um texto, ou grava uma chave (valor já em JSON; NULL tira) */
 char *emmab_config_texto(const char *chave);
 bool emmab_config_gravar(const char *chave, const char *valor_json);
+/* o perfil em uso (SFW/NSFW): a conversa do assistente é uma por perfil */
+void emmab_perfil_definir(bool nsfw);
 /* as permissões das ações ("auto", "ask", "off") que a pessoa mudou */
 GHashTable *emmab_permissoes(void);
 

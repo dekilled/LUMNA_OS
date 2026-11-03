@@ -385,6 +385,12 @@ static void enviar(const char *texto) {
 
 static void aplicar_evento(const struct json *j) {
 	const char *ev = json_chave_texto(j, "evento");
+	if (!strcmp(ev, "perfil")) { /* as conversas, os projetos e as memórias são de um perfil só */
+		rotina_atual = -1;
+		carregar_rotinas();
+		escolher_escopo(E_CHAT);
+		return;
+	}
 	if (!strcmp(ev, "estado")) {
 		g_strlcpy(estado, json_chave_texto(j, "estado"), sizeof(estado));
 		servidor = json_bool(json_chave(j, "online"), false);
