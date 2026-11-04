@@ -59,7 +59,6 @@ static void menu_alternar(Clay_ElementId id) {
 	gv_popup_fechar(CLAY_ID("menu-tray"));
 	gv_popup_fechar(CLAY_ID("menu-emma"));
 	gv_popup_fechar(CLAY_ID("menu-copiados"));
-	gv_popup_fechar(CLAY_ID("menu-perfil"));
 	if (!estava) {
 		gv_popup_abrir(id);
 	}
@@ -835,27 +834,14 @@ static gv_app *emma_app;
 
 /* o perfil: SFW (seguro para outros verem a tela) ou NSFW; entrar no NSFW pede o PIN do bloqueio, voltar ao SFW é livre */
 static bool perfil_nsfw;
-static char perfil_pin[16], perfil_erro[160];
-static bool perfil_focado; /* o campo do PIN já recebeu o foco desde que o popup abriu */
 
 static void perfil_resposta(const char *resp, void *dados) {
 	(void)dados;
 	struct json *j = resp ? json_ler(resp) : NULL;
-	if (j) {
-		if (json_bool(json_chave(j, "ok"), false)) {
-			perfil_nsfw = json_bool(json_chave(j, "nsfw"), false);
-			perfil_erro[0] = '\0';
-			memset(perfil_pin, 0, sizeof(perfil_pin));
-			gv_popup_fechar(CLAY_ID("menu-perfil"));
-		} else {
-			g_strlcpy(perfil_erro, json_chave_texto(j, "erro"), sizeof(perfil_erro));
-			memset(perfil_pin, 0, sizeof(perfil_pin)); /* errou: limpa e devolve o foco ao campo (o clique no botão o levou embora) */
-			perfil_focado = false;
-		}
-		json_liberar(j);
-	} else {
-		g_strlcpy(perfil_erro, "A Emma não respondeu.", sizeof(perfil_erro));
+	if (j && json_bool(json_chave(j, "ok"), false)) {
+		perfil_nsfw = json_bool(json_chave(j, "nsfw"), false);
 	}
+	json_liberar(j);
 	if (emma_app) {
 		gv_app_redesenhar(emma_app);
 	}
@@ -943,33 +929,6 @@ static const char *emma_frase_estado(void) {
 		!strcmp(emma_estado, "falando") ? "Falando…" : "Rodando";
 }
 
-/* o perfil: quem está olhando a tela? No SFW a Emma e as conversas são as de "visita"; o NSFW pede o PIN do bloqueio */
-static void menu_perfil(void) {
-	GV_POPUP(CLAY_ID("menu-perfil"), CLAY_ID("perfil"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
-		topo_menu(6, "shield", "Perfil da Emma", NULL);
-		CLAY(CLAY_ID("perfil-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 4, 14 }, .childGap = 10 } }) {
-			gv_texto(CLAY_STRING("Você está no perfil SFW: a Emma, as conversas e as memórias de visita. O NSFW tem as suas próprias e só abre com o PIN do bloqueio."),
-				gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
-			int r = gv_campo(CLAY_ID("perfil-pin"), perfil_pin, sizeof(perfil_pin), "PIN do bloqueio", GV_CAMPO_SENHA);
-			if (!perfil_focado) { /* o campo só existe a partir deste quadro: é agora que dá para focar */
-				gv_focar(CLAY_ID("perfil-pin"));
-				perfil_focado = true;
-			}
-			if (perfil_erro[0]) {
-				gv_texto(gv_str(perfil_erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
-			}
-			if ((gv_botao_ext(CLAY_ID("perfil-entrar"), &(gv_botao_opcoes){ .icone = "eye", .texto = "Entrar no NSFW", .estilo = GV_BOTAO_CHEIO, .altura = 38, .crescer = true,
-				    .desativado = !perfil_pin[0] }) || (r & GV_CAMPO_ENTER)) && perfil_pin[0]) {
-				char *a = g_strdup_printf("nsfw %s", perfil_pin);
-				perfil_focado = false; /* o foco volta ao campo no próximo quadro, qualquer que seja o resultado */
-				perfil_pedir(a);
-				memset(a, 0, strlen(a));
-				g_free(a);
-			}
-		}
-	}
-}
-
 /* o processo da Emma: mostra que ela está rodando e deixa abrir o app, configurar, reiniciar e fechar (chamá-la é com o botão da dock) */
 static void menu_emma(void) {
 	GV_POPUP(CLAY_ID("menu-emma"), CLAY_ID("dir"), .alinhar = GV_ALINHAR_FIM, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
@@ -1032,14 +991,10 @@ static void desenhar(gv_app *app, void *dados) {
 	 * (sai quando o popup fecha: tocar fora, Esc ou entrar) */
 	{
 		static bool teclado_pedido;
-		bool quer = gv_popup_aberto(CLAY_ID("menu-perfil")) || (wf_ap[0] && gv_popup_aberto(CLAY_ID("menu-wifi")));
+		bool quer = wf_ap[0] && gv_popup_aberto(CLAY_ID("menu-wifi"));
 		if (quer && gv_tecla() == XKB_KEY_Escape) {
-			gv_popup_fechar(CLAY_ID("menu-perfil"));
 			wf_ap[0] = '\0';
 			quer = false;
-		}
-		if (!gv_popup_aberto(CLAY_ID("menu-perfil"))) {
-			perfil_focado = false;
 		}
 		if (quer != teclado_pedido) {
 			teclado_pedido = quer;
@@ -1144,7 +1099,7 @@ static void desenhar(gv_app *app, void *dados) {
 				Clay_ElementId id = CLAY_ID("perfil");
 				bool tocado = gv_tocado(id);
 				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(32) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-					.backgroundColor = gv_popup_aberto(CLAY_ID("menu-perfil")) ? gv_t.selecionado : perfil_nsfw ? gv_alfa(gv_t.perigo, 0.16f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
+					.backgroundColor = perfil_nsfw ? gv_alfa(gv_t.perigo, 0.16f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 },
 					.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
 					tocado |= gv_focavel(id, gv_t.raio_pequeno);
 					gv_icone(perfil_nsfw ? "eye" : "shield", 20, perfil_nsfw ? gv_t.perigo : gv_t.icone);
@@ -1153,8 +1108,7 @@ static void desenhar(gv_app *app, void *dados) {
 					if (perfil_nsfw) {
 						perfil_pedir("sfw"); /* voltar ao SFW é livre */
 					} else {
-						perfil_erro[0] = '\0';
-						menu_alternar(CLAY_ID("menu-perfil"));
+						executar("lumna-perfil", NULL, NULL); /* o PIN se digita numa janela própria, que fica com o teclado */
 					}
 				}
 			}
@@ -1228,7 +1182,6 @@ static void desenhar(gv_app *app, void *dados) {
 	menu_bluetooth();
 	menu_tray();
 	menu_emma();
-	menu_perfil();
 	menu_copiados();
 	struct tm hoje;
 	time_t agora2 = time(NULL);
