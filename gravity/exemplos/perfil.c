@@ -13,7 +13,7 @@
 #include "json.h"
 
 static gv_app *app;
-static char pin[16], erro[200];
+static char pin[256], erro[200]; /* o PIN do bloqueio ou, sem PIN, a senha do Linux */
 static bool conferindo;
 
 static void entrar(void) {
@@ -55,10 +55,10 @@ static void desenhar(gv_app *a, void *dados) {
 				gv_icone("eye", 24, gv_t.perigo);
 				gv_texto(CLAY_STRING("Entrar no perfil NSFW"), gv_t.tamanho_destaque + 1, gv_t.texto, GV_PESO_MEDIO);
 			}
-			gv_texto(CLAY_STRING("O NSFW tem a Emma, as conversas e as memórias dele, separadas das de visita. Digite o PIN do bloqueio."),
+			gv_texto(CLAY_STRING("O NSFW tem a Emma, as conversas e as memórias dele, separadas das de visita. Digite o PIN do bloqueio (ou a senha do Linux, se o bloqueio usa a senha)."),
 				gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 			CLAY(CLAY_ID("pf-campo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				if (gv_campo(CLAY_ID("pf-pin"), pin, sizeof(pin), "PIN do bloqueio", GV_CAMPO_SENHA) & GV_CAMPO_ENTER) {
+				if (gv_campo(CLAY_ID("pf-pin"), pin, sizeof(pin), "PIN ou senha", GV_CAMPO_SENHA) & GV_CAMPO_ENTER) {
 					entrar();
 				}
 			}

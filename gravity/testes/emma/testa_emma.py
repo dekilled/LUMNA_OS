@@ -116,8 +116,8 @@ try:
     # o perfil SFW/NSFW: o NSFW só abre com o PIN do bloqueio (conferido aqui, no serviço); voltar ao SFW é livre
     import hashlib
     confere(pede("perfil").get("nsfw") is False, "o serviço devia abrir no SFW")
-    r = pede("perfil", "nsfw", "1234")
-    confere(r.get("ok") is False and "PIN" in r.get("erro", ""), f"sem PIN no bloqueio, o NSFW devia recusar: {r}")
+    r = pede("perfil", "nsfw", "1234")  # sem PIN cadastrado vale a senha do Linux: "1234" não é
+    confere(r.get("ok") is False and "incorret" in r.get("erro", ""), f"uma senha errada devia recusar: {r}")
     sal = "00112233445566778899aabbccddeeff"
     h = hashlib.sha256(f"{sal}:2468".encode()).digest()
     for _ in range(120000):

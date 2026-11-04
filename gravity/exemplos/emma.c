@@ -816,16 +816,15 @@ static gpointer perfil_linha(gpointer d) {
 		for (int i = 0; i < perfil_nfalhas; i++) {
 			recentes += agora - perfil_falhas[i] < 300;
 		}
-		if (entrar_pin_tamanho() == 0) {
-			erro = g_strdup("Não há PIN no bloqueio. Crie um no Painel antes de usar o NSFW.");
-		} else if (recentes >= 5) {
+		bool por_senha = entrar_pin_tamanho() == 0; /* o mesmo que o bloqueio faz: sem PIN cadastrado, vale a senha do Linux */
+		if (recentes >= 5) {
 			erro = g_strdup("Muitas tentativas. Espere uns minutos.");
-		} else if (!entrar_pin_confere(pin)) {
+		} else if (!(por_senha ? entrar_senha_confere(pin) : entrar_pin_confere(pin))) {
 			perfil_falhas[perfil_nfalhas++ % 5] = agora;
 			if (perfil_nfalhas > 5) {
 				perfil_nfalhas = 5;
 			}
-			erro = g_strdup("PIN incorreto");
+			erro = g_strdup(por_senha ? "Senha incorreta" : "PIN incorreto");
 		} else {
 			perfil_nfalhas = 0;
 			quer = "{\"nsfw\":true,\"trusted\":true}";
