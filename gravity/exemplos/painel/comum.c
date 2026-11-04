@@ -73,7 +73,8 @@ bool pn_ajuste_lista(Clay_ElementId id, const char *icone, const char *nome, con
 	bool mudou = false;
 	pn_linha_comecar(id, icone, nome, sub);
 	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(260) } } }) {
-		mudou = gv_lista_suspensa(Clay__HashStringWithOffset(id.stringId, 9000001u, id.baseId), opcoes, n, escolha);
+		/* o índice do id (CLAY_IDI) entra na conta: sem ele, os dropdowns de uma lista (um por tela) teriam todos o mesmo id e não abririam */
+		mudou = gv_lista_suspensa(Clay__HashStringWithOffset(id.stringId, 9000001u + id.offset, id.baseId), opcoes, n, escolha);
 	}
 	pn_linha_acabar();
 	return mudou;
