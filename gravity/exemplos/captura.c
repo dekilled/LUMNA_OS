@@ -6,6 +6,8 @@
  *   lumna-captura --janela   começa pelo modo janela
  *   lumna-captura --video    escolher e GRAVAR (a tela inteira ou uma área); Print de novo para parar
  *   lumna-captura --parar    para a gravação que estiver rodando
+ *   lumna-captura --para-emma ALVO     escolher o que mostrar à Emma (ALVO: app | popup); o recorte aparece antes de ir
+ *   lumna-captura --janela-foco ALVO   mostra à Emma a janela em foco, direto (também confirmando)
  *   lumna-captura --previa ARQUIVO   (interno) a janela de prévia de uma captura ou gravação
  *   (internos da gravação: --gravando, --contagem, --barra)
  *
@@ -30,6 +32,7 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "emmac.h"
 #include "gravity.h"
 #include "json.h"
 #include "modos.h"
@@ -39,6 +42,7 @@
 
 static gv_app *app;
 static char aviso[300];
+static char modo_emma[16];         /* "app" | "popup": a captura é para mostrar à Emma (a prévia vira o pedido de confirmação) */
 static bool eh_video;              /* é uma gravação (mp4/webm/mkv), não uma foto */
 static char poster[600];           /* um quadro do vídeo, se o ffmpeg existe */
 static char info_video[120];
@@ -208,7 +212,31 @@ static void previa_desenhar(gv_app *a, void *dados) {
 	}
 	CLAY(CLAY_ID("cp-raiz"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(14), .childGap = 12 },
 		.backgroundColor = gv_t.fundo }) {
-		CLAY(CLAY_ID("cp-barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		if (modo_emma[0]) { /* só isto vai à Emma: confira antes (uma senha, uma conversa...) */
+			CLAY(CLAY_ID("cp-emma-barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(CLAY_STRING("Isto vai para a Emma. Confira se não tem nada que você não quer mostrar."), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+				}
+				if (gv_botao_ext(CLAY_ID("cp-emma-nao"), &(gv_botao_opcoes){ .icone = "close", .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO, .altura = 38 })) {
+					gv_app_sair(a);
+				}
+				if (gv_botao_ext(CLAY_ID("cp-emma-sim"), &(gv_botao_opcoes){ .icone = "send", .texto = "Mostrar à Emma", .estilo = GV_BOTAO_CHEIO, .altura = 38 })) {
+					char *p = g_strdup_printf("anexar_emma %s %s", modo_emma, arquivo);
+					char r[512] = "";
+					bool falou = emmac_pedido(p, r, sizeof(r)); /* sobe a imagem: uma fração de segundo */
+					g_free(p);
+					struct json *j = falou ? json_ler(r) : NULL;
+					if (j && json_bool(json_chave(j, "ok"), false)) {
+						json_liberar(j);
+						gv_app_sair(a);
+						return;
+					}
+					g_strlcpy(aviso, !falou ? "O serviço da Emma não respondeu." : j && *json_chave_texto(j, "erro") ? json_chave_texto(j, "erro") : "Não consegui mandar a imagem.", sizeof(aviso));
+					json_liberar(j);
+				}
+			}
+		}
+		if (!modo_emma[0]) CLAY(CLAY_ID("cp-barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 			if (gv_botao_ext(CLAY_ID("cp-copiar"), &(gv_botao_opcoes){ .icone = "copy", .texto = eh_video ? "Copiar caminho" : "Copiar", .estilo = GV_BOTAO_ELEVADO, .altura = 38 })) {
 				copiar_imagem();
 			}
@@ -275,8 +303,11 @@ static void previa_desenhar(gv_app *a, void *dados) {
 	}
 }
 
-static int previa(const char *caminho) {
+static int previa(const char *caminho, const char *alvo_emma) {
 	g_strlcpy(arquivo, caminho, sizeof(arquivo));
+	if (alvo_emma) {
+		g_strlcpy(modo_emma, alvo_emma, sizeof(modo_emma));
+	}
 	eh_video = g_str_has_suffix(caminho, ".mp4") || g_str_has_suffix(caminho, ".webm") || g_str_has_suffix(caminho, ".mkv");
 	int l = 960, a = 640;
 	if (eh_video) {
@@ -306,7 +337,7 @@ static int previa(const char *caminho) {
 		l = img_l / 2 + 60;
 		a = img_a / 2 + 150;
 	}
-	app = gv_app_criar(&(gv_opcoes){ .titulo = eh_video ? "Gravação" : "Captura", .app_id = "lumna-captura", .tipo = GV_JANELA, .largura = l < 760 ? 760 : l > 1280 ? 1280 : l,
+	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_emma[0] ? "Mostrar à Emma" : eh_video ? "Gravação" : "Captura", .app_id = "lumna-captura", .tipo = GV_JANELA, .largura = l < 760 ? 760 : l > 1280 ? 1280 : l,
 		.altura = a < 520 ? 520 : a > 860 ? 860 : a });
 	if (!app) {
 		descartar_se_nao_salva();
@@ -441,7 +472,7 @@ static void capturar(void) {
 		char exe[600];
 		ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
 		exe[n > 0 ? n : 0] = '\0';
-		char *argv[] = { n > 0 ? exe : "lumna-captura", "--previa", dest, NULL };
+		char *argv[] = { n > 0 ? exe : "lumna-captura", modo_emma[0] ? "--confirmar-emma" : "--previa", dest, modo_emma[0] ? modo_emma : NULL, NULL };
 		g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
 		g_unlink(congelada);
 		congelada[0] = '\0';
@@ -606,7 +637,7 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 		CLAY(CLAY_ID("cs-barra"), { .layout = { .sizing = { CLAY_SIZING_FIT(0) }, .padding = { 8, 8, 8, 8 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(14), .border = { .color = gv_t.borda_controle, .width = { 1, 1, 1, 1, 0 } },
 			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { tx, ty }, .zIndex = 30 } }) {
-			for (int v2 = 0; v2 < 2; v2++) {
+			for (int v2 = 0; v2 < 2 && !modo_emma[0]; v2++) {
 				if (gv_botao_ext(CLAY_IDI("cs-tipo", (uint32_t)v2), &(gv_botao_opcoes){ .icone = v2 ? "video" : "camera", .texto = v2 ? "Vídeo" : "Foto", .estilo = modo_video == (bool)v2 ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 })) {
 					modo_video = v2;
 				}
@@ -959,12 +990,66 @@ static int barra_ui(char **a) {
 	return gv_app_correr(app, barra_desenhar, NULL);
 }
 
+/* a janela em foco, direto: o grim recorta pela geometria que o Orbit diz; depois, o mesmo pedido de confirmação */
+static int janela_foco(const char *alvo) {
+	char *buf = g_malloc(256 * 1024);
+	int x = 0, y = 0, w = 0, h = 0;
+	bool achou = false;
+	if (orbit_pedido("janelas", buf, 256 * 1024)) {
+		struct json *j = json_ler(buf);
+		const struct json *ls = json_chave(j, "janelas");
+		for (int i = 0; ls && i < ls->nfilhos; i++) {
+			const struct json *w2 = json_item(ls, i);
+			if (json_bool(json_chave(w2, "foco"), false)) {
+				x = (int)json_numero(json_chave(w2, "x"), 0);
+				y = (int)json_numero(json_chave(w2, "y"), 0);
+				w = (int)json_numero(json_chave(w2, "w"), 0);
+				h = (int)json_numero(json_chave(w2, "h"), 0);
+				achou = w > 0 && h > 0;
+				break;
+			}
+		}
+		json_liberar(j);
+	}
+	g_free(buf);
+	if (!achou) {
+		avisar("Não achei uma janela em foco para mostrar à Emma.");
+		return 1;
+	}
+	if (!g_find_program_in_path("grim")) {
+		avisar("Falta o grim (pacote grim) para capturar a janela.");
+		return 1;
+	}
+	char *pasta = pasta_temp(), *nome = nome_novo("janela", "png"), *dest = g_build_filename(pasta, nome, NULL), geom[64];
+	g_snprintf(geom, sizeof(geom), "%d,%d %dx%d", x, y, w, h);
+	char *argv[] = { "grim", "-g", geom, "-t", "png", dest, NULL };
+	int rc = 1;
+	if (rodar(argv)) {
+		char *exe = exe_proprio();
+		char *av[] = { exe, "--confirmar-emma", dest, (char *)alvo, NULL };
+		rc = g_spawn_async(NULL, av, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL) ? 0 : 1;
+		g_free(exe);
+	} else {
+		avisar("O grim não conseguiu capturar a janela.");
+	}
+	g_free(pasta);
+	g_free(nome);
+	g_free(dest);
+	return rc;
+}
+
 int main(int argc, char **argv) {
 	bool so_tela = false;
 	enum modo inicial = M_AREA;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--previa") && i + 1 < argc) {
-			return previa(argv[i + 1]);
+			return previa(argv[i + 1], NULL);
+		} else if (!strcmp(argv[i], "--confirmar-emma") && i + 2 < argc) {
+			return previa(argv[i + 1], argv[i + 2]);
+		} else if (!strcmp(argv[i], "--para-emma") && i + 1 < argc) {
+			g_strlcpy(modo_emma, argv[++i], sizeof(modo_emma));
+		} else if (!strcmp(argv[i], "--janela-foco") && i + 1 < argc) {
+			return janela_foco(argv[i + 1]);
 		} else if (!strcmp(argv[i], "--gravando") && i + 7 < argc) {
 			return gravando(argv + i + 1);
 		} else if (!strcmp(argv[i], "--contagem") && i + 5 < argc) {

@@ -247,3 +247,12 @@ sem geração, a Emma nem recebe a ferramenta `gerar_imagem`. (Cada ação do LU
 **Gerar imagens**: o provedor é qualquer servidor que fale `/images/generations` (OpenAI na nuvem, ou um local: LocalAI, stable-diffusion.cpp, uma ponte para o ComfyUI...).
 Servidor na sua máquina ou na sua rede não pede chave de API. Pede-se de duas formas: a Emma usa a ferramenta `gerar_imagem` (por padrão perguntando antes; mude em Recursos)
 ou se escreve `/imagem descrição` no app. A imagem volta como mensagem dela, salva no servidor. Botão **Testar** gera uma imagem de teste.
+
+## A Emma vendo a tela (você mostra; ela nunca olha sozinha)
+
+Dois jeitos, no app e no popup (o botão some com a **visão** desligada em Recursos):
+- **Escolher o que ela vê:** abre o seletor da captura (`lumna-captura --para-emma app|popup`); você desenha a área (ou uma janela).
+- **A janela em foco, direto:** `lumna-captura --janela-foco app|popup`. No app são 3 s para ir à janela (o clique o deixa em foco); no popup é na hora.
+Nos dois, **o recorte aparece antes de ir** ("Isto vai para a Emma. Confira…", com Cancelar e Mostrar à Emma): nada sai sem o seu OK, e o temporário é apagado.
+A imagem sobe pelo serviço (`anexar_emma ALVO ARQUIVO`) e chega no campo do app como as outras; no popup, **vai junto só da próxima mensagem** e some. Conteúdo
+de tela é conteúdo de fora: as ações depois dele continuam pedindo aprovação, como com qualquer imagem.

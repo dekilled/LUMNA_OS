@@ -162,6 +162,17 @@ try:
     confere(r.get("ok") is True, f"uma mensagem só com imagem devia ser aceita: {r}")
     confere(espera(lambda: '"attachments": ["att-1"]' in log()), "o chat não levou os anexos ao servidor")
 
+    # mostrar a tela à Emma (pela captura): sobe, entra no popup e vai junto SÓ da próxima mensagem
+    antes = log().count('"attachments": ["att-1"]')
+    r = pede("anexar_emma", "popup", foto)
+    confere(r.get("ok") is True, f"anexar_emma devia subir a imagem: {r}")
+    pede("enviar", "o que e isso na minha tela")
+    confere(espera(lambda: log().count('"attachments": ["att-1"]') == antes + 1), "a imagem mostrada não foi junto da mensagem do popup")
+    pede("enviar", "e agora, outra pergunta sem imagem")
+    confere(espera(lambda: "outra pergunta sem imagem" in log()), "a segunda mensagem não chegou")
+    confere(log().count('"attachments": ["att-1"]') == antes + 1, "a imagem foi de novo na mensagem seguinte (devia ir só uma vez)")
+    confere(pede("anexar_emma", "popup").get("ok") is False, "anexar_emma sem arquivo devia recusar")
+
     # arquivos e comandos: a política de cada chamada (direto, com aprovação, recusado)
     import threading
     home = T

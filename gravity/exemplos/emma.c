@@ -360,6 +360,10 @@ static void decidir(const char *id, bool sim) {
 
 /* ---- uma conversa ---- */
 
+/* as imagens que a pessoa mostrou à Emma pelo popup e ainda não foram numa mensagem: vão junto da próxima (e some) */
+static char assist_anexo_id[4][40], assist_anexo_cam[4][512];
+static int assist_n_anexos;
+
 struct conversa {
 	char *sid;                 /* a sessão do app (NULL: a do painel) */
 	char *extra;               /* pedaço do corpo do chat: "skill_id":"..." */
@@ -726,6 +730,28 @@ static void processar_texto(const char *texto, const char *origem, bool voz, str
 	c->texto = g_strdup(texto);
 	c->voz = voz;
 	c->origem = g_strdup(origem);
+	if (assist_n_anexos > 0) { /* o que a pessoa mostrou pelo popup vai junto desta mensagem */
+		GString *e = g_string_new("\"attachments\":[");
+		for (int i = 0; i < assist_n_anexos; i++) {
+			g_string_append_printf(e, "%s", i ? "," : "");
+			json_escrever_texto(e, assist_anexo_id[i]);
+		}
+		g_string_append_c(e, ']');
+		c->extra = g_string_free(e, FALSE);
+		GString *im = g_string_new("[");
+		for (int i = 0; i < assist_n_anexos; i++) {
+			g_string_append_printf(im, "%s", i ? "," : "");
+			json_escrever_texto(im, assist_anexo_cam[i]);
+		}
+		g_string_append_c(im, ']');
+		char *imj = im->str;
+		char *k = g_strdup_printf("\"imagens\":%s", imj);
+		emitir_conv("assist", "", "ouvido_imagens", k); /* o popup põe as imagens na bolha da fala que acabou de aparecer */
+		g_free(k);
+		g_string_free(im, TRUE);
+		assist_n_anexos = 0;
+		emitir_conv("assist", "", "anexo", "\"alvo\":\"popup\",\"id\":\"\",\"caminho\":\"\",\"pendentes\":0");
+	}
 	c->espera = espera;
 	c->fala = voz ? g_string_new(NULL) : NULL;
 	g_queue_push_tail(&fila, c);
@@ -944,10 +970,30 @@ struct anexo_ctx {
 	char *arg;
 	bool baixar;
 	char *json;
+	char alvo[16];     /* anexar_emma: "app" (o app completo) ou "popup" (o assistente) */
+	char id[40], cam[512];
 };
+
+static void anexo_emma_na_principal(struct anexo_ctx *a) {
+	if (!strcmp(a->alvo, "popup") && assist_n_anexos < 4) {
+		g_strlcpy(assist_anexo_id[assist_n_anexos], a->id, sizeof(assist_anexo_id[0]));
+		g_strlcpy(assist_anexo_cam[assist_n_anexos], a->cam, sizeof(assist_anexo_cam[0]));
+		assist_n_anexos++;
+	}
+	char *al = js(a->alvo), *id = js(a->id), *cam = js(a->cam);
+	char *k = g_strdup_printf("\"alvo\":%s,\"id\":%s,\"caminho\":%s,\"pendentes\":%d", al, id, cam, assist_n_anexos);
+	emitir_conv("assist", "", "anexo", k);
+	g_free(k);
+	g_free(al);
+	g_free(id);
+	g_free(cam);
+}
 
 static gboolean anexo_pronto(gpointer d) {
 	struct anexo_ctx *a = d;
+	if (a->alvo[0] && a->id[0]) {
+		anexo_emma_na_principal(a);
+	}
 	if (a->c && cliente_vivo(a->c)) {
 		escrever(a->c, a->json);
 	}
@@ -963,6 +1009,25 @@ static gpointer anexo_linha(gpointer d) {
 	bool ok = false;
 	if (!servidor_ok) {
 		erro = g_strdup("A Emma precisa do servidor no ar para ver imagens.");
+	} else if (a->alvo[0]) { /* anexar_emma ALVO ARQUIVO: sobe a captura, baixa uma cópia para o cache (o temporário some) e avisa quem vai mandar */
+		char *cfg = NULL;
+		bool vendo = true;
+		if (emmab_chamar("GET", "/api/settings", NULL, &cfg, &erro) == 200 && cfg) {
+			struct json *j = json_ler(cfg);
+			vendo = json_bool(json_chave(json_chave(j, "modules"), "visao"), true);
+			json_liberar(j);
+		}
+		g_free(cfg);
+		if (!vendo) {
+			g_free(erro);
+			erro = g_strdup("A visão (ver imagens) está desligada. Ligue em Painel > Emma > Recursos.");
+		} else if (emmab_anexar(a->arg, a->id, sizeof(a->id), &erro)) {
+			ok = emmab_anexo_baixar(a->id, a->cam, sizeof(a->cam), &erro);
+			g_strlcpy(saida, a->id, sizeof(saida));
+		}
+		if (!ok) {
+			a->id[0] = '\0';
+		}
 	} else if (a->baixar) {
 		ok = emmab_anexo_baixar(a->arg, saida, sizeof(saida), &erro);
 	} else {
@@ -1277,11 +1342,29 @@ static void tratar(struct cliente *c, char *linha) {
 		emmas_nova_sessao_canal("assist");
 		emitir_form("nova", "");
 		responder_ok(c);
-	} else if (!strcmp(cmd, "anexar") || !strcmp(cmd, "baixar")) {
+	} else if (!strcmp(cmd, "anexos_limpar")) {
+		assist_n_anexos = 0;
+		emitir_conv("assist", "", "anexo", "\"alvo\":\"popup\",\"id\":\"\",\"caminho\":\"\",\"pendentes\":0");
+		responder_ok(c);
+	} else if (!strcmp(cmd, "anexar") || !strcmp(cmd, "baixar") || !strcmp(cmd, "anexar_emma")) {
 		struct anexo_ctx *a = g_new0(struct anexo_ctx, 1);
 		a->c = c;
 		a->arg = g_strdup(resto ? resto : "");
 		a->baixar = !strcmp(cmd, "baixar");
+		if (!strcmp(cmd, "anexar_emma")) { /* anexar_emma ALVO CAMINHO */
+			char *sp = strchr(a->arg, ' ');
+			if (!sp) {
+				responder_erro(c, "anexar_emma ALVO ARQUIVO");
+				g_free(a->arg);
+				g_free(a);
+				return;
+			}
+			*sp = '\0';
+			g_strlcpy(a->alvo, a->arg, sizeof(a->alvo));
+			char *arq = g_strdup(sp + 1);
+			g_free(a->arg);
+			a->arg = arq;
+		}
 		g_thread_unref(g_thread_new("emma-anexo", anexo_linha, a));
 	} else if (!strcmp(cmd, "perfil")) {
 		struct perfil_ctx *p = g_new0(struct perfil_ctx, 1);

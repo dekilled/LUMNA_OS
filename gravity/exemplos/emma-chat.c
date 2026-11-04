@@ -27,6 +27,8 @@ static bool servidor;
 static double nivel;
 static char erro[300];
 static char campo[16384];
+static int pendentes_img;        /* imagens que a pessoa mostrou (pela captura) e vão junto da próxima mensagem */
+static char pendente_cam[512];
 static char conf_id[24], conf_nome[96], conf_desc[512], conf_detalhe[4096];  /* uma ação que pede licença */
 static char ctx_titulo[160];
 static bool ctx_ativo = true;
@@ -83,6 +85,27 @@ static void evento(const struct json *j) {
 		}
 	} else if (!strcmp(ev, "nivel")) {
 		nivel = json_numero(json_chave(j, "nivel"), 0);
+	} else if (!strcmp(ev, "anexo")) { /* uma imagem para a próxima mensagem (ou, com 0, tudo limpo) */
+		if (!strcmp(json_chave_texto(j, "alvo"), "popup")) {
+			pendentes_img = (int)json_numero(json_chave(j, "pendentes"), 0);
+			if (*json_chave_texto(j, "caminho")) {
+				g_strlcpy(pendente_cam, json_chave_texto(j, "caminho"), sizeof(pendente_cam));
+			}
+		}
+	} else if (!strcmp(ev, "ouvido_imagens")) { /* as imagens foram junto da fala que acabou de aparecer: entram na bolha dela */
+		const struct json *ims = json_chave(j, "imagens");
+		for (int i = (int)msgs->len - 1; i >= 0; i--) {
+			struct eu_msg *m = msgs->pdata[i];
+			if (m->usuario) {
+				for (int k = 0; ims && k < ims->nfilhos && m->nimg < 4; k++) {
+					const struct json *x = json_item(ims, k);
+					if (x && x->tipo == JSON_TEXTO) {
+						g_strlcpy(m->img[m->nimg++].caminho, x->s, sizeof(m->img[0].caminho));
+					}
+				}
+				break;
+			}
+		}
 	} else if (!strcmp(ev, "ouvido")) {
 		erro[0] = '\0';
 		eu_msg_nova(msgs, true, json_chave_texto(j, "texto"), NULL);
@@ -310,12 +333,34 @@ static void desenhar(gv_app *a, void *dados) {
 			}
 		}
 		/* escrever */
+		if (pendentes_img > 0) { /* o que vai junto da próxima mensagem */
+			CLAY(CLAY_ID("em-pend"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				Clay_ElementId im = CLAY_ID("em-pend-img");
+				CLAY(im, gv_imagem(im, pendente_cam, GV_AJUSTE_COBRIR, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(56), CLAY_SIZING_FIXED(56) } },
+					.cornerRadius = CLAY_CORNER_RADIUS(10), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } })) {}
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(gv_fmt(pendentes_img == 1 ? "A Emma vai ver esta imagem junto da sua próxima mensagem." : "A Emma vai ver %d imagens junto da sua próxima mensagem.", pendentes_img),
+						gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (eu_botao_icone(CLAY_ID("em-pend-x"), "close", false)) {
+					pedir("anexos_limpar");
+				}
+			}
+		}
 		CLAY(CLAY_ID("em-entrada"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } } }) {
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
 				if ((gv_campo_chat(CLAY_ID("em-campo"), campo, sizeof(campo), ouvindo ? "Ouvindo…" : "Pergunte à Emma…", 5, true) & GV_CAMPO_ENTER) && campo[0]) {
 					enviar(campo);
 					campo[0] = '\0';
 				}
+			}
+			if (eu_botao_icone(CLAY_ID("em-olhar"), "crop", false)) { /* mostrar à Emma: você escolhe o que ela vê */
+				char *argv[] = { "lumna-captura", "--para-emma", "popup", NULL };
+				g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+			}
+			if (eu_botao_icone(CLAY_ID("em-olhar-janela"), "window", false)) { /* a janela em foco, direto (o popup não rouba o foco) */
+				char *argv[] = { "lumna-captura", "--janela-foco", "popup", NULL };
+				g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
 			}
 			if (eu_botao_icone(CLAY_ID("em-mic"), ouvindo ? "mic" : "mic", ouvindo)) {
 				pedir("ouvir");

@@ -584,6 +584,17 @@ static void enviar(const char *texto) {
 
 static void aplicar_evento(const struct json *j) {
 	const char *ev = json_chave_texto(j, "evento");
+	if (!strcmp(ev, "anexo")) { /* o que a pessoa mostrou pela captura ("Olhar"): já subiu e confirmou, só entra no campo */
+		const char *id = json_chave_texto(j, "id");
+		if (!strcmp(json_chave_texto(j, "alvo"), "app") && *id && n_anexos < 4) {
+			struct anexo *a = &anexos[n_anexos++];
+			memset(a, 0, sizeof(*a));
+			g_strlcpy(a->id, id, sizeof(a->id));
+			g_strlcpy(a->caminho, json_chave_texto(j, "caminho"), sizeof(a->caminho));
+			erro[0] = '\0';
+		}
+		return;
+	}
 	if (!strcmp(ev, "perfil")) { /* as conversas, os projetos e as memórias são de um perfil só */
 		rotina_atual = -1;
 		carregar_rotinas();
@@ -1145,6 +1156,19 @@ static void recentes_da_pasta(const char *pasta, GArray *saida) {
 static void menu_imagens(void) {
 	GV_POPUP(CLAY_ID("ap-menu-imagem"), CLAY_ID("ap-imagem"), .lado = GV_POPUP_ACIMA, .alinhar = GV_ALINHAR_FIM, .largura = 380) {
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(8), .childGap = 2 } }) {
+			/* mostrar a tela à Emma: você escolhe o que (a área) ou é a janela em foco; o recorte aparece antes de ir */
+			if (gv_menu_item(CLAY_ID("ap-olhar-area"), "crop", "Mostrar à Emma: escolher o que ela vê", NULL)) {
+				char *argv[] = { "lumna-captura", "--para-emma", "app", NULL };
+				g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+				gv_popup_fechar(CLAY_ID("ap-menu-imagem"));
+			}
+			if (gv_menu_item(CLAY_ID("ap-olhar-janela"), "window", "Mostrar à Emma: a janela em foco (em 3 s)", NULL)) {
+				/* o clique deixou o app em foco: dá três segundos para ir à janela que se quer mostrar */
+				char *argv[] = { "sh", "-c", "notify-send -a Emma 'Emma' 'Vá para a janela que quer mostrar: capturo em 3 s.'; sleep 3; exec lumna-captura --janela-foco app", NULL };
+				g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+				gv_popup_fechar(CLAY_ID("ap-menu-imagem"));
+			}
+			gv_separador(false, 0);
 			gv_texto(CLAY_STRING("Cole uma imagem com Ctrl+V, ou escolha uma das mais recentes:"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
 			static GArray *rec;
 			static double lido = -10;

@@ -96,8 +96,8 @@ transferencia: exemplos/transferencia.c libgravity.a
 dock: exemplos/dock.c servicos/modos.c servicos/modos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/dock.c servicos/modos.c libgravity.a $(LDLIBS)
 
-captura: exemplos/captura.c servicos/telas.c servicos/telas.h servicos/modos.c servicos/modos.h servicos/json.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gdk-pixbuf-2.0) -o $@ exemplos/captura.c servicos/telas.c servicos/modos.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gdk-pixbuf-2.0) -lm
+captura: exemplos/captura.c servicos/telas.c servicos/telas.h servicos/modos.c servicos/modos.h servicos/json.c servicos/emmac.c servicos/emmac.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gdk-pixbuf-2.0 gio-2.0) -o $@ exemplos/captura.c servicos/telas.c servicos/modos.c servicos/json.c servicos/emmac.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gdk-pixbuf-2.0 gio-2.0) -lm
 
 perfil: exemplos/perfil.c servicos/emmac.c servicos/emmac.h servicos/json.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/perfil.c servicos/emmac.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
