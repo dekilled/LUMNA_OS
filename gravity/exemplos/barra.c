@@ -13,7 +13,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/inotify.h>
+#include <sys/prctl.h>
 #include <time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -65,6 +67,12 @@ static void menu_alternar(Clay_ElementId id) {
 }
 /* o que a barra mostra (~/.config/lumna/barra.ini, gravado pelo Painel; vigiado) */
 static bool segundos, com_data, areas = true;
+/* em que telas a barra aparece: "principal" (a primeira), "todas", "nenhuma", ou uma lista de nomes (HDMI-A-1,DP-1) */
+static char telas_cfg[256] = "principal";
+static bool telas_reler = true;     /* o arquivo mudou ou uma tela entrou ou saiu: rever as telas */
+static const char *minha_saida;     /* ./barra --saida NOME: a barra de uma tela que não é a principal (NULL: a principal, que abre as outras) */
+/* aninhado (o Orbit numa janela de outro desktop): o botão que liga e desliga a tela cheia dele */
+static bool tf_aninhado, tf_cheia;
 
 static char *barra_ini(void) {
 	const char *config = getenv("XDG_CONFIG_HOME");
@@ -75,6 +83,7 @@ static char *barra_ini(void) {
 static void ler_ajustes(void) {
 	segundos = com_data = false;
 	areas = true;
+	snprintf(telas_cfg, sizeof(telas_cfg), "principal");
 	char *caminho = barra_ini();
 	FILE *f = fopen(caminho, "r");
 	g_free(caminho);
@@ -92,6 +101,8 @@ static void ler_ajustes(void) {
 				com_data = sim;
 			} else if (!strcmp(chave, "areas")) {
 				areas = sim;
+			} else if (!strcmp(chave, "telas")) {
+				snprintf(telas_cfg, sizeof(telas_cfg), "%s", valor);
 			}
 		}
 	}
@@ -105,6 +116,7 @@ static void ajustes_mudaram(gv_app *app, int fd, void *dados) {
 	while (read(fd, buf, sizeof(buf)) > 0) {
 	}
 	ler_ajustes();
+	telas_reler = true;
 	gv_app_redesenhar(app);
 }
 
@@ -985,7 +997,7 @@ static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 	return tocado;
 }
 
-static void desenhar(gv_app *app, void *dados) {
+static void desenhar_barra(gv_app *app, void *dados) {
 	(void)dados;
 	/* um popup que pede para digitar (o PIN do perfil, a senha do Wi-Fi) precisa do teclado: a barra, que não o usa, o pede enquanto ele está aberto
 	 * (sai quando o popup fecha: tocar fora, Esc ou entrar) */
@@ -1074,6 +1086,13 @@ static void desenhar(gv_app *app, void *dados) {
 		CLAY(CLAY_ID("dir"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6,
 			.childAlignment = { CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER } } }) {
 			bandeja_na_barra();
+			/* só no Orbit aninhado (testando dentro de outro desktop): sair da tela cheia e voltar sem ir ao outro monitor */
+			if (tf_aninhado && icone_barra(CLAY_ID("telacheia"), tf_cheia ? "minimize" : "maximize", false)) {
+				char r[256];
+				if (orbit_pedido("tela_cheia alternar", r, sizeof(r))) {
+					tf_cheia = strstr(r, "\"tela_cheia\":true") != NULL;
+				}
+			}
 			/* o processo da Emma: o ícone mostra que ela roda (e o que faz); tocar abre o menu dele */
 			if (emma_fd < 0 && gv_agora() >= emma_tentar_em) {
 				emma_ligar(app);
@@ -1190,15 +1209,134 @@ static void desenhar(gv_app *app, void *dados) {
 	fflush(stdout);
 }
 
-int main(void) {
+/* ---- em que telas a barra aparece ---- */
+
+#define MAX_FILHAS 8
+static struct {
+	char saida[64];
+	pid_t pid;
+} filhas[MAX_FILHAS];
+static int nfilhas;
+static bool escondida; /* a tela principal não quer barra: a camada fica com 1 px e nada desenhado */
+
+static bool tela_quer(const char *nome, bool principal, const char *const *saidas, int n) {
+	if (!strcmp(telas_cfg, "nenhuma")) {
+		return false;
+	}
+	if (!strcmp(telas_cfg, "todas")) {
+		return true;
+	}
+	if (!strcmp(telas_cfg, "principal")) {
+		return principal;
+	}
+	/* uma lista de nomes; se nenhuma delas existe agora (um monitor desligado), cai na principal: sem barra ninguém desfaz nada */
+	bool alguma = false;
+	char copia[256];
+	snprintf(copia, sizeof(copia), "%s", telas_cfg);
+	char *resto = NULL;
+	for (char *t = strtok_r(copia, ",", &resto); t; t = strtok_r(NULL, ",", &resto)) {
+		for (int i = 0; i < n; i++) {
+			if (!strcmp(t, saidas[i])) {
+				alguma = true;
+				if (!strcmp(t, nome)) {
+					return true;
+				}
+			}
+		}
+	}
+	return !alguma && principal;
+}
+
+static void filha_abrir(const char *saida) {
+	pid_t p = fork();
+	if (p == 0) {
+		prctl(PR_SET_PDEATHSIG, SIGTERM); /* a principal fechou: esta também */
+		execl("/proc/self/exe", "barra", "--saida", saida, (char *)NULL);
+		_exit(127);
+	}
+	if (p > 0 && nfilhas < MAX_FILHAS) {
+		snprintf(filhas[nfilhas].saida, sizeof(filhas[0].saida), "%s", saida);
+		filhas[nfilhas++].pid = p;
+		printf("barra na tela %s (pid %d)\n", saida, (int)p);
+	}
+}
+
+/* a barra da tela principal abre e fecha as das outras, conforme "telas" no barra.ini, e esconde a sua se a principal não quer */
+static void telas_rever(gv_app *app) {
+	if (minha_saida || (!telas_reler && !gv_saidas_mudaram(app))) {
+		return;
+	}
+	telas_reler = false;
+	const char *saidas[8];
+	int n = gv_saidas(app, saidas, 8);
+	if (n < 1) {
+		return;
+	}
+	for (int i = 0; i < nfilhas; i++) {
+		bool existe = false;
+		for (int k = 1; k < n; k++) {
+			existe |= !strcmp(saidas[k], filhas[i].saida);
+		}
+		int estado;
+		bool morreu = waitpid(filhas[i].pid, &estado, WNOHANG) == filhas[i].pid;
+		if (!morreu && (!existe || !tela_quer(filhas[i].saida, false, saidas, n))) {
+			kill(filhas[i].pid, SIGTERM);
+			waitpid(filhas[i].pid, NULL, 0);
+			morreu = true;
+		}
+		if (morreu) {
+			printf("barra da tela %s fechada\n", filhas[i].saida);
+			filhas[i--] = filhas[--nfilhas];
+		}
+	}
+	for (int k = 1; k < n; k++) {
+		bool tem = false;
+		for (int i = 0; i < nfilhas; i++) {
+			tem |= !strcmp(filhas[i].saida, saidas[k]);
+		}
+		if (!tem && tela_quer(saidas[k], false, saidas, n)) {
+			filha_abrir(saidas[k]);
+		}
+	}
+	bool quer = tela_quer(saidas[0], true, saidas, n);
+	if (quer == escondida) {
+		escondida = !quer;
+		gv_app_camada(app, 0, quer ? 40 : 1, quer ? 40 : 0);
+	}
+	fflush(stdout);
+}
+
+static void desenhar(gv_app *app, void *dados) {
+	telas_rever(app);
+	if (escondida) {
+		CLAY(CLAY_ID("barra-vazia"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {}
+		return;
+	}
+	desenhar_barra(app, dados);
+}
+
+static void tela_cheia_ler(void) {
+	char r[256];
+	if (orbit_pedido("tela_cheia estado", r, sizeof(r))) {
+		tf_aninhado = strstr(r, "\"aninhado\":true") != NULL;
+		tf_cheia = strstr(r, "\"tela_cheia\":true") != NULL;
+	}
+}
+
+int main(int argc, char **argv) {
+	if (argc >= 3 && !strcmp(argv[1], "--saida")) {
+		minha_saida = argv[2];
+	}
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Barra", .app_id = "lumna-barra", .tipo = GV_CAMADA,
 		.nivel = GV_NIVEL_CIMA, .ancoras = GV_ANCORA_CIMA | GV_ANCORA_ESQUERDA | GV_ANCORA_DIREITA,
-		.altura = 40, .zona_exclusiva = 40 });
+		.altura = 40, .zona_exclusiva = 40,
+		.saida = minha_saida ? minha_saida : "@principal" });
 	if (!app) {
 		return 1;
 	}
 	emmac_entregar = gv_na_linha_principal; /* o laço do Gravity não roda o do GLib: os pedidos assíncronos voltam por aqui */
 	ler_ajustes();
+	tela_cheia_ler();
 	modos_atualizar();
 	popup_medir();
 	int fds[4] = { rede_iniciar(), bt_iniciar(), som_iniciar("Barra"), bandeja_iniciar() };
