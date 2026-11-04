@@ -582,8 +582,8 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 	estava_premido = premido;
 
 	CLAY(CLAY_ID("cs-raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = { 0, 0, 0, 255 } }) {
-		Clay_ElementId foto = CLAY_ID("cs-foto");
-		CLAY(arena, gv_imagem(foto, congelada, GV_AJUSTE_ESTICAR, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {}
+		/* o mesmo id no elemento e na imagem: com ids diferentes a foto nunca é desenhada (só o preto escurecido) */
+		CLAY(arena, gv_imagem(arena, congelada, GV_AJUSTE_ESTICAR, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {}
 		struct ret v = sel;
 		if (modo == M_JANELA) {
 			tem_sel = false;
@@ -597,7 +597,7 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 		}
 		bool ha = (modo == M_JANELA) ? v.w > 0 : tem_sel;
 		/* o escurecido: tudo, menos a área */
-		Clay_Color esc = { 0, 0, 0, 120 };
+		Clay_Color esc = { 0, 0, 0, 90 };
 		struct ret vv = ha ? v : (struct ret){ 0, 0, 0, 0 };
 		struct ret partes[4] = { { 0, 0, W, vv.y }, { 0, vv.y + vv.h, W, H - vv.y - vv.h }, { 0, vv.y, vv.x, vv.h }, { vv.x + vv.w, vv.y, W - vv.x - vv.w, vv.h } };
 		if (!ha) {
