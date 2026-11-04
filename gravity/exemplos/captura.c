@@ -4,7 +4,13 @@
  *   lumna-captura            escolher a captura (área, tela inteira ou janela), com a área ajustável
  *   lumna-captura --tela     a tela inteira, direto para a prévia
  *   lumna-captura --janela   começa pelo modo janela
- *   lumna-captura --previa ARQUIVO   (interno) a janela de prévia de uma captura
+ *   lumna-captura --video    escolher e GRAVAR (a tela inteira ou uma área); Print de novo para parar
+ *   lumna-captura --parar    para a gravação que estiver rodando
+ *   lumna-captura --previa ARQUIVO   (interno) a janela de prévia de uma captura ou gravação
+ *   (internos da gravação: --gravando, --contagem, --barra)
+ *
+ * Gravar: o wf-recorder grava (o screencopy do Orbit); a contagem de 3 s, a barra com o tempo e o parar são nossos. A barra só aparece se não
+ * cair dentro do que se grava (senão sairia no vídeo): então, numa gravação da tela toda, para-se com Print.
  *
  * Escolher: congela a tela do monitor do ponteiro (um grim antes de a camada abrir, para ela não sair na foto), escurece, e se arrasta a área;
  * as alças e o interior ajustam, as setas movem (Shift: de 10 em 10). Enter captura, Esc cancela.
@@ -12,6 +18,9 @@
  * $XDG_RUNTIME_DIR/lumna-capturas até ser salva: fechar a prévia sem salvar apaga o arquivo.
  */
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <glib-unix.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <math.h>
@@ -30,6 +39,9 @@
 
 static gv_app *app;
 static char aviso[300];
+static bool eh_video;              /* é uma gravação (mp4/webm/mkv), não uma foto */
+static char poster[600];           /* um quadro do vídeo, se o ffmpeg existe */
+static char info_video[120];
 
 static char *pasta_temp(void) {
 	const char *rt = g_get_user_runtime_dir();
@@ -48,8 +60,8 @@ static char *nome_novo(const char *prefixo, const char *ext) {
 }
 
 static char *pasta_capturas(void) {
-	const char *fotos = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES);
-	char *base = fotos ? g_strdup(fotos) : g_build_filename(g_get_home_dir(), "Pictures", NULL);
+	const char *fotos = g_get_user_special_dir(eh_video ? G_USER_DIRECTORY_VIDEOS : G_USER_DIRECTORY_PICTURES);
+	char *base = fotos ? g_strdup(fotos) : g_build_filename(g_get_home_dir(), eh_video ? "Videos" : "Pictures", NULL);
 	char *p = g_build_filename(base, "Capturas", NULL);
 	g_free(base);
 	return p;
@@ -72,9 +84,13 @@ static int img_l, img_a;
 static char nome_como[600];        /* o campo de Salvar como */
 static bool pedir_como;
 
+
 static void descartar_se_nao_salva(void) {
 	if (!salva && arquivo[0]) {
 		g_unlink(arquivo);
+	}
+	if (poster[0]) {
+		g_unlink(poster);
 	}
 }
 
@@ -122,13 +138,22 @@ static void salvar_em(const char *destino) {
 		return;
 	}
 	g_unlink(arquivo); /* o temporário já cumpriu: o arquivo agora é o da pessoa */
+	if (poster[0]) {
+		g_unlink(poster);
+		poster[0] = '\0';
+	}
 	g_strlcpy(arquivo, nome_como, sizeof(arquivo));
 	salva = true;
 	g_snprintf(aviso, sizeof(aviso), "Salvo em %s", arquivo);
 }
 
+static const char *extensao_do_arquivo(void) {
+	const char *p = strrchr(arquivo, '.');
+	return p ? p + 1 : "png";
+}
+
 static void salvar(void) {
-	char *pasta = pasta_capturas(), *nome = nome_novo("Captura", "png"), *dest = g_build_filename(pasta, nome, NULL);
+	char *pasta = pasta_capturas(), *nome = nome_novo(eh_video ? "Gravação" : "Captura", extensao_do_arquivo()), *dest = g_build_filename(pasta, nome, NULL);
 	salvar_em(dest);
 	g_free(pasta);
 	g_free(nome);
@@ -136,6 +161,15 @@ static void salvar(void) {
 }
 
 static void copiar_imagem(void) {
+	if (eh_video) { /* um vídeo não cabe na área de transferência como imagem: o caminho do arquivo */
+		char *argv[] = { "wl-copy", arquivo, NULL };
+		if (g_find_program_in_path("wl-copy") && g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL)) {
+			g_strlcpy(aviso, "O caminho do arquivo foi copiado.", sizeof(aviso));
+		} else {
+			g_strlcpy(aviso, "Falta o wl-copy (pacote wl-clipboard).", sizeof(aviso));
+		}
+		return;
+	}
 	if (!g_find_program_in_path("wl-copy")) {
 		g_strlcpy(aviso, "Falta o wl-copy (pacote wl-clipboard) para copiar a imagem.", sizeof(aviso));
 		return;
@@ -175,7 +209,7 @@ static void previa_desenhar(gv_app *a, void *dados) {
 	CLAY(CLAY_ID("cp-raiz"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(14), .childGap = 12 },
 		.backgroundColor = gv_t.fundo }) {
 		CLAY(CLAY_ID("cp-barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-			if (gv_botao_ext(CLAY_ID("cp-copiar"), &(gv_botao_opcoes){ .icone = "copy", .texto = "Copiar", .estilo = GV_BOTAO_ELEVADO, .altura = 38 })) {
+			if (gv_botao_ext(CLAY_ID("cp-copiar"), &(gv_botao_opcoes){ .icone = "copy", .texto = eh_video ? "Copiar caminho" : "Copiar", .estilo = GV_BOTAO_ELEVADO, .altura = 38 })) {
 				copiar_imagem();
 			}
 			if (gv_botao_ext(CLAY_ID("cp-salvar"), &(gv_botao_opcoes){ .icone = "save", .texto = salva ? "Salva" : "Salvar", .estilo = salva ? GV_BOTAO_ELEVADO : GV_BOTAO_CHEIO, .altura = 38,
@@ -184,7 +218,7 @@ static void previa_desenhar(gv_app *a, void *dados) {
 			}
 			if (gv_botao_ext(CLAY_ID("cp-como"), &(gv_botao_opcoes){ .icone = "edit", .texto = "Salvar como…", .estilo = GV_BOTAO_ELEVADO, .altura = 38 })) {
 				if (!nome_como[0] || !pedir_como) {
-					char *pasta = pasta_capturas(), *nome = nome_novo("Captura", "png"), *dest = g_build_filename(pasta, nome, NULL);
+					char *pasta = pasta_capturas(), *nome = nome_novo(eh_video ? "Gravação" : "Captura", extensao_do_arquivo()), *dest = g_build_filename(pasta, nome, NULL);
 					g_strlcpy(nome_como, dest, sizeof(nome_como));
 					g_free(pasta);
 					g_free(nome);
@@ -216,7 +250,7 @@ static void previa_desenhar(gv_app *a, void *dados) {
 		if (pedir_como) {
 			CLAY(CLAY_ID("cp-como"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-					int r = gv_campo(CLAY_ID("cp-como-campo"), nome_como, sizeof(nome_como), "Caminho e nome do arquivo (.png)", GV_CAMPO_TEXTO);
+					int r = gv_campo(CLAY_ID("cp-como-campo"), nome_como, sizeof(nome_como), eh_video ? "Caminho e nome do arquivo (.mp4)" : "Caminho e nome do arquivo (.png)", GV_CAMPO_TEXTO);
 					if ((r & GV_CAMPO_ENTER) && nome_como[0]) {
 						salvar_em(nome_como);
 						pedir_como = false;
@@ -230,24 +264,50 @@ static void previa_desenhar(gv_app *a, void *dados) {
 		}
 		CLAY(CLAY_ID("cp-imagem-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(12) }) {
 			Clay_ElementId im = CLAY_ID("cp-imagem");
-			CLAY(im, gv_imagem(im, arquivo, GV_AJUSTE_CONTER, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {}
+			CLAY(im, gv_imagem(im, eh_video ? (poster[0] ? poster : "") : arquivo, GV_AJUSTE_CONTER, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } })) {
+				if (eh_video && gv_botao_ext(CLAY_ID("cp-tocar"), &(gv_botao_opcoes){ .icone = "play", .texto = "Reproduzir", .estilo = GV_BOTAO_CHEIO, .altura = 44 })) {
+					abrir_com_outro();
+				}
+			}
 		}
-		gv_texto(gv_fmt("%d × %d px · %s%s%s", img_l, img_a, salva ? "salva" : "não salva (fechar descarta)", aviso[0] ? " · " : "", aviso), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+		gv_texto(gv_fmt("%s · %s%s%s", eh_video ? info_video : gv_fmt("%d × %d px", img_l, img_a).chars, salva ? "salva" : "não salva (fechar descarta)", aviso[0] ? " · " : "", aviso), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
 	}
 }
 
 static int previa(const char *caminho) {
 	g_strlcpy(arquivo, caminho, sizeof(arquivo));
-	GdkPixbuf *pb = gdk_pixbuf_new_from_file(caminho, NULL);
-	if (!pb) {
-		fprintf(stderr, "lumna-captura: não consegui abrir %s\n", caminho);
-		return 1;
+	eh_video = g_str_has_suffix(caminho, ".mp4") || g_str_has_suffix(caminho, ".webm") || g_str_has_suffix(caminho, ".mkv");
+	int l = 960, a = 640;
+	if (eh_video) {
+		GStatBuf st;
+		g_stat(caminho, &st);
+		g_snprintf(info_video, sizeof(info_video), "Gravação de %.1f MB", (double)st.st_size / (1024 * 1024));
+		if (g_find_program_in_path("ffmpeg")) { /* um quadro do começo, para ver o que é */
+			char *pasta = pasta_temp(), *nome = nome_novo("quadro", "png");
+			char *dest = g_build_filename(pasta, nome, NULL);
+			char *argv[] = { "ffmpeg", "-y", "-loglevel", "error", "-i", (char *)caminho, "-frames:v", "1", dest, NULL };
+			if (rodar(argv)) {
+				g_strlcpy(poster, dest, sizeof(poster));
+			}
+			g_free(pasta);
+			g_free(nome);
+			g_free(dest);
+		}
+	} else {
+		GdkPixbuf *pb = gdk_pixbuf_new_from_file(caminho, NULL);
+		if (!pb) {
+			fprintf(stderr, "lumna-captura: não consegui abrir %s\n", caminho);
+			return 1;
+		}
+		img_l = gdk_pixbuf_get_width(pb);
+		img_a = gdk_pixbuf_get_height(pb);
+		g_object_unref(pb);
+		l = img_l / 2 + 60;
+		a = img_a / 2 + 150;
 	}
-	img_l = gdk_pixbuf_get_width(pb);
-	img_a = gdk_pixbuf_get_height(pb);
-	g_object_unref(pb);
-	int l = img_l / 2 + 60, a = img_a / 2 + 150;
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "Captura", .app_id = "lumna-captura", .tipo = GV_JANELA, .largura = l < 760 ? 760 : l > 1280 ? 1280 : l, .altura = a < 520 ? 520 : a > 860 ? 860 : a });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = eh_video ? "Gravação" : "Captura", .app_id = "lumna-captura", .tipo = GV_JANELA, .largura = l < 760 ? 760 : l > 1280 ? 1280 : l,
+		.altura = a < 520 ? 520 : a > 860 ? 860 : a });
 	if (!app) {
 		descartar_se_nao_salva();
 		return 1;
@@ -266,6 +326,7 @@ struct ret {
 	float x, y, w, h;
 };
 
+static bool modo_video;           /* a barra está em Vídeo: capturar vira gravar */
 static enum modo modo = M_AREA;
 static struct ret sel;
 static bool tem_sel;
@@ -352,8 +413,14 @@ static int alca_sob(const struct ret *r, Clay_Vector2 p) {
 	return -1;
 }
 
+static void gravar_area(void);
+
 static void capturar(void) {
 	if (!tem_sel || sel.w < 2 || sel.h < 2) {
+		return;
+	}
+	if (modo_video) {
+		gravar_area();
 		return;
 	}
 	GdkPixbuf *pb = gdk_pixbuf_new_from_file(congelada, NULL);
@@ -531,21 +598,26 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 			}
 		}
 		/* a barra: modos à esquerda, capturar e cancelar à direita; embaixo da área (ou da tela) */
-		float tx = ha ? v.x : (W - 470) / 2, ty = ha ? v.y + v.h + 12 : H - 120;
+		float tx = ha ? v.x : (W - 640) / 2, ty = ha ? v.y + v.h + 12 : H - 120;
 		if (ha && ty + 56 > H) {
 			ty = v.y > 70 ? v.y - 64 : H - 70;
 		}
-		tx = fmaxf(8, fminf(tx, W - 480));
+		tx = fmaxf(8, fminf(tx, W - 640));
 		CLAY(CLAY_ID("cs-barra"), { .layout = { .sizing = { CLAY_SIZING_FIT(0) }, .padding = { 8, 8, 8, 8 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(14), .border = { .color = gv_t.borda_controle, .width = { 1, 1, 1, 1, 0 } },
 			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { tx, ty }, .zIndex = 30 } }) {
+			for (int v2 = 0; v2 < 2; v2++) {
+				if (gv_botao_ext(CLAY_IDI("cs-tipo", (uint32_t)v2), &(gv_botao_opcoes){ .icone = v2 ? "video" : "camera", .texto = v2 ? "Vídeo" : "Foto", .estilo = modo_video == (bool)v2 ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 })) {
+					modo_video = v2;
+				}
+			}
 			static const char *rot[] = { "Área", "Tela", "Janela" }, *ico[] = { "crop", "computer", "window" };
 			for (int i = 0; i < 3; i++) {
 				if (gv_botao_ext(CLAY_IDI("cs-modo", (uint32_t)i), &(gv_botao_opcoes){ .icone = ico[i], .texto = rot[i], .estilo = modo == (enum modo)i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 }) && modo != (enum modo)i) {
 					definir_modo((enum modo)i, W, H);
 				}
 			}
-			if (gv_botao_ext(CLAY_ID("cs-capturar"), &(gv_botao_opcoes){ .icone = "image", .texto = "Capturar", .estilo = GV_BOTAO_CHEIO, .altura = 36, .desativado = !tem_sel })) {
+			if (gv_botao_ext(CLAY_ID("cs-capturar"), &(gv_botao_opcoes){ .icone = modo_video ? "video" : "image", .texto = modo_video ? "Gravar" : "Capturar", .estilo = GV_BOTAO_CHEIO, .altura = 36, .desativado = !tem_sel })) {
 				capturar();
 			}
 			if (gv_botao_ext(CLAY_ID("cs-cancelar"), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 36 })) {
@@ -608,17 +680,311 @@ static bool congelar(bool inteira_logo) {
 	return ok;
 }
 
+/* ---------- gravar ---------- */
+
+static char *exe_proprio(void) {
+	char exe[600];
+	ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+	exe[n > 0 ? n : 0] = '\0';
+	return g_strdup(n > 0 ? exe : "lumna-captura");
+}
+
+static char *arq_pid(void) {
+	const char *rt = g_get_user_runtime_dir();
+	return g_build_filename(rt && *rt ? rt : g_get_tmp_dir(), "lumna-captura-gravando.pid", NULL);
+}
+
+/* o pid de quem está gravando agora (0: ninguém) */
+static pid_t pid_gravando(void) {
+	char *f = arq_pid(), *t = NULL;
+	pid_t pid = 0;
+	if (g_file_get_contents(f, &t, NULL, NULL)) {
+		pid = (pid_t)atoi(t);
+		if (pid > 1 && kill(pid, 0) != 0) {
+			pid = 0; /* sobrou de uma gravação que morreu */
+		}
+	}
+	g_free(t);
+	g_free(f);
+	return pid > 1 ? pid : 0;
+}
+
+static void avisar(const char *texto) {
+	char *av[] = { "notify-send", "-a", "Captura de tela", "Captura de tela", (char *)texto, NULL };
+	g_spawn_async(NULL, av, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+}
+
+static void gravar_area(void) {
+	/* a área em pixels lógicos da saída; o gravador quer as coordenadas do layout, e o controlador faz a conta */
+	char *exe = exe_proprio();
+	char ox[16], oy[16], lx[16], ly[16], w[16], h[16];
+	g_snprintf(ox, sizeof(ox), "%d", saida_x);
+	g_snprintf(oy, sizeof(oy), "%d", saida_y);
+	g_snprintf(lx, sizeof(lx), "%d", (int)lroundf(sel.x));
+	g_snprintf(ly, sizeof(ly), "%d", (int)lroundf(sel.y));
+	g_snprintf(w, sizeof(w), "%d", (int)lroundf(sel.w));
+	g_snprintf(h, sizeof(h), "%d", (int)lroundf(sel.h));
+	char *argv[] = { exe, "--gravando", saida_nome[0] ? saida_nome : "-", ox, oy, lx, ly, w, h, NULL };
+	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+	g_free(exe);
+	if (congelada[0]) {
+		g_unlink(congelada);
+		congelada[0] = '\0';
+	}
+	gv_app_sair(app);
+}
+
+/* o controlador: sem janela; conta, grava e espera o pedido de parar (o botão da barra, Print de novo ou --parar) */
+struct grav {
+	GMainLoop *laco;
+	GPid contagem, rec, barra;
+	char arquivo[600];
+	bool parar_pedido;
+	char saida[40];
+	int ox, oy, lx, ly, w, h;
+};
+
+static void grav_fim(struct grav *g) {
+	if (g->barra) {
+		kill(g->barra, SIGTERM);
+	}
+	char *f = arq_pid();
+	g_unlink(f);
+	g_free(f);
+	GStatBuf st;
+	if (g_stat(g->arquivo, &st) == 0 && st.st_size > 1024) {
+		char *exe = exe_proprio();
+		char *argv[] = { exe, "--previa", g->arquivo, NULL };
+		g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+		g_free(exe);
+	} else {
+		g_unlink(g->arquivo);
+		avisar("A gravação saiu vazia: confira se o wf-recorder está instalado e funcionando.");
+	}
+	g_main_loop_quit(g->laco);
+}
+
+static void rec_saiu(GPid pid, gint st, gpointer d) {
+	struct grav *g = d;
+	g_spawn_close_pid(pid);
+	g->rec = 0;
+	grav_fim(g);
+}
+
+static gboolean grav_parar(gpointer d) {
+	struct grav *g = d;
+	g->parar_pedido = true;
+	if (g->rec) {
+		kill(g->rec, SIGINT); /* o wf-recorder fecha o arquivo direito ao receber o SIGINT */
+	} else if (g->contagem) {
+		kill(g->contagem, SIGTERM); /* desistiu na contagem */
+	}
+	return G_SOURCE_CONTINUE;
+}
+
+static void barra_saiu(GPid pid, gint st, gpointer d) {
+	struct grav *g = d;
+	g_spawn_close_pid(pid);
+	g->barra = 0;
+}
+
+static void contagem_saiu(GPid pid, gint st, gpointer d) {
+	struct grav *g = d;
+	g_spawn_close_pid(pid);
+	g->contagem = 0;
+	if (g->parar_pedido || !g_spawn_check_wait_status(st, NULL)) {
+		char *f = arq_pid();
+		g_unlink(f);
+		g_free(f);
+		g_main_loop_quit(g->laco);
+		return;
+	}
+	char *pasta = pasta_temp(), *nome = nome_novo("gravacao", "mp4");
+	g_snprintf(g->arquivo, sizeof(g->arquivo), "%s/%s", pasta, nome);
+	g_free(pasta);
+	g_free(nome);
+	char geom[64];
+	g_snprintf(geom, sizeof(geom), "%d,%d %dx%d", g->ox + g->lx, g->oy + g->ly, g->w, g->h);
+	char *argv[10];
+	int n = 0;
+	argv[n++] = "wf-recorder";
+	if (strcmp(g->saida, "-")) {
+		argv[n++] = "-o";
+		argv[n++] = g->saida;
+	}
+	argv[n++] = "-g";
+	argv[n++] = geom;
+	argv[n++] = "-f";
+	argv[n++] = g->arquivo;
+	argv[n] = NULL;
+	GError *e = NULL;
+	if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &g->rec, &e)) {
+		avisar("Não consegui iniciar a gravação: falta o wf-recorder (instale o pacote wf-recorder).");
+		g_clear_error(&e);
+		char *f = arq_pid();
+		g_unlink(f);
+		g_free(f);
+		g_main_loop_quit(g->laco);
+		return;
+	}
+	g_child_watch_add(g->rec, rec_saiu, g);
+	/* a barra só se não cair dentro do que se grava: senão sairia no vídeo (e então se para com Print). Ela fica no topo, no meio da tela */
+	struct telas_estado est;
+	int W = 1920;
+	if (telas_ler(&est)) {
+		for (int i = 0; i < est.n; i++) {
+			if (!strcmp(est.v[i].nome, g->saida) || !strcmp(g->saida, "-")) {
+				int lw, lh;
+				tela_tamanho_logico(&est.v[i], &lw, &lh);
+				W = lw;
+				break;
+			}
+		}
+	}
+	int bx = W / 2 - 130, by = 4, bw = 260, bh = 70;
+	bool cai = !(g->lx + g->w <= bx || g->lx >= bx + bw || g->ly + g->h <= by || g->ly >= by + bh);
+	if (!cai) {
+		char *exe = exe_proprio();
+		char *bargv[] = { exe, "--barra", g->saida, NULL };
+		if (g_spawn_async(NULL, bargv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, &g->barra, NULL)) {
+			g_child_watch_add(g->barra, barra_saiu, g);
+		}
+		g_free(exe);
+	}
+	avisar(cai ? "Gravando. Aperte Print para parar." : "Gravando. Pare pela barra ou apertando Print.");
+}
+
+static int gravando(char **a) {
+	struct grav g = { 0 };
+	g_strlcpy(g.saida, a[0], sizeof(g.saida));
+	g.ox = atoi(a[1]);
+	g.oy = atoi(a[2]);
+	g.lx = atoi(a[3]);
+	g.ly = atoi(a[4]);
+	g.w = atoi(a[5]);
+	g.h = atoi(a[6]);
+	char *f = arq_pid(), *pid = g_strdup_printf("%d", (int)getpid());
+	g_file_set_contents(f, pid, -1, NULL);
+	g_free(f);
+	g_free(pid);
+	g.laco = g_main_loop_new(NULL, FALSE);
+	g_unix_signal_add(SIGUSR1, grav_parar, &g);
+	g_unix_signal_add(SIGINT, grav_parar, &g);
+	g_unix_signal_add(SIGTERM, grav_parar, &g);
+	char *exe = exe_proprio(), lx[16], ly[16], w[16], h[16];
+	g_snprintf(lx, sizeof(lx), "%d", g.lx);
+	g_snprintf(ly, sizeof(ly), "%d", g.ly);
+	g_snprintf(w, sizeof(w), "%d", g.w);
+	g_snprintf(h, sizeof(h), "%d", g.h);
+	char *cargv[] = { exe, "--contagem", lx, ly, w, h, g.saida, NULL };
+	if (!g_spawn_async(NULL, cargv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, &g.contagem, NULL)) {
+		g_free(exe);
+		return 1;
+	}
+	g_free(exe);
+	g_child_watch_add(g.contagem, contagem_saiu, &g);
+	g_main_loop_run(g.laco);
+	return 0;
+}
+
+/* a contagem regressiva: 3, 2, 1 no meio do que vai ser gravado, e a moldura dele; sai sozinha (código 0) */
+static float t_ini;
+static int cg_x, cg_y, cg_w, cg_h;
+
+static void contagem_desenhar(gv_app *a, void *dados) {
+	(void)dados;
+	float t = gv_agora() - t_ini;
+	int n = 3 - (int)t;
+	if (n < 1) {
+		gv_app_sair(a);
+		return;
+	}
+	gv_app_redesenhar(a);
+	gv_acordar_em(0.1);
+	CLAY(CLAY_ID("cg-raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+		CLAY(CLAY_ID("cg-moldura"), { .layout = { .sizing = { CLAY_SIZING_FIXED((float)cg_w), CLAY_SIZING_FIXED((float)cg_h) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+			.border = { .color = gv_t.perigo, .width = { 2, 2, 2, 2, 0 } },
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { (float)cg_x, (float)cg_y }, .zIndex = 5, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {
+			CLAY(CLAY_ID("cg-num"), { .layout = { .sizing = { CLAY_SIZING_FIXED(96), CLAY_SIZING_FIXED(96) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = { 0, 0, 0, 170 }, .cornerRadius = CLAY_CORNER_RADIUS(48) }) {
+				gv_texto(gv_fmt("%d", n), 56, (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_MEDIO);
+			}
+		}
+	}
+}
+
+static int contagem_ui(char **a) {
+	cg_x = atoi(a[0]);
+	cg_y = atoi(a[1]);
+	cg_w = atoi(a[2]);
+	cg_h = atoi(a[3]);
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "Contagem", .app_id = "lumna-captura-contagem", .tipo = GV_CAMADA, .nivel = GV_NIVEL_OVERLAY, .ancoras = GV_ANCORA_TUDO,
+		.zona_exclusiva = -1, .saida = strcmp(a[4], "-") ? a[4] : NULL });
+	if (!app) {
+		return 1;
+	}
+	t_ini = gv_agora();
+	return gv_app_correr(app, contagem_desenhar, NULL);
+}
+
+/* a barra da gravação: o ponto vermelho, o tempo e Parar (em cima, no meio; só existe se não sai no vídeo) */
+static void barra_desenhar(gv_app *a, void *dados) {
+	(void)dados;
+	(void)a;
+	float t = gv_agora() - t_ini;
+	gv_acordar_em(1.0);
+	int seg = (int)t;
+	CLAY(CLAY_ID("br-raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 6, 6 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(16), .border = { .color = gv_t.borda_controle, .width = { 1, 1, 1, 1, 0 } } }) {
+		CLAY(CLAY_ID("br-ponto"), { .layout = { .sizing = { CLAY_SIZING_FIXED(12), CLAY_SIZING_FIXED(12) } }, .backgroundColor = gv_alfa(gv_t.perigo, (seg & 1) ? 0.45f : 1.0f), .cornerRadius = CLAY_CORNER_RADIUS(6) }) {}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			gv_texto(gv_fmt("%02d:%02d", seg / 60, seg % 60), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+		}
+		if (gv_botao_ext(CLAY_ID("br-parar"), &(gv_botao_opcoes){ .icone = "close", .texto = "Parar", .estilo = GV_BOTAO_PERIGO, .altura = 36 })) {
+			pid_t p = pid_gravando();
+			if (p) {
+				kill(p, SIGUSR1);
+			}
+		}
+	}
+}
+
+static int barra_ui(char **a) {
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "Gravando", .app_id = "lumna-captura-barra", .tipo = GV_CAMADA, .nivel = GV_NIVEL_OVERLAY, .ancoras = GV_ANCORA_CIMA, .largura = 240, .altura = 52,
+		.zona_exclusiva = -1, .margens = { 10, 0, 0, 0 }, .saida = strcmp(a[0], "-") ? a[0] : NULL });
+	if (!app) {
+		return 1;
+	}
+	t_ini = gv_agora();
+	return gv_app_correr(app, barra_desenhar, NULL);
+}
+
 int main(int argc, char **argv) {
 	bool so_tela = false;
 	enum modo inicial = M_AREA;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--previa") && i + 1 < argc) {
 			return previa(argv[i + 1]);
+		} else if (!strcmp(argv[i], "--gravando") && i + 7 < argc) {
+			return gravando(argv + i + 1);
+		} else if (!strcmp(argv[i], "--contagem") && i + 5 < argc) {
+			return contagem_ui(argv + i + 1);
+		} else if (!strcmp(argv[i], "--barra") && i + 1 < argc) {
+			return barra_ui(argv + i + 1);
+		} else if (!strcmp(argv[i], "--parar")) {
+			pid_t p = pid_gravando();
+			return p && kill(p, SIGUSR1) == 0 ? 0 : 1;
+		} else if (!strcmp(argv[i], "--video")) {
+			modo_video = true;
 		} else if (!strcmp(argv[i], "--tela")) {
 			so_tela = true;
 		} else if (!strcmp(argv[i], "--janela")) {
 			inicial = M_JANELA;
 		}
+	}
+	pid_t gravando_ja = pid_gravando(); /* Print enquanto grava: para a gravação (em vez de abrir outra escolha) */
+	if (gravando_ja) {
+		return kill(gravando_ja, SIGUSR1) == 0 ? 0 : 1;
 	}
 	if (!g_find_program_in_path("grim")) {
 		fprintf(stderr, "lumna-captura: falta o grim (instale o pacote grim)\n");
