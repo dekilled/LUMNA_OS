@@ -11,5 +11,12 @@ direto para a prévia, **Ctrl+Print** escolhe e grava. Durante uma gravação, *
   no vídeo); numa gravação da tela toda, para-se com Print (ou `lumna-captura --parar`). Depois vem a prévia da gravação (Reproduzir, Copiar caminho, Salvar em
   `Vídeos/Capturas`, Salvar como, Enviar, Descartar), com a mesma regra de descarte.
 
+**Som da gravação:** na barra, em Vídeo, uma segunda linha escolhe **Sem som**, **Do sistema** (o que sai pelas caixas: o monitor da saída padrão, pelo `pactl`) ou
+**Microfone** (a fonte padrão); a escolha fica em `~/.config/lumna/captura.ini`. Os dois ao mesmo tempo ainda não (o `wf-recorder` grava um dispositivo por vez).
+
+**Editor (na prévia da foto, e também na confirmação "Mostrar à Emma", para borrar um segredo antes de enviar):** Seta, Retângulo, Texto, Borrar (pixelado), Caneta; seis cores e
+três espessuras; **Desfazer** (Ctrl+Z, quantas vezes quiser). Cada edição vale na hora e vai para um arquivo novo: Copiar, Salvar e Enviar usam sempre a versão editada.
+Editar depois de salvar cria uma versão nova ainda não salva; o arquivo que você salvou nunca é tocado, e as versões intermediárias somem ao fechar.
+
 Precisa de: `grim` (fotos), `wf-recorder` (vídeo), `wl-clipboard` (Copiar) e, opcionalmente, `ffmpeg` (um quadro do vídeo na prévia). O Orbit já fala `wlr-screencopy`.
 O motor é externo de propósito; a interface (área, alças, barra, prévia) é do Gravity. Ainda não grava o áudio (o `wf-recorder` aceita `-a`).

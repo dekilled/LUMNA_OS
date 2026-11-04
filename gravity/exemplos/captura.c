@@ -19,7 +19,9 @@
  * Prévia: Copiar, Salvar, Salvar como, Enviar (abrir com outro programa; o celular fica reservado) e Descartar. A captura vive em
  * $XDG_RUNTIME_DIR/lumna-capturas até ser salva: fechar a prévia sem salvar apaga o arquivo.
  */
+#include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <pango/pangocairo.h>
 #include <glib-unix.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -85,6 +87,7 @@ static bool rodar(char **argv) {
 
 static char arquivo[600];          /* a captura de agora (temporária até ser salva) */
 static bool salva;                 /* já foi guardada: o arquivo é da pessoa e não se apaga */
+static char salvo_em[600];         /* o caminho onde a pessoa salvou (nenhuma limpeza toca nele) */
 static int img_l, img_a;
 static char nome_como[600];        /* o campo de Salvar como */
 static bool pedir_como;
@@ -149,6 +152,7 @@ static void salvar_em(const char *destino) {
 	}
 	g_strlcpy(arquivo, nome_como, sizeof(arquivo));
 	salva = true;
+	g_strlcpy(salvo_em, arquivo, sizeof(salvo_em));
 	g_snprintf(aviso, sizeof(aviso), "Salvo em %s", arquivo);
 }
 
@@ -194,6 +198,281 @@ static void abrir_com_outro(void) {
 	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
 }
 
+/* ---------- o editor: seta, retângulo, texto, borrão e caneta sobre a captura ---------- */
+
+enum ferr { F_SETA, F_RETA, F_TEXTO, F_BORRAR, F_CANETA };
+static enum ferr ferramenta = F_SETA;
+static int cor_i, esp_i = 1;
+static const guint8 CORES[6][3] = { { 230, 57, 70 }, { 250, 204, 21 }, { 34, 197, 94 }, { 59, 130, 246 }, { 255, 255, 255 }, { 0, 0, 0 } };
+static GPtrArray *desfazer;        /* os arquivos de antes de cada edição (Ctrl+Z volta a um deles) */
+static GPtrArray *editados;        /* todo arquivo que o editor criou: some ao fechar (menos o que foi salvo) */
+static int n_edicao;
+static bool ed_premido;
+static Clay_Vector2 ed_ini, ed_fim;
+static GArray *ed_pontos;          /* a caneta: pares x, y em pixels da imagem */
+static bool pedir_texto;           /* o campo de texto está aberto neste ponto (pixels da imagem) */
+static float tx_x, tx_y;
+static char texto_ed[200];
+
+/* onde a imagem está dentro da caixa (ela cabe inteira e fica no meio): a escala e o canto */
+static bool ed_mapa(float *escala, float *ox, float *oy) {
+	Clay_BoundingBox b = gv_caixa(CLAY_ID("cp-imagem"));
+	if (b.width < 8 || b.height < 8 || img_l < 1 || img_a < 1) {
+		return false;
+	}
+	*escala = fminf(b.width / (float)img_l, b.height / (float)img_a);
+	*ox = b.x + (b.width - img_l * *escala) / 2;
+	*oy = b.y + (b.height - img_a * *escala) / 2;
+	return true;
+}
+
+static void ed_pixelar(cairo_surface_t *sf, int x0, int y0, int x1, int y1) {
+	cairo_surface_flush(sf);
+	int W = cairo_image_surface_get_width(sf), H = cairo_image_surface_get_height(sf), st = cairo_image_surface_get_stride(sf);
+	unsigned char *d = cairo_image_surface_get_data(sf);
+	x0 = x0 < 0 ? 0 : x0;
+	y0 = y0 < 0 ? 0 : y0;
+	x1 = x1 > W ? W : x1;
+	y1 = y1 > H ? H : y1;
+	int bloco = (int)fmaxf(10, fminf(x1 - x0, y1 - y0) / 14.0f);
+	for (int by = y0; by < y1; by += bloco) {
+		for (int bx = x0; bx < x1; bx += bloco) {
+			long c0 = 0, c1 = 0, c2 = 0, n = 0;
+			int ex = bx + bloco > x1 ? x1 : bx + bloco, ey = by + bloco > y1 ? y1 : by + bloco;
+			for (int y = by; y < ey; y++) {
+				for (int x = bx; x < ex; x++) {
+					unsigned char *px = d + y * st + x * 4;
+					c0 += px[0];
+					c1 += px[1];
+					c2 += px[2];
+					n++;
+				}
+			}
+			if (n) {
+				for (int y = by; y < ey; y++) {
+					for (int x = bx; x < ex; x++) {
+						unsigned char *px = d + y * st + x * 4;
+						px[0] = (unsigned char)(c0 / n);
+						px[1] = (unsigned char)(c1 / n);
+						px[2] = (unsigned char)(c2 / n);
+					}
+				}
+			}
+		}
+	}
+	cairo_surface_mark_dirty(sf);
+}
+
+/* aplica uma edição (em pixels da imagem): grava num arquivo novo e passa a ser o da vez; o anterior fica para o desfazer */
+static void ed_aplicar(enum ferr t, float x0, float y0, float x1, float y1, const GArray *pts, const char *texto) {
+	cairo_surface_t *sf = cairo_image_surface_create_from_png(arquivo);
+	if (cairo_surface_status(sf) != CAIRO_STATUS_SUCCESS) {
+		g_strlcpy(aviso, "Não consegui editar esta imagem.", sizeof(aviso));
+		cairo_surface_destroy(sf);
+		return;
+	}
+	int W = cairo_image_surface_get_width(sf), H = cairo_image_surface_get_height(sf);
+	float lw = (esp_i == 0 ? 3.0f : esp_i == 1 ? 5.0f : 9.0f) * fmaxf(1.0f, (float)H / 720.0f);
+	if (t == F_BORRAR) {
+		ed_pixelar(sf, (int)fminf(x0, x1), (int)fminf(y0, y1), (int)fmaxf(x0, x1), (int)fmaxf(y0, y1));
+	} else {
+		cairo_t *cr = cairo_create(sf);
+		cairo_set_source_rgb(cr, CORES[cor_i][0] / 255.0, CORES[cor_i][1] / 255.0, CORES[cor_i][2] / 255.0);
+		cairo_set_line_width(cr, lw);
+		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+		cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+		if (t == F_RETA) {
+			cairo_rectangle(cr, fminf(x0, x1), fminf(y0, y1), fabsf(x1 - x0), fabsf(y1 - y0));
+			cairo_stroke(cr);
+		} else if (t == F_SETA) {
+			double ang = atan2(y1 - y0, x1 - x0), cab = fmax(18.0, lw * 5.0);
+			cairo_move_to(cr, x0, y0);
+			cairo_line_to(cr, x1 - cos(ang) * cab * 0.6, y1 - sin(ang) * cab * 0.6);
+			cairo_stroke(cr);
+			cairo_move_to(cr, x1, y1);
+			cairo_line_to(cr, x1 - cab * cos(ang - 0.45), y1 - cab * sin(ang - 0.45));
+			cairo_line_to(cr, x1 - cab * cos(ang + 0.45), y1 - cab * sin(ang + 0.45));
+			cairo_close_path(cr);
+			cairo_fill(cr);
+		} else if (t == F_CANETA && pts && pts->len >= 2) {
+			cairo_move_to(cr, g_array_index(pts, float, 0), g_array_index(pts, float, 1));
+			for (guint i = 2; i + 1 < pts->len; i += 2) {
+				cairo_line_to(cr, g_array_index(pts, float, i), g_array_index(pts, float, i + 1));
+			}
+			cairo_stroke(cr);
+		} else if (t == F_TEXTO && texto && *texto) {
+			PangoLayout *lay = pango_cairo_create_layout(cr);
+			PangoFontDescription *fd = pango_font_description_from_string("Sans Bold");
+			pango_font_description_set_absolute_size(fd, fmax(22.0, (double)H / 26.0) * (esp_i == 0 ? 0.8 : esp_i == 1 ? 1.0 : 1.5) * PANGO_SCALE);
+			pango_layout_set_font_description(lay, fd);
+			pango_layout_set_text(lay, texto, -1);
+			cairo_move_to(cr, x0, y0);
+			pango_cairo_layout_path(cr, lay);
+			bool escura = CORES[cor_i][0] + CORES[cor_i][1] + CORES[cor_i][2] < 300;
+			cairo_set_source_rgba(cr, escura ? 1 : 0, escura ? 1 : 0, escura ? 1 : 0, 0.9);
+			cairo_set_line_width(cr, fmax(3.0, lw * 0.7));
+			cairo_stroke_preserve(cr); /* o contorno: lê-se em cima de qualquer fundo */
+			cairo_set_source_rgb(cr, CORES[cor_i][0] / 255.0, CORES[cor_i][1] / 255.0, CORES[cor_i][2] / 255.0);
+			cairo_fill(cr);
+			pango_font_description_free(fd);
+			g_object_unref(lay);
+		}
+		cairo_destroy(cr);
+	}
+	(void)W;
+	char *pasta = pasta_temp(), *nome = g_strdup_printf("edicao-%d.png", ++n_edicao), *dest = g_build_filename(pasta, nome, NULL);
+	if (cairo_surface_write_to_png(sf, dest) == CAIRO_STATUS_SUCCESS) {
+		if (!desfazer) {
+			desfazer = g_ptr_array_new_with_free_func(g_free);
+			editados = g_ptr_array_new_with_free_func(g_free);
+		}
+		g_ptr_array_add(desfazer, g_strdup(arquivo));
+		g_ptr_array_add(editados, g_strdup(dest));
+		g_strlcpy(arquivo, dest, sizeof(arquivo));
+		salva = false; /* o arquivo salvo antes fica como estava; isto é uma versão nova, ainda não salva */
+		aviso[0] = '\0';
+	} else {
+		g_strlcpy(aviso, "Não consegui gravar a edição.", sizeof(aviso));
+	}
+	cairo_surface_destroy(sf);
+	g_free(pasta);
+	g_free(nome);
+	g_free(dest);
+}
+
+static void ed_desfazer(void) {
+	if (desfazer && desfazer->len) {
+		g_strlcpy(arquivo, g_ptr_array_index(desfazer, desfazer->len - 1), sizeof(arquivo));
+		g_ptr_array_remove_index(desfazer, desfazer->len - 1);
+	}
+}
+
+static void ed_limpar(void) {
+	GPtrArray *listas[2] = { editados, desfazer };
+	for (int k = 0; k < 2; k++) {
+		for (guint i = 0; listas[k] && i < listas[k]->len; i++) {
+			const char *f = g_ptr_array_index(listas[k], i);
+			if (!salvo_em[0] || strcmp(f, salvo_em)) { /* o que a pessoa salvou é dela */
+				g_unlink(f);
+			}
+		}
+	}
+}
+
+/* a barra do editor e o que acontece com o mouse/dedo sobre a imagem */
+static void ed_desenhar(void) {
+	static const char *rot[] = { "Seta", "Retângulo", "Texto", "Borrar", "Caneta" }, *ico[] = { "arrow-right", "maximize", "text", "eye-off", "edit" };
+	CLAY(CLAY_ID("cp-ferr"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		for (int i = 0; i < 5; i++) {
+			if (gv_botao_ext(CLAY_IDI("cp-f", (uint32_t)i), &(gv_botao_opcoes){ .icone = ico[i], .texto = rot[i], .estilo = ferramenta == (enum ferr)i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 32 })) {
+				ferramenta = (enum ferr)i;
+				pedir_texto = false;
+			}
+		}
+	}
+	CLAY(CLAY_ID("cp-ferr2"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		gv_texto(CLAY_STRING("Cor"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		for (int i = 0; i < 6; i++) {
+			Clay_ElementId id = CLAY_IDI("cp-cor", (uint32_t)i);
+			bool tocado = gv_tocado(id);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(22), CLAY_SIZING_FIXED(22) } },
+				.backgroundColor = { CORES[i][0], CORES[i][1], CORES[i][2], 255 }, .cornerRadius = CLAY_CORNER_RADIUS(11),
+				.border = { .color = cor_i == i ? gv_t.acento : gv_t.borda_controle, .width = { cor_i == i ? 3 : 1, cor_i == i ? 3 : 1, cor_i == i ? 3 : 1, cor_i == i ? 3 : 1, 0 } } }) {}
+			if (tocado) {
+				cor_i = i;
+			}
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(10) } } }) {}
+		gv_texto(CLAY_STRING("Traço"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		for (int i = 0; i < 3; i++) {
+			if (gv_botao_ext(CLAY_IDI("cp-esp", (uint32_t)i), &(gv_botao_opcoes){ .texto = i == 0 ? "Fina" : i == 1 ? "Média" : "Grossa", .estilo = esp_i == i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 32 })) {
+				esp_i = i;
+			}
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+		if (gv_botao_ext(CLAY_ID("cp-desfazer"), &(gv_botao_opcoes){ .icone = "back", .texto = "Desfazer", .estilo = GV_BOTAO_SIMPLES, .altura = 32, .desativado = !(desfazer && desfazer->len) })) {
+			ed_desfazer();
+		}
+	}
+}
+
+static void ed_mouse(void) {
+	float esc, ox, oy;
+	if (!ed_mapa(&esc, &ox, &oy)) {
+		return;
+	}
+	Clay_ElementId im = CLAY_ID("cp-imagem");
+	bool premido = gv_premido(im);
+	Clay_Vector2 p = gv_ponteiro();
+	float ix = (p.x - ox) / esc, iy = (p.y - oy) / esc;
+	ix = fmaxf(0, fminf(ix, (float)img_l));
+	iy = fmaxf(0, fminf(iy, (float)img_a));
+	if (premido && !ed_premido) {
+		ed_ini = (Clay_Vector2){ ix, iy };
+		pedir_texto = false;
+		if (!ed_pontos) {
+			ed_pontos = g_array_new(FALSE, FALSE, sizeof(float));
+		}
+		g_array_set_size(ed_pontos, 0);
+	}
+	if (premido) {
+		ed_fim = (Clay_Vector2){ ix, iy };
+		if (ferramenta == F_CANETA && ed_pontos) {
+			g_array_append_val(ed_pontos, ix);
+			g_array_append_val(ed_pontos, iy);
+		}
+	}
+	if (!premido && ed_premido) { /* soltou: a edição vale */
+		float dx = ed_fim.x - ed_ini.x, dy = ed_fim.y - ed_ini.y;
+		bool moveu = fabsf(dx) > 4 || fabsf(dy) > 4;
+		if (ferramenta == F_TEXTO) {
+			pedir_texto = true;
+			tx_x = ed_ini.x;
+			tx_y = ed_ini.y;
+			texto_ed[0] = '\0';
+			gv_focar(CLAY_ID("cp-texto"));
+		} else if (moveu && ferramenta == F_CANETA) {
+			ed_aplicar(F_CANETA, 0, 0, 0, 0, ed_pontos, NULL);
+		} else if (moveu) {
+			ed_aplicar(ferramenta, ed_ini.x, ed_ini.y, ed_fim.x, ed_fim.y, NULL, NULL);
+		}
+	}
+	ed_premido = premido;
+	if (premido && ferramenta != F_TEXTO) { /* o que se está arrastando: o contorno em cima da imagem */
+		float x0 = ox + fminf(ed_ini.x, ed_fim.x) * esc, y0 = oy + fminf(ed_ini.y, ed_fim.y) * esc, w = fabsf(ed_fim.x - ed_ini.x) * esc, h = fabsf(ed_fim.y - ed_ini.y) * esc;
+		Clay_Color c = { CORES[cor_i][0], CORES[cor_i][1], CORES[cor_i][2], 255 };
+		if (ferramenta == F_CANETA && ed_pontos) {
+			for (guint i = 0; i + 1 < ed_pontos->len; i += 6) {
+				CLAY(CLAY_IDI("ed-pt", i), { .layout = { .sizing = { CLAY_SIZING_FIXED(6), CLAY_SIZING_FIXED(6) } }, .backgroundColor = c, .cornerRadius = CLAY_CORNER_RADIUS(3),
+					.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { ox + g_array_index(ed_pontos, float, i) * esc - 3, oy + g_array_index(ed_pontos, float, i + 1) * esc - 3 }, .zIndex = 40,
+						.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+			}
+		} else if (ferramenta == F_SETA) { /* a seta: uma linha fina de pontos até o fim */
+			for (int k = 0; k <= 12; k++) {
+				float t = k / 12.0f;
+				CLAY(CLAY_IDI("ed-sp", (uint32_t)k), { .layout = { .sizing = { CLAY_SIZING_FIXED(k == 12 ? 12 : 5), CLAY_SIZING_FIXED(k == 12 ? 12 : 5) } }, .backgroundColor = c, .cornerRadius = CLAY_CORNER_RADIUS(6),
+					.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { ox + (ed_ini.x + (ed_fim.x - ed_ini.x) * t) * esc - 3, oy + (ed_ini.y + (ed_fim.y - ed_ini.y) * t) * esc - 3 }, .zIndex = 40,
+						.pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+			}
+		} else if (w > 1 && h > 1) { /* retângulo e borrão: a caixa (o borrão, tracejada na cor) */
+			CLAY(CLAY_ID("ed-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(w), CLAY_SIZING_FIXED(h) } },
+				.backgroundColor = ferramenta == F_BORRAR ? (Clay_Color){ 255, 255, 255, 60 } : (Clay_Color){ 0, 0, 0, 0 }, .border = { .color = c, .width = { 2, 2, 2, 2, 0 } },
+				.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { x0, y0 }, .zIndex = 40, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+		}
+	}
+	if (pedir_texto) { /* o campo do texto, no ponto onde se clicou */
+		CLAY(CLAY_ID("cp-texto-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(280) }, .padding = CLAY_PADDING_ALL(6) }, .backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(10),
+			.border = { .color = gv_t.acento, .width = { 2, 2, 2, 2, 0 } },
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { fminf(ox + tx_x * esc, 900), oy + tx_y * esc }, .zIndex = 45 } }) {
+			int r = gv_campo(CLAY_ID("cp-texto"), texto_ed, sizeof(texto_ed), "Escreva e aperte Enter", GV_CAMPO_TEXTO);
+			if ((r & GV_CAMPO_ENTER) && texto_ed[0]) {
+				ed_aplicar(F_TEXTO, tx_x, tx_y, 0, 0, NULL, texto_ed);
+				pedir_texto = false;
+			}
+		}
+	}
+}
+
 static void previa_desenhar(gv_app *a, void *dados) {
 	(void)dados;
 	uint32_t t = gv_tecla();
@@ -204,8 +483,13 @@ static void previa_desenhar(gv_app *a, void *dados) {
 	} else if (ctrl && gv_tecla_carregada(XKB_KEY_s) && !salva) {
 		salvar();
 	}
+	if (ctrl && gv_tecla_carregada(XKB_KEY_z) && !eh_video) {
+		ed_desfazer();
+	}
 	if (t == XKB_KEY_Escape) {
-		if (pedir_como) {
+		if (pedir_texto) {
+			pedir_texto = false;
+		} else if (pedir_como) {
 			pedir_como = false;
 		} else {
 			gv_app_sair(a);
@@ -291,6 +575,9 @@ static void previa_desenhar(gv_app *a, void *dados) {
 				}
 			}
 		}
+		if (!eh_video) {
+			ed_desenhar();
+		}
 		CLAY(CLAY_ID("cp-imagem-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(12) }) {
 			Clay_ElementId im = CLAY_ID("cp-imagem");
 			CLAY(im, gv_imagem(im, eh_video ? (poster[0] ? poster : "") : arquivo, GV_AJUSTE_CONTER, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
@@ -299,6 +586,9 @@ static void previa_desenhar(gv_app *a, void *dados) {
 					abrir_com_outro();
 				}
 			}
+		}
+		if (!eh_video) {
+			ed_mouse();
 		}
 		gv_texto(gv_fmt("%s · %s%s%s", eh_video ? info_video : gv_fmt("%d × %d px", img_l, img_a).chars, salva ? "salva" : "não salva (fechar descarta)", aviso[0] ? " · " : "", aviso), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
 	}
@@ -336,16 +626,17 @@ static int previa(const char *caminho, const char *alvo_emma) {
 		img_a = gdk_pixbuf_get_height(pb);
 		g_object_unref(pb);
 		l = img_l / 2 + 60;
-		a = img_a / 2 + 150;
+		a = img_a / 2 + 200;
 	}
-	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_emma[0] ? "Mostrar à Emma" : eh_video ? "Gravação" : "Captura", .app_id = "lumna-captura", .tipo = GV_JANELA, .largura = l < 760 ? 760 : l > 1280 ? 1280 : l,
-		.altura = a < 520 ? 520 : a > 860 ? 860 : a });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_emma[0] ? "Mostrar à Emma" : eh_video ? "Gravação" : "Captura", .app_id = "lumna-captura", .tipo = GV_JANELA, .largura = l < 860 ? 860 : l > 1280 ? 1280 : l,
+		.altura = a < 580 ? 580 : a > 880 ? 880 : a });
 	if (!app) {
 		descartar_se_nao_salva();
 		return 1;
 	}
 	gv_app_correr(app, previa_desenhar, NULL);
 	descartar_se_nao_salva(); /* fechou sem salvar: some */
+	ed_limpar();
 	return 0;
 }
 
