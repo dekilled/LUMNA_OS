@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "modos.h"
 #include "telas.h"
 
 static const double escalas[] = { 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0 };
@@ -99,6 +100,7 @@ static void ler_vivo(void) {
 /* como usar as telas (~/.config/lumna/disposicao.ini, que o Orbit vigia): vale na hora, sem Aplicar */
 static const char *const disp_chaves[] = { "estender", "espelhar", "esquerda", "direita" };
 static int disp_i;
+void pn_modos_por_tela(void);
 
 static void disposicao_ler(void) {
 	disp_i = 0;
@@ -457,10 +459,27 @@ void pn_monitores_desenhar(void) {
 		gv_texto(gv_str(mensagem), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 	}
 	if (vivo.n > 1) {
-		static const char *const disp_nomes[] = { "Estender", "Espelhar", "Só a da esquerda", "Só a da direita" };
-		if (pn_ajuste_lista(CLAY_ID("mo-disp"), "screens", "Como usar as telas", "Estender dá a cada tela o seu espaço; espelhar mostra o mesmo em todas",
-			    disp_nomes, 4, &disp_i)) {
+		/* "Estender" e "Por modo" são as duas formas de estender: o modo troca em todas as telas juntas, ou cada tela tem o seu (modos.ini layout) */
+		static const char *const disp_nomes[] = { "Estender", "Por modo (cada tela com o seu modo)", "Espelhar", "Só a da esquerda", "Só a da direita" };
+		struct modos_estado me;
+		modos_ler(&me);
+		int idx = disp_i == 0 ? (me.estender ? 0 : 1) : disp_i + 1;
+		if (pn_ajuste_lista(CLAY_ID("mo-disp"), "screens", "Como usar as telas",
+			    "Estender: um desktop nas telas. Por modo: Mídia numa, Desktop noutra. Espelhar: o mesmo em todas", disp_nomes, 5, &idx)) {
+			if (idx <= 1) {
+				disp_i = 0;
+				struct modos_cfg c;
+				modos_cfg_ler(&c);
+				c.estender = idx == 0;
+				modos_cfg_gravar(&c);
+				modos_definir_layout(c.estender);
+			} else {
+				disp_i = idx - 1;
+			}
 			pn_gravar("disposicao.ini", gv_fmt("# Gravado pelo Painel de controle (Telas e modos > Monitores)\ndisposicao = %s\n", disp_chaves[disp_i]).chars);
+		}
+		if (idx == 1) {
+			pn_modos_por_tela();
 		}
 	}
 	diagrama();

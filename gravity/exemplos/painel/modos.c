@@ -6,10 +6,12 @@
  */
 #include "painel.h"
 
+#include <glib.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "modos.h"
+#include "telas.h"
 
 static struct modos_cfg cfg, gravada;
 
@@ -49,6 +51,39 @@ void pn_modos_restaurar(void) {
 	cfg = padrao;
 }
 
+/* um seletor de modo para cada tela, que vale na hora (cada tela com o seu: Mídia numa, Desktop noutra, Gaming na terceira) */
+void pn_modos_por_tela(void) {
+	struct modos_estado e;
+	modos_ler(&e);
+	if (!e.orbit) {
+		return;
+	}
+	static struct telas_estado tv;
+	static bool tv_lido;
+	if (!tv_lido) {
+		telas_ler(&tv);
+		tv_lido = true;
+	}
+	const char *nomes[MODO_N];
+	for (int i = 0; i < MODO_N; i++) {
+		nomes[i] = modos_nome(i);
+	}
+	for (int i = 0; i < e.n; i++) {
+		char rotulo[160];
+		g_strlcpy(rotulo, e.saidas[i].nome, sizeof(rotulo));
+		for (int k = 0; k < tv.n; k++) {
+			if (!strcmp(tv.v[k].nome, e.saidas[i].nome) && tv.v[k].modelo[0]) {
+				g_snprintf(rotulo, sizeof(rotulo), "%s%s%s (%s)", tv.v[k].fabricante, tv.v[k].fabricante[0] ? " " : "", tv.v[k].modelo, e.saidas[i].nome);
+			}
+		}
+		int sel = e.saidas[i].modo;
+		if (pn_ajuste_lista(CLAY_IDI("md-tela", (uint32_t)i), "screens", gv_fmt("Tela %d · %s", i + 1, rotulo).chars, "O modo mostrado nesta tela", nomes, MODO_N,
+			    &sel)) {
+			modos_definir(sel, e.saidas[i].nome);
+		}
+	}
+}
+
 void pn_modos_desenhar(void) {
 	struct modos_estado e;
 	modos_ler(&e);
@@ -67,6 +102,10 @@ void pn_modos_desenhar(void) {
 					GV_PESO_NORMAL);
 			}
 		}
+	}
+	if (e.orbit && e.n > 1 && !e.estender) {
+		pn_subtitulo(CLAY_ID("md-s0"), "Modo de cada tela");
+		pn_modos_por_tela();
 	}
 	pn_subtitulo(CLAY_ID("md-s1"), "Ao ligar e entre telas");
 	const char *nomes[MODO_N];
