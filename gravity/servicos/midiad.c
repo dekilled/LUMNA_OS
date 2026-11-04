@@ -251,6 +251,10 @@ static void pedido(const char *linha, GString *r) {
 				guardar_o_que_passava();
 			}
 			garantir_modo_midia();
+			if (!fe.ligado) {
+				fprintf(stderr, "lumna-midia: pedi para abrir %s, mas a extensão do Firefox não conectou (%s)\n", s->id,
+					fe.sem_extensao ? "não achei a extensão para instalar" : "o Firefox comum só liga extensões assinadas: use o Developer Edition (veja extensao-firefox/LEIAME.md) ou o Firefox ainda está abrindo");
+			}
 			ff_abrir(s->id, url_para_abrir(s->id, p[2] && !strcmp(p[2], "novo"), s));
 			if (vivo) {
 				trazer_janela(FF_APP_ID); /* já carregado: sem capa */

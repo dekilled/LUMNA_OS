@@ -5,3 +5,4 @@ AQUI=$(cd "$(dirname "$0")/.." && pwd)
 cd "$AQUI"
 make controle >/dev/null
 python3 testes/connect/testa_connect.py "$AQUI/controle"
+python3 testes/connect/testa_wtype.py "$AQUI/controle"

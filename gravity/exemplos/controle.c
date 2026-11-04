@@ -1016,10 +1016,27 @@ static char *midia_anterior;
 
 /* ---- um comando de um celular já pareado ---- */
 
+/* o direcional, o OK, o voltar, o texto e as teclas apertam teclas pelo wtype; sem ele nada acontece, e o celular não deve ouvir "ok" */
+static bool wtype_instalado(void) {
+	char *caminho = g_find_program_in_path("wtype");
+	bool tem = caminho != NULL;
+	g_free(caminho);
+	return tem;
+}
+
 static void comando(const struct json *msg, GString *r) {
 	const char *tipo = json_chave_texto(msg, "type");
 	const char *valor = json_chave_texto(msg, "value");
 	const char *acao = json_chave_texto(msg, "action");
+	if ((!strcmp(tipo, "pad") || !strcmp(tipo, "text") || !strcmp(tipo, "key")) && !wtype_instalado()) {
+		static bool avisado;
+		if (!avisado) {
+			avisado = true;
+			fprintf(stderr, "lumna-controle: o wtype não está instalado: o direcional, o texto e as teclas do celular não funcionam (no Arch: sudo pacman -S wtype)\n");
+		}
+		erro(r, "o wtype não está instalado neste PC (no Arch: sudo pacman -S wtype): sem ele o controle não aperta teclas", false);
+		return;
+	}
 	if (!strcmp(tipo, "pad")) {
 		if (!strcmp(acao, "up")) tecla("Up");
 		else if (!strcmp(acao, "down")) tecla("Down");

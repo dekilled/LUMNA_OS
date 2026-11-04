@@ -16,7 +16,16 @@ Quem fala com o celular é o `lumna-controle` (serviço que não morre junto com
 `connect`, `parear`, `connect_ativo sim|nao`, `connect_pasta CAMINHO`, `recurso ID NOME sim|nao`, `enviar ID CAMINHO`, `copiar_para ID`, `aviso JSON`.
 
 ## Pacotes
-`wl-clipboard`, `libnotify` (notify-send).
+- `wtype`: **o controle do celular** (direcional, OK, voltar, texto e o menu da Mídia) aperta teclas por ele. Sem o `wtype` o celular recebe um erro, e o resto do controle (volume, modo, Home, mídia) continua funcionando.
+- `wl-clipboard` (`wl-copy` e `wl-paste`): a área de transferência.
+- `libnotify` (`notify-send`): os avisos do celular no PC.
+- `firefox`: a Mídia. O Firefox comum só liga extensões assinadas; sem assinatura, use o Developer Edition (veja `gravity/extensao-firefox/LEIAME.md`).
+
+Se algo não funcionar, rode dentro do desktop: `sh scripts/diag-controle.sh`. Ele diz o que falta e o que o serviço da Mídia e o controle estão vendo.
+
+## Os apps do celular
+- **LUMNA Controle** (`remote/android`): só o controle remoto (direcional, texto, teclas, mídia, volume, modo, Home e voz). Não tem arquivos nem área de transferência.
+- **LUMNA Connect** (o app antigo do celular): é o que fala arquivos, área de transferência e avisos. A parte do PC foi reescrita aqui seguindo o protocolo antigo; ainda não foi testada com o app de verdade.
 
 ## Testes
 `sh testes/connect.sh` (celular falso, sem tocar no sistema).

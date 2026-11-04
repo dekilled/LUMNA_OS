@@ -81,6 +81,16 @@ done
 ln -sf "$O/orbit-msg" "$BIN/orbit-msg"
 ln -sf "$AQUI/../session/lumna-modo" "$BIN/lumna-modo"
 
+# o que não derruba o desktop, mas deixa uma função muda: avisa antes de abrir
+opcional() { command -v "$1" >/dev/null 2>&1 || echo "  falta $1: $2"; }
+echo "Opcionais que faltam (o desktop abre sem eles):"
+opcional wtype "o direcional, o texto e o menu do controle do celular não funcionam (pacman -S wtype)"
+opcional wl-copy "a área de transferência do Connect (pacman -S wl-clipboard)"
+opcional grim "a captura de tela (pacman -S grim)"
+opcional wf-recorder "a gravação de tela (pacman -S wf-recorder)"
+opcional firefox "a Mídia (pacman -S firefox; o comum só liga a extensão se for assinada: veja extensao-firefox/LEIAME.md)"
+echo "Para ver o que está faltando: sh ../scripts/diag-controle.sh (dentro do desktop, no Alt+Enter)"
+
 echo "Abrindo o desktop novo numa janela (feche-a para sair)..."
 export PATH="$BIN:$PATH"
 export ORBIT_BORDA=0 # as janelas desenham a própria moldura, de cantos redondos

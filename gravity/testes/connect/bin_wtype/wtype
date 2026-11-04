@@ -1,0 +1,3 @@
+#!/bin/sh
+# um wtype de mentira: só anota o que o lumna-controle pediu
+echo "$*" >> "$WTYPE_LOG"
