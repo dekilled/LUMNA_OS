@@ -42,6 +42,7 @@
 
 static gv_app *app;
 static char aviso[300];
+static int audio_modo;             /* 0 sem som, 1 som do sistema, 2 microfone (lembrado em ~/.config/lumna/captura.ini) */
 static char modo_emma[16];         /* "app" | "popup": a captura é para mostrar à Emma (a prévia vira o pedido de confirmação) */
 static bool eh_video;              /* é uma gravação (mp4/webm/mkv), não uma foto */
 static char poster[600];           /* um quadro do vídeo, se o ffmpeg existe */
@@ -348,6 +349,34 @@ static int previa(const char *caminho, const char *alvo_emma) {
 	return 0;
 }
 
+/* ---------- as preferências da captura (o áudio da gravação) ---------- */
+
+static char *arq_prefs(void) {
+	return g_build_filename(g_get_user_config_dir(), "lumna", "captura.ini", NULL);
+}
+
+static void prefs_ler(void) {
+	char *f = arq_prefs(), *t = NULL;
+	if (g_file_get_contents(f, &t, NULL, NULL)) {
+		char *p = strstr(t, "audio=");
+		if (p) {
+			audio_modo = !strncmp(p + 6, "sistema", 7) ? 1 : !strncmp(p + 6, "microfone", 9) ? 2 : 0;
+		}
+	}
+	g_free(t);
+	g_free(f);
+}
+
+static void prefs_gravar(void) {
+	char *f = arq_prefs(), *pasta = g_path_get_dirname(f);
+	g_mkdir_with_parents(pasta, 0755);
+	char *t = g_strdup_printf("audio=%s\n", audio_modo == 1 ? "sistema" : audio_modo == 2 ? "microfone" : "nenhum");
+	g_file_set_contents(f, t, -1, NULL);
+	g_free(t);
+	g_free(pasta);
+	g_free(f);
+}
+
 /* ---------- escolher ---------- */
 
 enum modo { M_AREA, M_TELA, M_JANELA };
@@ -629,30 +658,44 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 			}
 		}
 		/* a barra: modos à esquerda, capturar e cancelar à direita; embaixo da área (ou da tela) */
-		float tx = ha ? v.x : (W - 640) / 2, ty = ha ? v.y + v.h + 12 : H - 120;
-		if (ha && ty + 56 > H) {
-			ty = v.y > 70 ? v.y - 64 : H - 70;
+		float tx = ha ? v.x : (W - 700) / 2, ty = ha ? v.y + v.h + 12 : H - 120;
+		if (ha && ty + 100 > H) {
+			ty = v.y > 120 ? v.y - 108 : H - 110;
 		}
-		tx = fmaxf(8, fminf(tx, W - 640));
-		CLAY(CLAY_ID("cs-barra"), { .layout = { .sizing = { CLAY_SIZING_FIT(0) }, .padding = { 8, 8, 8, 8 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		tx = fmaxf(8, fminf(tx, W - 700));
+		CLAY(CLAY_ID("cs-barra"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIT(0) }, .padding = { 8, 8, 8, 8 }, .childGap = 6 },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(14), .border = { .color = gv_t.borda_controle, .width = { 1, 1, 1, 1, 0 } },
 			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { tx, ty }, .zIndex = 30 } }) {
-			for (int v2 = 0; v2 < 2 && !modo_emma[0]; v2++) {
-				if (gv_botao_ext(CLAY_IDI("cs-tipo", (uint32_t)v2), &(gv_botao_opcoes){ .icone = v2 ? "video" : "camera", .texto = v2 ? "Vídeo" : "Foto", .estilo = modo_video == (bool)v2 ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 })) {
-					modo_video = v2;
+			CLAY(CLAY_ID("cs-linha1"), { .layout = { .sizing = { CLAY_SIZING_FIT(0) }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				for (int v2 = 0; v2 < 2 && !modo_emma[0]; v2++) {
+					if (gv_botao_ext(CLAY_IDI("cs-tipo", (uint32_t)v2), &(gv_botao_opcoes){ .icone = v2 ? "video" : "camera", .texto = v2 ? "Vídeo" : "Foto", .estilo = modo_video == (bool)v2 ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 })) {
+						modo_video = v2;
+					}
+				}
+				static const char *rot[] = { "Área", "Tela", "Janela" }, *ico[] = { "crop", "computer", "window" };
+				for (int i = 0; i < 3; i++) {
+					if (gv_botao_ext(CLAY_IDI("cs-modo", (uint32_t)i), &(gv_botao_opcoes){ .icone = ico[i], .texto = rot[i], .estilo = modo == (enum modo)i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 }) && modo != (enum modo)i) {
+						definir_modo((enum modo)i, W, H);
+					}
+				}
+				if (gv_botao_ext(CLAY_ID("cs-capturar"), &(gv_botao_opcoes){ .icone = modo_video ? "video" : "image", .texto = modo_video ? "Gravar" : "Capturar", .estilo = GV_BOTAO_CHEIO, .altura = 36, .desativado = !tem_sel })) {
+					capturar();
+				}
+				if (gv_botao_ext(CLAY_ID("cs-cancelar"), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 36 })) {
+					gv_app_sair(a);
 				}
 			}
-			static const char *rot[] = { "Área", "Tela", "Janela" }, *ico[] = { "crop", "computer", "window" };
-			for (int i = 0; i < 3; i++) {
-				if (gv_botao_ext(CLAY_IDI("cs-modo", (uint32_t)i), &(gv_botao_opcoes){ .icone = ico[i], .texto = rot[i], .estilo = modo == (enum modo)i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 }) && modo != (enum modo)i) {
-					definir_modo((enum modo)i, W, H);
+			if (modo_video && !modo_emma[0]) { /* o som da gravação: uma segunda linha, para a barra caber em qualquer tela */
+				CLAY(CLAY_ID("cs-linha2"), { .layout = { .sizing = { CLAY_SIZING_FIT(0) }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+					gv_texto(CLAY_STRING("Som:"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+					static const char *aud_rot[] = { "Sem som", "Do sistema", "Microfone" }, *aud_ico[] = { "volume-off", "volume", "mic" };
+					for (int ai = 0; ai < 3; ai++) {
+						if (gv_botao_ext(CLAY_IDI("cs-aud", (uint32_t)ai), &(gv_botao_opcoes){ .icone = aud_ico[ai], .texto = aud_rot[ai], .estilo = audio_modo == ai ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 32 })) {
+							audio_modo = ai;
+							prefs_gravar();
+						}
+					}
 				}
-			}
-			if (gv_botao_ext(CLAY_ID("cs-capturar"), &(gv_botao_opcoes){ .icone = modo_video ? "video" : "image", .texto = modo_video ? "Gravar" : "Capturar", .estilo = GV_BOTAO_CHEIO, .altura = 36, .desativado = !tem_sel })) {
-				capturar();
-			}
-			if (gv_botao_ext(CLAY_ID("cs-cancelar"), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 36 })) {
-				gv_app_sair(a);
 			}
 		}
 		if (!ha) {
@@ -755,7 +798,9 @@ static void gravar_area(void) {
 	g_snprintf(ly, sizeof(ly), "%d", (int)lroundf(sel.y));
 	g_snprintf(w, sizeof(w), "%d", (int)lroundf(sel.w));
 	g_snprintf(h, sizeof(h), "%d", (int)lroundf(sel.h));
-	char *argv[] = { exe, "--gravando", saida_nome[0] ? saida_nome : "-", ox, oy, lx, ly, w, h, NULL };
+	char au[4];
+	g_snprintf(au, sizeof(au), "%d", audio_modo);
+	char *argv[] = { exe, "--gravando", saida_nome[0] ? saida_nome : "-", ox, oy, lx, ly, w, h, au, NULL };
 	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
 	g_free(exe);
 	if (congelada[0]) {
@@ -772,7 +817,7 @@ struct grav {
 	char arquivo[600];
 	bool parar_pedido;
 	char saida[40];
-	int ox, oy, lx, ly, w, h;
+	int ox, oy, lx, ly, w, h, audio;
 };
 
 static void grav_fim(struct grav *g) {
@@ -819,6 +864,16 @@ static void barra_saiu(GPid pid, gint st, gpointer d) {
 	g->barra = 0;
 }
 
+/* o que o pactl diz ("get-default-sink" / "get-default-source"), sem a quebra de linha; "" se não deu */
+static char *pactl_padrao(const char *o_que) {
+	char *saida = NULL, *argv[] = { "pactl", (char *)o_que, NULL };
+	if (!g_find_program_in_path("pactl") || !g_spawn_sync(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &saida, NULL, NULL, NULL) || !saida) {
+		g_free(saida);
+		return g_strdup("");
+	}
+	return g_strstrip(saida);
+}
+
 static void contagem_saiu(GPid pid, gint st, gpointer d) {
 	struct grav *g = d;
 	g_spawn_close_pid(pid);
@@ -836,9 +891,25 @@ static void contagem_saiu(GPid pid, gint st, gpointer d) {
 	g_free(nome);
 	char geom[64];
 	g_snprintf(geom, sizeof(geom), "%d,%d %dx%d", g->ox + g->lx, g->oy + g->ly, g->w, g->h);
-	char *argv[10];
+	char *argv[12], *audio_arg = NULL;
 	int n = 0;
 	argv[n++] = "wf-recorder";
+	if (g->audio == 1) { /* o som que sai pelas caixas: o "monitor" da saída padrão */
+		char *sink = pactl_padrao("get-default-sink");
+		if (*sink) {
+			audio_arg = g_strdup_printf("--audio=%s.monitor", sink);
+		} else {
+			avisar("Para gravar o som do sistema falta o pactl (pacote pipewire-pulse ou pulseaudio-utils): gravando sem som.");
+		}
+		g_free(sink);
+	} else if (g->audio == 2) { /* o microfone padrão */
+		char *src = pactl_padrao("get-default-source");
+		audio_arg = *src ? g_strdup_printf("--audio=%s", src) : g_strdup("--audio");
+		g_free(src);
+	}
+	if (audio_arg) {
+		argv[n++] = audio_arg;
+	}
 	if (strcmp(g->saida, "-")) {
 		argv[n++] = "-o";
 		argv[n++] = g->saida;
@@ -849,7 +920,9 @@ static void contagem_saiu(GPid pid, gint st, gpointer d) {
 	argv[n++] = g->arquivo;
 	argv[n] = NULL;
 	GError *e = NULL;
-	if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &g->rec, &e)) {
+	bool lancou = g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &g->rec, &e);
+	g_free(audio_arg);
+	if (!lancou) {
 		avisar("Não consegui iniciar a gravação: falta o wf-recorder (instale o pacote wf-recorder).");
 		g_clear_error(&e);
 		char *f = arq_pid();
@@ -894,6 +967,7 @@ static int gravando(char **a) {
 	g.ly = atoi(a[4]);
 	g.w = atoi(a[5]);
 	g.h = atoi(a[6]);
+	g.audio = atoi(a[7]);
 	char *f = arq_pid(), *pid = g_strdup_printf("%d", (int)getpid());
 	g_file_set_contents(f, pid, -1, NULL);
 	g_free(f);
@@ -1041,6 +1115,7 @@ static int janela_foco(const char *alvo) {
 int main(int argc, char **argv) {
 	bool so_tela = false;
 	enum modo inicial = M_AREA;
+	prefs_ler();
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--previa") && i + 1 < argc) {
 			return previa(argv[i + 1], NULL);
@@ -1050,7 +1125,7 @@ int main(int argc, char **argv) {
 			g_strlcpy(modo_emma, argv[++i], sizeof(modo_emma));
 		} else if (!strcmp(argv[i], "--janela-foco") && i + 1 < argc) {
 			return janela_foco(argv[i + 1]);
-		} else if (!strcmp(argv[i], "--gravando") && i + 7 < argc) {
+		} else if (!strcmp(argv[i], "--gravando") && i + 8 < argc) {
 			return gravando(argv + i + 1);
 		} else if (!strcmp(argv[i], "--contagem") && i + 5 < argc) {
 			return contagem_ui(argv + i + 1);
