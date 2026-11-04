@@ -550,6 +550,7 @@ bool orbit_free_desktop(struct orbit_server *server, struct orbit_output *output
 void orbit_float_save(struct orbit_view *view);
 void orbit_float_place_new(struct orbit_view *view);
 void orbit_float_show(struct orbit_view *view);
+void orbit_view_set_output(struct orbit_view *view, struct orbit_output *dest, bool carry);
 struct wlr_box orbit_snap_box(struct orbit_view *view, int snap);
 void orbit_view_snap(struct orbit_view *view, int snap);
 void orbit_snap_key(struct orbit_server *server, int dir);

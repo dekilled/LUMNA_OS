@@ -318,7 +318,7 @@ bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, str
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == a || view->output == b) {
 			orbit_split_release(server, view);
-			view->output = view->output == a ? b : a; /* o espaço (tag) vai junto: é o da janela */
+			orbit_view_set_output(view, view->output == a ? b : a, true); /* o espaço (tag) vai junto: é o da janela */
 		}
 	}
 	int tag = a->tag, desktop = a->desktop_tag;

@@ -39,6 +39,50 @@ static struct wlr_box geometry(struct orbit_view *view) {
 	return box;
 }
 
+/*
+ * A janela muda de tela. A janela livre leva a posição junto: o mesmo lugar relativo na tela nova, e dentro da área útil dela
+ * (sem isto ela continuava desenhada onde estava, na tela de antes, e atrás do preto de uma tela apagada). As janelas do mosaico,
+ * maximizadas ou encaixadas são arrumadas pela tela nova. `carry` é falso quando a janela já está no lugar certo (largada na outra
+ * tela com o mouse). Quem chama cuida do espaço (tag) e da tela cheia.
+ */
+void orbit_view_set_output(struct orbit_view *view, struct orbit_output *dest, bool carry) {
+	struct orbit_server *server = view->server;
+	struct orbit_output *old = view->output;
+	view->output = dest;
+	if (!dest || !old || old == dest || !view->floating || !carry) {
+		return;
+	}
+	struct wlr_box ob = { 0 }, nb = { 0 };
+	wlr_output_layout_get_box(server->layout, old->wlr, &ob);
+	wlr_output_layout_get_box(server->layout, dest->wlr, &nb);
+	if (nb.width <= 0 || nb.height <= 0) {
+		return;
+	}
+	if (ob.width <= 0 || ob.height <= 0) {
+		orbit_float_place_new(view); /* a tela de antes já não existe: abre no meio da nova */
+		return;
+	}
+	int dx = nb.x - ob.x, dy = nb.y - ob.y;
+	view->x += dx;
+	view->y += dy;
+	view->fx += dx;
+	view->fy += dy;
+	struct wlr_box usable = orbit_layer_usable(dest, &nb);
+	struct wlr_box g = geometry(view);
+	int w = g.width > 0 ? g.width : view->fw, h = g.height > 0 ? g.height : view->fh;
+	int maxx = usable.x + usable.width - w, maxy = usable.y + usable.height - h;
+	view->x = view->x > maxx ? maxx : view->x;
+	view->y = view->y > maxy ? maxy : view->y;
+	view->x = view->x < usable.x ? usable.x : view->x;
+	view->y = view->y < usable.y ? usable.y : view->y;
+	view->fx = view->x;
+	view->fy = view->y;
+	view->placed = true;
+	view->sliding = false;
+	view->slide_x = view->x;
+	view->slide_y = view->y;
+}
+
 bool orbit_free_desktop(struct orbit_server *server, struct orbit_output *output) {
 	return server->arrangement == ORBIT_LAYOUT_FREE && output && !output_is_phone(output->wlr);
 }
@@ -312,7 +356,7 @@ void orbit_move_end(struct orbit_server *server) {
 	struct orbit_output *dest = output_at(server, server->cursor->x, server->cursor->y);
 	if (dest && dest != view->output && !orbit_output_isolated(dest) && !orbit_view_isolated(view)) {
 		orbit_split_release(server, view);
-		view->output = dest;
+		orbit_view_set_output(view, dest, false); /* largada com o mouse: já está no lugar */
 		view->tag = dest->tag;
 		view->fullscreen = false;
 	}

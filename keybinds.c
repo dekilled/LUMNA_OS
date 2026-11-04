@@ -28,7 +28,7 @@ static void move_output(struct orbit_server *server, struct orbit_view *focused,
 		return;
 	}
 	orbit_split_release(server, focused);
-	focused->output = dest;
+	orbit_view_set_output(focused, dest, true);
 	focused->tag = dest->tag;
 	focused->fullscreen = false;
 	orbit_arrange(server);

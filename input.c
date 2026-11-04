@@ -162,7 +162,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 			struct orbit_output *dest = output_at(server, server->cursor->x, server->cursor->y);
 			if (dest && dest != view->output && !orbit_output_isolated(dest) && !orbit_view_isolated(view)) {
 				orbit_split_release(server, view);
-				view->output = dest;
+				orbit_view_set_output(view, dest, false);
 				view->tag = dest->tag;
 				view->fullscreen = false;
 			}

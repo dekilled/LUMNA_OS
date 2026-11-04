@@ -225,7 +225,7 @@ void orbit_output_release(struct orbit_server *server, struct orbit_output *outp
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == output) {
 			orbit_split_release(server, view);
-			view->output = fallback;
+			orbit_view_set_output(view, fallback, true); /* leva a posição para a tela que fica */
 			view->fullscreen = false;
 			if (fallback) {
 				view->tag = fallback->tag;

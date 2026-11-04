@@ -292,6 +292,11 @@ orbit-msg tela_cheia estado diz se o Orbit está aninhado e se a tela cheia est�
 LUMNA usa isso para mostrar, só nesse caso, um botão que sai da tela cheia e volta (útil para ir ao editor sem ir ao outro monitor).
 A regressão (regressao.sh) testa isto com dois monitores falsos (um Orbit headless faz o papel do compositor de fora).
 
+Passar uma janela de uma tela para outra
+  Alt+←/→ (ações saida_esquerda e saida_direita), arrastar com o mouse e apagar ou desligar a tela da janela levam a janela e a
+  posição dela junto (o mesmo lugar relativo na tela nova, dentro da área útil). No Orbit aninhado, arrastar de uma janela do desktop
+  de fora para a outra NÃO funciona: o desktop de fora segura o mouse na janela onde o arrasto começou. Use Alt+←/→.
+
 Disposição dos monitores
   ~/.config/lumna/disposicao.ini (o Painel grava, o Orbit vigia): disposicao = estender | espelhar | esquerda | direita
   estender (padrão)  cada saída na sua posição, com os seus espaços de trabalho

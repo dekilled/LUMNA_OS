@@ -413,7 +413,7 @@ static void views_to(struct orbit_server *server, struct orbit_output *from, str
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == from) {
 			orbit_split_release(server, view);
-			view->output = to;
+			orbit_view_set_output(view, to, true);
 			view->fullscreen = false;
 			view->tag = to->tag;
 		}
