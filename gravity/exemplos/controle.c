@@ -24,11 +24,23 @@
  *   parear                     gera um código novo (o anterior deixa de valer)
  *   parear_cancelar            apaga o código
  *   esquecer ID | todos        tira um celular (ou todos) e derruba a conexão
+ *
+ * Connect (o dia a dia entre o PC e o celular, no mesmo protocolo de antes): clipboard (o que se copia num vai pro outro), notify /
+ * notification (os avisos do celular aparecem aqui e os daqui no celular), arquivos (file-begin/chunk/end do celular para cá; file-offer daqui
+ * e o celular puxa com file-pull) e features (o que está ligado para cada celular, em Painel > Celular Connect). Pelo socket:
+ *   connect                    o que o Painel mostra: ativo, pasta, celulares (com os recursos), transferências recentes
+ *   connect_ativo sim|nao      liga/desliga o Connect inteiro (desligado, nada sai nem entra)
+ *   connect_pasta CAMINHO      onde ficam os arquivos recebidos ("" volta a Downloads)
+ *   recurso ID NOME sim|nao    liga/desliga um recurso de um celular (notifications, phone_notifications, clipboard, files, control)
+ *   enviar ID CAMINHO          oferece um arquivo ao celular (ele puxa)
+ *   copiar_para ID             manda ao celular o texto que está copiado
+ *   aviso JSON                 {"app","summary","body","urgent"}: o lumna-avisos manda os avisos daqui para os celulares
  */
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <gio/gio.h>
 #include <glib-unix.h>
+#include <errno.h>
 #include <glib.h>
 #include <libsoup/soup.h>
 #include <signal.h>
@@ -221,6 +233,608 @@ static void transmitir(const char *texto) {
 			enviar(c->ws, texto);
 		}
 	}
+}
+
+/* ---- Connect: o dia a dia entre o PC e o celular ---- */
+
+#define CHUNK (192 * 1024)
+#define CLIP_MAX (256 * 1024)
+#define MAX_ARQUIVO ((guint64)20 << 30)
+
+static struct {
+	bool ativo;
+	char pasta[512];
+} conf = { true, "" };
+
+static bool conectado(const char *id);
+
+static char *caminho_conf(void) {
+	return g_build_filename(g_get_user_config_dir(), "lumna", "connect.json", NULL);
+}
+
+static void conf_ler(void) {
+	char *c = caminho_conf(), *t = NULL;
+	if (g_file_get_contents(c, &t, NULL, NULL)) {
+		struct json *j = json_ler(t);
+		conf.ativo = json_bool(json_chave(j, "ativo"), true);
+		g_strlcpy(conf.pasta, json_chave_texto(j, "pasta"), sizeof(conf.pasta));
+		json_liberar(j);
+	}
+	g_free(t);
+	g_free(c);
+}
+
+static void conf_gravar(void) {
+	char *c = caminho_conf(), *dir = g_path_get_dirname(c);
+	g_mkdir_with_parents(dir, 0700);
+	GString *g = g_string_new("{\"ativo\":");
+	g_string_append(g, conf.ativo ? "true" : "false");
+	g_string_append(g, ",\"pasta\":");
+	json_escrever_texto(g, conf.pasta);
+	g_string_append_c(g, '}');
+	g_file_set_contents(c, g->str, -1, NULL);
+	g_string_free(g, TRUE);
+	g_free(dir);
+	g_free(c);
+}
+
+/* onde caem os arquivos que chegam (Downloads, ou a pasta que a pessoa escolheu; "~" vale a pessoal); g_free */
+static char *pasta_receber(void) {
+	if (conf.pasta[0]) {
+		return conf.pasta[0] == '~' ? g_build_filename(g_get_home_dir(), conf.pasta + (conf.pasta[1] == '/' ? 2 : 1), NULL) : g_strdup(conf.pasta);
+	}
+	const char *d = g_get_user_special_dir(G_USER_DIRECTORY_DOWNLOAD);
+	return d ? g_strdup(d) : g_build_filename(g_get_home_dir(), "Downloads", NULL);
+}
+
+static const char *RECURSOS[] = { "notifications", "phone_notifications", "clipboard", "files", "control", NULL };
+
+static bool recurso_de(const struct dispositivo *d, const char *nome) {
+	if (!conf.ativo) {
+		return false; /* o interruptor geral: desligado, nada sai nem entra */
+	}
+	if (!d || !d->recursos) {
+		return true;
+	}
+	struct json *j = json_ler(d->recursos);
+	bool v = json_bool(json_chave(j, nome), true);
+	json_liberar(j);
+	return v;
+}
+
+static void recursos_escrever(const struct dispositivo *d, GString *g) {
+	g_string_append_c(g, '{');
+	for (int i = 0; RECURSOS[i]; i++) {
+		bool v = recurso_de(d, RECURSOS[i]);
+		if (!conf.ativo) { /* o que o celular vê: o do aparelho, não o do interruptor geral */
+			struct json *j = d->recursos ? json_ler(d->recursos) : NULL;
+			v = json_bool(json_chave(j, RECURSOS[i]), true);
+			json_liberar(j);
+		}
+		g_string_append_printf(g, "%s\"%s\":%s", i ? "," : "", RECURSOS[i], v ? "true" : "false");
+	}
+	g_string_append_c(g, '}');
+}
+
+static void recurso_definir(struct dispositivo *d, const char *nome, bool valor) {
+	struct json *j = d->recursos ? json_ler(d->recursos) : NULL;
+	GString *g = g_string_new("{");
+	for (int i = 0; RECURSOS[i]; i++) {
+		bool v = !strcmp(RECURSOS[i], nome) ? valor : json_bool(json_chave(j, RECURSOS[i]), true);
+		g_string_append_printf(g, "%s\"%s\":%s", i ? "," : "", RECURSOS[i], v ? "true" : "false");
+	}
+	g_string_append_c(g, '}');
+	json_liberar(j);
+	g_free(d->recursos);
+	d->recursos = g_string_free(g, FALSE);
+}
+
+static bool recurso_existe(const char *nome) {
+	for (int i = 0; RECURSOS[i]; i++) {
+		if (!strcmp(RECURSOS[i], nome)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static struct dispositivo *dispositivo_por_id(const char *id) {
+	for (guint i = 0; i < dispositivos->len; i++) {
+		struct dispositivo *d = dispositivos->pdata[i];
+		if (!strcmp(d->id, id)) {
+			return d;
+		}
+	}
+	return NULL;
+}
+
+/* manda a um celular (por todas as conexões dele) */
+static bool enviar_ao(const char *id, const char *json) {
+	bool foi = false;
+	for (guint i = 0; i < clientes->len; i++) {
+		struct cliente *c = clientes->pdata[i];
+		if (!strcmp(c->dispositivo, id)) {
+			enviar(c->ws, json);
+			foi = true;
+		}
+	}
+	return foi;
+}
+
+/* manda a todos os celulares conectados que têm este recurso ligado */
+static void transmitir_recurso(const char *recurso, const char *json) {
+	for (guint i = 0; i < clientes->len; i++) {
+		struct cliente *c = clientes->pdata[i];
+		if (c->dispositivo[0] && recurso_de(dispositivo_por_id(c->dispositivo), recurso)) {
+			enviar(c->ws, json);
+		}
+	}
+}
+
+/* ---- transferências (a lista que o Painel mostra) ---- */
+
+struct transf {
+	char id[48], nome[200], par[48], dir[4]; /* "in" | "out" */
+	guint64 feito, tamanho;
+	char estado[10]; /* running | done | error */
+	char erro[120];
+};
+
+static GPtrArray *transferencias;
+
+static struct transf *transf_nova(const char *id, const char *nome, const char *par, const char *dir, guint64 tamanho) {
+	if (!transferencias) {
+		transferencias = g_ptr_array_new_with_free_func(g_free);
+	}
+	if (transferencias->len >= 20) { /* as 20 mais recentes */
+		g_ptr_array_remove_index(transferencias, 0);
+	}
+	struct transf *t = g_new0(struct transf, 1);
+	g_strlcpy(t->id, id, sizeof(t->id));
+	g_strlcpy(t->nome, nome, sizeof(t->nome));
+	g_strlcpy(t->par, par, sizeof(t->par));
+	g_strlcpy(t->dir, dir, sizeof(t->dir));
+	g_strlcpy(t->estado, "running", sizeof(t->estado));
+	t->tamanho = tamanho;
+	g_ptr_array_add(transferencias, t);
+	return t;
+}
+
+static void transf_erro(struct transf *t, const char *motivo) {
+	if (t) {
+		g_strlcpy(t->estado, "error", sizeof(t->estado));
+		g_strlcpy(t->erro, motivo, sizeof(t->erro));
+	}
+}
+
+/* um aviso aqui no PC, marcado para o lumna-avisos não o devolver aos celulares */
+static void aviso_local(const char *app, const char *titulo, const char *corpo, bool urgente) {
+	char *argv[] = { "notify-send", "-a", (char *)app, "-u", urgente ? "critical" : "normal", "-h", "string:x-lumna-connect:1", (char *)titulo, (char *)corpo, NULL };
+	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+}
+
+/* ---- a área de transferência ---- */
+
+static char *ultimo_clip; /* o último texto que passou (daqui ou de lá): quem já foi não volta (sem eco) */
+static GPid clip_pid;
+static bool clip_primeiro;
+
+static void clip_filho_saiu(GPid pid, gint st, gpointer d) {
+	g_spawn_close_pid(pid);
+}
+
+static void clip_definir(const char *texto) {
+	g_free(ultimo_clip);
+	ultimo_clip = g_strdup(texto);
+	char *argv[] = { "wl-copy", NULL };
+	int entrada = -1;
+	GPid pid;
+	if (g_spawn_async_with_pipes(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &pid, &entrada, NULL, NULL, NULL)) {
+		ssize_t r = write(entrada, texto, strlen(texto));
+		(void)r;
+		close(entrada);
+		g_child_watch_add(pid, clip_filho_saiu, NULL);
+	}
+}
+
+static gboolean clip_lido(GIOChannel *ch, GIOCondition cond, gpointer d) {
+	char *linha = NULL;
+	gsize n = 0;
+	GIOStatus st = g_io_channel_read_line(ch, &linha, &n, NULL, NULL);
+	if (st != G_IO_STATUS_NORMAL) {
+		g_free(linha);
+		if (st == G_IO_STATUS_EOF || cond & (G_IO_HUP | G_IO_ERR)) {
+			clip_pid = 0; /* o wl-paste saiu: o temporizador religa */
+			return G_SOURCE_REMOVE;
+		}
+		return G_SOURCE_CONTINUE;
+	}
+	g_strstrip(linha);
+	gsize tam = 0;
+	guchar *dec = *linha ? g_base64_decode(linha, &tam) : NULL;
+	g_free(linha);
+	bool primeiro = clip_primeiro;
+	clip_primeiro = false;
+	if (dec && tam > 0 && tam <= CLIP_MAX && g_utf8_validate((char *)dec, (gssize)tam, NULL)) {
+		char *texto = g_strndup((char *)dec, tam);
+		if (g_strcmp0(texto, ultimo_clip)) {
+			g_free(ultimo_clip);
+			ultimo_clip = g_strdup(texto);
+			if (!primeiro) { /* o que já estava copiado ao ligar não sai por aí */
+				GString *m = g_string_new("{\"type\":\"clipboard\",\"text\":");
+				json_escrever_texto(m, texto);
+				g_string_append_c(m, '}');
+				transmitir_recurso("clipboard", m->str);
+				g_string_free(m, TRUE);
+			}
+		}
+		g_free(texto);
+	}
+	g_free(dec);
+	return G_SOURCE_CONTINUE;
+}
+
+static gboolean clip_ligar(gpointer d) {
+	if (clip_pid || !g_getenv("WAYLAND_DISPLAY")) {
+		return G_SOURCE_CONTINUE;
+	}
+	char *argv[] = { "wl-paste", "--type", "text", "--watch", "sh", "-c", "base64 -w0; echo", NULL };
+	int saida = -1;
+	if (!g_spawn_async_with_pipes(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &clip_pid, NULL, &saida, NULL, NULL)) {
+		clip_pid = 0;
+		return G_SOURCE_CONTINUE;
+	}
+	clip_primeiro = true;
+	GIOChannel *ch = g_io_channel_unix_new(saida);
+	g_io_channel_set_encoding(ch, NULL, NULL);
+	g_io_channel_set_close_on_unref(ch, TRUE);
+	g_io_add_watch(ch, G_IO_IN | G_IO_HUP | G_IO_ERR, clip_lido, NULL);
+	g_io_channel_unref(ch);
+	return G_SOURCE_CONTINUE;
+}
+
+/* ---- arquivos que chegam do celular ---- */
+
+struct recebendo {
+	char chave[100]; /* dispositivo:id */
+	char dispositivo[40], tid[48];
+	char *parcial, *alvo;
+	FILE *f;
+	struct transf *t;
+};
+
+static GHashTable *recebendo;
+
+static char *nome_seguro(const char *nome) {
+	const char *b = strrchr(nome, '/');
+	b = b ? b + 1 : nome;
+	const char *c = strrchr(b, '\\');
+	b = c ? c + 1 : b;
+	GString *g = g_string_new(NULL);
+	for (const char *p = b; *p && g->len < 200; p++) {
+		if ((unsigned char)*p >= 32 && *p != 127) {
+			g_string_append_c(g, *p);
+		}
+	}
+	char *r = g_strstrip(g_string_free(g, FALSE));
+	char *ini = r;
+	while (*ini == '.') {
+		ini++;
+	}
+	char *saida = *ini ? g_strdup(ini) : g_strdup("arquivo");
+	g_free(r);
+	return saida;
+}
+
+/* "foto.jpg" que já existe vira "foto (2).jpg" */
+static char *caminho_livre(const char *pasta, const char *nome) {
+	char *base = g_strdup(nome), *ponto = strrchr(base, '.');
+	char *ext = ponto && ponto != base ? g_strdup(ponto) : g_strdup("");
+	if (ponto && ponto != base) {
+		*ponto = '\0';
+	}
+	char *r = NULL;
+	for (int n = 1; n < 10000 && !r; n++) {
+		char *nm = n == 1 ? g_strdup_printf("%s%s", base, ext) : g_strdup_printf("%s (%d)%s", base, n, ext);
+		char *c = g_build_filename(pasta, nm, NULL), *p = g_strdup_printf("%s.part", c);
+		if (!g_file_test(c, G_FILE_TEST_EXISTS) && !g_file_test(p, G_FILE_TEST_EXISTS)) {
+			r = c;
+			c = NULL;
+		}
+		g_free(c);
+		g_free(p);
+		g_free(nm);
+	}
+	g_free(base);
+	g_free(ext);
+	return r;
+}
+
+static void recebendo_liberar(gpointer p) {
+	struct recebendo *r = p;
+	if (r->f) {
+		fclose(r->f);
+	}
+	g_free(r->parcial);
+	g_free(r->alvo);
+	g_free(r);
+}
+
+static void recebimento_cancelar(const char *chave, const char *motivo) {
+	struct recebendo *r = recebendo ? g_hash_table_lookup(recebendo, chave) : NULL;
+	if (r) {
+		if (r->f) {
+			fclose(r->f);
+			r->f = NULL;
+		}
+		g_unlink(r->parcial);
+		transf_erro(r->t, motivo);
+		g_hash_table_remove(recebendo, chave);
+	}
+}
+
+static void recebimentos_do_celular_cancelar(const char *dispositivo, const char *motivo) {
+	if (!recebendo) {
+		return;
+	}
+	GList *chaves = g_hash_table_get_keys(recebendo), *l;
+	for (l = chaves; l; l = l->next) {
+		struct recebendo *r = g_hash_table_lookup(recebendo, l->data);
+		if (r && !strcmp(r->dispositivo, dispositivo)) {
+			char *k = g_strdup(l->data);
+			recebimento_cancelar(k, motivo);
+			g_free(k);
+		}
+	}
+	g_list_free(chaves);
+}
+
+/* ---- arquivos daqui para o celular (ele puxa) ---- */
+
+struct oferta {
+	char id[24], dispositivo[40];
+	char *caminho;
+	struct transf *t;
+};
+
+static GHashTable *ofertas;
+
+static void oferta_liberar(gpointer p) {
+	struct oferta *o = p;
+	g_free(o->caminho);
+	g_free(o);
+}
+
+static void ofertas_do_celular_falhar(const char *dispositivo, const char *motivo) {
+	if (!ofertas) {
+		return;
+	}
+	GHashTableIter it;
+	gpointer k, v;
+	g_hash_table_iter_init(&it, ofertas);
+	while (g_hash_table_iter_next(&it, &k, &v)) {
+		struct oferta *o = v;
+		if (!strcmp(o->dispositivo, dispositivo)) {
+			transf_erro(o->t, motivo);
+			g_hash_table_iter_remove(&it);
+		}
+	}
+}
+
+/* o celular puxa um pedaço: {"type":"file-pull","id":..,"offset":N} -> file-data */
+static void oferta_puxar(const struct json *msg, GString *r) {
+	const char *id = json_chave_texto(msg, "id");
+	struct oferta *o = ofertas ? g_hash_table_lookup(ofertas, id) : NULL;
+	guint64 off = (guint64)json_numero(json_chave(msg, "offset"), 0);
+	if (!o) {
+		erro(r, "esse arquivo não está mais sendo oferecido", false);
+		return;
+	}
+	FILE *f = fopen(o->caminho, "rb");
+	if (!f) {
+		transf_erro(o->t, "não consegui ler o arquivo");
+		g_hash_table_remove(ofertas, id);
+		erro(r, "não consegui ler o arquivo", false);
+		return;
+	}
+	fseeko(f, 0, SEEK_END);
+	guint64 tam = (guint64)ftello(f);
+	fseeko(f, (off_t)off, SEEK_SET);
+	guchar *buf = g_malloc(CHUNK);
+	size_t n = off < tam ? fread(buf, 1, CHUNK, f) : 0;
+	fclose(f);
+	bool eof = off + n >= tam;
+	char *b64 = g_base64_encode(buf, n);
+	g_string_printf(r, "{\"type\":\"file-data\",\"data\":\"%s\",\"len\":%zu,\"eof\":%s}", b64, n, eof ? "true" : "false");
+	g_free(b64);
+	g_free(buf);
+	o->t->feito = off + n;
+	if (eof) {
+		g_strlcpy(o->t->estado, "done", sizeof(o->t->estado));
+		g_hash_table_remove(ofertas, id); /* o ponteiro o->t segue na lista de transferências */
+	}
+}
+
+/* oferece um arquivo a um celular (o pedido "enviar ID CAMINHO"); devolve o erro ou NULL */
+static const char *oferta_criar(const char *dispositivo, const char *caminho) {
+	struct dispositivo *d = dispositivo_por_id(dispositivo);
+	if (!d) {
+		return "celular não pareado";
+	}
+	if (!conf.ativo || !recurso_de(d, "files")) {
+		return "o envio de arquivos está desligado para este celular";
+	}
+	if (!conectado(dispositivo)) {
+		return "o celular não está conectado";
+	}
+	GStatBuf st;
+	if (g_stat(caminho, &st) != 0 || !S_ISREG(st.st_mode)) {
+		return "só arquivos comuns vão pelo Connect (pastas não)";
+	}
+	if ((guint64)st.st_size > MAX_ARQUIVO) {
+		return "arquivo grande demais";
+	}
+	if (!ofertas) {
+		ofertas = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, oferta_liberar);
+	}
+	struct oferta *o = g_new0(struct oferta, 1);
+	char aleatorio[17];
+	novo_texto_aleatorio(aleatorio, 8);
+	g_snprintf(o->id, sizeof(o->id), "%s", aleatorio);
+	g_strlcpy(o->dispositivo, dispositivo, sizeof(o->dispositivo));
+	o->caminho = g_strdup(caminho);
+	char *nome = g_path_get_basename(caminho);
+	o->t = transf_nova(o->id, nome, d->nome, "out", (guint64)st.st_size);
+	g_hash_table_insert(ofertas, g_strdup(o->id), o);
+	GString *m = g_string_new("{\"type\":\"file-offer\",\"id\":");
+	json_escrever_texto(m, o->id);
+	g_string_append(m, ",\"name\":");
+	json_escrever_texto(m, nome);
+	g_string_append_printf(m, ",\"size\":%" G_GUINT64_FORMAT "}", (guint64)st.st_size);
+	enviar_ao(dispositivo, m->str);
+	g_string_free(m, TRUE);
+	g_free(nome);
+	return NULL;
+}
+
+/* ---- as mensagens do Connect que o celular manda ---- */
+
+#define PRECISA(on, o_que) \
+	do { \
+		if (!(on)) { \
+			erro(r, o_que " está desligado para este celular no PC", false); \
+			return true; \
+		} \
+	} while (0)
+
+static bool connect_msg(struct cliente *c, const struct json *msg, GString *r) {
+	const char *tipo = json_chave_texto(msg, "type");
+	struct dispositivo *d = dispositivo_por_id(c->dispositivo);
+	if (!d) {
+		return false;
+	}
+	char chave[100];
+	g_snprintf(chave, sizeof(chave), "%s:%s", d->id, json_chave_texto(msg, "id"));
+	if (!strcmp(tipo, "features")) {
+		g_string_assign(r, "{\"type\":\"features\",\"features\":");
+		recursos_escrever(d, r);
+		g_string_append_c(r, '}');
+	} else if (!strcmp(tipo, "clipboard")) {
+		PRECISA(recurso_de(d, "clipboard"), "a área de transferência");
+		const char *texto = json_chave_texto(msg, "text");
+		if (!*texto || strlen(texto) > CLIP_MAX) {
+			erro(r, "texto vazio ou grande demais", false);
+		} else {
+			clip_definir(texto);
+			ok(r);
+		}
+	} else if (!strcmp(tipo, "notify")) {
+		PRECISA(recurso_de(d, "phone_notifications"), "mostrar avisos do celular");
+		char *de = *json_chave_texto(msg, "app") ? g_strdup_printf("%s · %s", d->nome, json_chave_texto(msg, "app")) : g_strdup(d->nome);
+		aviso_local(de, json_chave_texto(msg, "summary"), json_chave_texto(msg, "body"), json_bool(json_chave(msg, "urgent"), false));
+		g_free(de);
+		ok(r);
+	} else if (!strcmp(tipo, "file-begin")) {
+		PRECISA(recurso_de(d, "files"), "receber arquivos");
+		guint64 tam = (guint64)json_numero(json_chave(msg, "size"), -1);
+		if (!*json_chave_texto(msg, "id") || json_chave(msg, "size") == NULL || tam > MAX_ARQUIVO) {
+			erro(r, "tamanho faltando ou grande demais", false);
+			return true;
+		}
+		if (!recebendo) {
+			recebendo = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, recebendo_liberar);
+		}
+		recebimento_cancelar(chave, "recomeçou");
+		char *pasta = pasta_receber(), *nome = nome_seguro(json_chave_texto(msg, "name"));
+		g_mkdir_with_parents(pasta, 0755);
+		struct recebendo *rc = g_new0(struct recebendo, 1);
+		rc->alvo = caminho_livre(pasta, nome);
+		rc->parcial = g_strdup_printf("%s.part", rc->alvo);
+		rc->f = fopen(rc->parcial, "wb");
+		if (!rc->alvo || !rc->f) {
+			erro(r, "não consegui criar o arquivo na pasta de recebidos", false);
+			recebendo_liberar(rc);
+		} else {
+			g_strlcpy(rc->chave, chave, sizeof(rc->chave));
+			g_strlcpy(rc->dispositivo, d->id, sizeof(rc->dispositivo));
+			char *tid = g_strdup_printf("in:%s", chave);
+			g_strlcpy(rc->tid, tid, sizeof(rc->tid));
+			rc->t = transf_nova(tid, nome, d->nome, "in", tam);
+			g_free(tid);
+			g_hash_table_insert(recebendo, g_strdup(chave), rc);
+			ok(r);
+		}
+		g_free(pasta);
+		g_free(nome);
+	} else if (!strcmp(tipo, "file-chunk")) {
+		PRECISA(recurso_de(d, "files"), "receber arquivos");
+		struct recebendo *rc = recebendo ? g_hash_table_lookup(recebendo, chave) : NULL;
+		if (!rc) {
+			erro(r, "transferência desconhecida", false);
+			return true;
+		}
+		gsize n = 0;
+		guchar *dec = g_base64_decode(json_chave_texto(msg, "data"), &n);
+		if (!dec || rc->t->feito + n > rc->t->tamanho) {
+			g_free(dec);
+			recebimento_cancelar(chave, "dado inválido ou maior que o anunciado");
+			erro(r, "o arquivo veio maior que o anunciado", false);
+			return true;
+		}
+		if (fwrite(dec, 1, n, rc->f) != n) {
+			g_free(dec);
+			recebimento_cancelar(chave, "sem espaço ou erro de disco");
+			erro(r, "não consegui gravar (disco cheio?)", false);
+			return true;
+		}
+		rc->t->feito += n;
+		g_free(dec);
+		ok(r);
+	} else if (!strcmp(tipo, "file-end")) {
+		PRECISA(recurso_de(d, "files"), "receber arquivos");
+		struct recebendo *rc = recebendo ? g_hash_table_lookup(recebendo, chave) : NULL;
+		if (!rc) {
+			erro(r, "transferência desconhecida", false);
+			return true;
+		}
+		fclose(rc->f);
+		rc->f = NULL;
+		if (rc->t->feito != rc->t->tamanho) {
+			recebimento_cancelar(chave, "o arquivo chegou incompleto");
+			erro(r, "o arquivo chegou incompleto", false);
+			return true;
+		}
+		if (rename(rc->parcial, rc->alvo) != 0) {
+			recebimento_cancelar(chave, "não consegui renomear");
+			erro(r, "não consegui guardar o arquivo", false);
+			return true;
+		}
+		g_strlcpy(rc->t->estado, "done", sizeof(rc->t->estado));
+		char *nome = g_path_get_basename(rc->alvo), *pasta = g_path_get_dirname(rc->alvo);
+		char *tit = g_strdup_printf("Recebido: %s", nome), *corpo = g_strdup_printf("Salvo em %s", pasta);
+		aviso_local(d->nome, tit, corpo, false);
+		g_free(tit);
+		g_free(corpo);
+		g_free(nome);
+		g_free(pasta);
+		g_hash_table_remove(recebendo, chave);
+		ok(r);
+	} else if (!strcmp(tipo, "file-cancel")) {
+		recebimento_cancelar(chave, "o celular cancelou");
+		ok(r);
+	} else if (!strcmp(tipo, "file-pull")) {
+		oferta_puxar(msg, r);
+	} else if (!strcmp(tipo, "file-reject")) {
+		struct oferta *o = ofertas ? g_hash_table_lookup(ofertas, json_chave_texto(msg, "id")) : NULL;
+		if (o) {
+			transf_erro(o->t, *json_chave_texto(msg, "reason") ? json_chave_texto(msg, "reason") : "o celular recusou");
+			g_hash_table_remove(ofertas, json_chave_texto(msg, "id"));
+		}
+		ok(r);
+	} else {
+		return false;
+	}
+	return true;
 }
 
 /* ---- o caminho do serviço: teclado e ponteiro virtuais ---- */
@@ -622,6 +1236,8 @@ static void ao_receber(SoupWebsocketConnection *ws, gint tipo_dado, GBytes *byte
 		erro(r, "pareie o celular primeiro", true);
 	} else if (!strcmp(tipo, "voice")) {
 		voz(ws, msg, r);
+	} else if (connect_msg(c, msg, r)) {
+		/* respondido pelo Connect */
 	} else {
 		comando(msg, r);
 	}
@@ -631,7 +1247,14 @@ static void ao_receber(SoupWebsocketConnection *ws, gint tipo_dado, GBytes *byte
 }
 
 static void ao_fechar(SoupWebsocketConnection *ws, gpointer dados) {
+	struct cliente *c = dados;
+	char id[40];
+	g_strlcpy(id, c->dispositivo, sizeof(id));
 	g_ptr_array_remove(clientes, dados);
+	if (id[0] && !conectado(id)) { /* a conexão caiu: o que estava a meio não termina */
+		recebimentos_do_celular_cancelar(id, "a conexão caiu");
+		ofertas_do_celular_falhar(id, "a conexão caiu");
+	}
 }
 
 static void cliente_liberar(gpointer p) {
@@ -664,7 +1287,7 @@ static void ao_conectar(SoupServer *servidor, SoupServerMessage *msg, const char
 	struct cliente *c = g_new0(struct cliente, 1);
 	c->ws = g_object_ref(ws);
 	g_ptr_array_add(clientes, c);
-	soup_websocket_connection_set_max_incoming_payload_size(ws, 64 * 1024);
+	soup_websocket_connection_set_max_incoming_payload_size(ws, 1024 * 1024); /* um pedaço de arquivo em base64 tem ~256 KB */
 	soup_websocket_connection_set_keepalive_interval(ws, 20); /* celular que sumiu sem avisar cai sozinho */
 	g_signal_connect(ws, "message", G_CALLBACK(ao_receber), c);
 	g_signal_connect(ws, "closed", G_CALLBACK(ao_fechar), c);
@@ -727,15 +1350,116 @@ static void pedido_local(const char *linha, GString *r) {
 		} else {
 			g_string_assign(r, "{\"ok\":false,\"erro\":\"celular não encontrado\"}");
 		}
-	} else if (!strcmp(cmd, "estado")) {
-		g_string_printf(r, "{\"ok\":true,\"porta\":%d,\"pareando\":%s,\"dispositivos\":[", PORTA, codigo[0] && g_get_monotonic_time() <= codigo_ate ? "true" : "false");
+	} else if (!strcmp(cmd, "estado") || !strcmp(cmd, "connect")) {
+		bool completo = !strcmp(cmd, "connect");
+		g_string_printf(r, "{\"ok\":true,\"porta\":%d,\"pareando\":%s,\"ativo\":%s,\"dispositivos\":[", PORTA, codigo[0] && g_get_monotonic_time() <= codigo_ate ? "true" : "false",
+			conf.ativo ? "true" : "false");
 		for (guint i = 0; i < dispositivos->len; i++) {
 			struct dispositivo *d = dispositivos->pdata[i];
 			g_string_append_printf(r, "%s{\"id\":\"%s\",\"nome\":", i ? "," : "", d->id);
 			json_escrever_texto(r, d->nome);
-			g_string_append_printf(r, ",\"conectado\":%s}", conectado(d->id) ? "true" : "false");
+			g_string_append_printf(r, ",\"conectado\":%s,\"recursos\":", conectado(d->id) ? "true" : "false");
+			recursos_escrever(d, r);
+			g_string_append_c(r, '}');
 		}
-		g_string_append(r, "]}");
+		g_string_append(r, "]");
+		if (completo) {
+			char *pasta = pasta_receber();
+			g_string_append(r, ",\"pasta\":");
+			json_escrever_texto(r, pasta);
+			g_string_append(r, ",\"pasta_escolhida\":");
+			json_escrever_texto(r, conf.pasta);
+			g_free(pasta);
+			g_string_append(r, ",\"transferencias\":[");
+			for (guint i = 0; transferencias && i < transferencias->len; i++) {
+				struct transf *t = transferencias->pdata[transferencias->len - 1 - i]; /* a mais nova primeiro */
+				g_string_append_printf(r, "%s{\"id\":\"%s\",\"nome\":", i ? "," : "", t->id);
+				json_escrever_texto(r, t->nome);
+				g_string_append(r, ",\"par\":");
+				json_escrever_texto(r, t->par);
+				g_string_append_printf(r, ",\"direcao\":\"%s\",\"feito\":%" G_GUINT64_FORMAT ",\"tamanho\":%" G_GUINT64_FORMAT ",\"estado\":\"%s\",\"erro\":", t->dir, t->feito, t->tamanho, t->estado);
+				json_escrever_texto(r, t->erro);
+				g_string_append_c(r, '}');
+			}
+			g_string_append(r, "]");
+		}
+		g_string_append_c(r, '}');
+	} else if (!strcmp(cmd, "connect_ativo") && p[1]) {
+		conf.ativo = !strcmp(g_strstrip(p[1]), "sim");
+		conf_gravar();
+		if (!conf.ativo) { /* desligado: o que estava a meio para */
+			for (guint i = 0; i < dispositivos->len; i++) {
+				struct dispositivo *d = dispositivos->pdata[i];
+				recebimentos_do_celular_cancelar(d->id, "o Connect foi desligado");
+				ofertas_do_celular_falhar(d->id, "o Connect foi desligado");
+			}
+		}
+		g_string_assign(r, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "connect_pasta")) {
+		g_strlcpy(conf.pasta, p[1] ? g_strstrip(p[1]) : "", sizeof(conf.pasta));
+		conf_gravar();
+		g_string_assign(r, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "recurso") && p[1]) {
+		char **q = g_strsplit(p[1], " ", 3);
+		struct dispositivo *d = q[0] && q[1] && q[2] ? dispositivo_por_id(q[0]) : NULL;
+		if (d && recurso_existe(q[1])) {
+			recurso_definir(d, q[1], !strcmp(g_strstrip(q[2]), "sim"));
+			dispositivos_gravar();
+			GString *m = g_string_new("{\"type\":\"features\",\"features\":");
+			recursos_escrever(d, m);
+			g_string_append_c(m, '}');
+			enviar_ao(d->id, m->str); /* o celular fica sabendo na hora */
+			g_string_free(m, TRUE);
+			g_string_assign(r, "{\"ok\":true}");
+		} else {
+			g_string_assign(r, "{\"ok\":false,\"erro\":\"celular ou recurso desconhecido\"}");
+		}
+		g_strfreev(q);
+	} else if (!strcmp(cmd, "enviar") && p[1]) {
+		char *sp = strchr(p[1], ' ');
+		const char *e = sp ? NULL : "enviar ID CAMINHO";
+		if (sp) {
+			*sp++ = '\0';
+			e = oferta_criar(p[1], g_strstrip(sp));
+		}
+		if (e) {
+			g_string_assign(r, "{\"ok\":false,\"erro\":");
+			json_escrever_texto(r, e);
+			g_string_append_c(r, '}');
+		} else {
+			g_string_assign(r, "{\"ok\":true}");
+		}
+	} else if (!strcmp(cmd, "copiar_para") && p[1]) {
+		struct dispositivo *d = dispositivo_por_id(g_strstrip(p[1]));
+		char *texto = NULL, *av[] = { "wl-paste", "--no-newline", "--type", "text", NULL };
+		if (!d || !recurso_de(d, "clipboard") || !conectado(d->id)) {
+			g_string_assign(r, "{\"ok\":false,\"erro\":\"celular desconectado ou com a área de transferência desligada\"}");
+		} else if (!g_spawn_sync(NULL, av, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &texto, NULL, NULL, NULL) || !texto || !*texto || strlen(texto) > CLIP_MAX) {
+			g_string_assign(r, "{\"ok\":false,\"erro\":\"não há texto copiado\"}");
+		} else {
+			GString *m = g_string_new("{\"type\":\"clipboard\",\"text\":");
+			json_escrever_texto(m, texto);
+			g_string_append_c(m, '}');
+			enviar_ao(d->id, m->str);
+			g_string_free(m, TRUE);
+			g_string_assign(r, "{\"ok\":true}");
+		}
+		g_free(texto);
+	} else if (!strcmp(cmd, "aviso") && p[1]) { /* o lumna-avisos: um aviso daqui vai para os celulares */
+		struct json *j = json_ler(p[1]);
+		if (j) {
+			GString *m = g_string_new("{\"type\":\"notification\",\"app\":");
+			json_escrever_texto(m, json_chave_texto(j, "app"));
+			g_string_append(m, ",\"summary\":");
+			json_escrever_texto(m, json_chave_texto(j, "summary"));
+			g_string_append(m, ",\"body\":");
+			json_escrever_texto(m, json_chave_texto(j, "body"));
+			g_string_append_printf(m, ",\"urgent\":%s}", json_bool(json_chave(j, "urgent"), false) ? "true" : "false");
+			transmitir_recurso("notifications", m->str);
+			g_string_free(m, TRUE);
+			json_liberar(j);
+		}
+		g_string_assign(r, "{\"ok\":true}");
 	} else {
 		g_string_assign(r, "{\"ok\":false,\"erro\":\"pedido desconhecido (estado, parear, parear_cancelar, esquecer ID|todos)\"}");
 	}
@@ -825,6 +1549,7 @@ int main(int argc, char **argv) {
 		return cliente_cli(argc, argv);
 	}
 	dispositivos_ler();
+	conf_ler();
 	clientes = g_ptr_array_new_with_free_func(cliente_liberar);
 
 	GError *err = NULL;
@@ -849,6 +1574,10 @@ int main(int argc, char **argv) {
 	} else {
 		fprintf(stderr, "lumna-controle: socket %s: %s\n", caminho, err->message);
 	}
+
+	/* a área de transferência (o wl-paste precisa do compositor no ar: religa até conseguir) */
+	clip_ligar(NULL);
+	g_timeout_add_seconds(5, clip_ligar, NULL);
 
 	/* o MPRIS e o Orbit podem demorar a aparecer: religa até conseguir */
 	mpris_iniciar();

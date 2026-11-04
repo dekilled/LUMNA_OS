@@ -1,0 +1,9 @@
+#!/bin/sh
+# o wl-paste de mentira: --watch imprime (via o comando dado) o texto a cada mudança do arquivo "clip" (no começo, uma vez o que já estava)
+if [ "$1" = "--no-newline" ]; then cat "$CLIP_ARQ" 2>/dev/null; exit 0; fi
+visto=""
+while :; do
+  atual=$(cat "$CLIP_ARQ" 2>/dev/null)
+  if [ "$atual" != "$visto" ]; then visto="$atual"; printf "%s" "$atual" | sh -c "$6"; fi
+  sleep 0.2
+done

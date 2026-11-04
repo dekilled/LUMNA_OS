@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "controlec.h"
 #include "emmac.h"
 #include "gravity.h"
 #include "json.h"
@@ -191,6 +192,69 @@ static void copiar_imagem(void) {
 		g_snprintf(aviso, sizeof(aviso), "Não consegui copiar: %s", e->message);
 	}
 	g_clear_error(&e);
+}
+
+/* ---- enviar ao celular (o Connect: o celular puxa o arquivo) ---- */
+
+static struct {
+	char id[40], nome[48];
+} celulares[8];
+static int n_celulares;
+
+/* os celulares conectados que aceitam arquivos, agora (pergunta ao lumna-controle; sem ele, nenhum) */
+static void celulares_ler(void) {
+	n_celulares = 0;
+	char *buf = g_malloc(64 * 1024);
+	if (controlec_pedido("connect", buf, 64 * 1024)) {
+		struct json *j = json_ler(buf);
+		const struct json *ds = json_chave(j, "dispositivos");
+		bool ativo = json_bool(json_chave(j, "ativo"), true);
+		for (int i = 0; ativo && ds && i < ds->nfilhos && n_celulares < 8; i++) {
+			const struct json *d = json_item(ds, i);
+			if (json_bool(json_chave(d, "conectado"), false) && json_bool(json_chave(json_chave(d, "recursos"), "files"), true)) {
+				g_strlcpy(celulares[n_celulares].id, json_chave_texto(d, "id"), sizeof(celulares[0].id));
+				g_strlcpy(celulares[n_celulares].nome, json_chave_texto(d, "nome"), sizeof(celulares[0].nome));
+				n_celulares++;
+			}
+		}
+		json_liberar(j);
+	}
+	g_free(buf);
+}
+
+static void enviar_ao_celular(int i) {
+	/* uma cópia fora da captura: o celular puxa aos poucos, e fechar esta janela sem salvar apagaria o arquivo no meio */
+	const char *rt = g_get_user_runtime_dir();
+	char *pasta = g_build_filename(rt && *rt ? rt : g_get_tmp_dir(), "lumna-envios", NULL);
+	g_mkdir_with_parents(pasta, 0700);
+	char *nome = g_path_get_basename(arquivo), *copia = g_build_filename(pasta, nome, NULL), *conteudo = NULL;
+	gsize n = 0;
+	char *erro = NULL;
+	if (!g_file_get_contents(arquivo, &conteudo, &n, NULL) || !g_file_set_contents(copia, conteudo, (gssize)n, NULL)) {
+		erro = g_strdup("Não consegui preparar o arquivo.");
+	} else {
+		char *pedido = g_strdup_printf("enviar %s %s", celulares[i].id, copia), r[1024] = "";
+		if (!controlec_pedido(pedido, r, sizeof(r))) {
+			erro = g_strdup("O serviço do celular não respondeu.");
+		} else {
+			struct json *j = json_ler(r);
+			if (!json_bool(json_chave(j, "ok"), false)) {
+				erro = g_strdup(*json_chave_texto(j, "erro") ? json_chave_texto(j, "erro") : "Não deu para enviar.");
+			}
+			json_liberar(j);
+		}
+		g_free(pedido);
+	}
+	if (erro) {
+		g_strlcpy(aviso, erro, sizeof(aviso));
+	} else {
+		g_snprintf(aviso, sizeof(aviso), "Oferecido a %s: ele puxa o arquivo (veja o progresso no Painel > Celular Connect).", celulares[i].nome);
+	}
+	g_free(erro);
+	g_free(conteudo);
+	g_free(copia);
+	g_free(nome);
+	g_free(pasta);
 }
 
 static void abrir_com_outro(void) {
@@ -544,6 +608,7 @@ static void previa_desenhar(gv_app *a, void *dados) {
 			}
 			bool env = gv_botao_ext(CLAY_ID("cp-enviar"), &(gv_botao_opcoes){ .icone = "external", .texto = "Enviar", .estilo = GV_BOTAO_ELEVADO, .altura = 38 });
 			if (env) {
+				celulares_ler(); /* quem está conectado agora */
 				gv_popup_alternar(CLAY_ID("cp-menu-env"));
 			}
 			GV_POPUP(CLAY_ID("cp-menu-env"), CLAY_ID("cp-enviar"), .largura = 260) {
@@ -552,7 +617,17 @@ static void previa_desenhar(gv_app *a, void *dados) {
 						abrir_com_outro();
 						gv_popup_fechar(CLAY_ID("cp-menu-env"));
 					}
-					gv_texto(CLAY_STRING("  Celular (em breve, pelo LUMNA Connect)"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+					for (int ci = 0; ci < n_celulares; ci++) {
+						char *rot = g_strdup_printf("Enviar para %s", celulares[ci].nome);
+						if (gv_menu_item(CLAY_IDI("cp-env-cel", (uint32_t)ci), "phone", rot, NULL)) {
+							enviar_ao_celular(ci);
+							gv_popup_fechar(CLAY_ID("cp-menu-env"));
+						}
+						g_free(rot);
+					}
+					if (!n_celulares) {
+						gv_texto(CLAY_STRING("  Nenhum celular conectado (Painel > Celular Connect)"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+					}
 				}
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}

@@ -8,6 +8,7 @@
  * como um segundo lumna-avisos percebe que já há um.
  */
 #include "avisos.h"
+#include "json.h"
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gio/gio.h>
@@ -155,6 +156,38 @@ static void gravar_imagem(GVariant *v, char *dst, size_t cap) {
 
 /* ---- os métodos ---- */
 
+/* os avisos daqui vão também para os celulares pareados: um pedido de uma linha ao lumna-controle (que decide, por celular, se vale);
+ * sem o serviço rodando não é erro, só não há para quem mandar */
+static void para_os_celulares(const char *app, const char *titulo, const char *corpo, bool urgente) {
+	const char *run = g_get_user_runtime_dir();
+	if (!run) {
+		return;
+	}
+	char *caminho = g_build_filename(run, "lumna-controle.sock", NULL);
+	if (g_file_test(caminho, G_FILE_TEST_EXISTS)) {
+		GString *j = g_string_new("aviso {\"app\":");
+		json_escrever_texto(j, app);
+		g_string_append(j, ",\"summary\":");
+		json_escrever_texto(j, titulo);
+		g_string_append(j, ",\"body\":");
+		json_escrever_texto(j, corpo);
+		g_string_append_printf(j, ",\"urgent\":%s}\n", urgente ? "true" : "false");
+		GSocketClient *cli = g_socket_client_new();
+		g_socket_client_set_timeout(cli, 1);
+		GSocketAddress *end = g_unix_socket_address_new(caminho);
+		GSocketConnection *con = g_socket_client_connect(cli, G_SOCKET_CONNECTABLE(end), NULL, NULL);
+		if (con) {
+			g_output_stream_write_all(g_io_stream_get_output_stream(G_IO_STREAM(con)), j->str, j->len, NULL, NULL, NULL);
+			g_io_stream_close(G_IO_STREAM(con), NULL, NULL);
+			g_object_unref(con);
+		}
+		g_object_unref(end);
+		g_object_unref(cli);
+		g_string_free(j, TRUE);
+	}
+	g_free(caminho);
+}
+
 static uint32_t notificar(GVariant *p) {
 	const char *app, *icone, *titulo, *corpo;
 	uint32_t substitui;
@@ -194,6 +227,7 @@ static uint32_t notificar(GVariant *p) {
 	}
 	g_variant_iter_free(acoes);
 
+	bool vem_do_celular = false;
 	GVariantIter it;
 	const char *dica;
 	GVariant *valor;
@@ -208,6 +242,8 @@ static uint32_t notificar(GVariant *p) {
 			if (ponto && !ponto[8]) {
 				*ponto = '\0';
 			}
+		} else if (!strcmp(dica, "x-lumna-connect")) {
+			vem_do_celular = true; /* o aviso que o próprio Connect trouxe do celular: não volta para lá */
 		} else if (!strcmp(dica, "resident") && g_variant_is_of_type(valor, G_VARIANT_TYPE_BOOLEAN)) {
 			a->residente = g_variant_get_boolean(valor);
 		} else if (!strcmp(dica, "transient") && g_variant_is_of_type(valor, G_VARIANT_TYPE_BOOLEAN)) {
@@ -231,6 +267,9 @@ static uint32_t notificar(GVariant *p) {
 		snprintf(a->icone, sizeof(a->icone), "%s", a->entrada);
 	}
 	uint32_t id = a->id;
+	if (!vem_do_celular && a->urgencia != AVISO_BAIXA) {
+		para_os_celulares(a->app, a->titulo, a->corpo, a->urgencia == AVISO_CRITICA);
+	}
 	avisar(ev);
 	return id;
 }

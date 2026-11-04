@@ -38,6 +38,11 @@ void pn_emma_mcp_desenhar(void);
 void pn_emma_mcp_abrir(void);
 void pn_emma_rec_desenhar(void);
 void pn_emma_rec_abrir(void);
+void pn_cc_abrir(void);
+void pn_cc_parear_desenhar(void);
+void pn_cc_transf_desenhar(void);
+void pn_cc_avisos_desenhar(void);
+void pn_cc_arquivos_desenhar(void);
 void pn_emma_prov_abrir(void);
 void pn_emma_rota_desenhar(void);
 bool pn_emma_rota_pendente(void);
@@ -134,10 +139,10 @@ static const pn_secao som[] = {
 const pn_categoria pn_som = { "som", "volume", "Som", "Saída, microfone e volume", PN_GERAL, som, N(som) };
 
 static const pn_secao celular[] = {
-	{ "parear", "phone", "Pareamento", "Ligar o seu celular a este computador.", NULL, "Parear com um código;Os celulares ligados" },
-	{ "transferencia", "clipboard", "Área de transferência", "Copiar num e colar no outro.", NULL, "Sincronizar;O histórico" },
-	{ "avisos", "bell", "Avisos do celular", "As notificações do celular aqui.", NULL, "Que apps;Responder daqui" },
-	{ "arquivos", "folder", "Arquivos", "Mandar e receber arquivos.", NULL, "Onde guardar" },
+	{ "parear", "phone", "Pareamento", "Ligar o seu celular a este computador.", pn_cc_parear_desenhar, NULL, NULL, NULL, NULL, NULL, pn_cc_abrir },
+	{ "transferencia", "clipboard", "Área de transferência", "Copiar num e colar no outro.", pn_cc_transf_desenhar, NULL, NULL, NULL, NULL, NULL, pn_cc_abrir },
+	{ "avisos", "bell", "Avisos do celular", "As notificações do celular aqui.", pn_cc_avisos_desenhar, NULL, NULL, NULL, NULL, NULL, pn_cc_abrir },
+	{ "arquivos", "folder", "Arquivos", "Mandar e receber arquivos.", pn_cc_arquivos_desenhar, NULL, NULL, NULL, NULL, NULL, pn_cc_abrir },
 };
 const pn_categoria pn_celular = { "celular", "phone", "Celular Connect", "Conecte seu celular", PN_GERAL, celular, N(celular) };
 
