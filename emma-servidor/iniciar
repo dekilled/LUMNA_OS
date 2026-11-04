@@ -20,6 +20,14 @@ if [ ! -x "$venv/bin/uvicorn" ] || [ "$aqui/backend/requirements.txt" -nt "$venv
   touch "$venv/.pronto"
 fi
 
+# o "Oi Emma" (escuta offline) usa o vosk e o sounddevice: opcionais, uma tentativa só; sem eles o resto funciona igual (o Painel mostra o que falta).
+# O sounddevice ainda precisa da biblioteca do sistema libportaudio2 (apt install libportaudio2 / pacman -S portaudio).
+if [ ! -e "$venv/.voz" ]; then
+  "$venv/bin/pip" install --quiet --disable-pip-version-check vosk sounddevice >/dev/null 2>&1 \
+    || echo "emma-servidor: não deu para instalar o vosk/sounddevice (o 'Oi Emma' fica desligado)" >&2
+  touch "$venv/.voz"
+fi
+
 if [ ! -s "$env" ]; then
   rand() { "$py" -c "import secrets; print(secrets.token_$1)"; }
   umask 077

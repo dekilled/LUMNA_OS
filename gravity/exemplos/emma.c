@@ -1451,6 +1451,63 @@ static gpointer online_linha(gpointer d) {
 	return NULL;
 }
 
+/* ---- "Oi Emma": o servidor ouve o microfone (offline, só a palavra de ativação) e avisa; aqui a popup abre e o microfone passa a gravar ---- */
+
+static gboolean ativacao_ouvida(gpointer d) {
+	(void)d;
+	if (ouvindo || transcrevendo) {
+		return G_SOURCE_REMOVE; /* já está te ouvindo */
+	}
+	/* a popup (se ainda não está aberta) e o microfone; se ela estava falando, ouvir_alternar a cala */
+	char *argv[] = { "sh", "-c", "pgrep -x lumna-emma-chat >/dev/null || exec lumna-emma-chat", NULL };
+	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+	ouvir_alternar();
+	return G_SOURCE_REMOVE;
+}
+
+static gpointer ativacao_linha(gpointer d) {
+	(void)d;
+	int visto = -1;
+	for (;;) {
+		if (!servidor_ok) {
+			g_usleep(3 * G_USEC_PER_SEC);
+			continue;
+		}
+		char *corpo = NULL, *erro = NULL;
+		if (visto < 0) { /* o contador de agora: o que já foi ouvido antes não conta */
+			if (emmab_chamar("GET", "/api/wake", NULL, &corpo, &erro) == 200 && corpo) {
+				struct json *j = json_ler(corpo);
+				visto = j ? (int)json_numero(json_chave(j, "count"), 0) : 0;
+				json_liberar(j);
+			} else {
+				g_usleep(5 * G_USEC_PER_SEC);
+			}
+			g_free(corpo);
+			g_free(erro);
+			continue;
+		}
+		char *caminho = g_strdup_printf("/api/wake/wait?seen=%d&timeout=25", visto);
+		int st = emmab_chamar_longo("GET", caminho, NULL, &corpo, &erro);
+		g_free(caminho);
+		if (st == 200 && corpo) {
+			struct json *j = json_ler(corpo);
+			if (j) {
+				visto = (int)json_numero(json_chave(j, "count"), visto);
+				if (json_bool(json_chave(j, "heard"), false)) {
+					g_main_context_invoke(NULL, ativacao_ouvida, NULL);
+				}
+				json_liberar(j);
+			}
+		} else {
+			g_usleep(5 * G_USEC_PER_SEC); /* o servidor caiu ou reiniciou: tenta de novo (o contador pode ter voltado a zero) */
+			visto = -1;
+		}
+		g_free(corpo);
+		g_free(erro);
+	}
+	return NULL;
+}
+
 static gboolean verificar_online(gpointer d) {
 	(void)d;
 	g_thread_unref(g_thread_new("emma-online", online_linha, NULL));
@@ -1543,6 +1600,7 @@ int main(int argc, char **argv) {
 	g_unix_signal_add(SIGINT, sair, NULL);
 	verificar_online(NULL);
 	g_timeout_add_seconds(5, verificar_online, NULL);
+	g_thread_unref(g_thread_new("emma-ativacao", ativacao_linha, NULL));
 	g_main_loop_run(loop);
 	g_unlink(caminho);
 	return 0;

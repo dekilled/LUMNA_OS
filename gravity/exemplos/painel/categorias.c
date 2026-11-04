@@ -32,6 +32,8 @@ void pn_emma_pers_descartar(void);
 void pn_emma_pers_abrir(void);
 void pn_emma_imp_desenhar(void);
 void pn_emma_imp_abrir(void);
+void pn_emma_ativ_desenhar(void);
+void pn_emma_ativ_abrir(void);
 void pn_emma_prov_abrir(void);
 void pn_emma_rota_desenhar(void);
 bool pn_emma_rota_pendente(void);
@@ -137,7 +139,8 @@ const pn_categoria pn_celular = { "celular", "phone", "Celular Connect", "Conect
 
 static const pn_secao emma[] = {
 	{ "voz", "mic", "Voz", "Como a Emma fala e ouve.", NULL, "A voz;A velocidade;O microfone" },
-	{ "ativacao", "sparkle", "Oi Emma", "Chamar a Emma pela voz.", NULL, "Ligar e desligar;Sensibilidade" },
+	{ "ativacao", "sparkle", "Oi Emma", "Chamar a Emma pela voz.", pn_emma_ativ_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_emma_ativ_abrir },
 	{ "provedores", "globe", "Provedores", "As IAs que a Emma usa: endereço, chave de API e modelos.", pn_emma_prov_desenhar, NULL, NULL, NULL, NULL, NULL,
 		pn_emma_prov_abrir },
 	{ "roteamento", "sliders", "Roteamento", "Qual provedor e modelo atende cada tarefa.", pn_emma_rota_desenhar, NULL, pn_emma_rota_pendente,

@@ -113,6 +113,12 @@ try:
     confere(espera(lambda: "/api/stt" in log(), 12), "o áudio não chegou ao /api/stt")
     confere(espera(lambda: log().count("wtype -k XF86AudioPlay") > antes, 8), "a fala 'pausa' não virou ação")
 
+    # "Oi Emma": o servidor avisa que ouviu o nome; o serviço abre a popup e passa a gravar (a fala gravada vira "pausa")
+    antes_stt = log().count("/api/stt")
+    open(os.path.join(T, "oi-emma"), "w").close()
+    confere(espera(lambda: "popup aberta" in log(), 10), "o 'Oi Emma' não abriu a popup")
+    confere(espera(lambda: log().count("/api/stt") > antes_stt, 12), "o 'Oi Emma' não ligou o microfone")
+
     # o perfil SFW/NSFW: o NSFW só abre com o PIN do bloqueio (conferido aqui, no serviço); voltar ao SFW é livre
     import hashlib
     confere(pede("perfil").get("nsfw") is False, "o serviço devia abrir no SFW")

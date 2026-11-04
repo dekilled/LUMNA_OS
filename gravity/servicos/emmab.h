@@ -26,6 +26,7 @@ bool emmab_no_ar(void);
 bool emmab_pronto(void);                      /* o backend responde E deixa o LUMNA entrar (a chave local, o token ou a conta) */                       /* o backend respondeu agora */
 
 /* uma chamada com o token (entra de novo se vier 401). Devolve o status HTTP, ou 0 se o backend não respondeu */
+int emmab_chamar_longo(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro);
 int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro);
 
 /* a conversa do canal (a guardada, ou uma nova) */

@@ -217,3 +217,10 @@ O cartão de aprovação mostra o quê, onde, por quê e o código (o conteúdo 
 ele chama). Caminhos são resolvidos antes de julgar (`..` e links não escapam da política), e a política é conferida de novo na hora de
 executar. A permissão da ferramenta em `emma.json` só pode deixar mais restrito. Testes: `testes/emma/politica_teste.c` e o fluxo
 de aprovação em `testes/emma/testa_emma.py`.
+
+## "Oi Emma" (chamar pela voz)
+
+O servidor da Emma ouve o microfone no computador, offline (Vosk, só a frase "Oi Emma" / "Ei Emma"; nada é gravado nem enviado antes disso).
+O serviço `lumna-emma` espera o aviso dele (`GET /api/wake/wait`); ao ouvir o nome, abre a popup (`lumna-emma-chat`) e liga o microfone. Se ela estava
+falando, é calada. Liga-se e desliga-se em Painel > Emma > Oi Emma, onde também se baixa o modelo de voz (~50 MB, uma vez). Precisa do `vosk` e do
+`sounddevice` no Python do servidor (o `emma-servidor/iniciar` tenta instalar uma vez) e da biblioteca de áudio do sistema (libportaudio2 / portaudio).

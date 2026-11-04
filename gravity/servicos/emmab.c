@@ -307,7 +307,7 @@ static char *texto_de(const char *json, const char *chave) {
 	return r;
 }
 
-int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro) {
+static int chamar_em(SoupSession **sessao, const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro) {
 	sessoes();
 	for (int vez = 0; vez < 2; vez++) {
 		char *t = acesso(erro);
@@ -315,7 +315,7 @@ int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, cha
 			return 0;
 		}
 		char *r = NULL;
-		int st = pedir(sessao_curta, metodo, caminho, t, corpo, &r, erro);
+		int st = pedir(*sessao, metodo, caminho, t, corpo, &r, erro);
 		g_free(t);
 		if (st == 401 && vez == 0) {
 			g_free(r);
@@ -330,6 +330,15 @@ int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, cha
 		return st;
 	}
 	return 0;
+}
+
+int emmab_chamar(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro) {
+	return chamar_em(&sessao_curta, metodo, caminho, corpo, resposta, erro);
+}
+
+/* o mesmo, para respostas que demoram (a espera longa do "Oi Emma"): a sessão de 15 min em vez da de 20 s */
+int emmab_chamar_longo(const char *metodo, const char *caminho, const char *corpo, char **resposta, char **erro) {
+	return chamar_em(&sessao_longa, metodo, caminho, corpo, resposta, erro);
 }
 
 /* ---- anexos (imagens) ---- */

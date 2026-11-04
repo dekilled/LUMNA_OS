@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "popup aberta" >> "$EMMA_TESTE_LOG"

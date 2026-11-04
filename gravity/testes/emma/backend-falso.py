@@ -7,7 +7,7 @@ Cada pedido que chega vai para o ARQUIVO_DE_LOG, uma linha "METODO CAMINHO CORPO
 texto que estiver em ARQUIVO_DO_STT. No chat: "netflix" faz a Emma chamar lumna_midia_abrir e esperar o
 resultado; "volume" chama lumna_audio_volume; qualquer outra coisa é uma resposta em duas frases.
 """
-import json, os, sys, threading, time
+import json, time, os, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORTA, LOG = int(sys.argv[1]), sys.argv[2]
@@ -35,6 +35,7 @@ def prov_publico(p):
 
 PERFIL = {"nsfw": False}
 ANEXOS = {}
+WAKE = {"count": 0}
 
 
 class H(BaseHTTPRequestHandler):
@@ -72,6 +73,17 @@ class H(BaseHTTPRequestHandler):
             return self.json([prov_publico(p) for p in PROVS])
         if self.path == "/api/profile":
             return self.json({"nsfw": PERFIL["nsfw"], "on_start": False})
+        if self.path == "/api/wake":
+            return self.json({"enabled": True, "count": WAKE["count"], "running": True})
+        if self.path.startswith("/api/wake/wait"):
+            flag = os.environ.get("EMMA_TESTE_CASA", "/tmp") + "/oi-emma"
+            for _ in range(40):  # espera até 2 s, como o long poll do servidor de verdade
+                if os.path.exists(flag):
+                    os.unlink(flag)
+                    WAKE["count"] += 1
+                    return self.json({"count": WAKE["count"], "heard": True})
+                time.sleep(0.05)
+            return self.json({"count": WAKE["count"], "heard": False})
         if self.path.startswith("/api/attachments/") and self.path[17:] in ANEXOS:
             b = ANEXOS[self.path[17:]]
             self.send_response(200)
