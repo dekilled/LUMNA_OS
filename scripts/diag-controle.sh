@@ -18,14 +18,22 @@ tem wf-recorder "a gravação de tela"
 tem pactl "o volume e o áudio da gravação"
 tem firefox "a Mídia (os serviços abrem num Firefox em tela cheia)"
 tem firefox-developer-edition "a Mídia com a extensão sem assinatura (o Firefox comum só liga extensões assinadas)"
-tem playerctl "o controle do que está tocando"
 tem orbit-msg "tudo: o Orbit"
 
 sec "o Firefox da Mídia"
-for f in firefox firefox-developer-edition firefox-esr; do
-	command -v "$f" >/dev/null 2>&1 && printf '  %s: %s\n' "$f" "$($f --version 2>&1 | head -1)"
+for f in firefox firefox-developer-edition firefox-nightly firefox-esr; do
+	command -v "$f" >/dev/null 2>&1 && printf '  %s: %s\n' "$f" "$($f --version 2>/dev/null | head -1)"
 done
-echo "  LUMNA_FIREFOX=${LUMNA_FIREFOX:-(não definido: usa o firefox comum)}"
+if [ -n "${LUMNA_FIREFOX:-}" ]; then
+	echo "  o serviço vai usar: $LUMNA_FIREFOX (LUMNA_FIREFOX)"
+else
+	USA=firefox
+	for f in firefox-developer-edition firefox-nightly firefox-esr firefox; do
+		command -v "$f" >/dev/null 2>&1 && { USA=$f; break; }
+	done
+	echo "  o serviço vai usar: $USA (o primeiro que existir entre developer-edition, nightly, esr e o comum)"
+	[ "$USA" = firefox ] && echo "  >> só o firefox comum: ele não liga a extensão sem assinatura"
+fi
 for x in "${LUMNA_EXTENSAO:-}" /usr/share/lumna/midia/lumna-midia.xpi; do
 	[ -n "$x" ] && [ -e "$x" ] && echo "  extensão: $x"
 done

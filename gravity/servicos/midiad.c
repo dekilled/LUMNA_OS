@@ -30,6 +30,7 @@ static struct {
 	bool visivel;
 	guint prazo;
 } capa;
+static bool capa_concluindo; /* a página já carregou: a capa sai pelo caminho normal */
 
 static GPtrArray *assinantes; /* GOutputStream* */
 
@@ -143,9 +144,22 @@ static void estado_json(GString *s) {
 
 /* ---- a capa de loading ---- */
 
+/* um aviso no canto da tela (o servidor de avisos do desktop), sem depender de a Mídia ter janela */
+static void avisar_usuario(const char *titulo, const char *corpo) {
+	char *argv[] = { "notify-send", "-a", "LUMNA", "-u", "critical", (char *)titulo, (char *)corpo, NULL };
+	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+}
+
 static gboolean capa_esconder(gpointer dados) {
 	capa.prazo = 0;
 	capa.visivel = false;
+	if (!capa_concluindo && !fe.ligado) {
+		/* 25 s e o Firefox nem conectou à extensão: a pessoa não pode ficar sem saber por que o serviço não abriu */
+		fprintf(stderr, "lumna-midia: o Firefox não conectou à extensão em 25 s (%s)\n", fe.sem_extensao ? "extensão não encontrada" : "Firefox comum não liga extensão sem assinatura?");
+		avisar_usuario("O Firefox da Mídia não respondeu",
+			fe.sem_extensao ? "Não achei a extensão do LUMNA para o Firefox (extensao-firefox/)."
+					: "A extensão do LUMNA não conectou. O Firefox comum só liga extensões assinadas: instale o firefox-developer-edition.");
+	}
 	difundir();
 	return G_SOURCE_REMOVE;
 }
@@ -170,8 +184,6 @@ static gboolean capa_trazer_firefox(gpointer dados) {
 	}
 	return G_SOURCE_CONTINUE; /* a janela do Firefox ainda não apareceu */
 }
-
-static bool capa_concluindo;
 
 static void capa_mostrar(const char *servico) {
 	g_strlcpy(capa.servico, servico, sizeof(capa.servico));

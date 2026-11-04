@@ -18,8 +18,10 @@ extensão em `perfil/extensions/`. Ele a procura, nesta ordem, em `$LUMNA_EXTENS
 
 O Firefox comum (o do Arch, por exemplo) só liga extensões **assinadas pela Mozilla**. Duas saídas:
 
-1. **Developer Edition, ESR ou Nightly** aceitam a pasta sem assinar. No Arch: `firefox-developer-edition`, e
-   `LUMNA_FIREFOX=firefox-developer-edition lumna-midia servico`. Nada mais a fazer.
+1. **Developer Edition, ESR ou Nightly** aceitam a pasta sem assinar. No Arch: `firefox-developer-edition`. O serviço já o
+   escolhe sozinho: sem `LUMNA_FIREFOX`, usa o primeiro que existir entre `firefox-developer-edition`, `firefox-nightly`,
+   `firefox-esr` e, por último, o `firefox` comum (e avisa no terminal que o comum não liga a extensão). Para forçar um:
+   `LUMNA_FIREFOX=firefox-developer-edition lumna-midia servico`.
 2. **Assinar a extensão** (de graça, automático, sem publicar nada): crie uma conta em addons.mozilla.org, gere as chaves
    de API (Tools > Manage API Keys) e rode, na pasta `gravity`:
 

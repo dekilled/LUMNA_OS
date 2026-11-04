@@ -483,13 +483,41 @@ static void ao_sair(GPid p, gint status, gpointer dados) {
 	g_ptr_array_set_size(fila, 0);
 }
 
+/* o Firefox comum só liga extensões assinadas pela Mozilla, e a nossa ainda não é: o Developer Edition, o Nightly e o ESR ligam sem assinatura.
+ * $LUMNA_FIREFOX manda; sem ele, vale o primeiro destes que estiver instalado */
+static const char *qual_firefox(void) {
+	static const char *escolhido;
+	if (escolhido) {
+		return escolhido;
+	}
+	const char *env = g_getenv("LUMNA_FIREFOX");
+	if (env && *env) {
+		escolhido = env;
+	} else {
+		static const char *const ordem[] = { "firefox-developer-edition", "firefox-nightly", "firefox-esr", "firefox" };
+		escolhido = "firefox";
+		for (size_t i = 0; i < G_N_ELEMENTS(ordem); i++) {
+			char *caminho = g_find_program_in_path(ordem[i]);
+			if (caminho) {
+				g_free(caminho);
+				escolhido = ordem[i];
+				break;
+			}
+		}
+		if (!strcmp(escolhido, "firefox")) {
+			fprintf(stderr, "lumna-midia: só achei o firefox comum, que não liga a extensão sem assinatura (instale o firefox-developer-edition; veja extensao-firefox/LEIAME.md)\n");
+		}
+	}
+	fprintf(stderr, "lumna-midia: o Firefox da Mídia é o %s\n", escolhido);
+	return escolhido;
+}
+
 static bool lancar(void) {
 	if (pid) {
 		return true;
 	}
 	char *perfil = pasta_perfil();
-	const char *programa = g_getenv("LUMNA_FIREFOX");
-	char *argv[] = { (char *)(programa && *programa ? programa : "firefox"), "--kiosk", "--no-remote", "--profile", perfil, "--name", FF_APP_ID,
+	char *argv[] = { (char *)qual_firefox(), "--kiosk", "--no-remote", "--profile", perfil, "--name", FF_APP_ID,
 		"--class", FF_APP_ID, "about:blank", NULL };
 	GError *erro = NULL;
 	bool ok = g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,

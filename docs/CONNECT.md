@@ -19,7 +19,7 @@ Quem fala com o celular é o `lumna-controle` (serviço que não morre junto com
 - `wtype`: **o controle do celular** (direcional, OK, voltar, texto e o menu da Mídia) aperta teclas por ele. Sem o `wtype` o celular recebe um erro, e o resto do controle (volume, modo, Home, mídia) continua funcionando.
 - `wl-clipboard` (`wl-copy` e `wl-paste`): a área de transferência.
 - `libnotify` (`notify-send`): os avisos do celular no PC.
-- `firefox`: a Mídia. O Firefox comum só liga extensões assinadas; sem assinatura, use o Developer Edition (veja `gravity/extensao-firefox/LEIAME.md`).
+- `firefox-developer-edition`: a Mídia. O Firefox comum só liga extensões assinadas, e a nossa ainda não é; o serviço da Mídia já escolhe o Developer Edition sozinho quando ele está instalado (veja `gravity/extensao-firefox/LEIAME.md`). Se o Firefox não conectar em 25 s, a Mídia mostra um aviso e escreve o motivo no terminal.
 
 Se algo não funcionar, rode dentro do desktop: `sh scripts/diag-controle.sh`. Ele diz o que falta e o que o serviço da Mídia e o controle estão vendo.
 
