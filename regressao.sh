@@ -96,6 +96,16 @@ if [ -n "$PKGS" ]; then
 		printf '%s' "$saidas" | grep -q '"nome":"WL-2".*"x":0.*"monitor_fora":"HEADLESS-2"' || { echo "aninhado: a segunda saída devia estar no HEADLESS-2, em x=0" >&2; ok=0; }
 		grep -q "janela WL-1: tela cheia em HEADLESS-1" "$run/log-dentro" || { echo "aninhado: WL-1 devia pedir tela cheia no HEADLESS-1" >&2; ok=0; }
 		grep -q "janela WL-2: tela cheia em HEADLESS-2" "$run/log-dentro" || { echo "aninhado: WL-2 devia pedir tela cheia no HEADLESS-2" >&2; ok=0; }
+		# a disposição: espelhado põe as duas na mesma posição, "esquerda" apaga a da direita, e estender volta tudo
+		./orbit-msg -s "$sockdentro" disposicao espelhar | grep -q '"disposicao":"espelhar"' || { echo "disposicao espelhar falhou" >&2; ok=0; }
+		[ "$(./orbit-msg -s "$sockdentro" saidas | grep -o '"x":1280' | wc -l)" -eq 2 ] || { echo "espelhado: as duas saídas devem ficar em x=1280 (a da principal)" >&2; ok=0; }
+		./orbit-msg -s "$sockdentro" disposicao esquerda >/dev/null
+		./orbit-msg -s "$sockdentro" saidas | grep -q '"nome":"WL-1".*"ligada":false' || { echo "esquerda: a WL-1 (a da direita) devia ficar apagada" >&2; ok=0; }
+		./orbit-msg -s "$sockdentro" disposicao direita >/dev/null
+		./orbit-msg -s "$sockdentro" saidas | grep -q '"nome":"WL-2".*"ligada":false' || { echo "direita: a WL-2 (a da esquerda) devia ficar apagada" >&2; ok=0; }
+		./orbit-msg -s "$sockdentro" disposicao estender >/dev/null
+		./orbit-msg -s "$sockdentro" saidas | grep -q '"ligada":false' && { echo "estender: nenhuma saída devia ficar apagada" >&2; ok=0; }
+		./orbit-msg -s "$sockdentro" saidas | grep -q '"nome":"WL-2".*"x":0' || { echo "estender: a WL-2 devia voltar a x=0" >&2; ok=0; }
 	fi
 	kill "$dentro" "$fora" 2>/dev/null || true
 	wait "$dentro" "$fora" 2>/dev/null || true

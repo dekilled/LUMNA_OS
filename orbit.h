@@ -155,6 +155,9 @@ struct orbit_input_config {
 	} touchpad;
 };
 
+/* como os monitores se arranjam (disposicao.ini; orbit-msg disposicao): a ordem é a do arquivo */
+enum orbit_disposicao { ORBIT_DISP_ESTENDER, ORBIT_DISP_ESPELHAR, ORBIT_DISP_ESQUERDA, ORBIT_DISP_DIREITA, ORBIT_DISP_COUNT };
+
 #define ORBIT_MAX_SCREEN_CFG 16
 /* telas.ini: uma seção por saída ([DP-1]) */
 struct orbit_screen_config {
@@ -238,6 +241,7 @@ struct orbit_server {
 	struct orbit_input_config input;
 	struct orbit_screen_config screens[ORBIT_MAX_SCREEN_CFG];
 	int nscreens;
+	int disposicao;                /* enum orbit_disposicao */
 	struct wl_list off_outputs;    /* as saídas desligadas pelo Painel (telas.c): fora do layout e das contas */
 
 	enum orbit_cursor_mode cursor_mode;
@@ -321,6 +325,9 @@ struct orbit_output {
 	int mode;        /* acompanha o espaço (mode.c) */
 	bool warned_near;
 	bool warned_cap;
+	bool soft_off;                         /* aninhado: apagada (tela preta, sem janelas) em vez de desligada: uma janela de fora não se desliga */
+	struct wlr_scene_rect *blank;          /* o preto que cobre a saída apagada */
+	int nat_x, nat_y;                      /* onde a saída fica quando estendida (o espelhado e o "só um lado" mexem na posição) */
 	const struct orbit_monitor_fora *host; /* aninhado: o monitor de fora que esta janela cobre */
 	bool host_fs;                          /* esta janela está em tela cheia lá fora */
 };
@@ -476,6 +483,12 @@ bool orbit_lumna_dir(char *dest, size_t n);
 /* telas.c: telas.ini; aplica o modo, a escala, a rotação, a posição e liga ou desliga */
 void orbit_output_release(struct orbit_server *server, struct orbit_output *output, bool close_layers);
 void orbit_screens_config_load(struct orbit_server *server);
+void orbit_disposicao_config_load(struct orbit_server *server);
+void orbit_disposicao_apply(struct orbit_server *server);
+int orbit_disposicao_parse(const char *text);
+const char *orbit_disposicao_nome(int d);
+struct orbit_output *orbit_output_primary(struct orbit_server *server); /* a tela principal (a do monitor principal; sem isso, a mais à esquerda) */
+void orbit_soft_off_refresh(struct orbit_server *server);
 void orbit_screens_apply(struct orbit_server *server);
 void orbit_screen_apply_one(struct orbit_server *server, struct orbit_output *output);
 struct orbit_output *orbit_output_find_any(struct orbit_server *server, const char *name);

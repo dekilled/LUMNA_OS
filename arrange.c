@@ -367,6 +367,7 @@ static void enter_views(struct orbit_server *server, struct orbit_output *output
 
 void orbit_arrange(struct orbit_server *server) {
 	struct orbit_output *output;
+	orbit_soft_off_refresh(server);
 	wl_list_for_each(output, &server->outputs, link) {
 		struct wlr_box box;
 		wlr_output_layout_get_box(server->layout, output->wlr, &box);

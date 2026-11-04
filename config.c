@@ -358,6 +358,7 @@ void orbit_config_load(struct orbit_server *server) {
 	orbit_mode_config_load(server);
 	orbit_input_config_load(server);
 	orbit_screens_config_load(server);
+	orbit_disposicao_config_load(server);
 	orbit_binds_reset(server);
 	char path[512];
 	config_path(path, sizeof(path));
@@ -377,7 +378,7 @@ void orbit_config_load(struct orbit_server *server) {
 static int config_changed(int fd, uint32_t mask, void *data) {
 	struct orbit_server *server = data;
 	char buf[4096];
-	bool ours = false, input = false, screens = false;
+	bool ours = false, input = false, screens = false, disposicao = false;
 	ssize_t n;
 	while ((n = read(fd, buf, sizeof(buf))) > 0) {
 		for (char *p = buf; p < buf + n;) {
@@ -388,6 +389,8 @@ static int config_changed(int fd, uint32_t mask, void *data) {
 				input = true;
 			} else if (event->len && !strcmp(event->name, "telas.ini")) {
 				screens = true;
+			} else if (event->len && !strcmp(event->name, "disposicao.ini")) {
+				disposicao = true;
 			}
 			p += sizeof(*event) + event->len;
 		}
@@ -406,6 +409,11 @@ static int config_changed(int fd, uint32_t mask, void *data) {
 		wlr_log(WLR_INFO, "telas.ini mudou: monitores reaplicados");
 		orbit_screens_config_load(server);
 		orbit_screens_apply(server);
+	}
+	if (disposicao && !ours) {
+		orbit_disposicao_config_load(server);
+		wlr_log(WLR_INFO, "disposicao.ini mudou: monitores em modo %s", orbit_disposicao_nome(server->disposicao));
+		orbit_disposicao_apply(server);
 	}
 	if (ours) {
 		orbit_input_apply(server);

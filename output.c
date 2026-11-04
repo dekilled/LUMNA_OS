@@ -42,6 +42,13 @@ struct orbit_output *cursor_output(struct orbit_server *server) {
 	if (wl_list_empty(&server->outputs)) {
 		return NULL;
 	}
+	if (server->disposicao == ORBIT_DISP_ESPELHAR) {
+		/* espelhado: as saídas se sobrepõem, e as janelas novas vão para a principal */
+		struct orbit_output *principal = orbit_output_primary(server);
+		if (principal && !principal->off) {
+			return principal;
+		}
+	}
 	struct orbit_output *output = output_at(server, server->cursor->x, server->cursor->y);
 	if (output) {
 		return output;
@@ -97,7 +104,7 @@ static void pin_touch(struct orbit_server *server) {
 static void output_frame(struct wl_listener *listener, void *data) {
 	struct orbit_output *output = wl_container_of(listener, output, frame);
 	struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(output->server->scene, output->wlr);
-	if (!scene_output || output->off) {
+	if (!scene_output || (output->off && !output->soft_off)) {
 		return;
 	}
 	wlr_scene_output_commit(scene_output, NULL);
@@ -238,8 +245,11 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&output->request_state.link);
 	wl_list_remove(&output->destroy.link);
 	wlr_log(WLR_INFO, "saída %s desligada", output->wlr->name);
-	if (!output->off) {
+	if (!output->off || output->soft_off) {
 		wlr_output_layout_remove(server->layout, output->wlr);
+	}
+	if (output->blank) {
+		wlr_scene_node_destroy(&output->blank->node);
 	}
 	if (output->bg) {
 		wlr_scene_node_destroy(&output->bg->node);
@@ -296,6 +306,12 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 		l_output = wlr_output_layout_add_auto(server->layout, wlr);
 	}
 	output->off = false;
+	{
+		struct wlr_box natural;
+		wlr_output_layout_get_box(server->layout, wlr, &natural);
+		output->nat_x = natural.x;
+		output->nat_y = natural.y;
+	}
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 	/* aninhado: o Wayland de fora deixa os atalhos (o Super) para nós enquanto a janela do Orbit tem o foco */
@@ -323,6 +339,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 		}
 	}
 	orbit_screen_apply_one(server, output);
+	orbit_disposicao_apply(server);
 	orbit_outputs_publish(server);
 	wlr_log(WLR_INFO, "saída %s %dx%d scale %.2f%s", wlr->name, wlr->width, wlr->height, wlr->scale,
 		output_is_phone(wlr) ? " telemóvel" : "");

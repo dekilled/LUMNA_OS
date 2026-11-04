@@ -242,7 +242,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		struct wl_list *lista = pass ? &server->off_outputs : &server->outputs;
 		wl_list_for_each_reverse(output, lista, link) {
 			struct wlr_box box = { 0 };
-			if (!output->off) {
+			if (!output->off || output->soft_off) {
 				wlr_output_layout_get_box(server->layout, output->wlr, &box);
 			}
 			int hz = output->wlr->refresh > 0 ? (output->wlr->refresh + 500) / 1000 : 0;
@@ -296,7 +296,22 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			first = false;
 		}
 		}
-		put(b, "]}");
+		put(b, "],\"disposicao\":");
+		put_str(b, orbit_disposicao_nome(server->disposicao));
+		put(b, "}");
+	} else if (!strcmp(cmd, "disposicao")) {
+		if (arg1) {
+			int d = orbit_disposicao_parse(arg1);
+			if (d < 0) {
+				fail(b, "disposição desconhecida (estender, espelhar, esquerda, direita)");
+				return;
+			}
+			server->disposicao = d;
+			orbit_disposicao_apply(server);
+		}
+		put(b, "{\"ok\":true,\"disposicao\":");
+		put_str(b, orbit_disposicao_nome(server->disposicao));
+		put(b, "}");
 	} else if (!strcmp(cmd, "entrada")) {
 		/* o que há ligado e o que o Orbit aplicou (o Painel só mostra o que existe) */
 		put(b, "{\"ok\":true,\"layout\":");

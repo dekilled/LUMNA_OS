@@ -292,6 +292,16 @@ orbit-msg tela_cheia estado diz se o Orbit está aninhado e se a tela cheia est�
 LUMNA usa isso para mostrar, só nesse caso, um botão que sai da tela cheia e volta (útil para ir ao editor sem ir ao outro monitor).
 A regressão (regressao.sh) testa isto com dois monitores falsos (um Orbit headless faz o papel do compositor de fora).
 
+Disposição dos monitores
+  ~/.config/lumna/disposicao.ini (o Painel grava, o Orbit vigia): disposicao = estender | espelhar | esquerda | direita
+  estender (padrão)  cada saída na sua posição, com os seus espaços de trabalho
+  espelhar           todas na posição da principal: mostram o mesmo pedaço, e as janelas ficam na principal
+  esquerda/direita   só a saída mais à esquerda (ou à direita) fica ligada; as janelas das outras passam para ela
+  orbit-msg disposicao [nome]  muda (sem nome, só diz a de agora; não grava o arquivo). orbit-msg saidas traz "disposicao".
+  O "ligada=0" do telas.ini vale por cima, e nunca sobra zero saídas ligadas. No Orbit aninhado uma janela de fora não se
+  desliga: a saída fica preta e sem janelas ("apagada"), e volta a acender quando a disposição muda. A saída "principal" é a
+  do monitor de tela_principal (aninhado) ou a mais à esquerda.
+
 Tela cheia (a janela do Orbit no compositor de fora): [geral] tela_cheia = sim no orbit.ini abre já em tela cheia; também
 ORBIT_TELA_CHEIA=1 no ambiente (testar-desktop.sh --tela-cheia). Com ele rodando: orbit-msg tela_cheia sim|nao|alternar, a
 ação tela_cheia (atalhos.ini) e Super+F11. O wlroots não entrega o xdg_toplevel da janela, então o Orbit o acha ao lado da
