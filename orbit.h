@@ -107,6 +107,7 @@ enum orbit_action {
 	ORBIT_TAG_PREV, /* Ctrl+Alt+setas: o espaço do lado (só no Desktop) */
 	ORBIT_TAG_NEXT,
 	ORBIT_SCREENSHOT,
+	ORBIT_SCREENSHOT_FULL, /* a tela inteira, direto para a prévia (Shift+Print) */
 	ORBIT_VOLUME_UP,
 	ORBIT_VOLUME_DOWN,
 	ORBIT_BRIGHTNESS_UP,
@@ -255,6 +256,7 @@ struct orbit_server {
 	float background[4];
 	char terminal[ORBIT_CMD_LEN];
 	char screenshot[ORBIT_CMD_LEN];
+	char screenshot_full[ORBIT_CMD_LEN];
 	char volume_up[ORBIT_CMD_LEN];
 	char volume_down[ORBIT_CMD_LEN];
 	char brightness_up[ORBIT_CMD_LEN];

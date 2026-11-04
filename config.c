@@ -160,6 +160,8 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		copy_cmd(server->terminal, value);
 	} else if (strcasecmp(key, "captura") == 0 || strcasecmp(key, "screenshot") == 0) {
 		copy_cmd(server->screenshot, value);
+	} else if (strcasecmp(key, "captura_tela") == 0) {
+		copy_cmd(server->screenshot_full, value);
 	} else if (strcasecmp(key, "volume_subir") == 0 || strcasecmp(key, "volume_up") == 0) {
 		copy_cmd(server->volume_up, value);
 	} else if (strcasecmp(key, "volume_descer") == 0 || strcasecmp(key, "volume_down") == 0) {
@@ -325,7 +327,8 @@ void orbit_config_load(struct orbit_server *server) {
 	server->border_color[3] = 1.0f;
 	server->anim_ms = ORBIT_ANIM_DEFAULT;
 	copy_cmd(server->terminal, "foot");
-	copy_cmd(server->screenshot, "grim");
+	copy_cmd(server->screenshot, "lumna-captura");
+	copy_cmd(server->screenshot_full, "lumna-captura --tela");
 	copy_cmd(server->volume_up, "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+");
 	copy_cmd(server->volume_down, "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-");
 	copy_cmd(server->brightness_up, "brightnessctl set 5%+");
