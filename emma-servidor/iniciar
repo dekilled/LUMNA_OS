@@ -28,6 +28,13 @@ if [ ! -e "$venv/.voz" ]; then
   touch "$venv/.voz"
 fi
 
+# o cliente MCP (servidores de ferramentas de fora): o SDK 1.x, que pede o pydantic abaixo da 2.12; opcional, uma tentativa só
+if [ ! -e "$venv/.mcp" ]; then
+  "$venv/bin/pip" install --quiet --disable-pip-version-check "mcp>=1.12,<2" "pydantic>=2.6.4,<2.12" >/dev/null 2>&1 \
+    || echo "emma-servidor: não deu para instalar o mcp (os servidores MCP ficam desligados)" >&2
+  touch "$venv/.mcp"
+fi
+
 if [ ! -s "$env" ]; then
   rand() { "$py" -c "import secrets; print(secrets.token_$1)"; }
   umask 077

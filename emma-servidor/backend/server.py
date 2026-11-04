@@ -29,6 +29,7 @@ from commands import migrate as migrate_commands, migrate_origin, router as comm
 import yeelight  # noqa: E402
 import app_update  # noqa: E402
 import wake  # noqa: E402
+import mcp_client  # noqa: E402
 import modes  # noqa: E402
 import nsfw_profile  # noqa: E402
 import local_voice  # noqa: E402
@@ -62,6 +63,7 @@ app.include_router(commands_router)
 app.include_router(yeelight.router)
 app.include_router(app_update.router)
 app.include_router(wake.router)
+app.include_router(mcp_client.router)
 app.include_router(modes.router)
 app.include_router(nsfw_profile.router)
 app.include_router(local_voice.router)
@@ -128,6 +130,7 @@ async def startup():
     await migrate_origin()  # as conversas longas da popup de antes do campo origin voltam para a área Assistente
     app_update.on_start()
     await wake.on_start()
+    await mcp_client.on_start()
     app.state.light_scheduler = asyncio.create_task(yeelight.run_scheduler())
     await encrypt_secrets_at_rest()
     own_tree(ROOT)
@@ -141,5 +144,6 @@ async def startup():
 async def shutdown_db_client():
     from processes import stop_all
     wake.stop()
+    await mcp_client.stop()
     await stop_all()
     db.close()
