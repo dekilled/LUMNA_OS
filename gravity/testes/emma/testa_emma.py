@@ -187,6 +187,13 @@ try:
         ass.close()
         return res, confirmar
 
+    # uma ferramenta DO SERVIDOR (um servidor MCP) pede licença: o cartão aparece aqui e a decisão volta ao servidor, que é quem roda
+    r, conf = conversa_aprovando("usa mcp agora", "sim")
+    confere(conf is not None and "Falso: ler" in conf.get("nome", "") and '"q"' in conf.get("detalhe", ""), f"o cartão da ferramenta do servidor não apareceu com os argumentos: {conf}")
+    confere("Usei o MCP" in r.get("resposta", ""), f"aprovar devia deixar o servidor usar a ferramenta: {r}")
+    r, conf = conversa_aprovando("usa mcp de novo", "nao")
+    confere(conf is not None and "não usei" in r.get("resposta", "").lower(), f"negar devia chegar ao servidor: {r}")
+
     # escrever na pasta dela: direto, sem pedir
     r, conf = conversa_aprovando("escreve historia do dragao", None)
     historia = os.path.join(home, "Emma", "Histórias", "conto.md")

@@ -34,6 +34,8 @@ void pn_emma_imp_desenhar(void);
 void pn_emma_imp_abrir(void);
 void pn_emma_ativ_desenhar(void);
 void pn_emma_ativ_abrir(void);
+void pn_emma_mcp_desenhar(void);
+void pn_emma_mcp_abrir(void);
 void pn_emma_prov_abrir(void);
 void pn_emma_rota_desenhar(void);
 bool pn_emma_rota_pendente(void);
@@ -147,6 +149,8 @@ static const pn_secao emma[] = {
 		pn_emma_rota_aplicar, pn_emma_rota_descartar, NULL, pn_emma_prov_abrir },
 	{ "personalidade", "sparkle", "Personalidade", "Quem a Emma é e as regras dela.", pn_emma_pers_desenhar, NULL, pn_emma_pers_pendente, pn_emma_pers_aplicar,
 		pn_emma_pers_descartar, NULL, pn_emma_pers_abrir },
+	{ "mcp", "zap", "Servidores MCP", "Ferramentas de fora que a Emma pode usar (arquivos, web, GitHub...).", pn_emma_mcp_desenhar, NULL, NULL, NULL, NULL, NULL,
+		pn_emma_mcp_abrir },
 	{ "importar", "download", "Importar do harness", "Traz conversas, memórias e a personalidade de um backup do harness.", pn_emma_imp_desenhar, NULL, NULL, NULL, NULL, NULL,
 		pn_emma_imp_abrir },
 	{ "privacidade", "shield", "Privacidade", "O que a Emma guarda.", NULL, "O histórico;Apagar as conversas" },

@@ -224,3 +224,16 @@ O servidor da Emma ouve o microfone no computador, offline (Vosk, só a frase "O
 O serviço `lumna-emma` espera o aviso dele (`GET /api/wake/wait`); ao ouvir o nome, abre a popup (`lumna-emma-chat`) e liga o microfone. Se ela estava
 falando, é calada. Liga-se e desliga-se em Painel > Emma > Oi Emma, onde também se baixa o modelo de voz (~50 MB, uma vez). Precisa do `vosk` e do
 `sounddevice` no Python do servidor (o `emma-servidor/iniciar` tenta instalar uma vez) e da biblioteca de áudio do sistema (libportaudio2 / portaudio).
+
+## Servidores MCP (ferramentas de fora)
+
+O servidor da Emma é um cliente MCP (`emma-servidor/backend/mcp_client.py`): cada servidor configurado (um comando local por stdin/stdout, ou um endereço
+http) é conectado numa tarefa própria, e as ferramentas dele entram como `mcp_<servidor>__<ferramenta>`. Painel > Emma > Servidores MCP adiciona, reinicia
+e remove; há atalhos para Arquivos (`@modelcontextprotocol/server-filesystem`), Web (`mcp-server-fetch`) e GitHub (`@modelcontextprotocol/server-github`, com o
+token em variável de ambiente que fica só no servidor).
+
+Segurança: toda ferramenta nasce em **Perguntar** (o cartão mostra a ferramenta, os argumentos e o motivo; a decisão volta ao servidor, que é quem roda);
+**Automático** roda direto; **Desligada** a tira do prompt do modelo. O que elas devolvem é conteúdo de fora (vai marcado como dado, e as ações seguintes
+pedem aprovação). A descrição que o servidor MCP escreve sobre as ferramentas é de terceiros e vai cortada. Um servidor stdio roda um programa com os seus
+poderes: só se adiciona pelo Painel. Precisa do pacote `mcp` 1.x (o `emma-servidor/iniciar` tenta instalar uma vez, com o pydantic abaixo da 2.12), e de
+Node.js (npx) ou uv (uvx) conforme o servidor.

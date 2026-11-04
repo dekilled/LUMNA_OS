@@ -154,6 +154,9 @@ struct pedido_acao {
 	bool contaminada; /* o servidor avisou: conteúdo de fora na conversa */
 	bool aprovado; /* a pessoa deixou esta chamada (a política de arquivos e comandos só passa o que pedia aprovação assim) */
 	char id[24];
+	/* a licença de uma ferramenta DO SERVIDOR (um servidor MCP, a web): aqui só se mostra o cartão e se devolve a decisão ao servidor, que é quem roda */
+	bool so_confirmar;
+	char sid_srv[80], call_id[40], rotulo[160], motivo[300];
 };
 
 static GHashTable *licencas; /* id -> struct pedido_acao */
@@ -230,6 +233,51 @@ static gboolean acao_expirar(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
+/* o servidor pediu licença para uma ferramenta dele: o cartão (o quê, com que argumentos e por quê) e, se a pessoa não responde, a licença expira */
+static void confirmar_no_servidor(struct pedido_acao *p, bool sim);
+
+static gboolean confirmacao_expirar(gpointer d) {
+	char *id = d;
+	struct pedido_acao *p = g_hash_table_lookup(licencas, id);
+	if (p && p->so_confirmar) {
+		g_hash_table_steal(licencas, id);
+		confirmar_no_servidor(p, false);
+	}
+	g_free(id);
+	return G_SOURCE_REMOVE;
+}
+
+static gboolean confirmacao_na_principal(gpointer d) {
+	struct pedido_acao *p = d;
+	g_snprintf(p->id, sizeof(p->id), "c%d", ++proximo_id);
+	p->esperando_licenca = true;
+	g_hash_table_insert(licencas, g_strdup(p->id), p);
+	GString *det = g_string_new(NULL);
+	if (p->motivo[0]) {
+		g_string_append_printf(det, "Por que pergunta: %s\n\n", p->motivo);
+	}
+	g_string_append(det, "Argumentos:\n");
+	GString *a = g_string_new(NULL);
+	if (p->args) {
+		json_escrever(a, p->args);
+	}
+	g_string_append_len(det, a->str, a->len > 3000 ? 3000 : (gssize)a->len);
+	g_string_free(a, TRUE);
+	char *desc_t = g_strdup_printf("Usar a ferramenta “%s”", p->rotulo[0] ? p->rotulo : p->nome);
+	char *id = js(p->id), *rot = js(p->rotulo[0] ? p->rotulo : p->nome), *desc = js(desc_t), *dt = js(det->str);
+	char *k = g_strdup_printf("\"id\":%s,\"nome\":%s,\"descricao\":%s,\"detalhe\":%s", id, rot, desc, dt);
+	emitir_form("confirmar", k);
+	g_free(k);
+	g_free(id);
+	g_free(rot);
+	g_free(desc);
+	g_free(dt);
+	g_free(desc_t);
+	g_string_free(det, TRUE);
+	g_timeout_add_seconds(305, confirmacao_expirar, g_strdup(p->id)); /* o servidor desiste aos 300 s */
+	return G_SOURCE_REMOVE;
+}
+
 static gboolean acao_na_principal(gpointer d) {
 	struct pedido_acao *p = d;
 	const struct emmaa_def *def = emmaa_achar_ferramenta(p->nome);
@@ -274,6 +322,20 @@ static gboolean acao_na_principal(gpointer d) {
 	return G_SOURCE_REMOVE;
 }
 
+/* devolve ao servidor a decisão de uma ferramenta dele (numa linha à parte: é uma chamada de rede) */
+static gpointer confirmar_linha(gpointer d) {
+	struct pedido_acao *p = d;
+	emmab_decidir(p->sid_srv, p->call_id, p->aprovado);
+	json_liberar(p->args);
+	g_free(p);
+	return NULL;
+}
+
+static void confirmar_no_servidor(struct pedido_acao *p, bool sim) {
+	p->aprovado = sim;
+	g_thread_unref(g_thread_new("emma-confirma", confirmar_linha, p));
+}
+
 static void decidir(const char *id, bool sim) {
 	struct pedido_acao *p = g_hash_table_lookup(licencas, id);
 	if (!p) {
@@ -281,6 +343,10 @@ static void decidir(const char *id, bool sim) {
 	}
 	g_hash_table_steal(licencas, id);
 	p->esperando_licenca = false;
+	if (p->so_confirmar) {
+		confirmar_no_servidor(p, sim);
+		return;
+	}
 	const struct emmaa_def *def = emmaa_achar_ferramenta(p->nome);
 	if (sim && def) {
 		p->aprovado = true;
@@ -375,8 +441,6 @@ static gboolean evento_na_principal(gpointer d) {
 		emitir_form("delta", k);
 		g_free(k);
 		g_free(t);
-	} else if (!strcmp(e->tipo, "tool_confirm")) {
-		/* as ferramentas do próprio backend (internet...) pedem licença: nesta primeira versão ficam negadas na topbar */
 	} else if (!strcmp(e->tipo, "error")) {
 		erro_para_todos(e->conteudo);
 	}
@@ -403,9 +467,26 @@ static void ouvinte_evento(const struct json *ev, void *dados) {
 	} else if (!strcmp(tipo, "tool_confirm")) {
 		/* as ferramentas do próprio backend (internet, arquivos dele) pedem licença: sem tela para perguntar
 		 * ainda, ficam negadas (senão a conversa espera para sempre) */
-		char sid[80], *erro = NULL;
-		if (emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro)) {
-			emmab_decidir(sid, json_chave_texto(json_chave(ev, "tool"), "id"), false);
+		char sid[80] = "", *erro = NULL;
+		if (c->sid && *c->sid) {
+			g_strlcpy(sid, c->sid, sizeof(sid)); /* a conversa do app tem a sessão dela */
+		}
+		const struct json *tool = json_chave(ev, "tool");
+		if (*sid || emmab_sessao(EMMAB_ASSIST, sid, sizeof(sid), &erro)) {
+			struct pedido_acao *p = g_new0(struct pedido_acao, 1);
+			p->so_confirmar = true;
+			g_strlcpy(p->sid_srv, sid, sizeof(p->sid_srv));
+			g_strlcpy(p->call_id, json_chave_texto(tool, "id"), sizeof(p->call_id));
+			g_strlcpy(p->nome, json_chave_texto(tool, "name"), sizeof(p->nome));
+			g_strlcpy(p->rotulo, json_chave_texto(ev, "label"), sizeof(p->rotulo));
+			g_strlcpy(p->motivo, json_chave_texto(ev, "reason"), sizeof(p->motivo));
+			GString *g = g_string_new(NULL);
+			if (json_chave(tool, "args")) {
+				json_escrever(g, json_chave(tool, "args"));
+			}
+			p->args = json_ler(g->len ? g->str : "{}");
+			g_string_free(g, TRUE);
+			g_main_context_invoke(NULL, confirmacao_na_principal, p);
 		}
 		g_free(erro);
 	}

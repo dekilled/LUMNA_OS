@@ -35,6 +35,7 @@ def prov_publico(p):
 
 PERFIL = {"nsfw": False}
 ANEXOS = {}
+DECISOES = {}
 WAKE = {"count": 0}
 
 
@@ -204,6 +205,7 @@ class H(BaseHTTPRequestHandler):
             resultados[c.get("call_id")] = c
             return self.json({})
         if self.path.endswith("/tool-decision"):
+            DECISOES[c.get("call_id")] = bool(c.get("allow"))
             return self.json({})
         if self.path.endswith("/chat"):
             return self.chat(c)
@@ -243,7 +245,17 @@ class H(BaseHTTPRequestHandler):
                           "Encontrei essa opção nas configurações. Qual layout você quer usar?\n[acao: Adicionar layout]\n[sugestao: Português (Brasil)]\n[sugestao: Inglês (EUA)]")
         elif "volume" in texto:
             ferramenta = ("lumna_audio_volume", {"percentual": 35}, "Volume em 35 por cento.")
-        if ferramenta:
+        if "usa mcp" in texto:  # uma ferramenta DO SERVIDOR (como as de um servidor MCP) pede licença: o servidor espera a decisão
+            self.sse({"type": "tool_confirm", "tool": {"id": "call-mcp", "name": "mcp_falso__ler", "args": {"q": "abc"}}, "label": "Falso: ler",
+                      "reason": "esta ferramenta pede confirmação"})
+            for _ in range(160):
+                if "call-mcp" in DECISOES:
+                    break
+                time.sleep(0.05)
+            ok = DECISOES.pop("call-mcp", False)
+            partes = ["Usei o MCP." if ok else "Não usei o MCP (você não deixou)."]
+            ferramenta = None
+        elif ferramenta:
             nome, args, final = ferramenta
             self.sse({"type": "tool_client", "tool": {"id": "call-1", "name": nome, "args": args}})
             for _ in range(100):
