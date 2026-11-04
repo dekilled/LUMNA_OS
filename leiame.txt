@@ -75,7 +75,11 @@ Configuração
   animacao é o deslize em milissegundos, 0 desliga, até 400. O tamanho
   da janela muda logo; só a posição desliza.
   [atalho] troca uma acção. Alt+Shift+q, Super+Return, Ctrl+Alt+Left.
-  "-" desliga. captura, volume_subir, volume_descer, brilho_subir
+  "-" desliga. Print abre o lumna-captura (escolher a captura: área, tela
+  ou janela), Shift+Print captura a tela inteira (captura_tela) e Ctrl+Print
+  escolhe e grava (gravar); durante a gravação, Print para. O motor é o grim
+  (fotos) e o wf-recorder (vídeo), pelo screencopy.
+  captura, captura_tela, gravar, volume_subir, volume_descer, brilho_subir
   e brilho_descer correm o comando de [geral] e não têm tecla
   até o ficheiro lhes dar uma. "Super" sozinho é carregar e soltar o
   Super sem mais nada (o lançador). Um atalhos.ini ao lado do orbit.ini

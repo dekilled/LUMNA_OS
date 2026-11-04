@@ -212,6 +212,9 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_SCREENSHOT_FULL:
 		spawn(server->screenshot_full);
 		break;
+	case ORBIT_RECORD:
+		spawn(server->record);
+		break;
 	case ORBIT_VOLUME_UP:
 		spawn(server->volume_up);
 		break;
@@ -382,6 +385,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_a, ORBIT_EMMA, 0);
 	bind_put(server, 0, XKB_KEY_Print, ORBIT_SCREENSHOT, 0);                       /* Print: escolher a captura */
 	bind_put(server, WLR_MODIFIER_SHIFT, XKB_KEY_Print, ORBIT_SCREENSHOT_FULL, 0); /* Shift+Print: a tela inteira */
+	bind_put(server, WLR_MODIFIER_CTRL, XKB_KEY_Print, ORBIT_RECORD, 0);           /* Ctrl+Print: gravar (Print de novo para) */
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_F11, ORBIT_HOST_FULLSCREEN, 0); /* aninhado: a janela do Orbit em tela cheia */
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_a, ORBIT_EMMA_MIC, 0);
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_o, ORBIT_SWAP_OUTPUTS, 0);
@@ -426,6 +430,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "mover_3", ORBIT_MOVE_TAG, 2 },
 	{ "captura", ORBIT_SCREENSHOT, 0 },
 	{ "captura_tela", ORBIT_SCREENSHOT_FULL, 0 },
+	{ "gravar", ORBIT_RECORD, 0 },
 	{ "volume_subir", ORBIT_VOLUME_UP, 0 },
 	{ "volume_descer", ORBIT_VOLUME_DOWN, 0 },
 	{ "brilho_subir", ORBIT_BRIGHTNESS_UP, 0 },
