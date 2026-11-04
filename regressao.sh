@@ -63,6 +63,49 @@ if [ -n "$PKGS" ]; then
 	fi
 	rm -rf "$run"
 	echo "arranque headless e orbit-msg ok"
+	# aninhado em dois monitores: o Orbit de dentro abre uma janela por monitor do de fora, a principal no monitor pedido, cada uma no seu lugar
+	run=$(mktemp -d)
+	chmod 700 "$run"
+	mkdir -p "$run/cfg/orbit"
+	printf '[geral]\ninibir_atalhos = nao\ntela_cheia = sim\ntela_principal = HEADLESS-1\n' >"$run/cfg/orbit/orbit.ini"
+	XDG_RUNTIME_DIR=$run WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=2 WLR_RENDERER=pixman ./orbit >"$run/log-fora" 2>&1 &
+	fora=$!
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		sockfora=$(ls "$run"/orbit.*.sock 2>/dev/null | head -n1)
+		[ -n "$sockfora" ] && break
+		sleep 0.3
+	done
+	hostwl=$(basename "$sockfora" .sock | sed 's/^orbit\.//')
+	XDG_RUNTIME_DIR=$run WAYLAND_DISPLAY=$hostwl XDG_CONFIG_HOME="$run/cfg" WLR_RENDERER=pixman ./orbit >"$run/log-dentro" 2>&1 &
+	dentro=$!
+	sockdentro=
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		sockdentro=$(ls "$run"/orbit.*.sock 2>/dev/null | grep -v "$sockfora" | head -n1)
+		[ -n "$sockdentro" ] && break
+		sleep 0.3
+	done
+	ok=1
+	if [ -z "$sockdentro" ]; then
+		echo "o Orbit aninhado não abriu o socket" >&2
+		ok=0
+	else
+		sleep 1
+		saidas=$(./orbit-msg -s "$sockdentro" saidas)
+		[ "$(printf '%s' "$saidas" | grep -o '"nome":"WL-' | wc -l)" -eq 2 ] || { echo "aninhado: devia ter uma janela por monitor de fora (2)" >&2; ok=0; }
+		printf '%s' "$saidas" | grep -q '"nome":"WL-1".*"x":1280.*"monitor_fora":"HEADLESS-1"' || { echo "aninhado: a saída principal devia estar no HEADLESS-1, em x=1280" >&2; ok=0; }
+		printf '%s' "$saidas" | grep -q '"nome":"WL-2".*"x":0.*"monitor_fora":"HEADLESS-2"' || { echo "aninhado: a segunda saída devia estar no HEADLESS-2, em x=0" >&2; ok=0; }
+		grep -q "janela WL-1: tela cheia em HEADLESS-1" "$run/log-dentro" || { echo "aninhado: WL-1 devia pedir tela cheia no HEADLESS-1" >&2; ok=0; }
+		grep -q "janela WL-2: tela cheia em HEADLESS-2" "$run/log-dentro" || { echo "aninhado: WL-2 devia pedir tela cheia no HEADLESS-2" >&2; ok=0; }
+	fi
+	kill "$dentro" "$fora" 2>/dev/null || true
+	wait "$dentro" "$fora" 2>/dev/null || true
+	if [ "$ok" -ne 1 ]; then
+		cat "$run/log-dentro" >&2
+		rm -rf "$run"
+		exit 1
+	fi
+	rm -rf "$run"
+	echo "aninhado em dois monitores ok"
 else
 	echo "sem wlroots neste ambiente; invariantes do código ok"
 fi

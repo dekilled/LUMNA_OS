@@ -12,6 +12,24 @@
 
 struct wl_display;
 struct wl_surface;
+struct wl_output;
+
+/* um monitor do compositor de fora (o KDE, o GNOME...): o que ele diz de si mesmo */
+#define ORBIT_MONITORES_FORA 8
+struct orbit_monitor_fora {
+	char nome[40];       /* DP-1, HDMI-A-1 */
+	char descricao[128]; /* "Samsung Electric Company Odyssey G5 (DP-1)" */
+	char fabricante[64];
+	char modelo[64];
+	int x, y, w, h;      /* posição no espaço do compositor de fora; tamanho do modo atual (pixels) */
+	int escala;
+	struct wl_output *saida; /* para pedir a tela cheia neste monitor */
+};
+
+/* quantos monitores o compositor de fora tem (liga-se sozinho, antes de o Orbit criar o backend); 0 se não der para saber */
+int orbit_nested_contar_monitores(void);
+/* os monitores dele (até max), já com nome, tamanho e posição */
+int orbit_nested_monitores(struct wl_display *remote, struct orbit_monitor_fora *v, int max);
 
 /* o display e a superfície da janela da saída, no compositor de fora; false se ele não sabe o protocolo */
 bool orbit_nested_inhibit(struct wl_display *remote, struct wl_surface *surface);
@@ -40,7 +58,8 @@ void orbit_nested_clip_limpar(void);
  * A janela do Orbit em tela cheia no compositor de fora. O wlroots cria o xdg_toplevel por dentro e não o entrega; pelo ponteiro da
  * saída (o início da estrutura dele) acha-se o xdg_toplevel ao lado da superfície e pede-se a tela cheia. O formato da estrutura
  * é do wlroots: se não achar, devolve false (e a janela fica como está). tam é sizeof(struct wlr_output) de quem chama.
+ * alvo: o monitor do compositor de fora onde ficar (NULL: o que ele escolher). Cada saída guarda o seu xdg_toplevel.
  */
-bool orbit_nested_tela_cheia(const void *saida_wlr, unsigned long tam, struct wl_surface *surface, bool ligar);
+bool orbit_nested_tela_cheia(const void *saida_wlr, unsigned long tam, struct wl_surface *surface, bool ligar, struct wl_output *alvo);
 
 #endif

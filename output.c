@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_scene.h>
@@ -110,6 +111,61 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	const struct wlr_output_event_request_state *event = data;
 	wlr_output_commit_state(output->wlr, event->state);
 	orbit_arrange(output->server);
+}
+
+/* aninhado: acha o monitor de fora que esta janela vai cobrir. A primeira janela fica com o monitor principal
+ * ([geral] tela_principal; sem isso, o primeiro que o compositor de fora lista), as outras com os restantes, da esquerda para a direita */
+static bool contem(const char *palha, const char *agulha) {
+	size_t n = strlen(agulha);
+	for (; *palha; palha++) {
+		if (strncasecmp(palha, agulha, n) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static int comparar_monitores(const void *a, const void *b) {
+	const struct orbit_monitor_fora *x = a, *y = b;
+	return x->x != y->x ? x->x - y->x : x->y - y->y;
+}
+
+static void host_monitors_load(struct orbit_server *server, struct wlr_output *wlr) {
+	if (server->host_mon_lidos) {
+		return;
+	}
+	server->host_mon_lidos = true;
+	server->host_mon_n = orbit_nested_monitores(wlr_wl_backend_get_remote_display(wlr->backend), server->host_mon, ORBIT_MONITORES_FORA);
+	if (server->host_mon_n < 1) {
+		return;
+	}
+	/* da esquerda para a direita; depois o principal sobe para a frente */
+	qsort(server->host_mon, server->host_mon_n, sizeof(server->host_mon[0]), comparar_monitores);
+	int principal = 0;
+	if (server->host_principal[0]) {
+		principal = -1;
+		for (int i = 0; i < server->host_mon_n && principal < 0; i++) {
+			const struct orbit_monitor_fora *m = &server->host_mon[i];
+			if (contem(m->nome, server->host_principal) || contem(m->descricao, server->host_principal) ||
+			    contem(m->fabricante, server->host_principal) || contem(m->modelo, server->host_principal)) {
+				principal = i;
+			}
+		}
+		if (principal < 0) {
+			wlr_log(WLR_INFO, "tela_principal = \"%s\": nenhum monitor de fora tem esse nome, vale o primeiro", server->host_principal);
+			principal = 0;
+		}
+	}
+	if (principal > 0) {
+		struct orbit_monitor_fora p = server->host_mon[principal];
+		memmove(&server->host_mon[1], &server->host_mon[0], principal * sizeof(server->host_mon[0]));
+		server->host_mon[0] = p;
+	}
+	for (int i = 0; i < server->host_mon_n; i++) {
+		const struct orbit_monitor_fora *m = &server->host_mon[i];
+		wlr_log(WLR_INFO, "monitor de fora %d%s: %s \"%s %s\" %dx%d em %d,%d", i + 1, i == 0 ? " (principal)" : "", m->nome, m->fabricante, m->modelo,
+			m->w, m->h, m->x, m->y);
+	}
 }
 
 static bool configure_output(struct orbit_output *output) {
@@ -221,7 +277,24 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	if (!output->bg) {
 		wlr_log(WLR_ERROR, "saída %s: fundo da cena falhou", wlr->name);
 	}
-	struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->layout, wlr);
+	struct wlr_output_layout_output *l_output = NULL;
+	if (wlr_output_is_wl(wlr)) {
+		host_monitors_load(server, wlr);
+		int k = server->host_usadas++;
+		output->host = k < server->host_mon_n ? &server->host_mon[k] : NULL;
+		if (output->host) {
+			/* as saídas ficam na mesma disposição dos monitores de fora (esquerda é esquerda) */
+			int minx = server->host_mon[0].x, miny = server->host_mon[0].y;
+			for (int i = 1; i < server->host_mon_n; i++) {
+				minx = server->host_mon[i].x < minx ? server->host_mon[i].x : minx;
+				miny = server->host_mon[i].y < miny ? server->host_mon[i].y : miny;
+			}
+			l_output = wlr_output_layout_add(server->layout, wlr, output->host->x - minx, output->host->y - miny);
+		}
+	}
+	if (!l_output) {
+		l_output = wlr_output_layout_add_auto(server->layout, wlr);
+	}
 	output->off = false;
 	struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
@@ -235,9 +308,11 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	}
 	if (wlr_output_is_wl(wlr)) {
 		orbit_clip_ponte_iniciar(server, wlr_wl_backend_get_remote_display(wlr->backend));
-		server->nested_output = wlr;
+		if (!server->nested_output) {
+			server->nested_output = wlr; /* a primeira janela */
+		}
 		if (server->host_fullscreen_cfg) {
-			orbit_host_fullscreen(server, 1);
+			orbit_host_fullscreen_one(server, output, true);
 		}
 	}
 	if (server->inhibit_host_shortcuts && wlr_output_is_wl(wlr)) {
@@ -260,17 +335,54 @@ void orbit_outputs_bind(struct orbit_server *server) {
 	wl_signal_add(&server->backend->events.new_output, &server->new_output);
 }
 
-bool orbit_host_fullscreen(struct orbit_server *server, int modo) {
-	struct wlr_output *wlr = server->nested_output;
-	if (!wlr || !wlr_output_is_wl(wlr)) {
+/* a janela desta saída em tela cheia, no monitor de fora que ela cobre (sem monitor conhecido, no que o compositor de fora escolher) */
+bool orbit_host_fullscreen_one(struct orbit_server *server, struct orbit_output *output, bool ligar) {
+	struct wlr_output *wlr = output->wlr;
+	if (!wlr_output_is_wl(wlr)) {
 		return false;
 	}
+	if (!orbit_nested_tela_cheia(wlr, sizeof(struct wlr_output), wlr_wl_output_get_surface(wlr), ligar, output->host ? output->host->saida : NULL)) {
+		wlr_log(WLR_ERROR, "saída %s: não consegui pedir a tela cheia ao compositor de fora (a janela fica como está)", wlr->name);
+		return false;
+	}
+	output->host_fs = ligar;
+	server->host_fullscreen = ligar;
+	wlr_log(WLR_INFO, "janela %s: %s%s%s", wlr->name, ligar ? "tela cheia" : "tela cheia desligada", output->host && ligar ? " em " : "",
+		output->host && ligar ? output->host->nome : "");
+	return true;
+}
+
+bool orbit_host_fullscreen(struct orbit_server *server, int modo) {
 	bool ligar = modo == 2 ? !server->host_fullscreen : modo != 0;
-	if (!orbit_nested_tela_cheia(wlr, sizeof(struct wlr_output), wlr_wl_output_get_surface(wlr), ligar)) {
-		wlr_log(WLR_ERROR, "não consegui pedir a tela cheia ao compositor de fora (a janela fica como está)");
+	bool algum = false;
+	struct orbit_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		algum |= orbit_host_fullscreen_one(server, output, ligar);
+	}
+	if (!algum) {
 		return false;
 	}
 	server->host_fullscreen = ligar;
-	wlr_log(WLR_INFO, "janela do Orbit: %s", ligar ? "tela cheia" : "tela cheia desligada");
 	return true;
+}
+
+/* antes do backend: um Orbit aninhado abre uma janela por monitor do compositor de fora (WLR_WL_OUTPUTS), a não ser que já esteja decidido */
+void orbit_host_prepare(struct orbit_server *server) {
+	if (getenv("WLR_WL_OUTPUTS") || !getenv("WAYLAND_DISPLAY")) {
+		return;
+	}
+	const char *backends = getenv("WLR_BACKENDS");
+	if (backends && *backends && !strstr(backends, "wayland")) {
+		return;
+	}
+	int n = server->host_telas_cfg ? server->host_telas_cfg : orbit_nested_contar_monitores();
+	if (n > ORBIT_MONITORES_FORA) {
+		n = ORBIT_MONITORES_FORA;
+	}
+	if (n > 1) {
+		char texto[8];
+		snprintf(texto, sizeof(texto), "%d", n);
+		setenv("WLR_WL_OUTPUTS", texto, 1);
+		wlr_log(WLR_INFO, "aninhado: o compositor de fora tem %d monitores, abro uma janela em cada", n);
+	}
 }

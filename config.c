@@ -181,6 +181,13 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		/* aninhado: a janela do Orbit abre em tela cheia no compositor de fora */
 		server->host_fullscreen_cfg = strcasecmp(value, "nao") != 0 && strcasecmp(value, "não") != 0 && strcasecmp(value, "no") != 0 &&
 			strcmp(value, "0") != 0;
+	} else if (strcasecmp(key, "telas_de_fora") == 0) {
+		/* aninhado: quantas janelas o Orbit abre no compositor de fora (auto: uma por monitor dele) */
+		int n = atoi(value);
+		server->host_telas_cfg = strcasecmp(value, "auto") == 0 ? 0 : (n < 1 ? 1 : n > ORBIT_MONITORES_FORA ? ORBIT_MONITORES_FORA : n);
+	} else if (strcasecmp(key, "tela_principal") == 0) {
+		/* aninhado: o monitor de fora que leva a saída principal (um pedaço do nome, fabricante ou modelo: Odyssey, DP-1) */
+		snprintf(server->host_principal, sizeof(server->host_principal), "%s", value);
 	} else if (strcasecmp(key, "emma") == 0) {
 		copy_cmd(server->emma, value);
 	} else if (strcasecmp(key, "emma_voz") == 0) {
@@ -342,6 +349,8 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->emma, "pkill -x lumna-emma-chat || lumna-emma-chat");
 	copy_cmd(server->emma_mic, "lumna-emma ouvir");
 	server->inhibit_host_shortcuts = true;
+	server->host_telas_cfg = 0;
+	server->host_principal[0] = '\0';
 	{
 		const char *tc = getenv("ORBIT_TELA_CHEIA"); /* aninhado: abrir em tela cheia (o orbit.ini [geral] tela_cheia vale por cima) */
 		server->host_fullscreen_cfg = tc && *tc && strcmp(tc, "0") != 0;

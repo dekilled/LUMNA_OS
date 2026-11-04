@@ -277,6 +277,19 @@ No log aparece "pedi ao compositor de fora que deixe os atalhos" ou, se ele não
 não sabe), "o Super vai ser dele": aí troque o modificador em [atalho] (Alt+..., Ctrl+Alt+...). Numa máquina
 virtual (QEMU, VirtualBox, WSL) o Super é do sistema de fora e o protocolo não chega lá: use outro modificador.
 
+Vários monitores no compositor de fora (KDE, GNOME...)
+O Orbit pergunta ao compositor de fora quantos monitores ele tem e abre uma janela por monitor (WL-1, WL-2...), cada
+uma em tela cheia no seu monitor (com [geral] tela_cheia = sim, ou Super+F11 / orbit-msg tela_cheia alternar, que vale
+para todas). As saídas ficam na mesma disposição dos monitores de fora: o que está à esquerda lá fica à esquerda aqui,
+e o Painel mostra o nome do monitor (fabricante e modelo) em vez de WL-1. Duas chaves em ~/.config/orbit/orbit.ini:
+  [geral] tela_principal = Odyssey    o monitor que leva a saída principal (WL-1, a do Desktop e a que o Orbit tem como
+                                      primeira); vale um pedaço do nome (DP-1), do fabricante ou do modelo; sem isto,
+                                      o que está mais à esquerda
+  [geral] telas_de_fora = auto        auto = uma janela por monitor; 1 = só uma janela (como antes); N = N janelas
+Na primeira vez rode ./testar-desktop.sh --refazer --tela-cheia; no log aparece "monitor de fora 1 (principal): ..." e
+"janela WL-1: tela cheia em DP-1". Um monitor ligado ou desligado depois de o Orbit abrir não muda as janelas: reabra.
+A regressão (regressao.sh) testa isto com dois monitores falsos (um Orbit headless faz o papel do compositor de fora).
+
 Tela cheia (a janela do Orbit no compositor de fora): [geral] tela_cheia = sim no orbit.ini abre já em tela cheia; também
 ORBIT_TELA_CHEIA=1 no ambiente (testar-desktop.sh --tela-cheia). Com ele rodando: orbit-msg tela_cheia sim|nao|alternar, a
 ação tela_cheia (atalhos.ini) e Super+F11. O wlroots não entrega o xdg_toplevel da janela, então o Orbit o acha ao lado da

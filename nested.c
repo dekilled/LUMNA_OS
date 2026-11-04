@@ -7,11 +7,88 @@
 #include <wayland-client.h>
 
 #include "keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h"
+#include "xdg-output-unstable-v1-client-protocol.h"
 
 static struct zwp_keyboard_shortcuts_inhibit_manager_v1 *gerente;
 static struct wl_seat *seat;
 static struct wl_display *conhecido;
 static struct wl_data_device_manager *dd_gerente;
+static struct orbit_monitor_fora monitores[ORBIT_MONITORES_FORA];
+static int n_monitores;
+static struct zxdg_output_manager_v1 *xdg_gerente;
+static struct zxdg_output_v1 *xdg_saidas[ORBIT_MONITORES_FORA];
+static bool xdg_posicao[ORBIT_MONITORES_FORA]; /* a posição veio do xdg-output (vale mais que a do wl_output) */
+
+static int indice_de(const struct orbit_monitor_fora *m) {
+	return (int)(m - monitores);
+}
+/* "Unknown" é o que o wlroots diz quando não há EDID: melhor nada */
+static void limpa_desconhecido(char *t) {
+	if (!strcmp(t, "Unknown")) {
+		t[0] = '\0';
+	}
+}
+
+static void mon_geometria(void *d, struct wl_output *o, int32_t x, int32_t y, int32_t pw, int32_t ph, int32_t sub, const char *fab, const char *mod,
+	int32_t transf) {
+	struct orbit_monitor_fora *m = d;
+	if (!xdg_posicao[indice_de(m)]) {
+		m->x = x;
+		m->y = y;
+	}
+	snprintf(m->fabricante, sizeof(m->fabricante), "%s", fab ? fab : "");
+	snprintf(m->modelo, sizeof(m->modelo), "%s", mod ? mod : "");
+	limpa_desconhecido(m->fabricante);
+	limpa_desconhecido(m->modelo);
+}
+static void mon_modo(void *d, struct wl_output *o, uint32_t flags, int32_t w, int32_t h, int32_t hz) {
+	struct orbit_monitor_fora *m = d;
+	if (flags & WL_OUTPUT_MODE_CURRENT) {
+		m->w = w;
+		m->h = h;
+	}
+}
+static void mon_feito(void *d, struct wl_output *o) {
+}
+static void mon_escala(void *d, struct wl_output *o, int32_t f) {
+	((struct orbit_monitor_fora *)d)->escala = f;
+}
+static void mon_nome(void *d, struct wl_output *o, const char *nome) {
+	struct orbit_monitor_fora *m = d;
+	snprintf(m->nome, sizeof(m->nome), "%s", nome ? nome : "");
+}
+static void mon_descricao(void *d, struct wl_output *o, const char *desc) {
+	struct orbit_monitor_fora *m = d;
+	snprintf(m->descricao, sizeof(m->descricao), "%s", desc ? desc : "");
+}
+static void xdg_posicao_ev(void *d, struct zxdg_output_v1 *o, int32_t x, int32_t y) {
+	struct orbit_monitor_fora *m = d;
+	m->x = x;
+	m->y = y;
+	xdg_posicao[indice_de(m)] = true;
+}
+static void xdg_tamanho_ev(void *d, struct zxdg_output_v1 *o, int32_t w, int32_t h) {
+	struct orbit_monitor_fora *m = d;
+	m->w = w;
+	m->h = h;
+}
+static void xdg_feito_ev(void *d, struct zxdg_output_v1 *o) {
+}
+static void xdg_nome_ev(void *d, struct zxdg_output_v1 *o, const char *nome) {
+	struct orbit_monitor_fora *m = d;
+	if (nome && *nome) {
+		snprintf(m->nome, sizeof(m->nome), "%s", nome);
+	}
+}
+static void xdg_descricao_ev(void *d, struct zxdg_output_v1 *o, const char *desc) {
+	struct orbit_monitor_fora *m = d;
+	if (desc && *desc) {
+		snprintf(m->descricao, sizeof(m->descricao), "%s", desc);
+	}
+}
+static const struct zxdg_output_v1_listener xdg_ouvinte = { xdg_posicao_ev, xdg_tamanho_ev, xdg_feito_ev, xdg_nome_ev, xdg_descricao_ev };
+
+static const struct wl_output_listener mon_ouvinte = { mon_geometria, mon_modo, mon_feito, mon_escala, mon_nome, mon_descricao };
 
 static void seat_capacidades(void *d, struct wl_seat *s, uint32_t caps);
 static void seat_nome(void *d, struct wl_seat *s, const char *nome) {
@@ -26,6 +103,14 @@ static void global(void *dados, struct wl_registry *reg, uint32_t nome, const ch
 		wl_seat_add_listener(seat, &seat_ouvinte, NULL);
 	} else if (!strcmp(interface, wl_data_device_manager_interface.name) && !dd_gerente) {
 		dd_gerente = wl_registry_bind(reg, nome, &wl_data_device_manager_interface, 1);
+	} else if (!strcmp(interface, zxdg_output_manager_v1_interface.name) && !xdg_gerente) {
+		xdg_gerente = wl_registry_bind(reg, nome, &zxdg_output_manager_v1_interface, versao < 3 ? versao : 3);
+	} else if (!strcmp(interface, wl_output_interface.name) && n_monitores < ORBIT_MONITORES_FORA) {
+		struct orbit_monitor_fora *m = &monitores[n_monitores++];
+		memset(m, 0, sizeof(*m));
+		m->escala = 1;
+		m->saida = wl_registry_bind(reg, nome, &wl_output_interface, versao < 4 ? versao : 4);
+		wl_output_add_listener(m->saida, &mon_ouvinte, m);
 	}
 }
 
@@ -40,6 +125,10 @@ static bool descobrir(struct wl_display *remote) {
 		return seat != NULL;
 	}
 	conhecido = remote;
+	n_monitores = 0;
+	xdg_gerente = NULL;
+	memset(xdg_saidas, 0, sizeof(xdg_saidas));
+	memset(xdg_posicao, 0, sizeof(xdg_posicao));
 	gerente = NULL;
 	seat = NULL;
 	dd_gerente = NULL;
@@ -50,6 +139,11 @@ static bool descobrir(struct wl_display *remote) {
 	wl_proxy_wrapper_destroy(embrulho);
 	wl_registry_add_listener(reg, &ouvinte, NULL);
 	wl_display_roundtrip_queue(remote, fila);
+	/* a posição e o nome de verdade de cada monitor (os wl_output já estão ligados; o gerente ainda está na fila) */
+	for (int i = 0; xdg_gerente && i < n_monitores; i++) {
+		xdg_saidas[i] = zxdg_output_manager_v1_get_xdg_output(xdg_gerente, monitores[i].saida);
+		zxdg_output_v1_add_listener(xdg_saidas[i], &xdg_ouvinte, &monitores[i]);
+	}
 	/* o que se ligou volta para a fila de sempre: os eventos deles não têm quem ouça e não se acumulam */
 	if (gerente) {
 		wl_proxy_set_queue((struct wl_proxy *)gerente, NULL);
@@ -62,8 +156,52 @@ static bool descobrir(struct wl_display *remote) {
 	}
 	wl_proxy_set_queue((struct wl_proxy *)reg, NULL);
 	wl_display_roundtrip_queue(remote, fila);
+	/* os monitores só saem da fila depois da segunda ida e volta: é nela que chegam nome, posição e modo */
+	for (int i = 0; i < n_monitores; i++) {
+		wl_proxy_set_queue((struct wl_proxy *)monitores[i].saida, NULL);
+		if (xdg_saidas[i]) {
+			wl_proxy_set_queue((struct wl_proxy *)xdg_saidas[i], NULL);
+		}
+	}
+	if (xdg_gerente) {
+		wl_proxy_set_queue((struct wl_proxy *)xdg_gerente, NULL);
+	}
 	wl_event_queue_destroy(fila);
 	return seat != NULL;
+}
+
+int orbit_nested_monitores(struct wl_display *remote, struct orbit_monitor_fora *v, int max) {
+	if (!remote) {
+		return 0;
+	}
+	descobrir(remote);
+	int n = n_monitores < max ? n_monitores : max;
+	for (int i = 0; i < n; i++) {
+		v[i] = monitores[i];
+	}
+	return n;
+}
+
+static int contados;
+static void conta_global(void *d, struct wl_registry *reg, uint32_t nome, const char *interface, uint32_t versao) {
+	if (!strcmp(interface, wl_output_interface.name)) {
+		contados++;
+	}
+}
+static const struct wl_registry_listener conta_ouvinte = { conta_global, global_some };
+
+int orbit_nested_contar_monitores(void) {
+	struct wl_display *d = wl_display_connect(NULL);
+	if (!d) {
+		return 0;
+	}
+	contados = 0;
+	struct wl_registry *reg = wl_display_get_registry(d);
+	wl_registry_add_listener(reg, &conta_ouvinte, NULL);
+	wl_display_roundtrip(d);
+	wl_registry_destroy(reg);
+	wl_display_disconnect(d);
+	return contados;
 }
 
 bool orbit_nested_inhibit(struct wl_display *remote, struct wl_surface *surface) {
@@ -340,17 +478,31 @@ void orbit_nested_clip_limpar(void) {
 
 /* ---- tela cheia ---- */
 
-bool orbit_nested_tela_cheia(const void *saida_wlr, unsigned long tam, struct wl_surface *surface, bool ligar) {
-	static struct wl_proxy *toplevel;
-	static const void *de;
+bool orbit_nested_tela_cheia(const void *saida_wlr, unsigned long tam, struct wl_surface *surface, bool ligar, struct wl_output *alvo) {
+	/* uma entrada por saída: com vários monitores cada janela tem o seu xdg_toplevel */
+	static struct {
+		const void *de;
+		struct wl_proxy *toplevel;
+	} guardados[ORBIT_MONITORES_FORA];
 	if (!saida_wlr || !surface) {
 		return false;
 	}
-	if (de != saida_wlr) {
-		toplevel = NULL;
-		de = saida_wlr;
+	struct wl_proxy **toplevel = NULL;
+	for (int i = 0; i < ORBIT_MONITORES_FORA && !toplevel; i++) {
+		if (guardados[i].de == saida_wlr) {
+			toplevel = &guardados[i].toplevel;
+		}
+	}
+	for (int i = 0; i < ORBIT_MONITORES_FORA && !toplevel; i++) {
+		if (!guardados[i].de) {
+			guardados[i].de = saida_wlr;
+			toplevel = &guardados[i].toplevel;
+		}
 	}
 	if (!toplevel) {
+		return false;
+	}
+	if (!*toplevel) {
 		/* depois do struct wlr_output vêm: backend, link (2 ponteiros), surface, own_surface, frame_callback, xdg_surface, xdg_toplevel */
 		const uintptr_t *w = (const uintptr_t *)((const char *)saida_wlr + tam);
 		int pos = -1;
@@ -370,15 +522,15 @@ bool orbit_nested_tela_cheia(const void *saida_wlr, unsigned long tam, struct wl
 			}
 			const char *classe = wl_proxy_get_class((struct wl_proxy *)v);
 			if (classe && !strcmp(classe, "xdg_toplevel")) {
-				toplevel = (struct wl_proxy *)v;
+				*toplevel = (struct wl_proxy *)v;
 				break;
 			}
 		}
-		if (!toplevel) {
+		if (!*toplevel) {
 			return false;
 		}
 	}
-	/* xdg_toplevel: set_fullscreen (11, com a saída, NULL: a que for) e unset_fullscreen (12) */
-	wl_proxy_marshal_flags(toplevel, ligar ? 11 : 12, NULL, wl_proxy_get_version(toplevel), 0, NULL);
+	/* xdg_toplevel: set_fullscreen (11, com o monitor; NULL: o que ele escolher) e unset_fullscreen (12) */
+	wl_proxy_marshal_flags(*toplevel, ligar ? 11 : 12, NULL, wl_proxy_get_version(*toplevel), 0, ligar ? (struct wl_proxy *)alvo : NULL);
 	return true;
 }

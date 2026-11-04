@@ -4,9 +4,9 @@
 PKGS ?= wlroots-0.18 wayland-server xkbcommon
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
-SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c mode.c entrada.c telas.c nested.c clip.c copiados.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c
+SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c mode.c entrada.c telas.c nested.c clip.c copiados.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c xdg-output-unstable-v1-protocol.c
 # os cabeçalhos que os do wlroots incluem, gerados dos XML dos protocolos
-PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h
+PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h xdg-output-unstable-v1-client-protocol.h
 
 all: orbit orbit-msg
 
@@ -25,11 +25,17 @@ keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h:
 keyboard-shortcuts-inhibit-unstable-v1-protocol.c: keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h
 	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/unstable/keyboard-shortcuts-inhibit/keyboard-shortcuts-inhibit-unstable-v1.xml $@
 
+# a posição e o nome de cada monitor do compositor de fora (o wl_output do wlroots diz sempre 0,0; o KDE e o GNOME dizem de verdade nos dois)
+xdg-output-unstable-v1-client-protocol.h:
+	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/unstable/xdg-output/xdg-output-unstable-v1.xml $@
+xdg-output-unstable-v1-protocol.c: xdg-output-unstable-v1-client-protocol.h
+	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/unstable/xdg-output/xdg-output-unstable-v1.xml $@
+
 # o XML do layer shell vem junto (protocolos/), como no dwl: não precisa do wlr-protocols
 wlr-layer-shell-unstable-v1-protocol.h: protocolos/wlr-layer-shell-unstable-v1.xml
 	$(WAYLAND_SCANNER) server-header $< $@
 
 clean:
-	rm -f orbit orbit-msg $(PROTOS) keyboard-shortcuts-inhibit-unstable-v1-protocol.c
+	rm -f orbit orbit-msg $(PROTOS) keyboard-shortcuts-inhibit-unstable-v1-protocol.c xdg-output-unstable-v1-protocol.c
 
 .PHONY: all clean

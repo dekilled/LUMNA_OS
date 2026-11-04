@@ -264,9 +264,11 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 				output->tag + 1, output_is_phone(output->wlr) ? "true" : "false",
 				output == under ? "true" : "false", output->off ? "false" : "true", wlr_output_is_wl(output->wlr) ? "false" : "true", rotation,
 				util.x - box.x, util.y - box.y, util.width, util.height, output->wlr->phys_width, output->wlr->phys_height);
-			put_str(b, output->wlr->make ? output->wlr->make : "");
+			put_str(b, output->host && output->host->fabricante[0] ? output->host->fabricante : output->wlr->make ? output->wlr->make : "");
 			put(b, ",\"modelo\":");
-			put_str(b, output->wlr->model ? output->wlr->model : "");
+			put_str(b, output->host && output->host->modelo[0] ? output->host->modelo : output->wlr->model ? output->wlr->model : "");
+			put(b, ",\"monitor_fora\":");
+			put_str(b, output->host ? output->host->nome : "");
 			/* os modos da tela (sem repetir tamanho e taxa) */
 			put(b, ",\"modos\":[");
 			struct wlr_output_mode *mode;

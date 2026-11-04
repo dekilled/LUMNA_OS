@@ -16,6 +16,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <xkbcommon/xkbcommon.h>
+#include "nested.h"
 
 /* Tecto das listas em stack. O tamanho é de compilação; o aviso é em runtime. */
 #define ORBIT_MAX_VIEWS 64
@@ -274,6 +275,12 @@ struct orbit_server {
 	char emma_mic[ORBIT_CMD_LEN];   /* liga o microfone da Emma (lumna-emma ouvir) */
 	struct wlr_output *nested_output; /* aninhado: a saída que é uma janela do compositor de fora */
 	bool host_fullscreen, host_fullscreen_cfg; /* a janela dele em tela cheia (agora, e [geral] tela_cheia = sim) */
+	int host_telas_cfg;             /* [geral] telas_de_fora: 0 = automático (uma janela por monitor de fora), N = N janelas */
+	char host_principal[64];        /* [geral] tela_principal: pedaço do nome, fabricante ou modelo do monitor de fora que leva a saída principal */
+	struct orbit_monitor_fora host_mon[ORBIT_MONITORES_FORA]; /* os monitores de fora, a principal primeiro */
+	int host_mon_n;
+	bool host_mon_lidos;
+	int host_usadas;                /* quantas saídas-janela já ganharam o seu monitor */
 	bool inhibit_host_shortcuts;    /* aninhado: pede ao Wayland de fora que deixe os atalhos (o Super) com o Orbit */
 	bool super_tap;          /* o Super foi carregado sozinho (soltar abre o lançador) */
 	uint32_t binds_paused_until; /* o Painel está a gravar um atalho: as teclas vão para ele (ms) */
@@ -314,6 +321,8 @@ struct orbit_output {
 	int mode;        /* acompanha o espaço (mode.c) */
 	bool warned_near;
 	bool warned_cap;
+	const struct orbit_monitor_fora *host; /* aninhado: o monitor de fora que esta janela cobre */
+	bool host_fs;                          /* esta janela está em tela cheia lá fora */
 };
 
 struct orbit_view {
@@ -559,5 +568,7 @@ void orbit_copiados_limpar(void);
 
 /* aninhado: pôr a janela do Orbit em tela cheia no compositor de fora. modo: 0 sai, 1 entra, 2 alterna; false se não é aninhado ou não deu */
 bool orbit_host_fullscreen(struct orbit_server *server, int modo);
+bool orbit_host_fullscreen_one(struct orbit_server *server, struct orbit_output *output, bool ligar);
+void orbit_host_prepare(struct orbit_server *server); /* antes do backend: uma janela por monitor de fora */
 
 #endif

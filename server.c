@@ -91,6 +91,7 @@ int main(int argc, char *argv[]) {
 	}
 	orbit_config_watch(&server);
 
+	orbit_host_prepare(&server);
 	struct wlr_session *session = NULL;
 	server.backend = wlr_backend_autocreate(wl_display_get_event_loop(server.display), &session);
 	(void)session;
