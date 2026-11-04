@@ -132,6 +132,17 @@ static void on_cursor_motion(struct wl_listener *listener, void *data) {
 static void on_cursor_motion_absolute(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_motion_absolute);
 	struct wlr_pointer_motion_absolute_event *event = data;
+	/* aninhado com vários monitores: x e y vão de 0 a 1 dentro da JANELA em que o mouse está (o backend diz qual em output_name);
+	 * sem mapear, o wlroots os espalha pelo layout inteiro e o cursor fica longe do mouse */
+	if (event->pointer->output_name) {
+		struct orbit_output *output;
+		wl_list_for_each(output, &server->outputs, link) {
+			if (output->wlr->name && !strcmp(output->wlr->name, event->pointer->output_name)) {
+				wlr_cursor_map_input_to_output(server->cursor, &event->pointer->base, output->wlr);
+				break;
+			}
+		}
+	}
 	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x, event->y);
 	process_cursor_motion(server, event->time_msec);
 }
