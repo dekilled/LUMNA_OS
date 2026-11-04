@@ -502,6 +502,9 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			return;
 		}
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "tela_cheia") && arg1 && !strcmp(arg1, "estado")) {
+		/* só pergunta: aninhado (numa janela de outro Wayland) e se está em tela cheia lá fora; a barra mostra o botão só se aninhado */
+		put(b, "{\"ok\":true,\"aninhado\":%s,\"tela_cheia\":%s}", server->nested_output ? "true" : "false", server->host_fullscreen ? "true" : "false");
 	} else if (!strcmp(cmd, "tela_cheia")) {
 		int modo = !arg1 || !strcmp(arg1, "alternar") ? 2 : (!strcmp(arg1, "nao") || !strcmp(arg1, "não") || !strcmp(arg1, "0")) ? 0 : 1;
 		if (!orbit_host_fullscreen(server, modo)) {

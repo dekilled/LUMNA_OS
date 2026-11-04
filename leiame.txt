@@ -288,6 +288,8 @@ e o Painel mostra o nome do monitor (fabricante e modelo) em vez de WL-1. Duas c
   [geral] telas_de_fora = auto        auto = uma janela por monitor; 1 = só uma janela (como antes); N = N janelas
 Na primeira vez rode ./testar-desktop.sh --refazer --tela-cheia; no log aparece "monitor de fora 1 (principal): ..." e
 "janela WL-1: tela cheia em DP-1". Um monitor ligado ou desligado depois de o Orbit abrir não muda as janelas: reabra.
+orbit-msg tela_cheia estado diz se o Orbit está aninhado e se a tela cheia está ligada ({"aninhado":..,"tela_cheia":..}); a barra do
+LUMNA usa isso para mostrar, só nesse caso, um botão que sai da tela cheia e volta (útil para ir ao editor sem ir ao outro monitor).
 A regressão (regressao.sh) testa isto com dois monitores falsos (um Orbit headless faz o papel do compositor de fora).
 
 Tela cheia (a janela do Orbit no compositor de fora): [geral] tela_cheia = sim no orbit.ini abre já em tela cheia; também
