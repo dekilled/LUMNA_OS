@@ -96,10 +96,37 @@ static void ler_vivo(void) {
 	lido = true;
 }
 
+/* como usar as telas (~/.config/lumna/disposicao.ini, que o Orbit vigia): vale na hora, sem Aplicar */
+static const char *const disp_chaves[] = { "estender", "espelhar", "esquerda", "direita" };
+static int disp_i;
+
+static void disposicao_ler(void) {
+	disp_i = 0;
+	char caminho[1024];
+	pn_caminho(caminho, sizeof(caminho), "disposicao.ini");
+	FILE *f = fopen(caminho, "r");
+	if (!f) {
+		return;
+	}
+	char linha[256];
+	while (fgets(linha, sizeof(linha), f)) {
+		char chave[64], valor[64];
+		if (sscanf(linha, " %63[^= ] = %63s", chave, valor) == 2 && !strcmp(chave, "disposicao")) {
+			for (int i = 0; i < 4; i++) {
+				if (!strcmp(valor, disp_chaves[i])) {
+					disp_i = i;
+				}
+			}
+		}
+	}
+	fclose(f);
+}
+
 void pn_monitores_abrir(void) {
 	mensagem[0] = '\0';
 	confirmando = false;
 	ler_vivo();
+	disposicao_ler();
 }
 
 static bool igual(const struct ed *a, const struct ed *b) {
@@ -428,6 +455,13 @@ void pn_monitores_desenhar(void) {
 	}
 	if (mensagem[0]) {
 		gv_texto(gv_str(mensagem), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+	}
+	if (vivo.n > 1) {
+		static const char *const disp_nomes[] = { "Estender", "Espelhar", "Só a da esquerda", "Só a da direita" };
+		if (pn_ajuste_lista(CLAY_ID("mo-disp"), "screens", "Como usar as telas", "Estender dá a cada tela o seu espaço; espelhar mostra o mesmo em todas",
+			    disp_nomes, 4, &disp_i)) {
+			pn_gravar("disposicao.ini", gv_fmt("# Gravado pelo Painel de controle (Telas e modos > Monitores)\ndisposicao = %s\n", disp_chaves[disp_i]).chars);
+		}
 	}
 	diagrama();
 	if (vivo.n > 1) {
