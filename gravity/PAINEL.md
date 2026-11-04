@@ -1,7 +1,11 @@
 # Painel de controle — o plano
 
-O Painel do LUMNA em Gravity (`exemplos/painel.c`, `lumna-painel`). Os esboços estão em
+O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
+
+**Em números (4 de novembro de 2026, contado no código):** 43 de 74 páginas prontas e 31 ainda só o esqueleto
+(a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
+funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
 ## Tudo num lugar só
 
@@ -14,6 +18,9 @@ os exemplos soltos saem quando a seção estiver pronta:
 | o menu do Bluetooth da `barra` (a parte completa) | Bluetooth → Dispositivos |
 | `mixer` (na janela) | Som → Saída, Entrada, Apps |
 | `transferencia` | Celular Connect → Área de transferência |
+
+Situação de hoje: Rede e internet, Bluetooth e Celular Connect já têm as seções no Painel. Som ainda é esqueleto,
+então o `mixer` segue sozinho.
 
 A topbar fica com o **rápido**:
 - ligar e desligar;
@@ -97,7 +104,9 @@ Legenda: ✅ feito · 🔨 a seguir · ⏳ depois (depende de um serviço)
   - Trocar automaticamente, com o intervalo.
   - ⏳ Vídeo e página web como papel de parede.
 - ✅ **Dock:** formato, monitores e o que fazer com uma janela maximizada.
-- ✅ **Barra superior:** relógio (segundos, data), os ícones que aparecem e o indicador das áreas.
+- ✅ **Barra superior:** relógio (segundos, data), o indicador das áreas e em quais telas ela aparece: só na
+  principal, em todas, em nenhuma ou só nas que você escolher (`barra.ini`; a barra da tela principal abre e fecha
+  as das outras, como a dock). Se nenhuma das telas listadas existe, volta para a principal.
 - ✅ **Tela de bloqueio:** layout Centralizado ou Lateral, papel próprio ou o do desktop, o que está
   tocando, a Emma, o PIN (criar, trocar, tirar) e Bloquear agora. Antes era:
   - papel de parede próprio ou o mesmo;
@@ -148,33 +157,48 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - ✅ Monitores: o desenho das telas, e por tela a resolução, a taxa, a escala, a rotação, ligar/desligar e a
   posição (à direita, à esquerda, acima ou abaixo de outra). Grava `~/.config/lumna/telas.ini`, que o Orbit
   vigia e aplica na hora (`servicos/telas.c`); depois de mudar algo que pode apagar a imagem o Painel pergunta
-  "Manter?" e volta sozinho em 15 s. O Orbit nunca desliga a última tela. Falta: "qual é a principal" (o Orbit
-  ainda não tem esse conceito) e identificar cada tela piscando um número nela.
+  "Manter?" e volta sozinho em 15 s. O Orbit nunca desliga a última tela.
+  Em cima disso, **Como usar as telas** (`disposicao.ini`, que o Orbit vigia): Estender (o modo troca em todas
+  as telas), Por modo (cada tela com o seu modo, com um seletor por tela), Espelhar, Só a da esquerda e Só a da
+  direita. No Orbit aninhado a tela "desligada" fica preta, porque uma janela de outro sistema não se desliga.
+  Falta: identificar cada tela piscando um número nela, e a tela principal no Orbit real (a chave
+  `tela_principal` do `orbit.ini` hoje só vale no Orbit aninhado).
 - ⏳ Luz noturna;
 - ✅ Modos (Desktop, Gaming, Mídia): o modo ao ligar, estender o modo às telas (ou um por tela) e, por modo,
   esconder a dock e o "não perturbe" (`modos.ini`). A base está no Orbit (um espaço por modo e por saída:
   trocar nunca fecha nem move janela; `orbit-msg modo`, o evento `modo`, Super+Tab e Super+Shift+Tab);
   a topbar tem o seletor (o nome do modo), o `lumna-modos` mostra o seletor no meio da tela a cada troca, a
-  dock some e os avisos só deixam passar os urgentes. As telas de Gaming (biblioteca) e Mídia vêm depois;
-- ⏳ Áreas de trabalho.
+  dock some e os avisos só deixam passar os urgentes. O Início da Mídia já existe (`lumna-midia`); a biblioteca
+  de jogos do Gaming vem depois;
+- ✅ Áreas de trabalho: quantas o Desktop usa (de 1 a 3) e o papel de parede de cada uma; a troca entre elas desliza.
 
 **Som**
-- ✅ Saída, entrada e volume por app (o `mixer` já fala com o PipeWire): passa para este padrão.
+- 🔨 Saída, Entrada e Apps: o `mixer` e a topbar já controlam o volume pelo PipeWire (`servicos/som.c`); as três
+  páginas do Painel ainda são esqueleto, e é para elas que o `mixer` vai passar.
 - 🔨 Sons do sistema.
 
 **Celular Connect**
-- ⏳ Pareamento;
-- ⏳ Área de transferência (a tela `transferencia` existe);
-- ⏳ Avisos do celular;
-- ⏳ Arquivos.
+- ✅ Pareamento: a chave geral do Connect, o código (vale uma vez e tem validade) e os endereços para digitar no app, e os
+  celulares pareados, que se esquece com confirmação;
+- ✅ Área de transferência: copiar num e colar no outro, nos dois sentidos, e "Mandar o que está copiado agora";
+- ✅ Avisos do celular: os do celular aparecem aqui e os daqui vão para o celular, cada sentido liga e desliga;
+- ✅ Arquivos: a pasta de recebimento, mandar um arquivo para um celular e as transferências com progresso.
+
+Os recursos de cada celular ligam e desligam um a um. Quem fala com o celular é o `lumna-controle` (o protocolo
+antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com um celular falso
+(`testes/connect.sh`); o celular de verdade ainda não.
 
 **Emma**
 - 🔨 Voz (o microfone e a fala já funcionam no serviço `lumna-emma`; falta a tela de escolher voz e modelo);
-- ⏳ "Oi Emma" (ouvir sempre);
+- ✅ "Oi Emma": ouvir sempre, offline, e abrir o assistente em qualquer tela;
 - ✅ Provedores: as telas do harness (Configurações > Providers) no Painel: Ollama Cloud, OpenAI, Gemini, Claude ou um endereço seu, com a URL, a chave de API, os modelos (`/models`) e o teste de capacidades. A lista fica sempre na tela e guardada no PC; o serviço manda para o servidor da Emma (o motor) e traz de lá o que já existir, sem tela de login nem token. Se o servidor estiver desligado, a Emma conversa direto com o provedor (reserva);
 - ✅ Roteamento: qual provedor e modelo atende Chat, Planner, RAG, Coder e Visão (o primeiro provedor já vira o padrão);
 - ✅ Personalidade: a personalidade e as diretrizes da Emma (caixas de texto de várias linhas); gravam nas Configurações do servidor e numa cópia automática (persona.json) para a conversa direta;
-- ⏳ Imagens, Voz (Fish Audio, voz local, "Oi Emma"), Embeddings, Personalidade (SFW/NSFW) e Permissões das ações, MCP: as outras telas do harness, na sequência;
+- ✅ Recursos: liga e desliga cada capacidade (imagens, visão, servidores MCP, Oi Emma);
+- ✅ Servidores MCP: as ferramentas de fora que a Emma pode usar (arquivos, web, GitHub...), sempre perguntando antes;
+- ✅ Importar do harness: traz conversas, memórias e a personalidade de um backup;
+- ✅ Perfis SFW e NSFW: um prompt para cada perfil na Personalidade, e o PIN e o botão na topbar para entrar no NSFW;
+- ⏳ Voz com Fish Audio e voz local, Embeddings e Permissões das ações: as outras telas do harness, na sequência;
 - ⏳ Privacidade;
 - ⏳ Automações.
 
@@ -190,7 +214,7 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - **Sobre:**
   - ✅ este computador (modelo, processador, memória, versão do LUMNA);
   - ✅ atualizações do sistema (procurar e histórico do pacman.log);
-  - avisos legais.
+  - ✅ avisos legais.
 - **Armazenamento:**
   - ✅ uso do disco como no Android (barra: apps, cache, temporários, lixeira; os apps que mais ocupam levam à página do app);
   - ✅ limpeza (lixeira, temporários, cache do pacman, com confirmação);
@@ -203,15 +227,15 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - **Teclado e mouse:**
   - ✅ teclado: vários layouts do XKB com a tecla que troca de um para o outro, Caps Lock (Ctrl ou Esc) e a
     repetição das teclas (`entrada.ini`, o Orbit refaz o mapa na hora);
-  - 🔨 atalhos;
+  - ✅ atalhos: Alt+Tab, Super+H, Super+Tab (modos), Super sozinho abre o lançador, e as outras teclas do Orbit;
   - ✅ mouse e touchpad: botão primário (trocar para canhotos), velocidade e aceleração do ponteiro, rolagem
     natural, tocar para clicar e ignorar o touchpad ao digitar. Valem em aparelhos de verdade (libinput); o
     desenho do ponteiro e os ícones ficam para Temas;
   - ⏳ teclado na tela.
 - **Data e hora:**
-  - ⏳ automática;
-  - ⏳ fuso;
-  - 🔨 formato (24 h, data na barra).
+  - ✅ acertar o relógio: automático pela internet ou à mão (o `timedatectl`, com a senha pelo polkit);
+  - ✅ fuso horário;
+  - ✅ formato: 24 ou 12 horas, que a barra e a tela de bloqueio leem de `hora.ini`.
 - **Idioma e região:**
   - ⏳ idioma;
   - ⏳ formatos;
@@ -224,6 +248,9 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
   - ⏳ permissões dos apps;
   - 🔨 histórico e recentes (limpar os recentes do lançador);
   - ⏳ diagnóstico.
+- **Desenvolvedor:**
+  - ✅ o modo desenvolvedor (`desenvolvedor.ini`): tela de toque no desktop (com o teclado de números no PIN) e aplicar o
+    Painel em tempo real.
 
 ## Como a Aparência aplica
 
@@ -262,6 +289,21 @@ O `papel` passa a abrir uma camada por tela (como a dock em "todos os monitores"
 o seu grupo. O antigo `~/.config/lumna/papel` (um caminho só) continua a valer quando o `.ini`
 não existe.
 
+## Os outros arquivos
+
+Cada peça vigia o seu arquivo em `~/.config/lumna/` e aplica na hora:
+
+| Arquivo | Para quê | Quem lê |
+| --- | --- | --- |
+| `telas.ini` | resolução, escala, rotação, posição e ligar ou desligar, uma seção por tela | Orbit |
+| `disposicao.ini` | `disposicao = estender \| espelhar \| esquerda \| direita` | Orbit |
+| `modos.ini` | `layout = tela \| estender`, o modo ao ligar, as áreas e o que cada modo faz | Orbit, dock e avisos |
+| `barra.ini` | segundos, data, áreas e `telas = principal \| todas \| nenhuma \| NOME,NOME` | barra |
+| `hora.ini` | o formato da hora (24 ou 12 horas) | barra e bloqueio |
+
+O `disposicao.ini` fica à parte do `telas.ini` porque o Painel regrava o `telas.ini` inteiro e trata toda seção
+como se fosse uma tela.
+
 ## A ordem
 
 1. ✅ A estrutura (em `exemplos/painel/`, um arquivo por categoria): as abas novas, a grade com "Usados recentemente", a vista da categoria com a
@@ -274,8 +316,8 @@ não existe.
    - Tamanho e textos;
    - Barra superior;
    - Tela de bloqueio.
-3. Inicialização.
-4. As seções 🔨 do Sistema.
-5. Trazer para dentro as telas soltas: Som (o mixer), Rede, Bluetooth e a área de transferência
-   do Celular Connect, com o "Mais configurações" nos menus da topbar.
-6. As ⏳, à medida que os serviços (NetworkManager, BlueZ, UPower...) entram.
+3. 🔨 Inicialização (as 4 páginas ainda são esqueleto).
+4. As seções 🔨 do Sistema: já estão Atalhos e Data e hora; faltam Energia, Histórico e recentes e as outras.
+5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do Celular Connect; falta o
+   Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).
+6. As ⏳, à medida que os serviços entram: o NetworkManager e o BlueZ já entraram; falta o UPower (Energia).

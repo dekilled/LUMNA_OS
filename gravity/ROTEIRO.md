@@ -5,7 +5,7 @@ interface em C) por cima, feito por etapas que terminam sempre em algo que roda 
 Orbit dentro do PC, depois no celular. Cada peça do desktop é um processo pequeno: se uma cai, as
 outras ficam de pé.
 
-Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
+Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência com o código: 4 de novembro de 2026.
 
 ## 1. A base do Gravity
 
@@ -23,7 +23,9 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 
 - [x] Papel de parede (camada de fundo) — exemplo `papel`: um por tela e por modo, troca na hora e
       sozinho pela coleção (papel.ini), o menu do botão direito
-- [~] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio — exemplo `barra`
+- [x] Topbar: LUMNA, modo, indicador de áreas, Wi-Fi, som, Bluetooth, relógio — exemplo `barra`
+  - [x] Em quais telas ela aparece: só na principal, em todas, em nenhuma ou nas escolhidas (a da principal abre as outras)
+  - [x] No Orbit aninhado, um botão que sai da tela cheia e volta (`orbit-msg tela_cheia`)
 - [x] Dock: apps fixos, abertos, indicador do ativo — exemplo `dock`
   - [x] Menu do botão direito (ou segurar): abrir nova janela, fixar/remover, fechar, preferências
   - [x] Lista das janelas ao passar o mouse num app com várias (ícone e título; tocar vai, ✕ fecha)
@@ -32,7 +34,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
         principal ou em todos (uma dock por tela, também nas que ligarem depois); valem na hora
   - [x] Janela maximizada: ocultar (com a faixa que a traz de volta) ou esticar, por monitor
   - [ ] Arrastar para reordenar
-- [~] Menus da topbar: Bluetooth, Áudio, Rede (as telas novas) — o do Bluetooth já abre (dados de mentira)
+- [x] Menus da topbar: Bluetooth, Áudio, Rede, o calendário e a bandeja do sistema (veja "Topbar de verdade", mais abaixo)
 - [x] Lançador ("Início") — exemplo `lancador`: favoritos, abas por categoria com os detalhes do
       app (o rato mostra, segurar fixa, ✕ solta; abre sempre solto), recentes, busca,
       bloquear/desligar/Emma e o Fechar ao centro
@@ -49,7 +51,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [ ] A voz da Emma no bloqueio
 - [x] Controle pelo celular (lumna-controle, serviço da sessão): protocolo do LUMNA Controle (porta 47800, mDNS, pareamento por código), sistema (volume, modo, Home) e serviço (teclado e ponteiro virtuais, MPRIS) sem depender de qual janela está na frente; `lumna-controle parear|estado|esquecer`
   - [ ] O app do celular: touchpad (pointer/click/scroll já aceitos pelo serviço) e o teclado
-  - [ ] Os recursos do Connect (arquivos, área de transferência, avisos, Emma, energia) ainda moram no shell antigo
+  - [x] Os recursos do dia a dia do Connect (pareamento, área de transferência, avisos e arquivos) moram no lumna-controle, com as páginas do Painel e o Enviar para o celular da captura (testado só com um celular falso: `testes/connect.sh`)
+  - [ ] Emma e energia pelo celular ainda moram no shell antigo
 - [x] Mídia (lumna-midia): o Firefox em kiosk é o player web (um perfil, uma aba por serviço, controle por WebDriver BiDi); o serviço guarda o catálogo editável (midia.ini) e os recentes (URL, título, miniatura); Início, capa de loading com fade e seletor (Super+M) conforme os mockups; Home e abrir serviço também pelo celular; testes com um Firefox de mentira (`testes/midia.sh`)
 - [x] Controle do Firefox da Mídia por uma extensão nossa (extensao-firefox/), não pelo WebDriver: a marca navigator.webdriver não liga e o Google deixa entrar; o serviço só aceita a extensão (Origin moz-extension://UUID fixo no perfil); Início > "Entrar nas contas" leva o serviço à página de entrada da conta
   - [ ] Assinar a extensão (Firefox comum) ou usar o Developer Edition: ver extensao-firefox/LEIAME.md
@@ -60,23 +63,24 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
   - [ ] Ícones das marcas (~/.local/share/lumna/midia/icones/ID.svg), Música e Vídeos locais no Início, editar/remover serviços pela tela, LRU de abas vivas
 - [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
 - [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)
-- [~] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
-      dock), ecrã inteiro por cima da barra e da dock, ponteiro virtual; falta as áreas
+- [x] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da
+      dock), ecrã inteiro por cima da barra e da dock, ponteiro virtual e as áreas de trabalho
 
 ## 3. Serviços do sistema
 
 - [x] Som (libpulse / pipewire-pulse)
-- [ ] Rede (NetworkManager por D-Bus)
-- [ ] Bluetooth (BlueZ por D-Bus)
+- [x] Rede (NetworkManager por D-Bus, `servicos/rede.c`; sem hardware: `testes/rede-falsa.sh`)
+- [x] Bluetooth (BlueZ por D-Bus, `servicos/bluetooth.c`; sem hardware: `testes/bluez-falso.sh`)
 - [ ] Energia e bateria (UPower)
 - [ ] Brilho e tela
 
 ## 4. Apps
 
 - [~] Painel de controle — a estrutura do PAINEL.md: abas Geral, Inicialização e Sistema, busca em tudo,
-      usados recentemente, a barra lateral por categoria e Restaurar | Aplicar (a Dock já aplica)
-- [~] Rede — a janela da tela nova no exemplo `rede` (falta o NetworkManager)
-- [~] Celular Connect — a área de transferência no exemplo `transferencia` (falta a ligação ao celular)
+      usados recentemente, a barra lateral por categoria e Restaurar | Aplicar (a Dock já aplica).
+      Em 4 de novembro de 2026: 43 de 74 páginas prontas e 31 esqueleto (o PAINEL.md tem a lista)
+- [x] Rede — as páginas do Painel (Wi-Fi, Cabo, Adaptadores, Proxy, Várias conexões) falam com o NetworkManager; faltam VPN e Ponto de acesso
+- [x] Celular Connect — Pareamento, Área de transferência, Avisos e Arquivos no Painel, ligados ao lumna-controle (com o celular de verdade ainda não foi testado)
 - [ ] Mixer como app e como camada (já existe no exemplo `mixer`)
 
 ## 5. O celular
@@ -93,5 +97,21 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`.
 - [x] Modo desenvolvedor (Painel → Sistema → Desenvolvedor): tela de toque no desktop (teclado de números no PIN) e aplicar o Painel em tempo real
 - [x] Topbar de verdade: Wi-Fi (rede, senha ali mesmo), som (volume, saída, apps), Bluetooth, calendário do mês e a bandeja do sistema (StatusNotifierItem + dbusmenu: os apps em segundo plano, menu no clique direito)
 - [x] Modos do desktop: um espaço por modo e por saída no Orbit, Super+Tab / Super+Shift+Tab, seletor na topbar e no meio da tela, dock escondida e não perturbe por modo, Painel → Telas e modos → Modos
-- [ ] As telas de Gaming (biblioteca de jogos) e de Mídia
+- [ ] A tela de biblioteca de jogos do Gaming (a Mídia já existe: veja "Mídia", em 2)
 
+## 6. O que veio depois
+
+- [x] A Emma: o serviço em segundo plano (`lumna-emma`), o chat lateral, o app e o painel dela, arquivos e comandos com permissão, código na conversa, as histórias, os perfis SFW e NSFW (com PIN), imagens e visão, "Oi Emma", servidores MCP e a sessão contínua do assistente. O servidor fica em `emma-servidor/` (veja `docs/EMMA.md`)
+  - [ ] As páginas Voz, Privacidade e Automações do Painel
+  - [ ] Testar na máquina: imagens, servidores MCP de verdade e o Oi Emma com microfone
+- [x] Captura de tela (`lumna-captura`): foto e gravação (grim e wf-recorder) da tela, de uma área ou de uma janela, com áudio, o editor de anotações e enviar para a Emma, copiar, o celular ou outro programa (veja `docs/CAPTURA.md`)
+  - [ ] Testar na máquina: a gravação com áudio
+- [x] Vários monitores no Orbit aninhado (dentro de outro desktop)
+  - [x] Uma janela por monitor do desktop de fora, cada uma em tela cheia no seu; `tela_principal` e `telas_de_fora` no `orbit.ini`
+  - [x] A disposição das telas: estender, por modo, espelhar, só a da esquerda e só a da direita (`disposicao.ini`; Painel → Telas e modos → Monitores)
+  - [x] O mouse no lugar certo em cada janela
+  - [ ] Testar no KDE de verdade (foi testado num desktop de fora falso, com dois monitores)
+- [ ] O Orbit como a sessão do sistema, e não numa janela
+  - [ ] Testar a entrada "LUMNA · Orbit" do login (`session/lumna-orbit.desktop`), que nunca rodou na máquina
+  - [ ] A tela principal no Orbit real (a chave `tela_principal` só vale no aninhado)
+  - [ ] Desligar um monitor de verdade (no aninhado a tela fica preta)
