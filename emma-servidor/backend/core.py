@@ -145,6 +145,8 @@ class Settings(BaseDocument):
     personality: str = ""  # the Emma in the NSFW profile (nsfw_profile.py)
     personality_sfw: str = ""  # the Emma in the SFW profile
     system_prompt_sfw: str = ""  # the global guidelines in the SFW profile (system_prompt: the NSFW one)
+    # LUMNA: os módulos que se ligam e desligam à parte (faltando = ligado): "visao" (ver imagens), "mcp" (servidores MCP). A geração de imagens liga em image_gen.enabled.
+    modules: dict[str, bool] = {}
     nsfw_on_start: bool = False  # "Abrir sempre no NSFW": the app opens in NSFW instead of SFW
     system_prompt: str = ""
     sandbox_profile: str = "safe"
@@ -303,6 +305,13 @@ async def audit(kind: str, summary: str, project_id: Optional[str] = None, **det
 async def prune_audit() -> int:
     before = (datetime.now(timezone.utc) - timedelta(days=AUDIT_DAYS)).isoformat()
     return await db.audit_logs.prune("created_at", AUDIT_KEEP, before)
+
+
+MODULES = ("visao", "mcp")
+
+
+def module_on(settings: "Settings", name: str) -> bool:
+    return bool((settings.modules or {}).get(name, True))
 
 
 async def get_settings() -> Settings:

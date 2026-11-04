@@ -142,6 +142,11 @@ try:
     r = pede("perfil", "sfw")
     confere(r.get("ok") is True and r.get("nsfw") is False, f"voltar ao SFW devia ser livre: {r}")
 
+    # gerar imagem: o pedido demorado passa pelo serviço (sessão longa) até o servidor
+    r = pede("rest", "POST", "/api/sessions/sess-1/image", json.dumps({"prompt": "um gato"}))
+    confere(r.get("ok") is True, f"o pedido de imagem devia chegar ao servidor: {r}")
+    confere(espera(lambda: "/api/sessions/sess-1/image" in log()), "o servidor não recebeu o pedido de imagem")
+
     # imagens: sobe um arquivo, baixa para o cache, e a mensagem leva o id do anexo ao servidor
     import base64
     png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")

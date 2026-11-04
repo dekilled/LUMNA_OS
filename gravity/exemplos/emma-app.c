@@ -70,6 +70,7 @@ static char sid[40];                /* a sessão aberta ("" : a conversa ainda n
 static char titulo[120] = "Nova conversa";
 static GPtrArray *msgs;
 static char skill_id[40], skill_nome[96];
+static bool visao_on = true, gerar_on = true;
 static char campo[65536], busca[96], novo_nome[96], novo_desc[200], nova_memoria[400], nome_edicao[120];
 static int tipo_memoria;
 static bool renomeando, excluindo, rolar_fim = true, ctx_ativo = true;
@@ -410,6 +411,10 @@ static bool pode_enviar(void) {
 }
 
 static void colar_imagem(void) {
+	if (!visao_on) {
+		g_strlcpy(erro, "A visão (ver imagens) está desligada (Painel > Emma > Recursos).", sizeof(erro));
+		return;
+	}
 	char *pasta = g_build_filename(g_get_user_cache_dir(), "lumna", "emma", "colados", NULL);
 	g_mkdir_with_parents(pasta, 0700);
 	char caminho[512];
@@ -482,8 +487,92 @@ static void enviar_texto(const char *texto) {
 	g_string_free(c, TRUE);
 }
 
+/* ---- os módulos que a pessoa liga e desliga (Painel > Emma > Recursos): o app esconde o que está desligado ---- */
+
+static double modulos_lido = -100;
+static bool modulos_pedindo;
+
+static void modulos_resposta(const char *resp, void *dados) {
+	(void)dados;
+	modulos_pedindo = false;
+	struct json *j = resp ? json_ler(resp) : NULL;
+	const struct json *c = json_chave(j, "corpo");
+	if (c && json_bool(json_chave(j, "ok"), false)) {
+		visao_on = json_bool(json_chave(json_chave(c, "modules"), "visao"), true);
+		gerar_on = json_bool(json_chave(json_chave(c, "image_gen"), "enabled"), false) || !json_chave(json_chave(c, "image_gen"), "enabled");
+	}
+	json_liberar(j);
+	gv_acordar_em(0.01);
+}
+
+static void modulos_atualizar(void) {
+	double agora = gv_agora();
+	if (!modulos_pedindo && agora - modulos_lido > 20) {
+		modulos_lido = agora;
+		modulos_pedindo = true;
+		emmac_pedido_async("rest GET /api/settings", modulos_resposta, NULL);
+	}
+}
+
+/* "/imagem descrição": a Emma gera uma imagem (o servidor usa o provedor de imagens do Painel); demora, então a bolha avisa e a conversa recarrega ao chegar */
+static char gerando_sid[40];
+
+static void imagem_gerada(const char *resp, void *dados) {
+	char *sid_pedido = dados;
+	struct json *j = resp ? json_ler(resp) : NULL;
+	bool ok = j && json_bool(json_chave(j, "ok"), false);
+	gerando_sid[0] = '\0';
+	if (!strcmp(sid_pedido, sid)) {
+		if (ok) {
+			char tit[120];
+			g_strlcpy(tit, titulo, sizeof(tit));
+			abrir_sessao(sid_pedido, tit); /* a imagem veio como mensagem da Emma: recarrega a conversa */
+			carregar_sessoes();
+		} else {
+			struct eu_msg *m = eu_msg_parcial(msgs);
+			if (m && m->parcial) {
+				g_ptr_array_remove_index(msgs, msgs->len - 1);
+			}
+			const struct json *c = json_chave(j, "corpo");
+			g_strlcpy(erro, c && *json_chave_texto(c, "detail") ? json_chave_texto(c, "detail") : "Não consegui gerar a imagem.", sizeof(erro));
+		}
+	}
+	json_liberar(j);
+	g_free(sid_pedido);
+	rolar_fim = true;
+}
+
+static void gerar_imagem_app(const char *prompt) {
+	if (!gerar_on) {
+		g_strlcpy(erro, "A geração de imagens está desligada (Painel > Emma > Recursos).", sizeof(erro));
+		return;
+	}
+	if (gerando_sid[0] || !garantir_sessao()) {
+		return;
+	}
+	g_strlcpy(gerando_sid, sid, sizeof(gerando_sid));
+	erro[0] = '\0';
+	char *u = g_strdup_printf("/imagem %s", prompt);
+	eu_msg_nova(msgs, true, u, NULL);
+	g_free(u);
+	struct eu_msg *m = eu_msg_nova(msgs, false, "Gerando a imagem…", NULL);
+	m->parcial = true;
+	GString *c = g_string_new("{\"prompt\":");
+	json_escrever_texto(c, prompt);
+	g_string_append_c(c, '}');
+	char *p = g_strdup_printf("rest POST /api/sessions/%s/image %s", sid, c->str);
+	emmac_pedido_async(p, imagem_gerada, g_strdup(sid));
+	g_free(p);
+	g_string_free(c, TRUE);
+	rolar_fim = true;
+}
+
 /* código colado sem as crases vai como bloco (com a linguagem que der pra adivinhar): a Emma e a conversa o veem como código */
 static void enviar(const char *texto) {
+	if (g_str_has_prefix(texto, "/imagem ") && texto[8]) {
+		gerar_imagem_app(g_strstrip(g_strdup(texto + 8)));
+		return;
+	}
 	if (destaque_parece_codigo(texto)) {
 		char *b = g_strdup_printf("```%s\n%s%s```", destaque_adivinhar(texto), texto, g_str_has_suffix(texto, "\n") ? "" : "\n");
 		enviar_texto(b);
@@ -1136,7 +1225,7 @@ static void compositor_de_mensagem(void) {
 					campo[0] = '\0';
 				}
 			}
-			if (eu_botao_icone(CLAY_ID("ap-imagem"), "image", gv_popup_aberto(CLAY_ID("ap-menu-imagem")))) {
+			if (visao_on && eu_botao_icone(CLAY_ID("ap-imagem"), "image", gv_popup_aberto(CLAY_ID("ap-menu-imagem")))) {
 				gv_popup_alternar(CLAY_ID("ap-menu-imagem"));
 			}
 			if (eu_botao_icone(CLAY_ID("ap-mic"), "mic", ouvindo)) {
@@ -1425,6 +1514,7 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 	eu_memoria_de = rotina_atual >= 0 && rotina_atual < (int)rotinas->len ? g_array_index(rotinas, struct rotina, rotina_atual).nome : NULL;
 	(void)dados;
+	modulos_atualizar();
 	if (emma_fd < 0) {
 		emma_fd = emmac_assinar();
 		if (emma_fd >= 0) {

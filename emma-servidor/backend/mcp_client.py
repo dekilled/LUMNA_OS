@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 import tools as T
-from core import audit, db, get_settings, now_iso, oid
+from core import audit, db, get_settings, module_on, now_iso, oid
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger("mcp")
@@ -32,6 +32,7 @@ CONNECT_TIMEOUT = 120  # a primeira vez, o npx/uvx baixa o servidor
 CALL_TIMEOUT = 120
 
 _conns: dict[str, "Conn"] = {}
+_active = True  # o módulo "mcp" (Painel > Emma > Recursos): desligado, nenhum servidor conecta
 
 
 def slug(text: str, limit: int) -> str:
@@ -181,9 +182,26 @@ def _public(c: Conn) -> dict:
     }
 
 
-async def on_start() -> None:
+async def apply_module(on: bool) -> None:
+    """Liga/desliga todos os servidores MCP de uma vez (o módulo); ao ligar, os que estavam habilitados voltam."""
+    global _active
+    _active = on
+    if not on:
+        for c in list(_conns.values()):
+            await c.stop()
+        _conns.clear()
+        return
     for d in await db.mcp_servers.find({}).to_list(200):
-        if d.get("enabled", True):
+        if d.get("enabled", True) and str(d["_id"]) not in _conns:
+            c = _conns[str(d["_id"])] = Conn(d)
+            c.start()
+
+
+async def on_start() -> None:
+    global _active
+    _active = module_on(await get_settings(), "mcp")
+    for d in await db.mcp_servers.find({}).to_list(200):
+        if _active and d.get("enabled", True):
             c = _conns[str(d["_id"])] = Conn(d)
             c.start()
 
@@ -236,7 +254,7 @@ async def add_server(body: ServerIn):
     res = await db.mcp_servers.insert_one(doc)
     doc["_id"] = res.inserted_id
     await audit("mcp", f"Servidor MCP adicionado: {doc['name']}")
-    if doc["enabled"]:
+    if doc["enabled"] and _active:
         c = _conns[str(doc["_id"])] = Conn(doc)
         c.start()
     return {"id": str(doc["_id"])}
@@ -254,7 +272,7 @@ async def update_server(sid: str, body: ServerIn):
     if sid in _conns:
         await _conns.pop(sid).stop()
     doc = {**old, **upd}
-    if doc["enabled"]:
+    if doc["enabled"] and _active:
         c = _conns[sid] = Conn(doc)
         c.start()
     return {"ok": True}
@@ -276,6 +294,8 @@ async def restart_server(sid: str):
         raise HTTPException(404, "Servidor não encontrado")
     if sid in _conns:
         await _conns.pop(sid).stop()
+    if not _active:
+        raise HTTPException(400, "Os servidores MCP estão desligados (Painel > Emma > Recursos)")
     c = _conns[sid] = Conn(d)
     c.start()
     return {"ok": True}

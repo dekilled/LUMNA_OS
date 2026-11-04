@@ -201,6 +201,9 @@ class H(BaseHTTPRequestHandler):
             return self.json({"model": c.get("model"), "chat": True, "latency_ms": 321, "reply": "ok", "streaming": True, "json_mode": False})
         if self.path == "/api/sessions":
             return self.json({"id": "sess-1"})
+        if self.path.endswith("/image"):  # POST /api/sessions/ID/image: a imagem gerada vem como mensagem da Emma
+            return self.json({"user_message": {"id": "m-img-1", "role": "user", "content": "/imagem " + c.get("prompt", "")},
+                              "message": {"id": "m-img-2", "role": "assistant", "content": "", "attachments": ["att-1"]}})
         if self.path.endswith("/tool-result"):
             resultados[c.get("call_id")] = c
             return self.json({})

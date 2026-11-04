@@ -253,11 +253,26 @@ async def fetch_image(url: str) -> bytes:
     raise HTTPException(502, "Redirecionamentos demais ao baixar a imagem")
 
 
+def _local_url(url: str) -> bool:
+    """O endereço é desta máquina ou de uma rede privada (um servidor local de imagens): não pede chave de API."""
+    import ipaddress
+    from urllib.parse import urlparse
+
+    host = urlparse(url or "").hostname or ""
+    if host in ("localhost", "") or host.endswith(".local"):
+        return host != ""
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_loopback or ip.is_private
+    except ValueError:
+        return False
+
+
 async def generate_image(cfg: ImageGenConfig, prompt: str) -> bytes:
-    if not cfg.api_key:
-        raise HTTPException(400, "Configure a geração de imagens em Configurações → Imagens")
+    if not cfg.api_key and not _local_url(cfg.base_url):
+        raise HTTPException(400, "Configure a geração de imagens em Painel > Emma > Imagens (a chave de API; um servidor local não precisa)")
     assert_public_url(cfg.base_url)
-    client = AsyncOpenAI(base_url=cfg.base_url, api_key=cfg.api_key, timeout=240, max_retries=1)
+    client = AsyncOpenAI(base_url=cfg.base_url, api_key=cfg.api_key or "sem-chave", timeout=240, max_retries=1)
     kw = {"model": cfg.model, "prompt": prompt, "n": 1}
     if cfg.size.strip():
         kw["size"] = cfg.size.strip()
@@ -320,3 +335,30 @@ async def test_image_gen():
         return {"ok": False, "error": e.detail}
     mime = sniff_image(data)
     return {"ok": bool(mime), "mime": mime, "size": len(data), **({} if mime else {"error": "A resposta não é uma imagem"})}
+
+
+# ---- a ferramenta da Emma: ela gera a imagem quando a pessoa pede (só é oferecida com a geração ligada) ----
+import tools as _tools  # noqa: E402
+
+
+async def _tool_gerar_imagem(args: dict) -> "_tools.Outcome":
+    prompt = str(args.get("prompt") or "").strip()[:4000]
+    if not prompt:
+        return _tools.Outcome("Erro: falta o prompt da imagem.", "Gerar imagem: sem prompt", status="error")
+    cfg = (await get_settings()).image_gen
+    if not cfg.enabled:
+        return _tools.Outcome("A geração de imagens está desligada (Painel > Emma > Imagens).", "Geração desligada", status="error")
+    try:
+        att = await store_image(await generate_image(cfg, prompt), safe_name(prompt[:40], "imagem"), kind="generated")
+    except HTTPException as e:
+        return _tools.Outcome(f"Não consegui gerar a imagem: {e.detail}", "Gerar imagem: falhou", status="error")
+    await audit("image", f"Imagem gerada pela Emma ({cfg.model}): {prompt[:80]}")
+    return _tools.Outcome("Imagem gerada e já aparece na conversa, junto da sua resposta. Diga em uma frase o que ela mostra; não repita o prompt.", f"Imagem: {prompt[:60]}",
+                          attachments=[att["id"]])
+
+
+_tools.REGISTRY["gerar_imagem"] = _tools.Tool(
+    "gerar_imagem", "Gerar imagem",
+    "Gera uma imagem a partir de uma descrição e a mostra na conversa. Use quando a pessoa pedir para criar, desenhar ou gerar uma imagem. Escreva o prompt em detalhes (sujeito, estilo, luz, enquadramento), de preferência em inglês.",
+    {"type": "object", "properties": {"prompt": {"type": "string", "description": "A descrição detalhada da imagem"}}, "required": ["prompt"]},
+    _tool_gerar_imagem, risk="act", default="ask", where="server")

@@ -24,7 +24,7 @@ import nsfw_profile
 import terminal_log  # registers read_terminal
 import tools as lumna_tools
 import workspace_runtime as wr
-from core import Action, Memory, cut_session, Message, Project, Session, Skill, audit, db, get_settings, now_iso, oid
+from core import Action, Memory, cut_session, Message, Project, Session, Skill, audit, db, get_settings, module_on, now_iso, oid
 from llm import why_failed, MODE_TASK, complete, resolve, stream_chat, stream_turn
 from media import ATTACH_DIR, attachment_text, load_attachment
 from prompts import DEEP_RE, SCREEN_CONTEXT, VOICE_DEEP, VOICE_RULES, ACTION_RE, MEMORY_EXTRACT, build_system
@@ -378,6 +378,11 @@ async def chat(sid: str, body: ChatIn):
     screen, screen_image = body.screen.strip(), body.screen_image
     if (screen or screen_image) and quick.match(body.content, set(lumna_tools.REGISTRY), []):
         screen, screen_image = "", None
+    if not module_on(settings, "visao"):  # o módulo Visão desligado: a Emma não vê imagem nenhuma (nem o print da tela)
+        screen_image = None
+        for a in body.attachments:
+            if (await load_attachment(a)).get("type", "image") == "image":
+                raise HTTPException(400, "A visão (ver imagens) está desligada. Ligue em Painel > Emma > Recursos.")
     attach_ids = body.attachments + ([screen_image] if screen_image else [])
     docs = [await load_attachment(a) for a in attach_ids]
     images = [((ATTACH_DIR / d["_id"]).read_bytes(), d) for d in docs if d.get("type", "image") == "image"]
@@ -467,6 +472,8 @@ async def chat(sid: str, body: ChatIn):
     # Lamp tools only when there is a lamp: every tool offered is read by the model on every message.
     if any(t.name in yeelight.LIGHT_TOOLS for t in tool_list) and not await db.devices.find_one({"kind": "yeelight"}):
         tool_list = [t for t in tool_list if t.name not in yeelight.LIGHT_TOOLS]
+    if not settings.image_gen.enabled:  # a geração de imagens desligada: a Emma nem sabe que a ferramenta existe
+        tool_list = [t for t in tool_list if t.name != "gerar_imagem"]
     names = {x.name for x in tool_list}
     # A plain command ("abre o Spotify") runs its tool right away; the model only confirms it.
     last_tools = next((m.get("tools") or [] for m in reversed(history) if m["role"] == "assistant"), [])
@@ -502,6 +509,7 @@ async def chat(sid: str, body: ChatIn):
         yield sse({"type": "meta", "user_message": user_msg.out(), "citations": citations, "model": model, "provider": provider.name, "task": task, "mode": mode, "mode_id": recipe.key if recipe else None, "memories_used": len(memories), "summary": bool(session.summary), "tools": [x.name for x in tool_list]})
         acc = {"text": "", "round": ""}
         trail: list[dict] = []
+        gen_atts: list[str] = []  # imagens feitas por ferramentas nesta resposta
         # What is on the screen came from outside: actions after it ask first. LUMNA: the context the shell sends (the focused window)
         # is not content from outside, and the shell's own actions are decided by the shell (see below), so it doesn't taint.
         tainted = bool(screen_image) or (bool(screen) and not body.lumna_tools)
@@ -684,6 +692,7 @@ async def chat(sid: str, body: ChatIn):
                         else:
                             o = lumna_tools.Outcome("O usuário não permitiu esta ação. Siga sem ela.", "Você não permitiu", status="denied")
                     tainted = tainted or o.untrusted
+                    gen_atts.extend(o.attachments)  # imagens que uma ferramenta fez (gerar_imagem) vão com a resposta
                     rec.update(status=o.status, summary=o.summary, sources=o.sources)
                     trail.append(rec)
                     trace["rounds"][-1]["results"].append(f"{c.name}: {o.status} — {o.summary}")
@@ -746,7 +755,7 @@ async def chat(sid: str, body: ChatIn):
             text, plan_doc = modes.extract_plan(text, project.folder if project else "")
             if questions:
                 plan_doc = None  # questions come before the plan, never with it
-        am = Message(session_id=sid, role="assistant", content=text, questions=questions, plan_doc=plan_doc, handoff=handoff, plan_doc_status="proposed" if plan_doc else "", mode=mode, mode_id=recipe.key if recipe else None, model=model, provider=provider.name, task=task, skill_id=body.skill_id, tools=trail, tools_offered=[x.name for x in tool_list],
+        am = Message(session_id=sid, role="assistant", content=text, questions=questions, plan_doc=plan_doc, handoff=handoff, plan_doc_status="proposed" if plan_doc else "", mode=mode, mode_id=recipe.key if recipe else None, model=model, provider=provider.name, task=task, skill_id=body.skill_id, tools=trail, attachments=gen_atts, tools_offered=[x.name for x in tool_list],
                      citations=[{k: v for k, v in c.items() if k != "text"} | {"snippet": c["text"][:280]} for c in citations])
         if plan_doc:  # a new plan replaces the one still waiting ("Pedir ajuste")
             for old in await db.messages.find({"session_id": sid, "plan_doc_status": "proposed"}).to_list(50):

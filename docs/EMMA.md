@@ -237,3 +237,13 @@ Segurança: toda ferramenta nasce em **Perguntar** (o cartão mostra a ferrament
 pedem aprovação). A descrição que o servidor MCP escreve sobre as ferramentas é de terceiros e vai cortada. Um servidor stdio roda um programa com os seus
 poderes: só se adiciona pelo Painel. Precisa do pacote `mcp` 1.x (o `emma-servidor/iniciar` tenta instalar uma vez, com o pydantic abaixo da 2.12), e de
 Node.js (npx) ou uv (uvx) conforme o servidor.
+
+## Recursos (tudo liga e desliga à parte) e geração de imagens
+
+Painel > Emma > **Recursos** tem um interruptor por capacidade: **Gerar imagens**, **Ver imagens (visão)**, **Servidores MCP** e **Oi Emma**. Desligado, some de verdade:
+sem visão, o servidor recusa imagens na conversa (e o print da tela) e o app esconde o botão de anexar; sem MCP, nenhum servidor conecta (a lista fica guardada);
+sem geração, a Emma nem recebe a ferramenta `gerar_imagem`. (Cada ação do LUMNA já tem a sua permissão auto / perguntar / desligada.)
+
+**Gerar imagens**: o provedor é qualquer servidor que fale `/images/generations` (OpenAI na nuvem, ou um local: LocalAI, stable-diffusion.cpp, uma ponte para o ComfyUI...).
+Servidor na sua máquina ou na sua rede não pede chave de API. Pede-se de duas formas: a Emma usa a ferramenta `gerar_imagem` (por padrão perguntando antes; mude em Recursos)
+ou se escreve `/imagem descrição` no app. A imagem volta como mensagem dela, salva no servidor. Botão **Testar** gera uma imagem de teste.

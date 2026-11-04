@@ -5,7 +5,7 @@ import local_voice
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
 
-from core import SECRET_CONFIGS, EmbeddingConfig, ImageGenConfig, Provider, RouteTarget, Settings, ToolsConfig, VoiceConfig, audit, db, enc, get_settings, oid
+from core import MODULES, SECRET_CONFIGS, module_on, EmbeddingConfig, ImageGenConfig, Provider, RouteTarget, Settings, ToolsConfig, VoiceConfig, audit, db, enc, get_settings, oid
 from netguard import assert_public_url
 from llm import PRESETS, client_for, embed
 from workspace_runtime import PROFILES
@@ -33,6 +33,7 @@ class SettingsIn(BaseModel):
     personality_sfw: Optional[str] = None
     system_prompt_sfw: Optional[str] = None
     nsfw_on_start: Optional[bool] = None
+    modules: Optional[dict[str, bool]] = None
     system_prompt: Optional[str] = None
     sandbox_profile: Optional[str] = None
 
@@ -43,6 +44,7 @@ def public_settings(s: Settings) -> dict:
         k = d[name].pop("api_key")
         d[name]["has_key"] = bool(k)
         d[name]["api_key_masked"] = f"••••{k[-4:]}" if k else ""
+    d["modules"] = {m: module_on(s, m) for m in MODULES}
     # Can the server speak / hear (Fish with its key, or the local engines on the PC)?
     v = d["voice"]
     v["server_tts"] = local_voice.engine_ready(v.get("tts_engine", ""), "tts") or (v.get("tts_engine") != "local" and v["has_key"])
@@ -177,6 +179,8 @@ async def write_settings(body: SettingsIn):
         s.tools.permissions = {k: v for k, v in s.tools.permissions.items() if k in lumna_tools.REGISTRY}
         if any(v not in lumna_tools.PERMISSIONS for v in s.tools.permissions.values()):
             raise HTTPException(400, "Permissão inválida (auto, ask ou off)")
+    if body.modules is not None:
+        s.modules = {**(s.modules or {}), **{k: bool(v) for k, v in body.modules.items() if k in MODULES}}
     if body.personality is not None:
         s.personality = body.personality
     if body.personality_sfw is not None:
@@ -195,6 +199,9 @@ async def write_settings(body: SettingsIn):
     data = s.to_mongo()
     data.pop("_id", None)
     await db.settings.update_one({"key": "global"}, {"$set": data}, upsert=True)
+    if body.modules is not None:
+        import mcp_client  # liga ou desliga os servidores MCP junto com o módulo
+        await mcp_client.apply_module(module_on(s, "mcp"))
     await audit("config", "Configurações atualizadas")
     return nsfw_profile.mask(public_settings(s), await nsfw_profile.nsfw())
 
@@ -230,3 +237,23 @@ async def audit_logs(project_id: Optional[str] = None, limit: int = 100):
     for d in docs:
         d["id"] = str(d.pop("_id"))
     return docs
+
+
+class ToolPermIn(BaseModel):
+    permission: str
+
+
+@router.put("/tools/{name}/permission")
+async def set_tool_permission(name: str, body: ToolPermIn):
+    """LUMNA: a permissão (auto, ask ou off) de UMA ferramenta do servidor (gerar_imagem, as mcp_*), sem mexer no resto das configurações."""
+    if body.permission not in lumna_tools.PERMISSIONS:
+        raise HTTPException(400, "Permissão inválida (auto, ask ou off)")
+    tool = lumna_tools.REGISTRY.get(name)
+    if not tool or tool.where != "server":
+        raise HTTPException(404, "Ferramenta não encontrada")
+    s = await get_settings()
+    s.tools.permissions = {**(s.tools.permissions or {}), name: body.permission}
+    data = s.to_mongo()
+    data.pop("_id", None)
+    await db.settings.update_one({"key": "global"}, {"$set": data}, upsert=True)
+    return {"ok": True}

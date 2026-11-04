@@ -1107,7 +1107,9 @@ static gpointer rest_linha(gpointer d) {
 	char *resp = NULL, *erro = NULL;
 	const char *corpo = r->corpo && *r->corpo ? r->corpo : NULL;
 	if (servidor_ok) {
-		st = emmab_chamar(r->metodo, r->caminho, corpo, &resp, &erro);
+		/* gerar uma imagem leva de segundos a minutos: a sessão longa em vez da de 20 s */
+		bool demorado = g_str_has_suffix(r->caminho, "/image") || g_str_has_suffix(r->caminho, "/settings/image/test");
+		st = demorado ? emmab_chamar_longo(r->metodo, r->caminho, corpo, &resp, &erro) : emmab_chamar(r->metodo, r->caminho, corpo, &resp, &erro);
 		if (st == 0) {
 			servidor_ok = false; /* sumiu: o resto desta chamada já vai pela reserva */
 		}

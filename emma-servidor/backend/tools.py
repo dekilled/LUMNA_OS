@@ -46,6 +46,7 @@ class Outcome:
     sources: list[dict] = field(default_factory=list)  # [{"title", "url"}]
     untrusted: bool = False     # came from outside: later "act" tools need the user's OK
     status: str = "ok"          # ok | error | denied
+    attachments: list[str] = field(default_factory=list)  # ids of images the tool made: they go with the assistant's message
 
 
 @dataclass
