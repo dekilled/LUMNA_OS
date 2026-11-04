@@ -9,6 +9,7 @@
 
 #include "emmab.h"
 #include "emmaq.h"
+#include "emmah.h"
 #include "midia.h"
 #include "midiac.h"
 #include "modos.h"
@@ -90,6 +91,27 @@ static const struct emmaa_def catalogo[] = {
 		"{\"comando\":{\"type\":\"string\"},\"motivo\":{\"type\":\"string\",\"description\":\"Para que serve, numa frase\"},"
 		"\"pasta\":{\"type\":\"string\",\"description\":\"A pasta onde rodar (opcional)\"},\"segundos\":{\"type\":\"number\",\"description\":\"O prazo, até 120 (padrão 60)\"}}",
 		"comando,motivo", EMMAA_PERIGO, "ask" },
+	{ "historia.listar", "Listar as histórias",
+		"Lista as histórias do Eric (cada uma é uma pasta em ~/Emma/Histórias, com a bíblia e os capítulos): quantos capítulos tem e quando foi o último.",
+		"{}", "", EMMAA_LER, "auto" },
+	{ "historia.criar", "Criar uma história",
+		"Começa uma história nova: cria a pasta com a bíblia (premissa, personagens, mundo, tom, linha do tempo, onde paramos) e a pasta dos capítulos. Depois preencha a bíblia com o que a pessoa contar.",
+		"{\"nome\":{\"type\":\"string\",\"description\":\"O nome da história (vira o nome da pasta)\"},\"premissa\":{\"type\":\"string\",\"description\":\"A ideia central, em poucas linhas (opcional)\"}}",
+		"nome", EMMAA_AGIR, "auto" },
+	{ "historia.abrir", "Abrir uma história",
+		"Devolve a bíblia da história, a lista dos capítulos e o final do último. SEMPRE chame isto antes de escrever ou continuar uma história, para manter personagens, tom e continuidade; se não souber o nome, use historia_listar.",
+		"{\"nome\":{\"type\":\"string\",\"description\":\"O nome da história\"}}", "nome", EMMAA_LER, "auto" },
+	{ "historia.salvar_capitulo", "Salvar um capítulo",
+		"Salva um capítulo da história em capitulos/NN-titulo.md (o número é o próximo; a bíblia passa a marcar onde paramos). Chame quando a pessoa aprovar o capítulo ou pedir para salvar. Mande o texto inteiro do capítulo, sem resumir.",
+		"{\"nome\":{\"type\":\"string\",\"description\":\"O nome da história\"},\"titulo\":{\"type\":\"string\",\"description\":\"O título do capítulo\"},"
+		"\"conteudo\":{\"type\":\"string\",\"description\":\"O texto inteiro do capítulo\"},\"numero\":{\"type\":\"number\",\"description\":\"Opcional: o número do capítulo (padrão: o próximo)\"}}",
+		"nome,titulo,conteudo", EMMAA_AGIR, "auto" },
+	{ "historia.atualizar_biblia", "Atualizar a bíblia da história",
+		"Anota na bíblia da história o que mudou: personagens novos, o que foi revelado, quem morreu, a linha do tempo. Depois de cada capítulo, atualize a seção certa (Personagens, Mundo, Linha do tempo, Tom e estilo ou Premissa). "
+		"Por padrão troca o texto da seção; com acrescentar=true, junta ao que já está lá.",
+		"{\"nome\":{\"type\":\"string\",\"description\":\"O nome da história\"},\"secao\":{\"type\":\"string\",\"description\":\"A seção: Premissa, Personagens, Mundo, Tom e estilo, Linha do tempo (ou uma nova)\"},"
+		"\"texto\":{\"type\":\"string\",\"description\":\"O texto da seção, em markdown\"},\"acrescentar\":{\"type\":\"boolean\",\"description\":\"true junta ao que já está na seção\"}}",
+		"nome,secao,texto", EMMAA_AGIR, "auto" },
 	{ "notificar", "Notificar", "Mostra um aviso na tela.", "{\"titulo\":{\"type\":\"string\"},\"texto\":{\"type\":\"string\"}}", "titulo", EMMAA_AGIR, "auto" },
 };
 
@@ -833,6 +855,10 @@ void emmaa_executar_aprovado(const struct emmaa_def *d, const struct json *args,
 
 void emmaa_executar(const struct emmaa_def *d, const struct json *args, struct emmaa_res *r) {
 	const char *n = d->nome;
+	if (emmah_e_dela(n)) {
+		emmah_executar(n, args, r);
+		return;
+	}
 	if (e_de_arquivos(n)) {
 		arquivos_executar(d, args, r);
 		return;

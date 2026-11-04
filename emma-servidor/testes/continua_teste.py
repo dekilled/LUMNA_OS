@@ -29,6 +29,24 @@ b = datetime(2026, 10, 3, 3, 10, tzinfo=timezone.utc)  # 00:10 do dia 3
 confere(continua.virou_o_dia(a, b, tz), "virou o dia à meia-noite local")
 confere(not continua.virou_o_dia(a, a + timedelta(minutes=5), tz), "mesmo dia")
 
+# a história em andamento: a mais recente com capítulos, e o "Onde paramos" da bíblia
+import tempfile, time as _t
+from pathlib import Path
+casa = Path(tempfile.mkdtemp())
+confere(continua.ultima_historia(casa) is None, "sem pasta de histórias")
+for nome, agora_ in (("Velha", _t.time() - 5 * 86400), ("Nova", _t.time() - 3 * 3600)):
+    cap = casa / "Emma" / "Histórias" / nome / "capitulos"
+    cap.mkdir(parents=True)
+    f = cap / "01-a.md"
+    f.write_text("# A\n\ntexto")
+    os.utime(f, (agora_, agora_))
+    (casa / "Emma" / "Histórias" / nome / "biblia.md").write_text(f"# {nome}\n\n## Mundo\n\nx\n\n## Onde paramos\n\nCapítulo 1 — A ({nome})\n")
+(casa / "Emma" / "Histórias" / "Vazia" / "capitulos").mkdir(parents=True)  # sem capítulos: não conta
+h = continua.ultima_historia(casa)
+confere(h and h["nome"] == "Nova" and "Capítulo 1 — A (Nova)" in h["onde"], f"a mais recente devia ser a Nova: {h}")
+nota_h = continua._historia_nota(h)
+confere("Nova" in nota_h and "3 h" in nota_h and "historia_abrir" in nota_h, f"a nota da história: {nota_h}")
+
 async def main():
     agora = datetime(2026, 10, 3, 15, 0, tzinfo=timezone.utc)
     cn = "sexta-feira, 03/10/2026 12:00 (UTC-03:00)"

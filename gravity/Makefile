@@ -153,8 +153,8 @@ extensao:
 	cd extensao-firefox && rm -f lumna-midia.xpi && zip -q lumna-midia.xpi manifest.json fundo.js
 
 # a Emma em segundo plano (servicos/emma*.c): o serviço da sessão, sem a biblioteca de interface
-EMMA = exemplos/emma.c servicos/entrar.c servicos/emmaa.c servicos/emmaq.c servicos/emmab.c servicos/emmal.c servicos/emmas.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
-emma: $(EMMA) servicos/emmaa.h servicos/emmaq.h servicos/emmab.h servicos/emmal.h servicos/emmas.h servicos/emmac.h servicos/emmav.h
+EMMA = exemplos/emma.c servicos/entrar.c servicos/emmaa.c servicos/emmaq.c servicos/emmah.c servicos/emmab.c servicos/emmal.c servicos/emmas.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
+emma: $(EMMA) servicos/emmaa.h servicos/emmaq.h servicos/emmah.h servicos/emmab.h servicos/emmal.h servicos/emmas.h servicos/emmac.h servicos/emmav.h
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0 gio-unix-2.0) -o $@ $(EMMA) $(shell pkg-config --libs libsoup-3.0 gio-2.0 gio-unix-2.0) -lm -lpthread
 
 # o painel flutuante da Emma (à direita)
