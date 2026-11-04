@@ -126,14 +126,14 @@ void pn_emma_ativ_desenhar(void) {
 		if (aviso[0]) {
 			gv_texto(gv_str(aviso), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
 		}
-		if (est.lido && !est.servidor) {
+		/* nada de return dentro de um CLAY: o elemento ficaria aberto e o layout quebra */
+		bool sem_servidor = est.lido && !est.servidor, consultando_ainda = !est.lido;
+		if (sem_servidor) {
 			gv_texto(CLAY_STRING("O servidor da Emma não está respondendo."), gv_t.tamanho_corpo, gv_t.perigo, GV_PESO_NORMAL);
-			return;
-		}
-		if (!est.lido) {
+		} else if (consultando_ainda) {
 			gv_texto(CLAY_STRING("Consultando…"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
-			return;
 		}
+		if (!sem_servidor && !consultando_ainda) {
 		bool pronto_tudo = est.disponivel && est.dep_vosk && est.dep_audio && est.modelo;
 		linha("Roda direto no computador", est.disponivel, "A escuta só funciona com o LUMNA rodando direto no PC, não dentro de um container.");
 		linha("Reconhecimento (vosk)", est.dep_vosk, "Falta instalar: no Python do servidor, pip install vosk. O instalador tenta isso uma vez ao ligar.");
@@ -170,6 +170,7 @@ void pn_emma_ativ_desenhar(void) {
 		}
 		if (ligado && est.erro[0]) {
 			gv_texto(gv_fmt("Parou: %s", est.erro), gv_t.tamanho_corpo - 2, gv_t.perigo, GV_PESO_NORMAL);
+		}
 		}
 	}
 }
