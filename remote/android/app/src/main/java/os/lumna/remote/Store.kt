@@ -2,33 +2,48 @@ package os.lumna.remote
 
 import android.content.Context
 
-/** Tokens de pareamento (um por TV) e a última TV usada, no armazenamento privado do app. */
+/** Tokens de pareamento (um por PC), o último PC usado e os ajustes do app, no armazenamento privado. */
 class Store(context: Context) {
     private val prefs = context.getSharedPreferences("lumna", Context.MODE_PRIVATE)
 
-    fun token(tv: Tv): String? = prefs.getString("token:${key(tv)}", null)
+    fun token(pc: Pc): String? = prefs.getString("token:${key(pc)}", null)
 
-    fun saveToken(tv: Tv, token: String) {
-        prefs.edit().putString("token:${key(tv)}", token).putString("last", encode(tv)).apply()
+    fun saveToken(pc: Pc, token: String) {
+        prefs.edit().putString("token:${key(pc)}", token).putString("last", encode(pc)).apply()
     }
 
-    fun forget(tv: Tv) {
-        prefs.edit().remove("token:${key(tv)}").apply()
+    fun forget(pc: Pc) {
+        prefs.edit().remove("token:${key(pc)}").apply()
     }
 
-    fun remember(tv: Tv) {
-        prefs.edit().putString("last", encode(tv)).apply()
+    fun remember(pc: Pc) {
+        prefs.edit().putString("last", encode(pc)).apply()
     }
 
-    fun last(): Tv? = prefs.getString("last", null)?.let(::decode)
+    fun last(): Pc? = prefs.getString("last", null)?.let(::decode)
 
-    /** TVs achadas pelo nome anunciado; as digitadas à mão, pelo endereço. */
-    private fun key(tv: Tv) = if (tv.name.startsWith("LUMNA")) tv.name else "${tv.host}:${tv.port}"
+    /** Mantém a conexão com o PC mesmo com o app fechado (um serviço com aviso fixo). */
+    var keepAlive: Boolean
+        get() = prefs.getBoolean("keepAlive", false)
+        set(value) = prefs.edit().putBoolean("keepAlive", value).apply()
 
-    private fun encode(tv: Tv) = listOf(tv.name, tv.host, tv.port.toString()).joinToString("\u0001")
+    /** O que o celular copiar vai sozinho para o PC (só com o app aberto: o Android não deixa ler a cópia em segundo plano). */
+    var autoClipboard: Boolean
+        get() = prefs.getBoolean("autoClipboard", false)
+        set(value) = prefs.edit().putBoolean("autoClipboard", value).apply()
 
-    private fun decode(text: String): Tv? {
+    /** Os avisos do celular aparecem no PC (precisa da permissão de acesso às notificações). */
+    var mirrorPhone: Boolean
+        get() = prefs.getBoolean("mirrorPhone", true)
+        set(value) = prefs.edit().putBoolean("mirrorPhone", value).apply()
+
+    /** PCs achados pelo nome anunciado; os digitados à mão, pelo endereço. */
+    private fun key(pc: Pc) = if (pc.name.startsWith("LUMNA")) pc.name else "${pc.host}:${pc.port}"
+
+    private fun encode(pc: Pc) = listOf(pc.name, pc.host, pc.port.toString()).joinToString("\u0001")
+
+    private fun decode(text: String): Pc? {
         val parts = text.split("\u0001")
-        return if (parts.size == 3) Tv(parts[0], parts[1], parts[2].toIntOrNull() ?: Protocol.PORT) else null
+        return if (parts.size == 3) Pc(parts[0], parts[1], parts[2].toIntOrNull() ?: Protocol.PORT) else null
     }
 }

@@ -7,15 +7,15 @@ import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
 
-/** Uma TV com LUMNA na rede: o nome anunciado e onde falar com ela. */
-data class Tv(val name: String, val host: String, val port: Int)
+/** Um PC com LUMNA na rede: o nome anunciado e onde falar com ela. */
+data class Pc(val name: String, val host: String, val port: Int)
 
-/** Procura TVs com LUMNA na rede local pelo mDNS (`_lumna-remote._tcp`). */
-class Discovery(context: Context, private val onChange: (List<Tv>) -> Unit) {
+/** Procura PCs com LUMNA na rede local pelo mDNS (`_lumna-remote._tcp`). */
+class Discovery(context: Context, private val onChange: (List<Pc>) -> Unit) {
     private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
     private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     private val main = Handler(Looper.getMainLooper())
-    private val found = linkedMapOf<String, Tv>()
+    private val found = linkedMapOf<String, Pc>()
     private var lock: WifiManager.MulticastLock? = null
     private var listener: NsdManager.DiscoveryListener? = null
 
@@ -50,7 +50,7 @@ class Discovery(context: Context, private val onChange: (List<Tv>) -> Unit) {
             override fun onServiceResolved(info: NsdServiceInfo) {
                 val host = info.host?.hostAddress ?: return
                 main.post {
-                    found[info.serviceName] = Tv(info.serviceName, host, info.port)
+                    found[info.serviceName] = Pc(info.serviceName, host, info.port)
                     onChange(found.values.toList())
                 }
             }

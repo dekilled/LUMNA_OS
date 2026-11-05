@@ -1,65 +1,83 @@
 package os.lumna.remote
 
+import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.text.InputType
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.view.inputmethod.EditorInfo
-import android.widget.Button
+import android.view.WindowInsets
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 
 /**
- * LUMNA Connect: escolhe a TV na rede, pareia com o código que aparece na tela de Mídia e vira
- * controle remoto (direcional, voltar, início, volume, mídia, modos e teclado).
+ * LUMNA Connect: escolhe o PC na rede, pareia com o código que aparece na tela de Mídia e abre as telas do
+ * app: Controle, Compartilhar (arquivos e área de transferência), Emma, PC (energia e agendamentos) e Ajustes.
+ * A conexão e o estado moram em [Connect]; as telas só mostram.
  */
-class MainActivity : Activity(), TvLink.Listener {
-    private lateinit var store: Store
+class MainActivity : Activity(), Host, Connect.Listener {
     private lateinit var discovery: Discovery
-    private var tvs: List<Tv> = emptyList()
+    private var found: List<Pc> = emptyList()
+    private lateinit var ui: Ui
 
-    private var tv: Tv? = null
-    private var link: TvLink? = null
-    /** Código digitado esperando a TV responder (para saber se a falha foi de pareamento). */
-    private var pairing = false
+    private var screens: List<Screen> = emptyList()
+    private var tabViews: List<LinearLayout> = emptyList()
+    private var currentTab = 0
+    private lateinit var body: FrameLayout
+    private var pickerList: LinearLayout? = null
+    private var voiceCallback: ((String) -> Unit)? = null
 
-    private lateinit var status: TextView
-    private lateinit var tvList: LinearLayout
-
-    private val violetColor = Color.parseColor("#8B5CF6")
-    private val surfaceColor = Color.parseColor("#1A1433")
-    private val textColor = Color.parseColor("#ECE8FF")
-    private val mutedColor = Color.parseColor("#A59CC9")
+    override val activity: Activity get() = this
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store = Store(this)
-        discovery = Discovery(this) { found ->
-            tvs = found
-            if (tv == null) renderTvList()
+        Connect.init(this)
+        ui = Ui(this)
+        discovery = Discovery(this) { list ->
+            found = list
+            renderPickerList()
         }
-        val last = store.last()
-        if (last != null && store.token(last) != null) connect(last) else showPicker()
+        val last = Connect.store.last()
+        if (last != null && Connect.store.token(last) != null) {
+            if (Connect.pc == null) Connect.connect(last)
+            showShell()
+        } else {
+            showPicker()
+        }
+        if (Connect.store.keepAlive) KeepAliveService.start(this)
+        handleShare(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShare(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Connect.addListener(this)
     }
 
     override fun onResume() {
         super.onResume()
         discovery.start()
+        if (Connect.pc != null && !Connect.connected) Connect.resume()
+        if (Connect.store.autoClipboard && Connect.connected) window.decorView.post { Connect.sendClipboard(quiet = true) }
+        screens.getOrNull(currentTab)?.onShow()
     }
 
     override fun onPause() {
@@ -67,77 +85,104 @@ class MainActivity : Activity(), TvLink.Listener {
         discovery.stop()
     }
 
-    override fun onDestroy() {
-        link?.close()
-        super.onDestroy()
+    override fun onStop() {
+        Connect.removeListener(this)
+        super.onStop()
     }
 
-    // ---- telas ----
+    // ---- eventos da conexão ----
 
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-
-    private fun label(value: String, size: Float = 15f, color: Int = textColor, bold: Boolean = false) = TextView(this).apply {
-        this.text = value
-        textSize = size
-        setTextColor(color)
-        if (bold) typeface = Typeface.DEFAULT_BOLD
-    }
-
-    private fun button(value: String, primary: Boolean = false, onClick: () -> Unit) = Button(this).apply {
-        text = value
-        isAllCaps = false
-        textSize = 15f
-        setTextColor(Color.WHITE)
-        background = GradientDrawable().apply {
-            cornerRadius = dp(16).toFloat()
-            setColor(if (primary) violetColor else surfaceColor)
-        }
-        stateListAnimator = null
-        setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            onClick()
+    override fun onEvent(event: Connect.Event) {
+        when (event) {
+            is Connect.Event.Toast -> Toast.makeText(this, event.text, Toast.LENGTH_SHORT).show()
+            is Connect.Event.NeedCode -> {
+                showPicker()
+                askCode(event.pc)
+            }
+            else -> screens.forEach { it.onEvent(event) }
         }
     }
 
-    private fun row(vararg views: View) = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        for (v in views) addView(v, LinearLayout.LayoutParams(0, dp(56), 1f).apply { setMargins(dp(5), dp(5), dp(5), dp(5)) })
-    }
+    // ---- as telas do app ----
 
-    private fun page(content: LinearLayout): View = ScrollView(this).apply {
-        isFillViewport = true
-        addView(content.apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(28), dp(20), dp(24))
-        })
-    }
-
-    /** Lista as TVs achadas na rede e a opção de digitar o endereço. */
-    private fun showPicker() {
-        tv = null
-        link?.close()
-        link = null
-        val content = LinearLayout(this)
-        content.addView(label("LUMNA Connect", 28f, bold = true))
-        content.addView(label("Escolha a TV. Ela precisa estar na mesma rede Wi-Fi.", 14f, mutedColor).apply { setPadding(0, dp(6), 0, dp(18)) })
-        tvList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(tvList)
-        content.addView(button("Digitar o endereço da TV") { askAddress() }, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply { topMargin = dp(18) })
-        setContentView(page(content))
-        renderTvList()
-    }
-
-    private fun renderTvList() {
-        if (!::tvList.isInitialized || tv != null) return
-        tvList.removeAllViews()
-        if (tvs.isEmpty()) {
-            tvList.addView(label("Procurando TVs com LUMNA…", 15f, mutedColor))
+    private fun showShell() {
+        if (screens.isEmpty()) {
+            screens = listOf(ControlScreen(this), ShareScreen(this), EmmaScreen(this), PcScreen(this), SettingsScreen(this))
         }
-        for (found in tvs) {
-            val paired = store.token(found) != null
-            tvList.addView(
-                button(found.name + if (paired) "  ·  pareada" else "", primary = paired) { choose(found) },
-                LinearLayout.LayoutParams(MATCH_PARENT, dp(60)).apply { bottomMargin = dp(10) },
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        body = FrameLayout(this)
+        root.addView(body, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(ui.surface)
+        }
+        val tabs = listOf("🕹️" to "Controle", "📁" to "Compartilhar", "✨" to "Emma", "💻" to "PC", "⚙️" to "Ajustes")
+        tabViews = tabs.mapIndexed { index, (icon, name) ->
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(0, ui.dp(8), 0, ui.dp(8))
+                addView(TextView(this@MainActivity).apply { text = icon; textSize = 20f; gravity = Gravity.CENTER })
+                addView(TextView(this@MainActivity).apply { text = name; textSize = 11f; gravity = Gravity.CENTER })
+                setOnClickListener { selectTab(index) }
+                bar.addView(this, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            }
+        }
+        root.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        root.setOnApplyWindowInsetsListener { v, insets -> applyInsets(v, insets) }
+        setContentView(root)
+        selectTab(currentTab)
+    }
+
+    private fun selectTab(index: Int) {
+        currentTab = index
+        body.removeAllViews()
+        // uma vista só vive num pai: tira da tela antiga antes de pôr na nova
+        (screens[index].view.parent as? android.view.ViewGroup)?.removeView(screens[index].view)
+        body.addView(screens[index].view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        tabViews.forEachIndexed { i, tab ->
+            val color = if (i == index) ui.violetSoft else ui.muted
+            for (c in 0 until tab.childCount) (tab.getChildAt(c) as TextView).setTextColor(color)
+        }
+        screens[index].onShow()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyInsets(view: View, insets: WindowInsets): WindowInsets {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val i = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
+            view.setPadding(i.left, i.top, i.right, i.bottom)
+        } else {
+            view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+        }
+        return insets
+    }
+
+    // ---- escolher o PC e parear ----
+
+    override fun showPicker() {
+        Connect.disconnect()
+        val content = ui.column()
+        content.addView(ui.title("LUMNA Connect", "Escolha o PC. Ele precisa estar na mesma rede Wi-Fi."))
+        val list = ui.column()
+        pickerList = list
+        content.addView(list)
+        content.addView(ui.button("Digitar o endereço do PC") { askAddress() }, LinearLayout.LayoutParams(MATCH_PARENT, ui.dp(56)).apply { topMargin = ui.dp(18) })
+        val page = ui.page(content)
+        page.setOnApplyWindowInsetsListener { v, insets -> applyInsets(v, insets) }
+        setContentView(page)
+        renderPickerList()
+    }
+
+    private fun renderPickerList() {
+        val list = pickerList ?: return
+        list.removeAllViews()
+        if (found.isEmpty()) list.addView(ui.label("Procurando PCs com LUMNA…", 15f, ui.muted))
+        for (pc in found) {
+            val paired = Connect.store.token(pc) != null
+            list.addView(
+                ui.button(pc.name + if (paired) "  ·  pareado" else "", primary = paired) { choose(pc) },
+                LinearLayout.LayoutParams(MATCH_PARENT, ui.dp(60)).apply { bottomMargin = ui.dp(10) },
             )
         }
     }
@@ -148,22 +193,27 @@ class MainActivity : Activity(), TvLink.Listener {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         AlertDialog.Builder(this)
-            .setTitle("Endereço da TV")
-            .setMessage("Aparece na tela de Mídia, em \"Controle pelo celular\".")
+            .setTitle("Endereço do PC")
+            .setMessage("Aparece na tela de Mídia do PC, em \"Controle pelo celular\".")
             .setView(input)
             .setPositiveButton("Conectar") { _, _ ->
                 val host = input.text.toString().trim()
-                if (host.isNotEmpty()) choose(Tv(host, host, Protocol.PORT))
+                if (host.isNotEmpty()) choose(Pc(host, host, Protocol.PORT))
             }
             .setNegativeButton("Cancelar", null)
             .show()
     }
 
-    private fun choose(target: Tv) {
-        if (store.token(target) != null) connect(target) else askCode(target)
+    private fun choose(pc: Pc) {
+        if (Connect.store.token(pc) != null) {
+            Connect.connect(pc)
+            showShell()
+        } else {
+            askCode(pc)
+        }
     }
 
-    private fun askCode(target: Tv) {
+    private fun askCode(pc: Pc) {
         val input = EditText(this).apply {
             hint = "6 dígitos"
             inputType = InputType.TYPE_CLASS_NUMBER
@@ -172,92 +222,36 @@ class MainActivity : Activity(), TvLink.Listener {
             letterSpacing = 0.3f
         }
         AlertDialog.Builder(this)
-            .setTitle("Parear com ${target.name}")
-            .setMessage("Na TV, vá ao modo Mídia e toque em \"Controle pelo celular\". Digite o código que aparecer.")
+            .setTitle("Parear com ${pc.name}")
+            .setMessage("No PC, vá ao modo Mídia e toque em \"Controle pelo celular\". Digite o código que aparecer.")
             .setView(input)
             .setPositiveButton("Parear") { _, _ ->
                 val code = input.text.toString().filter(Char::isDigit)
-                if (code.length == 6) pair(target, code) else toast("O código tem 6 dígitos")
+                if (code.length == 6) {
+                    Connect.pair(pc, code)
+                    showShell()
+                } else {
+                    Toast.makeText(this, "O código tem 6 dígitos", Toast.LENGTH_SHORT).show()
+                }
             }
             .setNegativeButton("Cancelar", null)
             .show()
     }
 
-    // ---- conexão ----
+    // ---- o que as telas pedem (Host) ----
 
-    private fun deviceName() = "${Build.MANUFACTURER.replaceFirstChar(Char::uppercase)} ${Build.MODEL}".take(40)
-
-    private fun pair(target: Tv, code: String) {
-        open(target, Protocol.pair(code, deviceName()))
-        pairing = true
-    }
-
-    private fun connect(target: Tv) {
-        val token = store.token(target) ?: return askCode(target)
-        open(target, Protocol.hello(token))
-    }
-
-    private fun open(target: Tv, first: String) {
-        link?.close()
-        tv = target
-        pairing = false
-        showRemote(target)
-        status.text = "Conectando…"
-        link = TvLink(target.host, target.port, this).also { it.open(first) }
-    }
-
-    override fun onConnected() {
-        status.text = "Conectado"
-    }
-
-    override fun onReply(reply: Protocol.Reply) {
-        val current = tv ?: return
-        when (reply) {
-            is Protocol.Reply.Paired -> {
-                store.saveToken(current, reply.token)
-                pairing = false
-                status.text = "Pareado com ${reply.tvName}"
-            }
-            is Protocol.Reply.Ready -> {
-                store.remember(current)
-                status.text = reply.tvName
-            }
-            is Protocol.Reply.Volume -> status.text = if (reply.muted) "Som desligado" else "Volume ${reply.value ?: "-"}%"
-            is Protocol.Reply.Error -> {
-                if (reply.unpaired || pairing) {
-                    // Token velho (a TV esqueceu este celular) ou código errado: pede o código de novo.
-                    store.forget(current)
-                    toast(reply.message)
-                    showPicker()
-                    askCode(current)
-                } else {
-                    toast(reply.message)
-                }
-            }
-            is Protocol.Reply.Voice -> {
-                status.text = "Emma: ${reply.text}"
-                if (!reply.ok) toast(reply.text)
-            }
-            Protocol.Reply.Ok -> {}
+    override fun pickFiles() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }
+        startActivityForResult(intent, REQUEST_FILES)
     }
-
-    override fun onClosed(reason: String) {
-        if (tv != null && ::status.isInitialized) status.text = "Desconectado: $reason · toque para reconectar"
-    }
-
-    private fun send(message: String) {
-        if (link?.send(message) != true) {
-            tv?.let(::connect)
-        }
-    }
-
-    private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-
-    // ---- voz ----
 
     /** O reconhecimento de voz do próprio celular (a tela do sistema, sem pedir permissão de microfone). */
-    private fun listenOnPhone() {
+    override fun listen(onText: (String) -> Unit) {
+        voiceCallback = onText
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
@@ -266,107 +260,81 @@ class MainActivity : Activity(), TvLink.Listener {
         try {
             startActivityForResult(intent, REQUEST_VOICE)
         } catch (e: ActivityNotFoundException) {
-            toast("Este celular não tem reconhecimento de voz")
+            Toast.makeText(this, "Este celular não tem reconhecimento de voz", Toast.LENGTH_SHORT).show()
         }
     }
 
-    @Deprecated("Activity.onActivityResult: o reconhecedor de voz devolve a fala por aqui.")
+    override fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+    }
+
+    override fun openListenerSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "Abra Configurações > Acesso às notificações", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun setKeepAlive(on: Boolean) {
+        if (on) {
+            requestNotificationPermission() // o aviso fixo só aparece com a permissão (o serviço roda de qualquer jeito)
+            KeepAliveService.start(this)
+        } else {
+            KeepAliveService.stop(this)
+        }
+    }
+
+    @Deprecated("Activity.onActivityResult: o seletor de arquivos e o reconhecedor de voz devolvem por aqui.")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_VOICE || resultCode != RESULT_OK) return
-        val said = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-        if (!said.isNullOrEmpty()) {
-            status.text = "Você: $said"
-            send(Protocol.voice(said))
+        if (resultCode != RESULT_OK || data == null) return
+        when (requestCode) {
+            REQUEST_VOICE -> {
+                val said = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+                if (!said.isNullOrEmpty()) voiceCallback?.invoke(said)
+            }
+            REQUEST_FILES -> {
+                val clip = data.clipData
+                if (clip != null) {
+                    for (i in 0 until clip.itemCount) Transfers.upload(clip.getItemAt(i).uri)
+                } else {
+                    data.data?.let(Transfers::upload)
+                }
+            }
         }
+    }
+
+    /** Compartilhar > LUMNA Connect, de qualquer app: arquivos vão para o PC e texto vai para a área de transferência dele. */
+    @Suppress("DEPRECATION")
+    private fun handleShare(intent: Intent?) {
+        intent ?: return
+        val action = intent.action
+        if (action != Intent.ACTION_SEND && action != Intent.ACTION_SEND_MULTIPLE) return
+        intent.action = null // não repetir ao girar a tela
+        val uris = if (action == Intent.ACTION_SEND) listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+        else intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+        window.decorView.post {
+            if (Connect.pc == null) {
+                Toast.makeText(this, "Conecte a um PC primeiro", Toast.LENGTH_SHORT).show()
+            } else if (uris.isNotEmpty()) {
+                uris.forEach(Transfers::upload)
+                if (screens.isNotEmpty()) selectTab(1)
+            } else if (!text.isNullOrEmpty()) {
+                Connect.sendSharedText(text)
+            }
+        }
+    }
+
+    @Deprecated("Activity.onBackPressed: o voltar do celular leva ao Controle antes de sair do app.")
+    override fun onBackPressed() {
+        if (screens.isNotEmpty() && currentTab != 0) selectTab(0) else super.onBackPressed()
     }
 
     private companion object {
         const val REQUEST_VOICE = 4701
-    }
-
-    // ---- controle ----
-
-    private fun showRemote(target: Tv) {
-        val content = LinearLayout(this)
-
-        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val title = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        title.addView(label(target.name, 20f, bold = true))
-        status = label("", 13f, mutedColor).apply { setOnClickListener { tv?.let(::connect) } }
-        title.addView(status)
-        header.addView(title, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        header.addView(button("Trocar TV") { showPicker() }, LinearLayout.LayoutParams(WRAP_CONTENT, dp(44)))
-        content.addView(header)
-
-        content.addView(
-            row(
-                button("Desktop") { send(Protocol.mode("desktop")) },
-                button("Gaming") { send(Protocol.mode("gaming")) },
-                button("Mídia") { send(Protocol.mode("media")) },
-            ).apply { setPadding(0, dp(16), 0, 0) },
-        )
-
-        val pad = DPadView(this) { action -> send(Protocol.pad(action)) }
-        content.addView(pad, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { setMargins(dp(24), dp(16), dp(24), dp(12)) })
-
-        content.addView(
-            row(
-                button("Falar com a Emma", primary = true) { listenOnPhone() },
-                button("Microfone da TV") { send(Protocol.voiceListen()) },
-            ),
-        )
-        content.addView(
-            row(
-                button("Voltar") { send(Protocol.pad("back")) },
-                button("Início", primary = true) { send(Protocol.home()) },
-                button("Menu") { send(Protocol.pad("menu")) },
-            ),
-        )
-        content.addView(
-            row(
-                button("−10 s") { send(Protocol.media("back")) },
-                button("Play/Pausa", primary = true) { send(Protocol.media("play-pause")) },
-                button("+10 s") { send(Protocol.media("forward")) },
-            ),
-        )
-        content.addView(
-            row(
-                button("Vol −") { send(Protocol.volume("down")) },
-                button("Mudo") { send(Protocol.volume("mute")) },
-                button("Vol +") { send(Protocol.volume("up")) },
-            ),
-        )
-
-        val typing = EditText(this).apply {
-            hint = "Digitar na TV"
-            setTextColor(textColor)
-            setHintTextColor(mutedColor)
-            imeOptions = EditorInfo.IME_ACTION_SEND
-            inputType = InputType.TYPE_CLASS_TEXT
-            setSingleLine()
-            setOnEditorActionListener { view, _, _ ->
-                val value = (view as EditText).text.toString()
-                if (value.isNotEmpty()) {
-                    send(Protocol.text(value))
-                    view.setText("")
-                }
-                true
-            }
-        }
-        content.addView(typing, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply { topMargin = dp(10) })
-        content.addView(
-            row(
-                button("Apagar") { send(Protocol.key("backspace")) },
-                button("Enter") { send(Protocol.key("enter")) },
-            ),
-        )
-
-        setContentView(page(content))
-    }
-
-    @Deprecated("Activity.onBackPressed: aqui o voltar do celular volta para a lista de TVs.")
-    override fun onBackPressed() {
-        if (tv != null) showPicker() else super.onBackPressed()
+        const val REQUEST_FILES = 4702
+        const val REQUEST_NOTIFICATIONS = 4703
     }
 }
