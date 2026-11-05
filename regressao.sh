@@ -9,6 +9,7 @@ grep -q ORBIT_LAYOUT_SPIRAL orbit.h
 grep -q ORBIT_LAYOUT_DWINDLE arrange.c
 grep -q ORBIT_CURSOR_GESTURE input.c
 grep -q anim_ms config.c
+grep -q marked_primary telas.c
 grep -q wlr_session_lock_manager_v1_create lock.c
 grep -q wlr_seat_touch_notify_down touch.c
 grep -q wlr_input_method_manager_v2_create im.c

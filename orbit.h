@@ -168,6 +168,7 @@ struct orbit_screen_config {
 	int rotation;                  /* 0, 90, 180, 270 */
 	bool has_pos;
 	int x, y;
+	bool primary;                  /* a tela principal que a pessoa marcou no Painel (principal=1) */
 };
 
 struct orbit_pointer {
@@ -375,6 +376,7 @@ struct orbit_view {
 	uint32_t slide_start;
 	uint32_t slide_span; /* duração do movimento atual (ms) */
 	bool leaving;        /* saindo de cena na troca de espaço: some quando chegar */
+	bool clipped;        /* a troca de espaço corta a janela na borda da sua saída (senão ela aparece no monitor do lado) */
 	int enter_dx;        /* entrando na troca de espaço: começa deslocado, na horizontal */
 	/* o último configure mandado por place(): só se manda outro quando algo muda (cada configure
 	 * faz o app redesenhar e responder; mandá-los sem mudança era um ciclo sem fim) */
@@ -487,7 +489,8 @@ void orbit_disposicao_config_load(struct orbit_server *server);
 void orbit_disposicao_apply(struct orbit_server *server);
 int orbit_disposicao_parse(const char *text);
 const char *orbit_disposicao_nome(int d);
-struct orbit_output *orbit_output_primary(struct orbit_server *server); /* a tela principal (a do monitor principal; sem isso, a mais à esquerda) */
+struct orbit_output *orbit_output_primary(struct orbit_server *server);
+bool orbit_output_is_primary(struct orbit_server *server, const struct orbit_output *output); /* a tela principal (a do monitor principal; sem isso, a mais à esquerda) */
 void orbit_soft_off_refresh(struct orbit_server *server);
 void orbit_screens_apply(struct orbit_server *server);
 void orbit_screen_apply_one(struct orbit_server *server, struct orbit_output *output);

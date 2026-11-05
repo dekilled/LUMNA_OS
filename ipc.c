@@ -259,11 +259,12 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			put_str(b, output->wlr->name);
 			put(b, ",\"largura\":%d,\"altura\":%d,\"escala\":%.2f,\"hz\":%d,\"x\":%d,\"y\":%d,"
 				"\"espaco\":%d,\"telemovel\":%s,\"ponteiro\":%s,\"ligada\":%s,\"desligavel\":%s,\"rotacao\":%d,"
-				"\"util\":{\"x\":%d,\"y\":%d,\"largura\":%d,\"altura\":%d},\"mm\":[%d,%d],\"fabricante\":",
+				"\"util\":{\"x\":%d,\"y\":%d,\"largura\":%d,\"altura\":%d},\"mm\":[%d,%d]",
 				output->wlr->width, output->wlr->height, output->wlr->scale, hz, box.x, box.y,
 				output->tag + 1, output_is_phone(output->wlr) ? "true" : "false",
 				output == under ? "true" : "false", output->off ? "false" : "true", wlr_output_is_wl(output->wlr) ? "false" : "true", rotation,
 				util.x - box.x, util.y - box.y, util.width, util.height, output->wlr->phys_width, output->wlr->phys_height);
+			put(b, ",\"principal\":%s,\"fabricante\":", orbit_output_is_primary(server, output) ? "true" : "false");
 			put_str(b, output->host && output->host->fabricante[0] ? output->host->fabricante : output->wlr->make ? output->wlr->make : "");
 			put(b, ",\"modelo\":");
 			put_str(b, output->host && output->host->modelo[0] ? output->host->modelo : output->wlr->model ? output->wlr->model : "");

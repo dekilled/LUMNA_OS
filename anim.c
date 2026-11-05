@@ -9,6 +9,32 @@ static uint32_t now_ms(void) {
 	return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
 }
 
+/* Na troca de espaço ou de modo a janela anda uma tela inteira para o lado; com monitores lado a lado ela passava por cima do
+ * vizinho (um piscar na tela errada). Enquanto anda, só se vê o pedaço que cai na própria saída. */
+static void orbit_slide_clip(struct orbit_view *view, int x, int y) {
+	if (!view->clipped || !view->output || !view->toplevel) {
+		return;
+	}
+	struct wlr_box out;
+	wlr_output_layout_get_box(view->server->layout, view->output->wlr, &out);
+	struct wlr_box geo;
+	wlr_xdg_surface_get_geometry(view->toplevel->base, &geo);
+	struct wlr_box clip = {
+		.x = out.x - x + geo.x,
+		.y = out.y - y + geo.y,
+		.width = out.width,
+		.height = out.height,
+	};
+	wlr_scene_subsurface_tree_set_clip(&view->scene_tree->node, &clip);
+}
+
+static void orbit_slide_unclip(struct orbit_view *view) {
+	if (view->clipped) {
+		view->clipped = false;
+		wlr_scene_subsurface_tree_set_clip(&view->scene_tree->node, NULL);
+	}
+}
+
 static void apply_visual(struct orbit_view *view, int x, int y) {
 	int b = view->server->border_px;
 	bool inset = view->border && view->border->node.enabled && b > 0;
@@ -18,9 +44,11 @@ static void apply_visual(struct orbit_view *view, int x, int y) {
 	}
 	view->slide_x = x;
 	view->slide_y = y;
+	orbit_slide_clip(view, x, y);
 }
 
 static void hide_after_leave(struct orbit_view *view) {
+	orbit_slide_unclip(view);
 	view->leaving = false;
 	view->sliding = false;
 	view->placed = false;
@@ -44,6 +72,7 @@ static int slide_tick(void *data) {
 		if (dt >= span) {
 			apply_visual(view, view->slide_to_x, view->slide_to_y);
 			view->sliding = false;
+			orbit_slide_unclip(view);
 			if (view->leaving) {
 				hide_after_leave(view);
 			}
@@ -97,6 +126,7 @@ void orbit_slide(struct orbit_view *view, int x, int y) {
 }
 
 void orbit_slide_stop(struct orbit_view *view) {
+	orbit_slide_unclip(view);
 	view->sliding = false;
 	view->leaving = false;
 	view->placed = false;
@@ -124,6 +154,7 @@ static void slide_go(struct orbit_view *view, int fx, int fy, int tx, int ty) {
 /* sai de cena deslizando dx na horizontal e some ao chegar */
 void orbit_slide_leave(struct orbit_view *view, int dx) {
 	view->leaving = true;
+	view->clipped = true;
 	slide_go(view, view->slide_x, view->slide_y, view->slide_x + dx, view->slide_y);
 }
 
@@ -131,6 +162,7 @@ void orbit_slide_leave(struct orbit_view *view, int dx) {
 void orbit_slide_enter(struct orbit_view *view, int dx) {
 	int x = view->slide_x, y = view->slide_y;
 	view->leaving = false;
+	view->clipped = true;
 	apply_visual(view, x + dx, y);
 	slide_go(view, x + dx, y, x, y);
 }

@@ -87,6 +87,8 @@ void orbit_screens_config_load(struct orbit_server *server) {
 		} else if (!strcmp(k, "rotacao")) {
 			int r = atoi(v);
 			c->rotation = (r == 90 || r == 180 || r == 270) ? r : 0;
+		} else if (!strcmp(k, "principal")) {
+			c->primary = atoi(v) != 0;
 		} else if (!strcmp(k, "x")) {
 			c->x = atoi(v);
 			c->has_pos = true;
@@ -386,8 +388,28 @@ static struct orbit_output *edge_output(struct orbit_server *server, bool right)
 	return best;
 }
 
+/* a saída que está no telas.ini com principal=1 (se estiver ligada ao computador) */
+static struct orbit_output *marked_primary(struct orbit_server *server) {
+	for (int i = 0; i < server->nscreens; i++) {
+		if (server->screens[i].primary) {
+			struct orbit_output *o = orbit_output_find_any(server, server->screens[i].name);
+			if (o) {
+				return o;
+			}
+		}
+	}
+	return NULL;
+}
+
+bool orbit_output_is_primary(struct orbit_server *server, const struct orbit_output *output) {
+	return orbit_output_primary(server) == output;
+}
+
 struct orbit_output *orbit_output_primary(struct orbit_server *server) {
-	struct orbit_output *o;
+	struct orbit_output *o = marked_primary(server);
+	if (o) {
+		return o; /* a que a pessoa escolheu manda; sem escolha, vale o monitor de fora e depois o da esquerda */
+	}
 	for (int pass = 0; pass < 2; pass++) {
 		wl_list_for_each(o, pass ? &server->off_outputs : &server->outputs, link) {
 			if (server->host_mon_n > 0 && o->host == &server->host_mon[0]) {

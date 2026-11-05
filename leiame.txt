@@ -326,3 +326,7 @@ de transferência, limpar_copiados esvazia. A barra do LUMNA mostra a lista (o �
 
 Diagnóstico de teclado: ORBIT_TECLAS=1 faz o Orbit escrever no log cada tecla que chega (o nome, apertada ou solta,
 os modificadores e o atraso em relação à hora em que o sistema de fora a mandou), e se virou um atalho dele.
+
+Tela principal (telas.ini): "principal=1" numa seção marca a tela principal ([DP-1]). Sem marca, vale o monitor de fora do
+aninhado (tela_principal) e depois a mais à esquerda. orbit-msg saidas diz qual é ("principal":true). A barra, o papel de parede
+e a dock "só na principal" seguem essa tela; os apps do Gravity reabrem sozinhos quando ela muda.
