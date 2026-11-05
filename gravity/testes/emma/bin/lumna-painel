@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "painel $*" >> "$EMMA_TESTE_LOG"
+exit 0

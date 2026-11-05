@@ -52,10 +52,14 @@ static const struct emmaa_def catalogo[] = {
 	{ "apps.abrir", "Abrir programa", "Abre um programa instalado pelo nome aproximado (\"firefox\", \"steam\", \"terminal\").",
 		"{\"nome\":{\"type\":\"string\"}}", "nome", EMMAA_AGIR, "auto" },
 	{ "painel.abrir", "Abrir uma configuração",
-		"Abre o Painel de controle numa seção (o jeito de mostrar onde mudar algo). Seções: aparencia/tema, aparencia/papel, aparencia/barra, rede/wifi, bluetooth/dispositivos, "
-		"aplicativos/instalados, aplicativos/atualizacoes, telas/monitores, telas/modos, teclado/teclado, teclado/atalhos, teclado/mouse, data/hora, data/fuso, "
-		"sobre/computador, sobre/atualizacoes, armazenamento/uso, armazenamento/limpeza, armazenamento/discos, energia/perfil.",
-		"{\"secao\":{\"type\":\"string\",\"description\":\"categoria/seção, como teclado/mouse\"}}", "secao", EMMAA_AGIR, "auto" },
+		"Abre o Painel de controle numa seção (o jeito de mostrar onde mudar algo, e onde ficam as configurações da própria Emma). Seções: aparencia/tema, aparencia/papel, aparencia/barra, "
+		"rede/wifi, bluetooth/dispositivos, aplicativos/instalados, aplicativos/atualizacoes, telas/monitores, telas/modos, telas/areas, som/saida, som/entrada, som/apps, "
+		"celular/parear, celular/transferencia, celular/avisos, celular/arquivos, "
+		"emma/voz (a voz dela: ouvir e falar, o botão de testar), emma/ativacao (Oi Emma), emma/provedores (as IAs e as chaves), emma/roteamento, emma/personalidade, emma/recursos, emma/mcp, emma/importar, "
+		"teclado/teclado, teclado/atalhos, teclado/mouse, data/hora, data/fuso, sobre/computador, sobre/atualizacoes, armazenamento/uso, armazenamento/limpeza, armazenamento/discos, "
+		"energia/perfil, inicializacao/entrar, idioma/idioma, usuarios/conta, privacidade/permissoes. Só a categoria (emma, som, teclado) abre na primeira página dela. "
+		"As configurações da Emma ficam todas em emma/...: para \"as configurações dela\", abra emma/provedores (ou emma/voz para a voz).",
+		"{\"secao\":{\"type\":\"string\",\"description\":\"categoria/seção, como emma/voz ou teclado/mouse\"}}", "secao", EMMAA_AGIR, "auto" },
 	{ "arquivos.listar", "Listar uma pasta",
 		"Lista os arquivos de uma pasta do computador. Sem pasta, é a pasta da Emma (~/Emma). Na pasta pessoal se lê à vontade; fora dela (ou em pasta oculta) a pessoa tem de aprovar.",
 		"{\"pasta\":{\"type\":\"string\",\"description\":\"O caminho da pasta (~ é a pasta pessoal; sem barra no começo é dentro de ~/Emma)\"}}", "", EMMAA_LER, "auto" },
@@ -902,17 +906,36 @@ void emmaa_executar(const struct emmaa_def *d, const struct json *args, struct e
 	} else if (!strcmp(n, "apps.abrir")) {
 		apps_abrir(json_chave_texto(args, "nome"), r);
 	} else if (!strcmp(n, "painel.abrir")) {
-		const char *sec = json_chave_texto(args, "secao");
-		bool bom = *sec && strlen(sec) < 64;
-		for (const char *c = sec; bom && *c; c++) {
-			bom = g_ascii_islower(*c) || g_ascii_isdigit(*c) || *c == '/' || *c == '-' || *c == '_';
+		/* o modelo escreve "Emma / Configurações" ou "configurações da emma": sem acento, minúsculas, espaços viram traços; o Painel acha o que der */
+		char *ascii = g_str_to_ascii(json_chave_texto(args, "secao"), "pt_BR");
+		GString *norm = g_string_new(NULL);
+		for (const char *c = ascii; *c && norm->len < 63; c++) {
+			if (g_ascii_isalnum(*c)) {
+				g_string_append_c(norm, g_ascii_tolower(*c));
+			} else if (*c == '/' && norm->len) {
+				if (norm->str[norm->len - 1] == '-') {
+					g_string_truncate(norm, norm->len - 1); /* "emma / voz": sem o traço antes da barra */
+				}
+				if (norm->str[norm->len - 1] != '/') {
+					g_string_append_c(norm, '/');
+				}
+			} else if (norm->len && norm->str[norm->len - 1] != '-' && norm->str[norm->len - 1] != '/') {
+				g_string_append_c(norm, '-');
+			}
 		}
+		g_free(ascii);
+		while (norm->len && (norm->str[norm->len - 1] == '-' || norm->str[norm->len - 1] == '/')) {
+			g_string_truncate(norm, norm->len - 1);
+		}
+		char *sec = g_string_free(norm, FALSE);
+		bool bom = *sec != '\0';
 		if (!bom) {
-			falha(r, "Seção inválida.");
+			falha(r, "Diga a seção (por exemplo emma/voz ou teclado/mouse).");
 		} else {
-			char *argv[] = { "lumna-painel", "--secao", (char *)sec, NULL };
+			char *argv[] = { "lumna-painel", "--secao", sec, NULL };
 			executar_simples(argv) ? ok_(r, "Abri a configuração.") : falha(r, "Não consegui abrir o Painel de controle.");
 		}
+		g_free(sec);
 	} else if (!strcmp(n, "notificar")) {
 		char *argv[] = { "notify-send", "-a", "Emma", (char *)json_chave_texto(args, "titulo"), (char *)json_chave_texto(args, "texto"), NULL };
 		executar_simples(argv) ? ok_(r, "Avisei.") : falha(r, "O notify-send não está instalado.");

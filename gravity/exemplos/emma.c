@@ -29,6 +29,7 @@
 #include "emmal.h"
 #include "emmas.h"
 #include "emmac.h"
+#include "latex.h"
 #include "emmav.h"
 #include "json.h"
 #include "midiac.h"
@@ -364,6 +365,29 @@ static void decidir(const char *id, bool sim) {
 static char assist_anexo_id[4][40], assist_anexo_cam[4][512];
 static int assist_n_anexos;
 
+/* "Ler as respostas em voz alta" (Painel > Emma > Voz): o backend guarda; o serviço confere de tempos em tempos, sem travar a linha principal */
+static volatile gint leitura_automatica;
+
+static gpointer leitura_automatica_linha(gpointer d) {
+	char *r = NULL, *erro = NULL;
+	int st = emmab_chamar("GET", "/api/settings", NULL, &r, &erro);
+	if (st == 200 && r) {
+		struct json *j = json_ler(r);
+		if (j) {
+			g_atomic_int_set(&leitura_automatica, json_bool(json_chave(json_chave(j, "voice"), "auto_read"), false) ? 1 : 0);
+			json_liberar(j);
+		}
+	}
+	g_free(r);
+	g_free(erro);
+	return NULL;
+}
+
+static gboolean leitura_automatica_tique(gpointer d) {
+	g_thread_unref(g_thread_new("emma-leitura", leitura_automatica_linha, NULL));
+	return G_SOURCE_CONTINUE;
+}
+
 struct conversa {
 	char *sid;                 /* a sessão do app (NULL: a do painel) */
 	char *extra;               /* pedaço do corpo do chat: "skill_id":"..." */
@@ -383,7 +407,10 @@ static bool ocupada;
 
 static char *limpar_fala(const char *t) {
 	GString *g = g_string_new(NULL);
-	char **ls = g_strsplit(t, "\n", -1);
+	char *sem_latex = g_strdup(t);
+	latex_simples(sem_latex); /* a voz lê "seta", não "dólar barra rightarrow dólar" */
+	char **ls = g_strsplit(sem_latex, "\n", -1);
+	g_free(sem_latex);
 	for (int i = 0; ls[i]; i++) {
 		const char *l = ls[i];
 		while (*l == ' ') {
@@ -725,6 +752,10 @@ static void processar_texto(const char *texto, const char *origem, bool voz, str
 		g_free(resumo);
 		emmaa_res_limpar(&r);
 		return;
+	}
+	/* ligado em Painel > Emma > Voz, toda resposta digitada é falada também (a do celular não: ela volta para o celular) */
+	if (!voz && !espera && g_atomic_int_get(&leitura_automatica) && strcmp(origem, "celular") != 0) {
+		voz = true;
 	}
 	struct conversa *c = g_new0(struct conversa, 1);
 	c->texto = g_strdup(texto);
@@ -1255,6 +1286,10 @@ static void conversar_app(struct cliente *c, const char *corpo) {
 	v->sid = g_strdup(sid);
 	v->texto = g_strdup(texto);
 	v->origem = g_strdup("app");
+	if (g_atomic_int_get(&leitura_automatica)) { /* o chat do app também fala quando "Ler as respostas em voz alta" está ligado */
+		v->voz = true;
+		v->fala = g_string_new(NULL);
+	}
 	GString *e = g_string_new(NULL);
 	if (*skill) {
 		g_string_append(e, "\"skill_id\":");
@@ -1762,6 +1797,8 @@ int main(int argc, char **argv) {
 	g_queue_init(&fila);
 	emmaa_iniciar();
 	emmav_falar_iniciar(voz_estado, NULL);
+	leitura_automatica_tique(NULL);
+	g_timeout_add_seconds(g_getenv("LUMNA_EMMA_LEITURA_S") ? MAX(1, atoi(g_getenv("LUMNA_EMMA_LEITURA_S"))) : 10, leitura_automatica_tique, NULL);
 
 	char *caminho = emmac_socket_caminho();
 	g_unlink(caminho);

@@ -35,9 +35,10 @@ def sobe(cmd, **kw):
 
 
 os.environ["EMMA_TESTE_CASA"] = T  # o HOME do teste
+os.environ["EMMA_AUTO_READ_FILE"] = os.path.join(T, "auto_read")  # existir = "Ler as respostas em voz alta" ligado (o backend de mentira lê)
 os.environ["EMMA_TESTE_FORA"] = os.path.join(tempfile.gettempdir(), f"emma-fora-{os.getpid()}.txt")  # um arquivo FORA da pasta pessoal (o HOME do teste é T)
 env = dict(os.environ, LUMNA_EMMA_ESPERA_TESTE="3", LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
-           LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
+           LUMNA_EMMA_LEITURA_S="1", LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
            PATH=os.path.join(AQUI, "bin") + ":" + os.environ["PATH"], DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent")
 env.pop("WAYLAND_DISPLAY", None)
 env.pop("ORBIT_SOCK", None)
@@ -97,6 +98,7 @@ try:
     pede("enviar", "avança um minuto")
     confere(espera(lambda: log().count("wtype -k Right") >= 12), "'avança um minuto' não andou 60 s")
 
+    antes_tts = log().count("/tts")
     # o teste da voz (Painel > Emma > Voz): a frase vai ao servidor e ao tocador, e quando falha o motivo aparece, não o silêncio
     r = pede("voz_teste", "uma frase de teste")
     confere(r.get("ok"), f"voz_teste: {r}")
@@ -110,6 +112,23 @@ try:
     confere("Fish" in r.get("erro", ""), f"o motivo do servidor chega ao Painel: {r}")
     pede("voz_teste", "e agora de novo")
     confere(espera(lambda: pede("voz_erro").get("erro", "x") == ""), "falar bem de novo apaga o erro velho")
+
+    # a Emma abre as próprias configurações mesmo escrevendo a seção "Emma / Configurações" (antes: "Seção inválida" e ela dizia que o sistema deu um bolo)
+    pede("enviar", "abre a config da emma")
+    confere(espera(lambda: "painel --secao emma/configuracoes" in log()), "a seção escrita com maiúsculas, acento e espaços devia chegar ao Painel limpa (emma/configuracoes)")
+
+    # "Ler as respostas em voz alta": ligado, uma resposta digitada também é falada (o tocador de mentira é o "true")
+    antes_tts = log().count("/tts")
+    pede("enviar", "qual é a capital do Brasil")
+    espera(lambda: "/api/sessions/sess-1/chat" in log())
+    time.sleep(1.5)
+    confere(log().count("/tts") == antes_tts, "com a leitura automática desligada, a resposta digitada não deve ser falada")
+    open(os.path.join(T, "auto_read"), "w").write("1")
+    time.sleep(2.5)  # o serviço confere a configuração a cada segundo no teste
+    pede("enviar", "me conta uma novidade")
+    confere(espera(lambda: log().count("/tts") > antes_tts, 12), "com a leitura automática ligada, a resposta digitada tem de ser falada")
+    os.remove(os.path.join(T, "auto_read"))
+    time.sleep(2.5)
 
     # FASE 1, com o servidor ligado: a conversa vai pelo servidor da Emma (o motor: skills, memória, RAG), com uma ação dela
     pede("enviar", "qual é a capital do Brasil")

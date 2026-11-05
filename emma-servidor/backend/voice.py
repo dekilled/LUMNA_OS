@@ -18,8 +18,21 @@ MAX_TTS_CHARS = 4000
 MAX_AUDIO_BYTES = 20 << 20
 
 
+LATEX = {"rightarrow": "→", "to": "→", "longrightarrow": "→", "leftarrow": "←", "Rightarrow": "⇒", "Leftarrow": "⇐", "leftrightarrow": "↔", "times": "×",
+         "cdot": "·", "approx": "≈", "neq": "≠", "leq": "≤", "geq": "≥", "ldots": "…", "checkmark": "✓", "degree": "°", "pm": "±"}
+
+
+def simple_latex(text: str) -> str:
+    """The models write arrows as $\\rightarrow$: the symbol instead (only "$...$" with a known command; "R$ 5 e R$ 10" stays)."""
+    def sym(m):
+        return LATEX.get(m.group(1), m.group(0))
+    text = re.sub(r"\$([^$\n]{0,48}?\\[A-Za-z]+[^$\n]{0,48}?)\$", lambda m: re.sub(r"\\([A-Za-z]+)", sym, m.group(1)).strip() if re.fullmatch(r"[^\\]*(\\(" + "|".join(LATEX) + r")[^\\A-Za-z]*)+", m.group(1)) else m.group(0), text)
+    return re.sub(r"\\(" + "|".join(LATEX) + r")(?![A-Za-z])", lambda m: LATEX[m.group(1)], text)
+
+
 def clean_for_speech(text: str) -> str:
     """Markdown to plain speech: drops code blocks and HARNESS action blocks, links keep their label."""
+    text = simple_latex(text)
     text = re.sub(r"<<<HARNESS:[\s\S]*?(<<<END>>>|$)", " ", text)
     text = re.sub(r"```[\s\S]*?(```|$)", " (bloco de código) ", text)
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", text)

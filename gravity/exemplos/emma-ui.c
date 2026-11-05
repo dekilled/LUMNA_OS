@@ -3,6 +3,7 @@
 #include "emma-ui.h"
 #include "destaque.h"
 #include "emmac.h"
+#include "latex.h"
 
 #include <string.h>
 #include <sys/wait.h>
@@ -42,7 +43,11 @@ char *eu_achar_asset(const char *nome) {
 
 void eu_ler_resposta(const char *texto, struct eu_resposta *r) {
 	memset(r, 0, sizeof(*r));
-	char **ls = g_strsplit(texto, "\n", -1);
+	/* o modelo escreve setas em LaTeX ($\rightarrow$): na tela vira o símbolo */
+	char *limpo = g_strdup(texto);
+	latex_simples(limpo);
+	char **ls = g_strsplit(limpo, "\n", -1);
+	g_free(limpo);
 	GString *corpo = g_string_new(NULL);
 	int n = (int)g_strv_length(ls);
 	for (int i = 0; i < n; i++) {

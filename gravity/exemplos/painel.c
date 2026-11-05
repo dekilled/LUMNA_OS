@@ -86,6 +86,37 @@ static bool achar(const char *id, int *c, int *s) {
 		}
 		return true;
 	}
+	/* não é um id exato (vem de uma pessoa ou do modelo: "configuracoes-da-emma", "audio"): procura pelas palavras, primeiro o nome da
+	 * categoria, depois o da seção, e abre o que achar em vez de ficar na tela inicial */
+	char palavras[96];
+	snprintf(palavras, sizeof(palavras), "%s", id);
+	for (char *p = strtok(palavras, "/-_ "); p; p = strtok(NULL, "/-_ ")) {
+		if (strlen(p) < 3) {
+			continue;
+		}
+		for (int i = 0; i < pn_ncategorias; i++) {
+			if (!strcmp(p, pn_categorias[i]->id)) {
+				*c = i;
+				*s = 0;
+				return true;
+			}
+		}
+	}
+	snprintf(palavras, sizeof(palavras), "%s", id);
+	for (char *p = strtok(palavras, "/-_ "); p; p = strtok(NULL, "/-_ ")) {
+		if (strlen(p) < 3) {
+			continue;
+		}
+		for (int i = 0; i < pn_ncategorias; i++) {
+			for (int k = 0; k < pn_categorias[i]->nsecoes; k++) {
+				if (!strcmp(p, pn_categorias[i]->secoes[k].id)) {
+					*c = i;
+					*s = k;
+					return true;
+				}
+			}
+		}
+	}
 	return false;
 }
 

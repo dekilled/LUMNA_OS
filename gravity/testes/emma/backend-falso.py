@@ -93,7 +93,9 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             return self.wfile.write(b)
         if self.path == "/api/settings":
-            return self.json({"routing": ROUTING})
+            # "Ler as respostas em voz alta" (Painel > Emma > Voz): o teste liga criando o arquivo
+            auto = bool(os.environ.get("EMMA_AUTO_READ_FILE")) and os.path.exists(os.environ["EMMA_AUTO_READ_FILE"])
+            return self.json({"routing": ROUTING, "voice": {"auto_read": auto}})
         if self.path.startswith("/api/providers/") and self.path.endswith("/models"):
             return self.json({"ok": True, "models": ["modelo-x", "modelo-y", "modelo-z"]})
         if self.path == "/api/sessions/sess-a/messages":
@@ -250,6 +252,8 @@ class H(BaseHTTPRequestHandler):
             ferramenta = ("lumna_arquivos_ler", {"caminho": "~/.config/lumna/emma/chave"}, "Tentei ler.")
         elif "netflix" in texto:
             ferramenta = ("lumna_midia_abrir", {"servico": "netflix"}, "Abri a Netflix. Bom filme!")
+        elif "config da emma" in texto:  # o modelo escreve a seção do jeito dele: maiúsculas, acento, espaços
+            ferramenta = ("lumna_painel_abrir", {"secao": "Emma / Configurações"}, "Abri as configurações dela.")
         elif "layout" in texto:
             ferramenta = ("lumna_painel_abrir", {"secao": "teclado/teclado"},
                           "Encontrei essa opção nas configurações. Qual layout você quer usar?\n[acao: Adicionar layout]\n[sugestao: Português (Brasil)]\n[sugestao: Inglês (EUA)]")
