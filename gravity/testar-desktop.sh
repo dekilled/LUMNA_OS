@@ -75,7 +75,7 @@ fi
 
 # os nomes que as peças chamam umas às outras (a dock abre o lumna-lancador, o sino o lumna-avisos...)
 mkdir -p "$BIN"
-for p in papel barra dock lancador avisos bloqueio entrada ocioso modos controle midia emma emma-chat emma-app perfil captura painel apps rede transferencia mixer wifi galeria; do
+for p in papel barra dock lancador avisos bloqueio entrada ocioso modos connect midia emma emma-chat emma-app perfil captura painel apps rede transferencia mixer wifi galeria; do
 	[ -x "$AQUI/$p" ] && ln -sf "$AQUI/$p" "$BIN/lumna-$p"
 done
 ln -sf "$O/orbit-msg" "$BIN/orbit-msg"
@@ -89,10 +89,10 @@ opcional wl-copy "a área de transferência do Connect (pacman -S wl-clipboard)"
 opcional grim "a captura de tela (pacman -S grim)"
 opcional wf-recorder "a gravação de tela (pacman -S wf-recorder)"
 opcional firefox "a Mídia (pacman -S firefox; o comum só liga a extensão se for assinada: veja extensao-firefox/LEIAME.md)"
-echo "Para ver o que está faltando: sh ../scripts/diag-controle.sh (dentro do desktop, no Alt+Enter)"
+echo "Para ver o que está faltando: sh ../scripts/diag-connect.sh (dentro do desktop, no Alt+Enter)"
 
 echo "Abrindo o desktop novo numa janela (feche-a para sair)..."
 export PATH="$BIN:$PATH"
 export ORBIT_BORDA=0 # as janelas desenham a própria moldura, de cantos redondos
-exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-controle & { mkdir -p ~/.local/state/lumna; lumna-emma 2>>~/.local/state/lumna/emma.log; } & lumna-midia servico &
+exec dbus-run-session -- "$O/orbit" -s 'lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-connect & { mkdir -p ~/.local/state/lumna; lumna-emma 2>>~/.local/state/lumna/emma.log; } & lumna-midia servico &
 	sleep 1; notify-send -a LUMNA "Bem-vindo ao desktop novo" "Os avisos chegam aqui. O sino na topbar abre a central." 2>/dev/null'

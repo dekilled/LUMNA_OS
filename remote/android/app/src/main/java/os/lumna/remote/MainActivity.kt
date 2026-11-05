@@ -25,7 +25,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * LUMNA Controle: escolhe a TV na rede, pareia com o código que aparece na tela de Mídia e vira
+ * LUMNA Connect: escolhe a TV na rede, pareia com o código que aparece na tela de Mídia e vira
  * controle remoto (direcional, voltar, início, volume, mídia, modos e teclado).
  */
 class MainActivity : Activity(), TvLink.Listener {
@@ -118,7 +118,7 @@ class MainActivity : Activity(), TvLink.Listener {
         link?.close()
         link = null
         val content = LinearLayout(this)
-        content.addView(label("LUMNA Controle", 28f, bold = true))
+        content.addView(label("LUMNA Connect", 28f, bold = true))
         content.addView(label("Escolha a TV. Ela precisa estar na mesma rede Wi-Fi.", 14f, mutedColor).apply { setPadding(0, dp(6), 0, dp(18)) })
         tvList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(tvList)

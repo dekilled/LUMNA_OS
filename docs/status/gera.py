@@ -23,7 +23,7 @@ painel = [
   ("Aplicativos", ["Instalados","Atualizações"], ["Apps padrão","Permissões"]),
   ("Telas e modos", ["Monitores","Modos","Áreas de trabalho"], ["Luz noturna"]),
   ("Som", [], ["Saída","Entrada","Apps","Sons do sistema"]),
-  ("Celular Connect", ["Pareamento","Área de transferência","Avisos do celular","Arquivos"], []),
+  ("LUMNA Connect", ["Pareamento","Área de transferência","Avisos do celular","Arquivos"], []),
   ("Emma", ["Oi Emma","Provedores","Roteamento","Personalidade","Recursos","Servidores MCP","Importar do harness"], ["Voz","Privacidade","Automações"]),
  ]),
  ("Inicialização", [("Inicialização", [], ["Ao entrar","Apps ao iniciar","Entrada","Em segundo plano"])]),
@@ -57,10 +57,10 @@ areas = [
   "Você confirmou o PIN do perfil NSFW. Imagens, MCP, Oi Emma e a voz: sem confirmação sua."),
  ("Telas e monitores", "sim", "Estender, por modo, espelhar, só a da esquerda ou da direita, topbar por monitor e o botão de tela cheia.",
   "Num KDE falso. Você confirmou só as janelas, a tela cheia e o mouse."),
- ("Celular Connect (no PC)", "sim", "Pareamento, área de transferência, avisos e arquivos. Faltam no PC: energia, agendamento, senhas e confirmações, Emma e info.",
+ ("LUMNA Connect (no PC)", "sim", "Pareamento, área de transferência, avisos e arquivos. Faltam no PC: energia, agendamento, senhas e confirmações, Emma e info.",
   "Só com um celular falso. O OnePlus com o PC novo ainda não foi testado."),
  ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
- ("App LUMNA Controle (Android)", "and", "Hoje é só o controle: direcional, texto, teclas, mídia, volume, modo, Home e voz.", "Você confirmou o controle no Samsung."),
+ ("App LUMNA Connect (Android)", "and", "Hoje é só o controle: direcional, texto, teclas, mídia, volume, modo, Home e voz.", "Você confirmou o controle no Samsung."),
  ("Apps do sistema", "falta", "Nenhum ainda no desktop novo (só a captura). No LUMNA antigo existem o Explorador, a Galeria, a Música, a Loja e o Telefone.", "—"),
 ]
 lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("Em andamento", "and"), "falta": ("Não existe", "sk")}
@@ -75,7 +75,7 @@ timeline = [
  ("LUMNA Connect", "O dia a dia com o celular: pareamento, área de transferência, avisos e arquivos.", "feito"),
  ("Vários monitores", "Uma janela por monitor, mouse corrigido, topbar por monitor, botão de tela cheia, as disposições e o modo por tela. Distribuir os workspaces foi descartado por você.", "feito"),
  ("A Mídia de verdade", "Firefox Developer Edition escolhido sozinho, perfil por Firefox, extensão validada, voltar que sai do serviço, nunca dois vídeos juntos e o YouTube em formato de TV.", "feito"),
- ("Agora", "Fechar as lacunas: Gaming, a voz da Emma, o Painel, o app LUMNA Controle completo e os apps do sistema.", "agora"),
+ ("Agora", "Fechar as lacunas: Gaming, a voz da Emma, o Painel, o app LUMNA Connect completo e os apps do sistema.", "agora"),
 ]
 
 # ---------------------------------------------------------------------------------------- O QUE AINDA NÃO TEMOS (backlog)
@@ -108,7 +108,7 @@ backlog = [
   ("falta", "As pontas", "Luz noturna, Apps padrão, Permissões, VPN, Ponto de acesso, Receber arquivos por Bluetooth e Teclado na tela."),
   ("ref", "Páginas que o LUMNA antigo tinha", "Impressoras e Dados móveis (PrintersPage.vue e MobileDataPage.vue)."),
  ]),
- ("4. App LUMNA Controle (Android) com todo o Connect", "Hoje o app é só um controle remoto. O Connect de verdade (arquivos, avisos, energia...) mora no app do OnePlus, e o PC novo ainda não atende parte dele.", [
+ ("4. App LUMNA Connect (Android) com todo o Connect", "Hoje o app é só um controle remoto. O Connect de verdade (arquivos, avisos, energia...) mora no app do OnePlus, e o PC novo ainda não atende parte dele.", [
   ("feito", "O controle no app", "Pareamento por código, direcional, texto, teclas, mídia, volume, modo, Home, falar com a Emma e microfone da TV."),
   ("ref", "A referência completa", "O Connect do LUMNA antigo: ConnectPage, Transfers e Schedules (Vue), e remote.rs, link.rs e connect.rs (Rust)."),
   ("falta", "No app: arquivos nos dois sentidos", "Enviar e receber arquivos e fotos, com progresso."),
@@ -118,9 +118,9 @@ backlog = [
   ("falta", "No app: agendamento de tarefas", "Programar uma ação do PC para uma hora."),
   ("falta", "No app: senhas e confirmações", "O PC pede a senha ou uma confirmação (polkit) e o celular responde."),
   ("falta", "No app: conversa com a Emma por texto", "Perguntar e aprovar as ações dela."),
-  ("falta", "No PC (lumna-controle): info, power, schedule-*, auth-*, emma e emma-decide", "O PC novo hoje não entende essas mensagens; sem isso o OnePlus e o app novo não têm resposta."),
+  ("falta", "No PC (lumna-connect): info, power, schedule-*, auth-*, emma e emma-decide", "O PC novo hoje não entende essas mensagens; sem isso o OnePlus e o app novo não têm resposta."),
   ("testar", "Connect de arquivos e avisos do PC novo com o OnePlus", "O app antigo já fala o protocolo; a parte nova do PC só foi testada com um celular falso."),
-  ("pergunta", "O app novo substitui o LUMNA Controle ou fica ao lado?", "Estou assumindo que o LUMNA Controle cresce e passa a ser o app único (controle e Connect)."),
+  ("pergunta", "O app novo substitui o LUMNA Connect ou fica ao lado?", "Estou assumindo que o LUMNA Connect cresce e passa a ser o app único (controle e Connect)."),
  ]),
  ("5. Apps do sistema", "No desktop novo só existe a captura de tela. A lista abaixo é o que você pediu; a coluna do meio diz se o LUMNA antigo (Vue) já tem uma versão para portar.", [
   ("ref", "Explorador de arquivos", "No antigo: FilesApp.vue. No novo: não existe."),
@@ -164,7 +164,7 @@ confirmado = [
  "A captura de tela com a prévia e o escurecimento corrigido",
  "O Orbit aninhado com uma janela por monitor, a tela cheia e o mouse no lugar certo",
  "A Mídia no YouTube de desktop: a extensão no Developer Edition, o login do Google e os botões do controle (play, pausa, ±10 s, início, voltar, menu)",
- "O controle do Samsung (LUMNA Controle) com o PC, depois de instalar o wtype",
+ "O controle do Samsung (LUMNA Connect) com o PC, depois de instalar o wtype",
  "A conta ligada no YouTube TV (a interface de TV abriu)",
 ]
 simulado = [

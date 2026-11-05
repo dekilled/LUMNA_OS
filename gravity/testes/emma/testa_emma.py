@@ -405,13 +405,13 @@ try:
     time.sleep(0.6)
     confere(espera(lambda: pede("estado").get("ok") is True, 6), "o serviço não voltou depois de reiniciar")
 
-    # o celular: a fala que o app Controle transcreveu chega à Emma pelo lumna-controle
+    # o celular: a fala que o app Controle transcreveu chega à Emma pelo lumna-connect
     if CONTROLE:
         os.remove(os.path.join(cfg, "lumna", "emma.json"))  # as permissões voltam ao padrão
         import asyncio, websockets
 
         sobe([CONTROLE], env=env, stderr=subprocess.DEVNULL)
-        confere(espera(lambda: os.path.exists(os.path.join(run, "lumna-controle.sock"))), "o lumna-controle não abriu o socket")
+        confere(espera(lambda: os.path.exists(os.path.join(run, "lumna-connect.sock"))), "o lumna-connect não abriu o socket")
         cod = subprocess.run([CONTROLE, "parear"], env=env, capture_output=True, text=True).stdout
         codigo = json.loads(cod)["codigo"]
 

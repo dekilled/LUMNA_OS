@@ -3,7 +3,7 @@ package os.lumna.remote
 import org.json.JSONObject
 
 /**
- * Mensagens do protocolo do LUMNA Controle (ver shell/src-tauri/src/remote.rs no repositório).
+ * Mensagens do protocolo do LUMNA Connect (ver shell/src-tauri/src/remote.rs no repositório).
  * Uma mensagem JSON por quadro de texto do WebSocket.
  */
 object Protocol {

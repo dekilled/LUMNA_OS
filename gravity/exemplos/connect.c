@@ -1,12 +1,12 @@
 /*
- * lumna-controle: o controle do LUMNA pelo celular (o app LUMNA Controle). Um serviço da sessão, à
+ * lumna-connect: o controle do LUMNA pelo celular (o app LUMNA Connect). Um serviço da sessão, à
  * parte do shell e dos apps de Mídia: roda o tempo todo, então o controle não para quando um serviço
  * (Netflix, YouTube...) abre por cima, que era o defeito da primeira versão.
  *
  * Protocolo: o mesmo de antes (WebSocket na porta 47800, um JSON por quadro, anunciado por mDNS
  * como _lumna-remote._tcp). Do celular: pair, hello e, depois de entrar, pad, text, key, media,
  * volume, mode, monitors e home. Pareamento: um código de 6 dígitos que vale 5 minutos e uma vez,
- * pedido pelo shell da Mídia (ou pelo `lumna-controle parear`); o celular recebe um token, guardado
+ * pedido pelo shell da Mídia (ou pelo `lumna-connect parear`); o celular recebe um token, guardado
  * nos dois lados em ~/.config/lumna/remotes.json (só o dono lê).
  *
  * Voz: {"type":"voice","text":"..."} é o que o celular entendeu; vai para a Emma (lumna-emma), que age e responde
@@ -18,8 +18,8 @@
  *             ponteiro virtuais do Orbit, então valem em qualquer site ou app, sem eles saberem.
  *             O play/pausa e o avanço vão por MPRIS quando há player.
  *
- * Os outros programas pedem coisas a ele pelo socket $XDG_RUNTIME_DIR/lumna-controle.sock, uma
- * linha por pedido e um JSON de resposta; `lumna-controle <pedido>` faz o pedido na linha de comando:
+ * Os outros programas pedem coisas a ele pelo socket $XDG_RUNTIME_DIR/lumna-connect.sock, uma
+ * linha por pedido e um JSON de resposta; `lumna-connect <pedido>` faz o pedido na linha de comando:
  *   estado                     porta, celulares pareados e quais estão conectados
  *   parear                     gera um código novo (o anterior deixa de valer)
  *   parear_cancelar            apaga o código
@@ -27,7 +27,7 @@
  *
  * Connect (o dia a dia entre o PC e o celular, no mesmo protocolo de antes): clipboard (o que se copia num vai pro outro), notify /
  * notification (os avisos do celular aparecem aqui e os daqui no celular), arquivos (file-begin/chunk/end do celular para cá; file-offer daqui
- * e o celular puxa com file-pull) e features (o que está ligado para cada celular, em Painel > Celular Connect). Pelo socket:
+ * e o celular puxa com file-pull) e features (o que está ligado para cada celular, em Painel > LUMNA Connect). Pelo socket:
  *   connect                    o que o Painel mostra: ativo, pasta, celulares (com os recursos), transferências recentes
  *   connect_ativo sim|nao      liga/desliga o Connect inteiro (desligado, nada sai nem entra)
  *   connect_pasta CAMINHO      onde ficam os arquivos recebidos ("" volta a Downloads)
@@ -1032,7 +1032,7 @@ static void comando(const struct json *msg, GString *r) {
 		static bool avisado;
 		if (!avisado) {
 			avisado = true;
-			fprintf(stderr, "lumna-controle: o wtype não está instalado: o direcional, o texto e as teclas do celular não funcionam (no Arch: sudo pacman -S wtype)\n");
+			fprintf(stderr, "lumna-connect: o wtype não está instalado: o direcional, o texto e as teclas do celular não funcionam (no Arch: sudo pacman -S wtype)\n");
 		}
 		erro(r, "o wtype não está instalado neste PC (no Arch: sudo pacman -S wtype): sem ele o controle não aperta teclas", false);
 		return;
@@ -1504,17 +1504,17 @@ static gboolean ao_chegar_pedido(GSocketService *servico, GSocketConnection *con
 
 static char *caminho_socket(void) {
 	const char *run = g_get_user_runtime_dir();
-	return g_build_filename(run, "lumna-controle.sock", NULL);
+	return g_build_filename(run, "lumna-connect.sock", NULL);
 }
 
-/* `lumna-controle parear`: faz o pedido ao serviço que está rodando */
+/* `lumna-connect parear`: faz o pedido ao serviço que está rodando */
 static int cliente_cli(int argc, char **argv) {
 	char *caminho = caminho_socket();
 	GSocketClient *cli = g_socket_client_new();
 	GSocketAddress *end = g_unix_socket_address_new(caminho);
 	GSocketConnection *con = g_socket_client_connect(cli, G_SOCKET_CONNECTABLE(end), NULL, NULL);
 	if (!con) {
-		fprintf(stderr, "lumna-controle: o serviço não está rodando\n");
+		fprintf(stderr, "lumna-connect: o serviço não está rodando\n");
 		return 1;
 	}
 	char *pedido = g_strjoinv(" ", argv + 1);
@@ -1573,14 +1573,14 @@ int main(int argc, char **argv) {
 	clientes = g_ptr_array_new_with_free_func(cliente_liberar);
 
 	GError *err = NULL;
-	SoupServer *servidor = soup_server_new("server-header", "lumna-controle", NULL);
+	SoupServer *servidor = soup_server_new("server-header", "lumna-connect", NULL);
 	soup_server_add_websocket_handler(servidor, "/", NULL, NULL, ao_conectar, NULL, NULL);
 	if (!soup_server_listen_all(servidor, PORTA, 0, &err)) {
-		fprintf(stderr, "lumna-controle: porta %d: %s\n", PORTA, err->message);
+		fprintf(stderr, "lumna-connect: porta %d: %s\n", PORTA, err->message);
 		return 1;
 	}
 	if (!mdns_anunciar(SERVICO, PORTA)) {
-		fprintf(stderr, "lumna-controle: sem mDNS: o celular precisa do endereço digitado\n");
+		fprintf(stderr, "lumna-connect: sem mDNS: o celular precisa do endereço digitado\n");
 	}
 
 	char *caminho = caminho_socket();
@@ -1592,7 +1592,7 @@ int main(int argc, char **argv) {
 		g_signal_connect(servico, "incoming", G_CALLBACK(ao_chegar_pedido), NULL);
 		g_socket_service_start(servico);
 	} else {
-		fprintf(stderr, "lumna-controle: socket %s: %s\n", caminho, err->message);
+		fprintf(stderr, "lumna-connect: socket %s: %s\n", caminho, err->message);
 	}
 
 	/* a área de transferência (o wl-paste precisa do compositor no ar: religa até conseguir) */

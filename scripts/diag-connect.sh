@@ -1,7 +1,7 @@
 #!/bin/sh
 # Diagnóstico do controle do celular, do Connect e da Mídia: o que está instalado e o que cada peça diz.
 # Rode DENTRO da sessão do LUMNA (o terminal do Alt+Enter) e mande a saída inteira:
-#   sh scripts/diag-controle.sh > ~/controle-diag.txt 2>&1
+#   sh scripts/diag-connect.sh > ~/connect-diag.txt 2>&1
 # Não muda nada no sistema.
 sec() { printf '\n===== %s =====\n' "$1"; }
 tem() { # programa, o que quebra sem ele
@@ -109,9 +109,9 @@ elif command -v gdbus >/dev/null 2>&1; then
 fi
 [ -z "$(busctl --user list --no-pager 2>/dev/null | grep -i mpris)" ] && echo "  nenhum player MPRIS agora"
 
-sec "o controle e o Connect (lumna-controle)"
-if command -v lumna-controle >/dev/null 2>&1; then
-	lumna-controle estado 2>&1 | python3 -c '
+sec "o controle e o Connect (lumna-connect)"
+if command -v lumna-connect >/dev/null 2>&1; then
+	lumna-connect estado 2>&1 | python3 -c '
 import json, sys
 t = sys.stdin.read()
 try:
@@ -123,7 +123,7 @@ for d in j.get("dispositivos", j.get("remotes", [])):
     print("   -", d.get("nome") or d.get("name"), "| conectado:", d.get("conectado"), "| recursos:", d.get("recursos") or d.get("features"))
 ' 2>&1
 else
-	echo "  lumna-controle não está no PATH"
+	echo "  lumna-connect não está no PATH"
 fi
 
 sec "o Orbit"

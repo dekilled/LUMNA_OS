@@ -69,18 +69,18 @@ Keyboard digita nela). Botão power: toque apaga a tela e bloqueia, segurar abre
 e tocando uma ligação ele silencia. O tempo parado até apagar fica em Ajustes > Tela e aparência
 (hypridle). O logind não cuida mais do botão (`/etc/systemd/logind.conf.d/50-lumna-power.conf`).
 
-Celular Connect: o celular conversa com o LUMNA do PC (WebSocket na porta 47800, achado pelo
+LUMNA Connect: o celular conversa com o LUMNA do PC (WebSocket na porta 47800, achado pelo
 mDNS). Pareamento: no PC, Configurações > Celular mostra um código de 6 dígitos; no celular,
-Ajustes > Celular Connect > Adicionar computador. Pareado, chegam no celular os avisos do PC, os
+Ajustes > LUMNA Connect > Adicionar computador. Pareado, chegam no celular os avisos do PC, os
 pedidos de senha de administrador (o polkit do PC; a senha digitada no celular volta pra ele) e as
 confirmações da Emma; e do celular dá pra falar com a Emma do PC, bloquear, suspender, reiniciar e
 desligar. E o resto, como um KDE Connect: o que copiar num aparece no outro, os avisos e as
 ligações do celular aparecem no PC, arquivos vão e vêm (no Arquivos: Enviar para…; no celular
 também pela página do PC) e agendamentos no PC (desligar, lembrete, um pedido pra Emma...).
 Cada lado liga/desliga os recursos de cada aparelho e escolhe a pasta de recebidos: no PC em
-Configurações > Celular, no celular em Ajustes > Celular Connect.
+Configurações > Celular, no celular em Ajustes > LUMNA Connect.
 
-Modo Mídia no celular: o **LUMNA Controle** (na grade de apps, ou Ajustes > botão Mídia). Tela
+Modo Mídia no celular: o **LUMNA Connect** (na grade de apps, ou Ajustes > botão Mídia). Tela
 cheia: escolhe o PC e a tela dele (a TV, o projetor…), liga/desliga o Mídia nela e controla com
 setas/OK (ou deslizando no OK), voltar, início, mídia, volume e digitar. Quando o PC entra no
 Mídia, aparece um aviso na central do celular; tocar nele abre o controle. Fora de casa: Tailscale nos dois (`sudo pacman -S tailscale`,

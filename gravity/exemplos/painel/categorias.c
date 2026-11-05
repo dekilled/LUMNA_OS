@@ -144,7 +144,7 @@ static const pn_secao celular[] = {
 	{ "avisos", "bell", "Avisos do celular", "As notificações do celular aqui.", pn_cc_avisos_desenhar, NULL, NULL, NULL, NULL, NULL, pn_cc_abrir },
 	{ "arquivos", "folder", "Arquivos", "Mandar e receber arquivos.", pn_cc_arquivos_desenhar, NULL, NULL, NULL, NULL, NULL, pn_cc_abrir },
 };
-const pn_categoria pn_celular = { "celular", "phone", "Celular Connect", "Conecte seu celular", PN_GERAL, celular, N(celular) };
+const pn_categoria pn_celular = { "celular", "phone", "LUMNA Connect", "Conecte seu celular", PN_GERAL, celular, N(celular) };
 
 static const pn_secao emma[] = {
 	{ "voz", "mic", "Voz", "Como a Emma fala e ouve.", NULL, "A voz;A velocidade;O microfone" },

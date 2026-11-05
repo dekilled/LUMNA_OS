@@ -35,7 +35,7 @@ shell/                lumna-shell: app Tauri (src-tauri/) + interface Vue (src/)
 session/              config do Hyprland em Lua, script da sessão, entrada do login, wallpaper
 packages/             PKGBUILDs dos pacotes lumna-*
 iso/                  perfil do ISO (releng do archiso + overlay do LUMNA) e ambiente de build
-remote/android/        LUMNA Controle: app Android de controle remoto (Kotlin)
+remote/android/        LUMNA Connect: app Android de controle remoto (Kotlin)
 scripts/              build-iso.sh, run-vm.sh, make-art.py
 mobile/               LUMNA no celular: kernel, initramfs, rootfs ARM e flash (OnePlus 6T)
 ```
@@ -289,9 +289,9 @@ sistema live: habilite o `[multilib]` em `/etc/pacman.conf` e `sudo pacman -Syu 
 - **Seus vídeos** são os da pasta Vídeos. Tocam no mpv, que guarda onde você parou: é daí que vem
   o "Continuar assistindo".
 
-## LUMNA Controle (celular)
+## LUMNA Connect (celular)
 
-App Android em `remote/android`. O GitHub Actions gera o APK (artefato `lumna-controle-apk`).
+App Android em `remote/android`. O GitHub Actions gera o APK (artefato `lumna-connect-apk`).
 
 1. Celular e TV na mesma rede Wi-Fi.
 2. Na TV, modo Mídia → **Controle pelo celular**: aparece um código de 6 dígitos.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""O Connect de ponta a ponta: o lumna-controle de verdade, um celular falso, e wl-paste/wl-copy/notify-send de mentira."""
+"""O Connect de ponta a ponta: o lumna-connect de verdade, um celular falso, e wl-paste/wl-copy/notify-send de mentira."""
 import asyncio, base64, json, os, subprocess, sys, tempfile, time
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -42,9 +42,9 @@ async def espera(cond, seg=8):
 
 
 async def principal():
-    srv = subprocess.Popen([CONTROLE], env=env, stderr=open(os.path.join(T, "controle.err"), "w"))
+    srv = subprocess.Popen([CONTROLE], env=env, stderr=open(os.path.join(T, "connect.err"), "w"))
     try:
-        confere(await espera(lambda: os.path.exists(os.path.join(run, "lumna-controle.sock"))), "o serviço não subiu")
+        confere(await espera(lambda: os.path.exists(os.path.join(run, "lumna-connect.sock"))), "o serviço não subiu")
         await asyncio.sleep(0.5)
         codigo = ctl("parear")["codigo"]
         ws, token = await entrar(codigo=codigo)

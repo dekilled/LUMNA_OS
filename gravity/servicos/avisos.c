@@ -156,14 +156,14 @@ static void gravar_imagem(GVariant *v, char *dst, size_t cap) {
 
 /* ---- os métodos ---- */
 
-/* os avisos daqui vão também para os celulares pareados: um pedido de uma linha ao lumna-controle (que decide, por celular, se vale);
+/* os avisos daqui vão também para os celulares pareados: um pedido de uma linha ao lumna-connect (que decide, por celular, se vale);
  * sem o serviço rodando não é erro, só não há para quem mandar */
 static void para_os_celulares(const char *app, const char *titulo, const char *corpo, bool urgente) {
 	const char *run = g_get_user_runtime_dir();
 	if (!run) {
 		return;
 	}
-	char *caminho = g_build_filename(run, "lumna-controle.sock", NULL);
+	char *caminho = g_build_filename(run, "lumna-connect.sock", NULL);
 	if (g_file_test(caminho, G_FILE_TEST_EXISTS)) {
 		GString *j = g_string_new("aviso {\"app\":");
 		json_escrever_texto(j, app);

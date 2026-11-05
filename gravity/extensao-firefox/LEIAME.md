@@ -47,7 +47,7 @@ versão ela não faz nada.
 O serviço usa um perfil por Firefox: `perfil` para o `firefox` comum e `perfil-NOME` para os outros (por exemplo
 `perfil-firefox-developer-edition`), dentro de `~/.local/share/lumna/midia/`. Assim o Developer Edition não herda o perfil em que o
 Firefox comum já marcou a nossa extensão como desativada. O que o Firefox escreve na última abertura fica em
-`~/.local/state/lumna/midia-firefox.log`, e o `scripts/diag-controle.sh` mostra o estado da extensão dentro de cada perfil.
+`~/.local/state/lumna/midia-firefox.log`, e o `scripts/diag-connect.sh` mostra o estado da extensão dentro de cada perfil.
 
 ## A primeira abertura
 

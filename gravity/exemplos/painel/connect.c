@@ -1,5 +1,5 @@
 /*
- * Painel > Celular Connect: o dia a dia entre o PC e o celular (o serviço é o lumna-controle, o mesmo protocolo do celular LUMNA e do app Android).
+ * Painel > LUMNA Connect: o dia a dia entre o PC e o celular (o serviço é o lumna-connect, o mesmo protocolo do celular LUMNA e do app Android).
  * Quatro páginas sobre o mesmo estado: Pareamento (o interruptor geral, o código, os celulares), Área de transferência, Avisos e Arquivos.
  * Cada recurso liga e desliga por celular; desligado, nem sai nem entra.
  */
@@ -7,7 +7,7 @@
 
 #include <string.h>
 
-#include "controlec.h"
+#include "connectc.h"
 #include "json.h"
 
 static struct json *estado;       /* a resposta do "connect" */
@@ -33,17 +33,17 @@ static void trabalho(void *d) {
 	char *buf = g_malloc(256 * 1024);
 	if (j->pedido[0]) {
 		char r[4096];
-		if (controlec_pedido(j->pedido, r, sizeof(r))) {
+		if (connectc_pedido(j->pedido, r, sizeof(r))) {
 			j->resposta = g_strdup(r);
 		}
 	}
-	if (controlec_pedido("connect", buf, 256 * 1024)) {
+	if (connectc_pedido("connect", buf, 256 * 1024)) {
 		j->ler = true;
 		j->ok = true;
 		g_free(buf);
 		/* a resposta do pedido anterior fica em j->resposta; o estado novo vai junto, depois de um separador */
 		char *novo = g_malloc(256 * 1024);
-		controlec_pedido("connect", novo, 256 * 1024);
+		connectc_pedido("connect", novo, 256 * 1024);
 		g_free(j->resposta ? NULL : NULL);
 		char *resp = j->resposta;
 		j->resposta = g_strdup_printf("%s\n%s", resp ? resp : "", novo);
@@ -125,7 +125,7 @@ static bool cabecalho(const char *explica) {
 		gv_texto(gv_str(aviso), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
 	}
 	if (lido && (!servico_ok || !estado)) {
-		gv_texto(CLAY_STRING("O serviço do celular (lumna-controle) não está rodando."), gv_t.tamanho_corpo, gv_t.perigo, GV_PESO_NORMAL);
+		gv_texto(CLAY_STRING("O serviço do celular (lumna-connect) não está rodando."), gv_t.tamanho_corpo, gv_t.perigo, GV_PESO_NORMAL);
 		return false;
 	}
 	if (!estado) {
@@ -184,7 +184,7 @@ void pn_cc_parear_desenhar(void) {
 			if (mostrando) {
 				CLAY(CLAY_ID("cc-codigo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 6 },
 					.backgroundColor = gv_alfa(gv_t.acento, 0.12f), .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno), .border = { .color = gv_alfa(gv_t.acento, 0.5f), .width = GV_BORDA(1) } }) {
-					gv_texto(CLAY_STRING("No celular, em Celular Connect, digite este código:"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
+					gv_texto(CLAY_STRING("No celular, em LUMNA Connect, digite este código:"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
 					gv_texto(gv_str(codigo), 40, gv_t.acento, GV_PESO_MEDIO);
 					gv_texto(gv_fmt("Vale mais %d min e só uma vez. Se o celular não achar este computador sozinho, digite o endereço: %s", (int)((codigo_ate - gv_agora()) / 60) + 1, enderecos[0] ? enderecos : "(sem rede)"),
 						gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);

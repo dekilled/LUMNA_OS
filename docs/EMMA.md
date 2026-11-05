@@ -190,8 +190,8 @@ então conta, conversas e permissões valem nos dois):
   As imagens da Emma ficam em `gravity/assets/emma/` (`avatar.jpg`, `fundo.jpg`); `LUMNA_EMMA_ASSETS` muda a pasta.
 - **Voz**: microfone do sistema (`parec`/`arecord`, 16 kHz) com detecção do fim da fala, `/api/stt`, e a resposta falada por
   `/api/tts` frase a frase. O atalho do microfone (`emma_voz` no `orbit.ini`) liga; apertar de novo encerra a fala e transcreve.
-- **Celular**: o app LUMNA Controle tem "Falar com a Emma" (reconhecimento de voz do próprio Android) e "Microfone da TV".
-  O `lumna-controle` recebe `{"type":"voice","text":"..."}`, passa para a Emma e devolve `{"type":"voice_reply",...}`.
+- **Celular**: o app LUMNA Connect tem "Falar com a Emma" (reconhecimento de voz do próprio Android) e "Microfone da TV".
+  O `lumna-connect` recebe `{"type":"voice","text":"..."}`, passa para a Emma e devolve `{"type":"voice_reply",...}`.
 
 Testes: `gravity/testes/emma.sh` (backend, Mídia e comandos de mentira).
 

@@ -1,7 +1,7 @@
 /*
- * A área de transferência do Celular Connect, em Gravity: escrever (ou colar) um texto de várias
+ * A área de transferência do LUMNA Connect, em Gravity: escrever (ou colar) um texto de várias
  * linhas e mandá-lo para o celular, com os enviados por baixo. Mostra o texto que quebra em
- * várias linhas e o campo de várias linhas. O envio ainda sai no terminal: o Celular Connect
+ * várias linhas e o campo de várias linhas. O envio ainda sai no terminal: o LUMNA Connect
  * vem depois.
  *   ./transferencia
  */

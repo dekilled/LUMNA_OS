@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "LumnaControle"
+rootProject.name = "LumnaConnect"
 include(":app")

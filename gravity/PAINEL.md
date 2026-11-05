@@ -17,9 +17,9 @@ os exemplos soltos saem quando a seção estiver pronta:
 | `rede` e `wifi` | Rede e internet → Wi-Fi, Cabo, VPN... |
 | o menu do Bluetooth da `barra` (a parte completa) | Bluetooth → Dispositivos |
 | `mixer` (na janela) | Som → Saída, Entrada, Apps |
-| `transferencia` | Celular Connect → Área de transferência |
+| `transferencia` | LUMNA Connect → Área de transferência |
 
-Situação de hoje: Rede e internet, Bluetooth e Celular Connect já têm as seções no Painel. Som ainda é esqueleto,
+Situação de hoje: Rede e internet, Bluetooth e LUMNA Connect já têm as seções no Painel. Som ainda é esqueleto,
 então o `mixer` segue sozinho.
 
 A topbar fica com o **rápido**:
@@ -177,14 +177,14 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
   páginas do Painel ainda são esqueleto, e é para elas que o `mixer` vai passar.
 - 🔨 Sons do sistema.
 
-**Celular Connect**
+**LUMNA Connect**
 - ✅ Pareamento: a chave geral do Connect, o código (vale uma vez e tem validade) e os endereços para digitar no app, e os
   celulares pareados, que se esquece com confirmação;
 - ✅ Área de transferência: copiar num e colar no outro, nos dois sentidos, e "Mandar o que está copiado agora";
 - ✅ Avisos do celular: os do celular aparecem aqui e os daqui vão para o celular, cada sentido liga e desliga;
 - ✅ Arquivos: a pasta de recebimento, mandar um arquivo para um celular e as transferências com progresso.
 
-Os recursos de cada celular ligam e desligam um a um. Quem fala com o celular é o `lumna-controle` (o protocolo
+Os recursos de cada celular ligam e desligam um a um. Quem fala com o celular é o `lumna-connect` (o protocolo
 antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com um celular falso
 (`testes/connect.sh`); o celular de verdade ainda não.
 
@@ -318,6 +318,6 @@ como se fosse uma tela.
    - Tela de bloqueio.
 3. 🔨 Inicialização (as 4 páginas ainda são esqueleto).
 4. As seções 🔨 do Sistema: já estão Atalhos e Data e hora; faltam Energia, Histórico e recentes e as outras.
-5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do Celular Connect; falta o
+5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do LUMNA Connect; falta o
    Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).
 6. As ⏳, à medida que os serviços entram: o NetworkManager e o BlueZ já entraram; falta o UPower (Energia).

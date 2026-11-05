@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Um celular de mentira: fala o protocolo do Connect (WebSocket JSON, porta 47800) com o lumna-controle de verdade."""
+"""Um celular de mentira: fala o protocolo do Connect (WebSocket JSON, porta 47800) com o lumna-connect de verdade."""
 import asyncio, base64, json, os, sys, websockets
 
 URL = "ws://127.0.0.1:%d" % int(os.environ.get("PORTA_CONTROLE", "47800"))

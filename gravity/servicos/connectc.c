@@ -1,14 +1,14 @@
-#include "controlec.h"
+#include "connectc.h"
 
 #include <gio/gio.h>
 #include <string.h>
 
-bool controlec_pedido(const char *pedido, char *resposta, size_t tam) {
+bool connectc_pedido(const char *pedido, char *resposta, size_t tam) {
 	const char *run = g_get_user_runtime_dir();
 	if (!run || !tam) {
 		return false;
 	}
-	char *caminho = g_build_filename(run, "lumna-controle.sock", NULL);
+	char *caminho = g_build_filename(run, "lumna-connect.sock", NULL);
 	GSocketClient *cli = g_socket_client_new();
 	g_socket_client_set_timeout(cli, 2);
 	GSocketAddress *end = g_unix_socket_address_new(caminho);

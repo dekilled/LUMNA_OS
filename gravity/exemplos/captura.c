@@ -34,7 +34,7 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-#include "controlec.h"
+#include "connectc.h"
 #include "emmac.h"
 #include "gravity.h"
 #include "json.h"
@@ -201,11 +201,11 @@ static struct {
 } celulares[8];
 static int n_celulares;
 
-/* os celulares conectados que aceitam arquivos, agora (pergunta ao lumna-controle; sem ele, nenhum) */
+/* os celulares conectados que aceitam arquivos, agora (pergunta ao lumna-connect; sem ele, nenhum) */
 static void celulares_ler(void) {
 	n_celulares = 0;
 	char *buf = g_malloc(64 * 1024);
-	if (controlec_pedido("connect", buf, 64 * 1024)) {
+	if (connectc_pedido("connect", buf, 64 * 1024)) {
 		struct json *j = json_ler(buf);
 		const struct json *ds = json_chave(j, "dispositivos");
 		bool ativo = json_bool(json_chave(j, "ativo"), true);
@@ -234,7 +234,7 @@ static void enviar_ao_celular(int i) {
 		erro = g_strdup("Não consegui preparar o arquivo.");
 	} else {
 		char *pedido = g_strdup_printf("enviar %s %s", celulares[i].id, copia), r[1024] = "";
-		if (!controlec_pedido(pedido, r, sizeof(r))) {
+		if (!connectc_pedido(pedido, r, sizeof(r))) {
 			erro = g_strdup("O serviço do celular não respondeu.");
 		} else {
 			struct json *j = json_ler(r);
@@ -248,7 +248,7 @@ static void enviar_ao_celular(int i) {
 	if (erro) {
 		g_strlcpy(aviso, erro, sizeof(aviso));
 	} else {
-		g_snprintf(aviso, sizeof(aviso), "Oferecido a %s: ele puxa o arquivo (veja o progresso no Painel > Celular Connect).", celulares[i].nome);
+		g_snprintf(aviso, sizeof(aviso), "Oferecido a %s: ele puxa o arquivo (veja o progresso no Painel > LUMNA Connect).", celulares[i].nome);
 	}
 	g_free(erro);
 	g_free(conteudo);
@@ -626,7 +626,7 @@ static void previa_desenhar(gv_app *a, void *dados) {
 						g_free(rot);
 					}
 					if (!n_celulares) {
-						gv_texto(CLAY_STRING("  Nenhum celular conectado (Painel > Celular Connect)"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+						gv_texto(CLAY_STRING("  Nenhum celular conectado (Painel > LUMNA Connect)"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
 					}
 				}
 			}

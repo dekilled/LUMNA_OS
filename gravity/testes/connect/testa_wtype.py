@@ -29,9 +29,9 @@ def sobe(com_wtype):
                CLIP_COPIADO=os.path.join(T, "copiado"), AVISOS_LOG=os.path.join(T, "avisos.log"), WTYPE_LOG=os.path.join(T, "wtype.log"),
                PATH=caminho, DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent")  # sem o PATH do sistema: o wtype de verdade não aparece
     open(env["CLIP_ARQ"], "w").write("")
-    srv = subprocess.Popen([CONTROLE], env=env, stderr=open(os.path.join(T, "controle.err"), "w"))
+    srv = subprocess.Popen([CONTROLE], env=env, stderr=open(os.path.join(T, "connect.err"), "w"))
     for _ in range(80):
-        if os.path.exists(os.path.join(run, "lumna-controle.sock")):
+        if os.path.exists(os.path.join(run, "lumna-connect.sock")):
             break
         time.sleep(0.1)
     time.sleep(0.4)

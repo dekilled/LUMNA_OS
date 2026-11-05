@@ -9,7 +9,7 @@
  *
  * As telas só desenham o estado que o serviço manda e pedem coisas a ele: quem abre o Firefox, traz
  * a janela para a frente e tira a capa é o serviço. Teclado (setas, Enter, Esc) e toque funcionam;
- * o celular (lumna-controle) manda as mesmas teclas.
+ * o celular (lumna-connect) manda as mesmas teclas.
  */
 #define _GNU_SOURCE
 #include <math.h>
@@ -135,13 +135,13 @@ static void abrir_servico(const char *id) {
 	midiac_pedido(pedido, r, sizeof(r));
 }
 
-/* o código de pareamento vem do lumna-controle */
+/* o código de pareamento vem do lumna-connect */
 static void pareamento_pedir(void) {
 	pareamento_json[0] = '\0';
 	pareamento_em = gv_agora();
 	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	struct sockaddr_un a = { .sun_family = AF_UNIX };
-	snprintf(a.sun_path, sizeof(a.sun_path), "%s/lumna-controle.sock", g_get_user_runtime_dir());
+	snprintf(a.sun_path, sizeof(a.sun_path), "%s/lumna-connect.sock", g_get_user_runtime_dir());
 	if (fd >= 0 && connect(fd, (struct sockaddr *)&a, sizeof(a)) == 0) {
 		if (write(fd, "parear\n", 7) == 7) {
 			ssize_t n = read(fd, pareamento_json, sizeof(pareamento_json) - 1);
@@ -298,7 +298,7 @@ static void modal_pareamento_desenhar(gv_app *app) {
 			const char *codigo = json_chave_texto(j, "codigo");
 			if (*codigo) {
 				gv_texto(gv_fmt("%.3s %s", codigo, codigo + 3), U(64), gv_t.acento, GV_PESO_NEGRITO);
-				gv_texto(CLAY_STRING("Abra o app LUMNA Controle e digite este código."), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_texto(CLAY_STRING("Abra o app LUMNA Connect e digite este código."), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
 				const struct json *ends = json_chave(j, "enderecos");
 				GString *lista = g_string_new(NULL);
 				for (int i = 0; ends && i < ends->nfilhos; i++) {
@@ -314,7 +314,7 @@ static void modal_pareamento_desenhar(gv_app *app) {
 					GV_PESO_NORMAL);
 				gv_acordar_em(1);
 			} else {
-				gv_texto(CLAY_STRING("O serviço do controle (lumna-controle) não está rodando."), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_texto(CLAY_STRING("O serviço do controle (lumna-connect) não está rodando."), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
 			json_liberar(j);
 			if (gv_botao(CLAY_ID("pareamento-fechar"), NULL, "Fechar", GV_BOTAO_ELEVADO) || tecla(XKB_KEY_Escape) || (!enter_gasto && tecla(XKB_KEY_Return))) {
@@ -333,7 +333,7 @@ static void modal_adicionar_desenhar(gv_app *app) {
 				.padding = CLAY_PADDING_ALL(U(36)), .childGap = U(16) },
 			.backgroundColor = { 22, 20, 44, 255 }, .cornerRadius = CLAY_CORNER_RADIUS(U(22)), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
 			gv_texto(CLAY_STRING("Adicionar serviço"), U(28), gv_t.texto, GV_PESO_SEMINEGRITO);
-			gv_texto(CLAY_STRING("O nome que aparece e o endereço do site. Dá para digitar pelo celular (LUMNA Controle)."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+			gv_texto(CLAY_STRING("O nome que aparece e o endereço do site. Dá para digitar pelo celular (LUMNA Connect)."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
 			static bool focou;
 			if (!focou) {
 				gv_focar(CLAY_ID("adic-nome"));

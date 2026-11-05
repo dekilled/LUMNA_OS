@@ -49,9 +49,9 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
   - [x] Todas as telas trancam juntas (o papel nas outras), e sozinho: parado (lumna-ocioso, ext-idle-notify) e antes de suspender (logind)
   - [x] O papel do bloqueio pode ser uma imagem sua; o layout vale também para a tela de login (Painel, com pkexec)
   - [ ] A voz da Emma no bloqueio
-- [x] Controle pelo celular (lumna-controle, serviço da sessão): protocolo do LUMNA Controle (porta 47800, mDNS, pareamento por código), sistema (volume, modo, Home) e serviço (teclado e ponteiro virtuais, MPRIS) sem depender de qual janela está na frente; `lumna-controle parear|estado|esquecer`
+- [x] Controle pelo celular (lumna-connect, serviço da sessão): protocolo do LUMNA Connect (porta 47800, mDNS, pareamento por código), sistema (volume, modo, Home) e serviço (teclado e ponteiro virtuais, MPRIS) sem depender de qual janela está na frente; `lumna-connect parear|estado|esquecer`
   - [ ] O app do celular: touchpad (pointer/click/scroll já aceitos pelo serviço) e o teclado
-  - [x] Os recursos do dia a dia do Connect (pareamento, área de transferência, avisos e arquivos) moram no lumna-controle, com as páginas do Painel e o Enviar para o celular da captura (testado só com um celular falso: `testes/connect.sh`)
+  - [x] Os recursos do dia a dia do Connect (pareamento, área de transferência, avisos e arquivos) moram no lumna-connect, com as páginas do Painel e o Enviar para o celular da captura (testado só com um celular falso: `testes/connect.sh`)
   - [ ] Emma e energia pelo celular ainda moram no shell antigo
 - [x] Mídia (lumna-midia): o Firefox em kiosk é o player web (um perfil, uma aba por serviço, controle por WebDriver BiDi); o serviço guarda o catálogo editável (midia.ini) e os recentes (URL, título, miniatura); Início, capa de loading com fade e seletor (Super+M) conforme os mockups; Home e abrir serviço também pelo celular; testes com um Firefox de mentira (`testes/midia.sh`)
 - [x] Controle do Firefox da Mídia por uma extensão nossa (extensao-firefox/), não pelo WebDriver: a marca navigator.webdriver não liga e o Google deixa entrar; o serviço só aceita a extensão (Origin moz-extension://UUID fixo no perfil); Início > "Entrar nas contas" leva o serviço à página de entrada da conta
@@ -85,7 +85,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
       usados recentemente, a barra lateral por categoria e Restaurar | Aplicar (a Dock já aplica).
       Em 4 de novembro de 2026: 43 de 74 páginas prontas e 31 esqueleto (o PAINEL.md tem a lista)
 - [x] Rede — as páginas do Painel (Wi-Fi, Cabo, Adaptadores, Proxy, Várias conexões) falam com o NetworkManager; faltam VPN e Ponto de acesso
-- [x] Celular Connect — Pareamento, Área de transferência, Avisos e Arquivos no Painel, ligados ao lumna-controle (com o celular de verdade ainda não foi testado)
+- [x] LUMNA Connect — Pareamento, Área de transferência, Avisos e Arquivos no Painel, ligados ao lumna-connect (com o celular de verdade ainda não foi testado)
 - [ ] Mixer como app e como camada (já existe no exemplo `mixer`)
 
 ## 5. O celular
@@ -128,7 +128,7 @@ A página de status (docs/status/) tem o detalhe e o estado de cada linha; aqui 
 - [ ] **Modo Gaming**: a biblioteca de jogos em carrossel (o LUMNA antigo tem a referência: `GameLibrary.vue`), o Início do Gaming no desktop novo, ler Steam, Heroic e Lutris e abrir o jogo, gamepad como controle da interface e o desempenho enquanto joga
 - [ ] **A voz da Emma**: a página Voz no Painel (motor, voz, velocidade, microfone e saída, testar), gerenciar os modelos de voz com progresso, o ícone da Emma falando e a voz na tela de bloqueio; testar com o microfone de verdade
 - [ ] **As páginas do Painel**: 31 esqueletos (Energia, Som, Inicialização, Idioma, Usuários, Privacidade, as da Emma e as pontas; veja o PAINEL.md)
-- [ ] **O app LUMNA Controle (Android) com todo o Connect**: arquivos, área de transferência, avisos, energia do PC, agendamento, senhas e confirmações e a conversa com a Emma
-  - [ ] No PC (lumna-controle): atender `info`, `power`, `schedule-*`, `auth-*`, `emma` e `emma-decide`, como o PC antigo atendia
+- [ ] **O app LUMNA Connect (Android) com todo o Connect**: arquivos, área de transferência, avisos, energia do PC, agendamento, senhas e confirmações e a conversa com a Emma
+  - [ ] No PC (lumna-connect): atender `info`, `power`, `schedule-*`, `auth-*`, `emma` e `emma-decide`, como o PC antigo atendia
 - [ ] **Apps do sistema** (no Gravity): Explorador, player de música, player de vídeo, Galeria, Bloco de notas, LUMNA Code, Reminders, StoryTeller, e outros a decidir (Loja, Telefone, Navegador, visualizador de imagens e PDF, terminal, calculadora, monitor do sistema)
 

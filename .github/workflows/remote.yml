@@ -1,4 +1,4 @@
-name: LUMNA Controle (APK)
+name: LUMNA Connect (APK)
 
 on:
   push:
@@ -48,6 +48,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: lumna-controle-apk
+          name: lumna-connect-apk
           path: remote/android/app/build/outputs/apk/release/*.apk
           retention-days: 14

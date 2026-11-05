@@ -142,7 +142,7 @@ make
 ./papel [imagem]     # o papel de parede: uma camada no fundo da tela
 ./barra              # a topbar do desktop novo; o Bluetooth abre o menu da tela nova, o sino a central
 ./rede               # a janela de Rede da tela nova: cartões que abrem e listas suspensas
-./transferencia      # a área de transferência do Celular Connect: texto de várias linhas
+./transferencia      # a área de transferência do LUMNA Connect: texto de várias linhas
 ./dock               # a dock: apps fixos (~/.config/lumna/dock), abertos e o ativo; preferências em dock.ini
 ./lancador           # o Início: favoritos, apps por categoria com detalhes, recentes e busca (o losango da dock)
 ./bloqueio           # a tela de bloqueio: tranca a sessão; PIN ou senha, o que toca, a Emma

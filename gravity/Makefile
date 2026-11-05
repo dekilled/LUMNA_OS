@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma emma-chat emma-app perfil captura
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos connect midia emma emma-chat emma-app perfil captura
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -72,7 +72,7 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c exemplos/painel/persona.c exemplos/painel/importar.c exemplos/painel/ativacao.c exemplos/painel/mcp.c exemplos/painel/recursos.c exemplos/painel/connect.c servicos/controlec.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c exemplos/painel/persona.c exemplos/painel/importar.c exemplos/painel/ativacao.c exemplos/painel/mcp.c exemplos/painel/recursos.c exemplos/painel/connect.c servicos/connectc.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
 	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c servicos/modos.c servicos/json.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
@@ -96,8 +96,8 @@ transferencia: exemplos/transferencia.c libgravity.a
 dock: exemplos/dock.c servicos/modos.c servicos/modos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/dock.c servicos/modos.c libgravity.a $(LDLIBS)
 
-captura: exemplos/captura.c servicos/telas.c servicos/telas.h servicos/modos.c servicos/modos.h servicos/json.c servicos/emmac.c servicos/emmac.h servicos/controlec.c servicos/controlec.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gdk-pixbuf-2.0 gio-2.0) -o $@ exemplos/captura.c servicos/telas.c servicos/modos.c servicos/json.c servicos/emmac.c servicos/controlec.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gdk-pixbuf-2.0 gio-2.0) -lm
+captura: exemplos/captura.c servicos/telas.c servicos/telas.h servicos/modos.c servicos/modos.h servicos/json.c servicos/emmac.c servicos/emmac.h servicos/connectc.c servicos/connectc.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gdk-pixbuf-2.0 gio-2.0) -o $@ exemplos/captura.c servicos/telas.c servicos/modos.c servicos/json.c servicos/emmac.c servicos/connectc.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gdk-pixbuf-2.0 gio-2.0) -lm
 
 perfil: exemplos/perfil.c servicos/emmac.c servicos/emmac.h servicos/json.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/perfil.c servicos/emmac.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
@@ -133,15 +133,15 @@ entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos controle midia emma emma-chat emma-app perfil captura ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso modos connect midia emma emma-chat emma-app perfil captura ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
 # o controle do celular (servicos/json.c, mdns.c, ponteiro.c): um serviço da sessão, sem a biblioteca de interface
-controle: exemplos/controle.c servicos/emmac.c servicos/emmac.h servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
+connect: exemplos/connect.c servicos/emmac.c servicos/emmac.h servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
 		servicos/modos.c servicos/modos.h servicos/mpris.c servicos/mpris.h wlr-virtual-pointer-unstable-v1-client-protocol.h \
 		wlr-virtual-pointer-unstable-v1-protocol.c
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/controle.c servicos/emmac.c servicos/midiac.c servicos/json.c servicos/mdns.c \
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/connect.c servicos/emmac.c servicos/midiac.c servicos/json.c servicos/mdns.c \
 		servicos/ponteiro.c servicos/modos.c servicos/mpris.c wlr-virtual-pointer-unstable-v1-protocol.c \
 		$(shell pkg-config --libs libsoup-3.0 gio-2.0 wayland-client) -lm
 
