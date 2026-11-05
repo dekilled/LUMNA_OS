@@ -57,7 +57,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
 - [x] Controle do Firefox da Mídia por uma extensão nossa (extensao-firefox/), não pelo WebDriver: a marca navigator.webdriver não liga e o Google deixa entrar; o serviço só aceita a extensão (Origin moz-extension://UUID fixo no perfil); Início > "Entrar nas contas" leva o serviço à página de entrada da conta
   - [ ] Assinar a extensão (Firefox comum) ou usar o Developer Edition: ver extensao-firefox/LEIAME.md
 - [x] `LUMNA_TEMPO=1 lumna-lancador` mostra o tempo de cada etapa da abertura do launcher
-  - [ ] Testar no Firefox de verdade: a extensão carrega e conecta (about:addons), app_id da janela (--name/--class), Widevine (o CDM baixa na primeira vez), login do Google
+  - [x] Conferido pelo Eric no Firefox Developer Edition: a extensão conecta, o login do Google funciona e, no YouTube (desktop), o play/pausa, o +10 s e o -10 s, o início, o voltar e o menu do controle do celular funcionam
+  - [ ] Ainda sem teste: o YouTube em formato de TV (setas e OK, que no YouTube de desktop só rolam a página), Widevine (o CDM baixa na primeira vez) e os outros serviços
 - [x] Telas em Gaming/Mídia como ilhas no Orbit (fora do Alt+Tab e da dock, sem janelas entrando ou saindo) e "Trocar telas" (Super+Shift+O, botão no Início da Mídia, item no menu de modo da topbar, `swap-screens` no celular)
   - [ ] Conferir na dock de verdade que as janelas das ilhas não aparecem; arrastar com o mouse passando pela ilha; janelas de jogos que o Gaming abre com outro app_id
   - [x] Nunca dois vídeos tocando juntos: sair de um serviço (Home, outro serviço ou o voltar na primeira página) o pausa, e abrir um serviço pausa os outros; as abas seguem vivas para retomar de onde pararam
