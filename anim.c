@@ -1,6 +1,7 @@
 #include "orbit.h"
 
 #include <time.h>
+#include <wlr/version.h>
 #include <wlr/types/wlr_scene.h>
 
 static uint32_t now_ms(void) {
@@ -17,8 +18,13 @@ static void orbit_slide_clip(struct orbit_view *view, int x, int y) {
 	}
 	struct wlr_box out;
 	wlr_output_layout_get_box(view->server->layout, view->output->wlr, &out);
+	/* no wlroots 0.19 em diante a geometria é um campo; antes era uma função */
+#if WLR_VERSION_NUM >= ((0 << 16) | (19 << 8))
+	struct wlr_box geo = view->toplevel->base->geometry;
+#else
 	struct wlr_box geo;
 	wlr_xdg_surface_get_geometry(view->toplevel->base, &geo);
+#endif
 	struct wlr_box clip = {
 		.x = out.x - x + geo.x,
 		.y = out.y - y + geo.y,

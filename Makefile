@@ -1,0 +1,41 @@
+# Orbit — wlroots 0.18, 0.19 ou 0.20 (o Arch de hoje só tem o 0.20: PKGS="wlroots-0.20 ...").
+# O Arch chama o módulo de "wlroots-0.18"; noutras distros é "wlroots"
+# (make PKGS="wlroots wayland-server xkbcommon"). A libinput entra sempre, por fora do PKGS. wlroots 0.19: PKGS="wlroots-0.19 ...".
+PKGS ?= wlroots-0.18 wayland-server xkbcommon
+WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
+WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
+SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c mode.c entrada.c telas.c nested.c clip.c copiados.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c xdg-output-unstable-v1-protocol.c
+# os cabeçalhos que os do wlroots incluem, gerados dos XML dos protocolos
+PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h xdg-output-unstable-v1-client-protocol.h
+
+all: orbit orbit-msg
+
+orbit: $(SRCS) orbit.h nested.h $(PROTOS)
+	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS) libinput wayland-client)
+
+orbit-msg: orbit-msg.c
+	$(CC) -g -Wall -Wextra -o $@ orbit-msg.c
+
+xdg-shell-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
+
+# o Orbit aninhado pede ao Wayland de fora que deixe os atalhos (o Super) com ele: lado cliente do protocolo
+keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h:
+	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/unstable/keyboard-shortcuts-inhibit/keyboard-shortcuts-inhibit-unstable-v1.xml $@
+keyboard-shortcuts-inhibit-unstable-v1-protocol.c: keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h
+	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/unstable/keyboard-shortcuts-inhibit/keyboard-shortcuts-inhibit-unstable-v1.xml $@
+
+# a posição e o nome de cada monitor do compositor de fora (o wl_output do wlroots diz sempre 0,0; o KDE e o GNOME dizem de verdade nos dois)
+xdg-output-unstable-v1-client-protocol.h:
+	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/unstable/xdg-output/xdg-output-unstable-v1.xml $@
+xdg-output-unstable-v1-protocol.c: xdg-output-unstable-v1-client-protocol.h
+	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/unstable/xdg-output/xdg-output-unstable-v1.xml $@
+
+# o XML do layer shell vem junto (protocolos/), como no dwl: não precisa do wlr-protocols
+wlr-layer-shell-unstable-v1-protocol.h: protocolos/wlr-layer-shell-unstable-v1.xml
+	$(WAYLAND_SCANNER) server-header $< $@
+
+clean:
+	rm -f orbit orbit-msg $(PROTOS) keyboard-shortcuts-inhibit-unstable-v1-protocol.c xdg-output-unstable-v1-protocol.c
+
+.PHONY: all clean
