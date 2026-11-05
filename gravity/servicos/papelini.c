@@ -177,11 +177,18 @@ static const struct papel_item *achar(const struct papel_cfg *c, const char *mod
 }
 
 const struct papel_item *papel_para(const struct papel_cfg *c, const char *modo, const char *saida) {
+	return papel_para2(c, modo, saida, NULL);
+}
+
+const struct papel_item *papel_para2(const struct papel_cfg *c, const char *modo, const char *chave, const char *nome) {
 	const struct papel_item *it = NULL;
-	if (c->por_tela && saida && *saida) {
-		it = achar(c, modo, saida);
-		if (!it) {
-			it = achar(c, "todos", saida);
+	const char *saida = chave;
+	for (int k = 0; k < 2 && !it && c->por_tela; k++, saida = nome) {
+		if (saida && *saida) {
+			it = achar(c, modo, saida);
+			if (!it) {
+				it = achar(c, "todos", saida);
+			}
 		}
 	}
 	if (!it) {

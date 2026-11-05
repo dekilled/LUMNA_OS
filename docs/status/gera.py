@@ -24,7 +24,7 @@ painel = [
   ("Telas e modos", ["Monitores","Modos","Áreas de trabalho"], ["Luz noturna"]),
   ("Som", [], ["Saída","Entrada","Apps","Sons do sistema"]),
   ("LUMNA Connect", ["Pareamento","Área de transferência","Avisos do celular","Arquivos"], []),
-  ("Emma", ["Oi Emma","Provedores","Roteamento","Personalidade","Recursos","Servidores MCP","Importar do harness"], ["Voz","Privacidade","Automações"]),
+  ("Emma", ["Oi Emma","Provedores","Roteamento","Personalidade","Recursos","Servidores MCP","Importar do harness","Voz"], ["Privacidade","Automações"]),
  ]),
  ("Inicialização", [("Inicialização", [], ["Ao entrar","Apps ao iniciar","Entrada","Em segundo plano"])]),
  ("Sistema", [
@@ -158,7 +158,8 @@ testar = [
  ("Topbar por monitor e o botão de tela cheia", "Painel > Aparência > Barra superior > Telas com a barra. O botão ao lado dos ícones sai da tela cheia e volta."),
  ("Connect no OnePlus com o PC novo", "Avisos do PC e do celular, enviar e receber arquivos e a área de transferência. Energia, agendamentos, informações e a Emma por texto já existem no PC, mas o app do celular ainda não tem telas para eles; senhas ainda não existem no PC novo."),
  ("App LUMNA Connect novo (APK)", "Instalar o APK novo (pacote os.lumna.connect, instala ao lado do antigo) e passar pelas cinco telas. O erro de \"conflito\" era a chave de assinatura mudando a cada build; agora o pacote é outro e o número de versão sempre sobe."),
- ("Tela principal", "Painel > Telas e modos > Monitores: o interruptor \"Tela principal\" em cada tela. Marque a outra e confira se o papel de parede, a barra e a dock \"só na principal\" mudam sozinhos de tela (os apps reabrem em ~2 s)."),
+ ("Painel > Emma > Voz", "A página que estava em branco: escolher se a Emma ouve (Whisper) e fala (Pocket TTS) no próprio PC, de graça e sem internet, ou pelo Fish Audio com chave. O botão \"Instalar no PC\" pede ao servidor da Emma para baixar o que falta (é grande, uma vez só). Depois diga \"Oi Emma\" e veja se ela responde sem nenhuma API."),
+ ("Tela principal", "Painel > Telas e modos > Monitores: o interruptor \"Tela principal\" em cada tela. O papel de parede \"Tela principal\" agora segue a função, não o número do monitor (grava como @principal): marque a outra e confira se o papel de parede, a barra e a dock \"só na principal\" mudam sozinhos de tela (os apps reabrem em ~2 s)."),
  ("Arrastar janela para o outro monitor", "Arrastar pela barra de título direto até o monitor do lado, sem soltar no meio. Só reproduzi com um KDE de mentira; no seu KDE de verdade é o que vale."),
  ("Trocar de modo sem piscar", "Mídia <-> Desktop pelo celular, com os dois monitores: a janela deve deslizar só no monitor dela, sem aparecer no do lado."),
  ("Setas nos serviços (Netflix, Prime, Disney...)", "As setas agora movem um contorno violeta entre os itens da página e o OK clica; sem item na direção, a seta rola a página. Dentro de um vídeo em tela cheia as setas voltam a ser do player."),

@@ -38,6 +38,8 @@ void pn_emma_mcp_desenhar(void);
 void pn_emma_mcp_abrir(void);
 void pn_emma_rec_desenhar(void);
 void pn_emma_rec_abrir(void);
+void pn_emma_voz_desenhar(void);
+void pn_emma_voz_abrir(void);
 void pn_cc_abrir(void);
 void pn_cc_parear_desenhar(void);
 void pn_cc_transf_desenhar(void);
@@ -147,7 +149,7 @@ static const pn_secao celular[] = {
 const pn_categoria pn_celular = { "celular", "phone", "LUMNA Connect", "Conecte seu celular", PN_GERAL, celular, N(celular) };
 
 static const pn_secao emma[] = {
-	{ "voz", "mic", "Voz", "Como a Emma fala e ouve.", NULL, "A voz;A velocidade;O microfone" },
+	{ "voz", "mic", "Voz", "Como a Emma fala e ouve.", pn_emma_voz_desenhar, NULL, NULL, NULL, NULL, NULL, pn_emma_voz_abrir },
 	{ "ativacao", "sparkle", "Oi Emma", "Chamar a Emma pela voz.", pn_emma_ativ_desenhar, NULL, NULL, NULL, NULL, NULL,
 		pn_emma_ativ_abrir },
 	{ "provedores", "globe", "Provedores", "As IAs que a Emma usa: endereço, chave de API e modelos.", pn_emma_prov_desenhar, NULL, NULL, NULL, NULL, NULL,

@@ -69,7 +69,9 @@ static void escolher(void) {
 	}
 	struct papel_cfg cfg;
 	papel_ler(&cfg);
-	const struct papel_item *it = papel_para(&cfg, papel_modo_atual(), esta_tela());
+	/* a principal vale pelo papel, não pelo monitor: o que se pôs para "Tela principal" segue a tela marcada como principal */
+	const struct papel_item *it = minha_saida ? papel_para(&cfg, papel_modo_atual(), minha_saida)
+		: papel_para2(&cfg, papel_modo_atual(), "@principal", esta_tela());
 	snprintf(imagem, sizeof(imagem), "%s", it && access(it->imagem, R_OK) == 0 ? it->imagem : papel_padrao());
 	ajuste = it ? it->ajuste : PAPEL_PREENCHER;
 	proxima_troca = 0;

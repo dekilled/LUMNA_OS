@@ -48,6 +48,9 @@ bool papel_gravar(const struct papel_cfg *c);
 char *papel_texto(const struct papel_cfg *c);
 /* o que vale nesta tela e neste modo, seguindo a ordem acima (NULL: nenhum, usar o do LUMNA) */
 const struct papel_item *papel_para(const struct papel_cfg *c, const char *modo, const char *saida);
+/* a tela principal se chama "@principal" no arquivo (segue a tela marcada como principal, seja qual monitor for); "nome" é o nome do
+ * monitor que está de principal agora, só para achar o que foi gravado por nome antes. Para as outras telas, nome NULL. */
+const struct papel_item *papel_para2(const struct papel_cfg *c, const char *modo, const char *chave, const char *nome);
 /* o item exato (modo e tela), criando-o se não existe */
 struct papel_item *papel_editar(struct papel_cfg *c, const char *modo, const char *saida);
 /* a imagem de fábrica do LUMNA */

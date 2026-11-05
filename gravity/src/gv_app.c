@@ -271,16 +271,31 @@ const char *gv__saida_nome(struct wl_output *saida) {
 	return "";
 }
 
+/* a principal que o Orbit disse por último (no máximo uma pergunta por segundo): quem lista as telas a põe primeiro, para
+ * "Tela principal" ser sempre a que a pessoa marcou e não a primeira que o compositor anunciou */
+static const char *principal_do_orbit(void) {
+	static char nome[64];
+	static double quando = -10;
+	double agora = gv_agora();
+	if (agora - quando >= 1.0) {
+		quando = agora;
+		if (!gv_tela_principal(nome, sizeof(nome))) {
+			nome[0] = '\0';
+		}
+	}
+	return nome;
+}
+
 int gv_saidas(gv_app *app, const char **nomes, int max) {
 	int n = 0;
-	/* a principal vai primeiro: quem abre uma barra ou dock por tela trata a primeira como a principal */
-	for (int i = 0; app->principal[0] && i < app->nsaidas && n < max; i++) {
-		if (!strcmp(app->saidas[i].nome, app->principal)) {
+	const char *principal = principal_do_orbit();
+	for (int i = 0; principal[0] && i < app->nsaidas && n < max; i++) {
+		if (!strcmp(app->saidas[i].nome, principal)) {
 			nomes[n++] = app->saidas[i].nome;
 		}
 	}
 	for (int i = 0; i < app->nsaidas && n < max; i++) {
-		if (n > 0 && app->principal[0] && !strcmp(app->saidas[i].nome, app->principal)) {
+		if (n > 0 && principal[0] && !strcmp(app->saidas[i].nome, principal)) {
 			continue;
 		}
 		if (app->saidas[i].nome[0]) {

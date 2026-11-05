@@ -81,7 +81,7 @@ static void ler_ajustes(void) {
 		papel_ler(&cfg);
 		const char *saidas[8];
 		int n = gv_saidas(app_bloqueio, saidas, 8);
-		const struct papel_item *it = papel_para(&cfg, papel_modo_atual(), n ? saidas[0] : "");
+		const struct papel_item *it = papel_para2(&cfg, papel_modo_atual(), "@principal", n ? saidas[0] : "");
 		snprintf(papel, sizeof(papel), "%s", it ? it->imagem : papel_padrao());
 	}
 }

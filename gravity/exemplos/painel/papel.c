@@ -73,7 +73,14 @@ void pn_papel_restaurar(void) {
 static const char *saida_editada(void) {
 	const char *saidas[8];
 	int n = gv_saidas(pn_app, saidas, 8);
-	return tela > 0 && tela <= n ? saidas[tela - 1] : "";
+	/* a primeira da lista é a principal: grava-se como "@principal", que segue a tela marcada como principal */
+	return tela == 1 && n > 0 ? "@principal" : tela > 0 && tela <= n ? saidas[tela - 1] : "";
+}
+
+/* o nome do monitor que é a principal agora (para achar o que foi gravado por nome) */
+static const char *nome_da_principal(void) {
+	const char *saidas[8];
+	return gv_saidas(pn_app, saidas, 8) > 0 ? saidas[0] : "";
 }
 
 static const char *modo_editado(void) {
@@ -86,7 +93,8 @@ static const struct papel_item *atual(void) {
 	struct papel_cfg c = cfg;
 	c.por_tela = tela > 0;
 	static struct papel_item it;
-	const struct papel_item *p = papel_para(&c, modos_id[modo], saida_editada());
+	const char *edit_saida = saida_editada();
+	const struct papel_item *p = papel_para2(&c, modos_id[modo], edit_saida, !strcmp(edit_saida, "@principal") ? nome_da_principal() : NULL);
 	if (p) {
 		it = *p;
 	} else {
