@@ -29,6 +29,7 @@ struct ed {
 	int l, a, hz;
 	int escala_i, rot_i;
 	int ref, lado;
+	bool principal;
 };
 
 static struct telas_estado vivo;
@@ -71,7 +72,7 @@ static void ler_vivo(void) {
 	int ancora = -1;
 	for (int i = 0; i < vivo.n; i++) {
 		const struct tela *t = &vivo.v[i];
-		e[i] = (struct ed){ .ligada = t->ligada, .l = t->largura, .a = t->altura, .hz = t->hz, .escala_i = escala_indice(t->escala),
+		e[i] = (struct ed){ .principal = t->principal, .ligada = t->ligada, .l = t->largura, .a = t->altura, .hz = t->hz, .escala_i = escala_indice(t->escala),
 			.rot_i = rot_indice(t->rotacao), .ref = 0, .lado = 0 };
 		if (t->ligada && ancora < 0) {
 			ancora = i;
@@ -133,7 +134,7 @@ void pn_monitores_abrir(void) {
 
 static bool igual(const struct ed *a, const struct ed *b) {
 	return a->ligada == b->ligada && a->l == b->l && a->a == b->a && a->hz == b->hz && a->escala_i == b->escala_i && a->rot_i == b->rot_i &&
-		a->ref == b->ref && a->lado == b->lado;
+		a->ref == b->ref && a->lado == b->lado && a->principal == b->principal;
 }
 
 bool pn_monitores_pendente(void) {
@@ -292,7 +293,7 @@ void pn_monitores_aplicar(void) {
 	nantes = vivo.n;
 	for (int i = 0; i < vivo.n; i++) {
 		telas_cfg_de_estado(&vivo.v[i], &antes[i]);
-		novo[i] = (struct tela_cfg){ .ligada = e[i].ligada, .l = e[i].l, .a = e[i].a, .hz = e[i].hz, .escala = escalas[e[i].escala_i], .rotacao = e[i].rot_i * 90 };
+		novo[i] = (struct tela_cfg){ .principal = e[i].principal, .ligada = e[i].ligada, .l = e[i].l, .a = e[i].a, .hz = e[i].hz, .escala = escalas[e[i].escala_i], .rotacao = e[i].rot_i * 90 };
 		g_strlcpy(novo[i].nome, vivo.v[i].nome, sizeof(novo[i].nome));
 		if (com_pos && e[i].ligada) {
 			novo[i].pos = true;
@@ -499,7 +500,28 @@ void pn_monitores_desenhar(void) {
 	const struct tela *t = &vivo.v[sel];
 	char nome[96];
 	nome_da_tela(sel, nome, sizeof(nome));
-	pn_subtitulo(CLAY_ID("mo-sub"), gv_fmt("Tela %d · %s%s%s", sel + 1, nome, t->mm_l > 0 ? " · " : "", t->mm_l > 0 ? tela_polegadas(t) : "").chars);
+	pn_subtitulo(CLAY_ID("mo-sub"), gv_fmt("Tela %d · %s%s%s%s", sel + 1, nome, t->mm_l > 0 ? " · " : "", t->mm_l > 0 ? tela_polegadas(t) : "",
+		d->principal ? " · principal" : "").chars);
+
+	/* a tela principal: onde ficam a barra, o papel de parede e a dock quando a configuração é "só na principal"; sempre há uma */
+	pn_linha_comecar(CLAY_ID("mo-prin"), "star", "Tela principal",
+		d->principal ? "A barra, o papel de parede e a dock \"só na principal\" ficam nesta tela. Para trocar, marque outra tela como principal" :
+			"Marque para a barra, o papel de parede e a dock \"só na principal\" irem para esta tela");
+	{
+		bool v = d->principal;
+		if (!d->principal) {
+			if (gv_interruptor(CLAY_ID("mo-prin-v"), &v) && v) {
+				for (int i = 0; i < vivo.n; i++) {
+					e[i].principal = false;
+				}
+				d->principal = true;
+				pos_mexida = true; /* grava as posições junto: o arquivo é refeito inteiro */
+			}
+		} else {
+			gv_interruptor(CLAY_ID("mo-prin-v0"), &v);
+		}
+	}
+	pn_linha_acabar();
 
 	int ligadas = 0;
 	for (int i = 0; i < vivo.n; i++) {

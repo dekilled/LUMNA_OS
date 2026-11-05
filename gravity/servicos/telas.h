@@ -32,6 +32,7 @@ struct tela {
 	int rotacao;                 /* 0, 90, 180, 270 */
 	int x, y;                    /* posição no layout, em pixels lógicos */
 	bool ligada, desligavel, telemovel, ponteiro;
+	bool principal;              /* a tela principal (a que a pessoa marcou, ou a que o Orbit escolheu): barra, papel de parede e dock vão para ela */
 	int mm_l, mm_a;              /* o tamanho físico, 0 se não se sabe */
 	struct tela_modo modos[TELAS_MAX_MODOS];
 	int nmodos;
@@ -59,6 +60,7 @@ struct tela_cfg {
 	int rotacao;
 	bool pos;
 	int x, y;
+	bool principal;              /* principal=1 no telas.ini */
 };
 
 /* o arquivo inteiro (as seções de monitores que não estão ligados agora ficam como estão) */

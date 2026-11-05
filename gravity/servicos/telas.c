@@ -40,6 +40,7 @@ bool telas_ler(struct telas_estado *e) {
 		t->desligavel = json_bool(json_chave(o, "desligavel"), true);
 		t->telemovel = json_bool(json_chave(o, "telemovel"), false);
 		t->ponteiro = json_bool(json_chave(o, "ponteiro"), false);
+		t->principal = json_bool(json_chave(o, "principal"), false);
 		const struct json *mm = json_chave(o, "mm");
 		t->mm_l = (int)json_numero(json_item(mm, 0), 0);
 		t->mm_a = (int)json_numero(json_item(mm, 1), 0);
@@ -120,6 +121,8 @@ int telas_cfg_ler(struct tela_cfg *v, int max) {
 				c->escala = atof(val);
 			} else if (!strcmp(k, "rotacao")) {
 				c->rotacao = atoi(val);
+			} else if (!strcmp(k, "principal")) {
+				c->principal = atoi(val) != 0;
 			} else if (!strcmp(k, "x")) {
 				c->x = atoi(val);
 				c->pos = true;
@@ -147,6 +150,9 @@ static void escrever(GString *s, const struct tela_cfg *c) {
 		g_string_append_printf(s, "escala=%.2f\n", c->escala);
 	}
 	g_string_append_printf(s, "rotacao=%d\n", c->rotacao);
+	if (c->principal) {
+		g_string_append(s, "principal=1\n");
+	}
 	if (c->pos) {
 		g_string_append_printf(s, "x=%d\ny=%d\n", c->x, c->y);
 	}
@@ -189,6 +195,7 @@ void telas_cfg_de_estado(const struct tela *t, struct tela_cfg *c) {
 	c->hz = t->hz;
 	c->escala = t->escala;
 	c->rotacao = t->rotacao;
+	c->principal = t->principal;
 	c->pos = true;
 	c->x = t->x;
 	c->y = t->y;

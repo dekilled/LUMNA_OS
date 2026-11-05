@@ -323,6 +323,8 @@ void gv_app_camada_ancoras(gv_app *app, uint32_t ancoras, bool teclado_exclusivo
 int gv_saidas(gv_app *app, const char **nomes, int max);
 /* Uma tela entrou ou saiu desde a última vez que se perguntou. */
 bool gv_saidas_mudaram(gv_app *app);
+/* o nome da tela principal segundo o Orbit (a marcada em Painel > Monitores); false se o Orbit não responde */
+bool gv_tela_principal(char *nome, size_t tam);
 
 /* ---- popups e menus ---- */
 enum gv_popup_lado { GV_POPUP_ABAIXO, GV_POPUP_ACIMA, GV_POPUP_DIREITA, GV_POPUP_ESQUERDA };

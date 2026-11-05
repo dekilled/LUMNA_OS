@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include "gv_interno.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/input-event-codes.h>
@@ -18,6 +19,11 @@
 #include <string.h>
 #include <sys/inotify.h>
 #include <sys/mman.h>
+#include <signal.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/un.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <pthread.h>
 #include <sys/eventfd.h>
@@ -164,6 +170,10 @@ struct gv_app {
 	uint32_t xdg_versao;
 	uint32_t entrada_id;          /* gv_app_entrada_em: o elemento que recebe a entrada */
 	bool saidas_mudaram;          /* uma tela entrou ou saiu desde o último gv_saidas_mudaram */
+	bool segue_principal;         /* camada pedida em "@principal": se a principal mudar, o app reabre sozinho */
+	char principal[64];           /* a principal de agora, segundo o Orbit (vazio: não se sabe) */
+	char principal_aberta[64];    /* a principal de quando o app abriu */
+	double prox_principal;
 	Clay_BoundingBox entrada_caixa;
 
 	Clay_Arena arena;
@@ -172,6 +182,7 @@ struct gv_app {
 
 struct gv_entrada gv__entrada = { .x = -1, .y = -1 };
 static gv_app *atual;
+bool gv_tela_principal(char *nome, size_t tam);
 
 double gv_agora(void) {
 	static struct timespec inicio;
@@ -262,12 +273,147 @@ const char *gv__saida_nome(struct wl_output *saida) {
 
 int gv_saidas(gv_app *app, const char **nomes, int max) {
 	int n = 0;
+	/* a principal vai primeiro: quem abre uma barra ou dock por tela trata a primeira como a principal */
+	for (int i = 0; app->principal[0] && i < app->nsaidas && n < max; i++) {
+		if (!strcmp(app->saidas[i].nome, app->principal)) {
+			nomes[n++] = app->saidas[i].nome;
+		}
+	}
 	for (int i = 0; i < app->nsaidas && n < max; i++) {
+		if (n > 0 && app->principal[0] && !strcmp(app->saidas[i].nome, app->principal)) {
+			continue;
+		}
 		if (app->saidas[i].nome[0]) {
 			nomes[n++] = app->saidas[i].nome;
 		}
 	}
 	return n;
+}
+
+/* A tela principal mudou (a pessoa marcou outra no Painel): uma camada que abriu na antiga não muda de tela, então o app fecha
+ * as telas-filhas que abriu e começa de novo (já na principal nova). Vigia a cada 1,5 s. */
+static void seguir_principal(gv_app *app) {
+	double agora = gv_agora();
+	if (agora < app->prox_principal) {
+		gv__app_acordar_em(app->prox_principal - agora);
+		return;
+	}
+	app->prox_principal = agora + 1.5;
+	gv__app_acordar_em(1.5);
+	char nome[64];
+	if (!gv_tela_principal(nome, sizeof(nome))) {
+		return;
+	}
+	if (strcmp(nome, app->principal)) {
+		snprintf(app->principal, sizeof(app->principal), "%s", nome);
+		app->saidas_mudaram = true; /* quem abre uma barra por tela revê quais abrir */
+	}
+	if (!app->principal_aberta[0] || !strcmp(nome, app->principal_aberta)) {
+		return;
+	}
+	/* as filhas (as barras, docks e papéis das outras telas) saem antes: o processo continua o mesmo depois do exec */
+	pid_t eu = getpid();
+	DIR *proc = opendir("/proc");
+	struct dirent *de;
+	while (proc && (de = readdir(proc))) {
+		int pid = atoi(de->d_name);
+		if (pid <= 1) {
+			continue;
+		}
+		char caminho[64], linha[512];
+		snprintf(caminho, sizeof(caminho), "/proc/%d/stat", pid);
+		FILE *f = fopen(caminho, "r");
+		int ppid = 0;
+		if (f && fgets(linha, sizeof(linha), f)) {
+			char *p = strrchr(linha, ')');
+			if (p && sscanf(p + 2, "%*c %d", &ppid) == 1 && ppid == eu) {
+				kill(pid, SIGTERM);
+			}
+		}
+		if (f) {
+			fclose(f);
+		}
+	}
+	if (proc) {
+		closedir(proc);
+	}
+	for (int i = 0; i < 20; i++) { /* até 1 s para elas saírem */
+		if (waitpid(-1, NULL, WNOHANG) <= 0 && i > 2) {
+			break;
+		}
+		usleep(50000);
+	}
+	FILE *f = fopen("/proc/self/cmdline", "r");
+	static char texto[4096];
+	size_t len = f ? fread(texto, 1, sizeof(texto) - 1, f) : 0;
+	if (f) {
+		fclose(f);
+	}
+	char *argv[64];
+	int n = 0;
+	for (size_t i = 0; i < len && n < 63;) {
+		argv[n++] = texto + i;
+		i += strlen(texto + i) + 1;
+	}
+	argv[n] = NULL;
+	if (n > 0) {
+		fprintf(stderr, "gravity: a tela principal passou de %s para %s; reabrindo\n", app->principal_aberta, nome);
+		execv("/proc/self/exe", argv);
+	}
+}
+
+/* a tela principal, como o Orbit a conhece (a que se marcou em Painel > Monitores; sem Orbit ou sem resposta, vazio) */
+bool gv_tela_principal(char *nome, size_t tam) {
+	const char *caminho = getenv("ORBIT_SOCK");
+	char fallback[108];
+	if (!caminho || !*caminho) {
+		const char *runtime = getenv("XDG_RUNTIME_DIR"), *display = getenv("WAYLAND_DISPLAY");
+		if (!runtime || !display) {
+			return false;
+		}
+		snprintf(fallback, sizeof(fallback), "%s/orbit.%s.sock", runtime, display);
+		caminho = fallback;
+	}
+	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	struct sockaddr_un addr = { .sun_family = AF_UNIX };
+	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", caminho);
+	if (fd < 0 || connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		if (fd >= 0) {
+			close(fd);
+		}
+		return false;
+	}
+	struct timeval tv = { .tv_sec = 1 };
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	static char r[65536];
+	size_t len = 0;
+	bool ok = write(fd, "saidas\n", 7) == 7;
+	while (ok && len + 1 < sizeof(r)) {
+		ssize_t n = read(fd, r + len, sizeof(r) - 1 - len);
+		if (n <= 0) {
+			break;
+		}
+		len += (size_t)n;
+		if (memchr(r, '\n', len)) {
+			break;
+		}
+	}
+	r[len] = '\0';
+	close(fd);
+	/* cada saída começa com {"nome":"X"; a principal é a que tem "principal":true antes da próxima */
+	const char *p = r;
+	while (ok && (p = strstr(p, "{\"nome\":\"")) != NULL) {
+		p += 9;
+		const char *fim = strchr(p, '"');
+		const char *proxima = strstr(p, "{\"nome\":\"");
+		const char *marca = strstr(p, "\"principal\":true");
+		if (fim && marca && (!proxima || marca < proxima) && (size_t)(fim - p) < tam) {
+			memcpy(nome, p, (size_t)(fim - p));
+			nome[fim - p] = '\0';
+			return true;
+		}
+	}
+	return false;
 }
 
 bool gv_saidas_mudaram(gv_app *app) {
@@ -1446,8 +1592,16 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 		} else {
 			/* numa tela escolhida pelo nome (sem nome, ou se não houver: a que o compositor quiser) */
 			struct wl_output *saida = NULL;
+			char principal[64] = "";
+			bool quer_principal = opcoes->saida && !strcmp(opcoes->saida, "@principal");
+			if (quer_principal && !gv_tela_principal(principal, sizeof(principal))) {
+				principal[0] = '\0'; /* sem Orbit: a primeira que o compositor listou */
+			}
+			app->segue_principal = quer_principal;
+			snprintf(app->principal, sizeof(app->principal), "%s", principal);
+			snprintf(app->principal_aberta, sizeof(app->principal_aberta), "%s", principal);
 			for (int i = 0; opcoes->saida && i < app->nsaidas; i++) {
-				if (!strcmp(app->saidas[i].nome, opcoes->saida) || (!strcmp(opcoes->saida, "@principal") && i == 0)) {
+				if (!strcmp(app->saidas[i].nome, opcoes->saida) || (quer_principal && (principal[0] ? !strcmp(app->saidas[i].nome, principal) : i == 0))) {
 					saida = app->saidas[i].wl;
 				}
 			}
@@ -1965,6 +2119,9 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {
 		if (app->acordar > 0 && gv_agora() >= app->acordar) {
 			app->acordar = 0;
 			app->precisa = true;
+		}
+		if (app->segue_principal) {
+			seguir_principal(app);
 		}
 		for (int i = 0; i < app->nvigias; i++) {
 			if (fds[1 + i].revents & (POLLIN | POLLHUP)) {
