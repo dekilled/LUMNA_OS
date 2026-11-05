@@ -6,3 +6,4 @@ cd "$AQUI"
 make connect >/dev/null
 python3 testes/connect/testa_connect.py "$AQUI/connect"
 python3 testes/connect/testa_wtype.py "$AQUI/connect"
+python3 testes/connect/testa_controle.py "$AQUI/connect"

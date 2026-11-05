@@ -51,7 +51,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "agenda.h"
 #include "emmac.h"
+#include "energia.h"
 #include "json.h"
 #include "mdns.h"
 #include "modos.h"
@@ -1221,6 +1223,202 @@ static void voz(SoupWebsocketConnection *ws, const struct json *msg, GString *r)
 	ok(r);
 }
 
+/* ---- o controle de longe: informações, energia, a Emma por texto e os agendamentos ---- */
+
+/* um aviso do agendamento: aparece aqui e nos celulares */
+static void agenda_dizer(const char *resumo, const char *corpo, bool urgente) {
+	aviso_local("Agendamento", resumo, corpo, urgente);
+	GString *m = g_string_new("{\"type\":\"notification\",\"app\":\"Agendamento\",\"summary\":");
+	json_escrever_texto(m, resumo);
+	g_string_append(m, ",\"body\":");
+	json_escrever_texto(m, corpo);
+	g_string_append_printf(m, ",\"urgent\":%s}", urgente ? "true" : "false");
+	transmitir_recurso("notifications", m->str);
+	g_string_free(m, TRUE);
+}
+
+/* a resposta da Emma, sem passar de 400 letras (cabe num aviso) */
+static char *resposta_curta(const char *texto) {
+	if (g_utf8_strlen(texto, -1) <= 400) {
+		return g_strdup(texto);
+	}
+	return g_strndup(texto, g_utf8_offset_to_pointer(texto, 400) - texto);
+}
+
+static void agenda_emma_terminou(const char *resposta, void *dados) {
+	struct json *j = resposta ? json_ler(resposta) : NULL;
+	bool bom = j && json_bool(json_chave(j, "ok"), false);
+	const char *texto = !j ? "a Emma não está rodando" : bom ? json_chave_texto(j, "resposta") : json_chave_texto(j, "erro");
+	char *curto = resposta_curta(*texto ? texto : bom ? "Pronto." : "algo deu errado");
+	agenda_dizer(bom ? "A Emma terminou" : "A Emma não conseguiu", curto, true);
+	g_free(curto);
+	json_liberar(j);
+}
+
+static gboolean agenda_energia_depois(gpointer dados) {
+	char *acao = dados, erro_[160];
+	if (!energia_acao(acao, erro_, sizeof(erro_))) {
+		agenda_dizer("O agendamento falhou", erro_, true);
+	}
+	g_free(acao);
+	return G_SOURCE_REMOVE;
+}
+
+static void agenda_rodar(const struct agenda_tarefa *t) {
+	if (!strcmp(t->acao, "remind")) {
+		agenda_dizer("Lembrete", t->texto, true);
+	} else if (!strcmp(t->acao, "emma")) {
+		agenda_dizer("A Emma começou uma tarefa agendada", t->texto, false);
+		char *limpo = g_strdup(t->texto);
+		for (char *p = limpo; *p; p++) {
+			if (*p == '\n' || *p == '\r') {
+				*p = ' ';
+			}
+		}
+		char *pedido = g_strdup_printf("celular %s", limpo);
+		emmac_pedido_async(pedido, agenda_emma_terminou, NULL);
+		g_free(pedido);
+		g_free(limpo);
+	} else {
+		const char *rotulo = !strcmp(t->acao, "poweroff") ? "Desligando o PC" : !strcmp(t->acao, "reboot") ? "Reiniciando o PC"
+			: !strcmp(t->acao, "suspend") ? "Suspendendo o PC" : "Bloqueando o PC";
+		agenda_dizer(rotulo, "Como estava agendado.", false);
+		/* dá tempo do aviso chegar nos celulares antes de a rede cair */
+		g_timeout_add_seconds(3, agenda_energia_depois, g_strdup(t->acao));
+	}
+}
+
+static void agenda_transmitir(const struct cliente *menos);
+
+static gboolean agenda_tique(gpointer dados) {
+	GPtrArray *vencidas = agenda_vencidas();
+	for (guint i = 0; i < vencidas->len; i++) {
+		agenda_rodar(vencidas->pdata[i]);
+	}
+	if (vencidas->len) {
+		agenda_transmitir(NULL);
+	}
+	g_ptr_array_unref(vencidas);
+	return G_SOURCE_CONTINUE;
+}
+
+/* a lista nova vai para os celulares que controlam o PC (outro celular mexeu, ou a hora venceu); quem pediu já recebeu a resposta */
+static void agenda_transmitir(const struct cliente *menos) {
+	GString *m = g_string_new(NULL);
+	agenda_json(m);
+	for (guint i = 0; i < clientes->len; i++) {
+		struct cliente *c = clientes->pdata[i];
+		if (c != menos && c->dispositivo[0] && recurso_de(dispositivo_por_id(c->dispositivo), "control")) {
+			enviar(c->ws, m->str);
+		}
+	}
+	g_string_free(m, TRUE);
+}
+
+static void emma_respondeu(const char *resposta, void *dados) {
+	SoupWebsocketConnection *ws = dados;
+	struct json *j = resposta ? json_ler(resposta) : NULL;
+	GString *r = g_string_new(NULL);
+	if (j && json_bool(json_chave(j, "ok"), false)) {
+		g_string_assign(r, "{\"type\":\"emma-reply\",\"content\":");
+		json_escrever_texto(r, json_chave_texto(j, "resposta"));
+		g_string_append_c(r, '}');
+	} else {
+		erro(r, j && *json_chave_texto(j, "erro") ? json_chave_texto(j, "erro") : "a Emma não está rodando", false);
+	}
+	enviar(ws, r->str);
+	g_string_free(r, TRUE);
+	json_liberar(j);
+	g_object_unref(ws);
+}
+
+static void emma_decidido(const char *resposta, void *dados) {
+}
+
+static bool id_simples(const char *id) {
+	if (!*id || strlen(id) > 80) {
+		return false;
+	}
+	for (const char *p = id; *p; p++) {
+		if (!g_ascii_isalnum(*p) && *p != '-' && *p != '_' && *p != ':') {
+			return false;
+		}
+	}
+	return true;
+}
+
+/* respondida aqui (true) ou não é desta família (false) */
+static bool controle_msg(struct cliente *c, const struct json *msg, GString *r) {
+	const char *tipo = json_chave_texto(msg, "type");
+	struct dispositivo *d = dispositivo_por_id(c->dispositivo);
+	if (!d) {
+		return false;
+	}
+	if (!strcmp(tipo, "info")) {
+		g_string_truncate(r, 0);
+		energia_info_json(r);
+		return true;
+	}
+	bool agenda = g_str_has_prefix(tipo, "schedule-");
+	if (strcmp(tipo, "power") && strcmp(tipo, "emma") && strcmp(tipo, "emma-decide") && !agenda) {
+		return false;
+	}
+	PRECISA(recurso_de(d, "control"), "o controle de longe");
+	if (!strcmp(tipo, "power")) {
+		char motivo[160];
+		energia_acao(json_chave_texto(msg, "action"), motivo, sizeof(motivo)) ? ok(r) : erro(r, motivo, false);
+	} else if (!strcmp(tipo, "emma")) {
+		const char *texto = json_chave_texto(msg, "text");
+		if (!*texto || strlen(texto) > 4000) {
+			erro(r, "mensagem vazia ou longa demais", false);
+		} else {
+			char *limpo = g_strdup(texto);
+			for (char *p = limpo; *p; p++) {
+				if (*p == '\n' || *p == '\r') {
+					*p = ' ';
+				}
+			}
+			char *pedido = g_strdup_printf("celular %s", limpo);
+			emmac_pedido_async(pedido, emma_respondeu, g_object_ref(c->ws));
+			g_free(pedido);
+			g_free(limpo);
+			ok(r); /* a resposta chega depois, como emma-reply */
+		}
+	} else if (!strcmp(tipo, "emma-decide")) {
+		const char *id = json_chave_texto(msg, "call_id");
+		if (!id_simples(id)) {
+			erro(r, "pedido de ação inválido", false);
+		} else {
+			char *pedido = g_strdup_printf("confirmar %s %s", id, json_bool(json_chave(msg, "allow"), false) ? "sim" : "nao");
+			emmac_pedido_async(pedido, emma_decidido, NULL);
+			g_free(pedido);
+			ok(r);
+		}
+	} else if (!strcmp(tipo, "schedule-list")) {
+		g_string_truncate(r, 0);
+		agenda_json(r);
+	} else if (!strcmp(tipo, "schedule-add")) {
+		const struct json *t = json_chave(msg, "task");
+		char motivo[120];
+		if (!t || !agenda_adicionar(json_chave_texto(t, "action"), (gint64)json_numero(json_chave(t, "at"), 0), json_chave_texto(t, "text"),
+				json_bool(json_chave(t, "daily"), false), d->nome, motivo, sizeof(motivo))) {
+			erro(r, t ? motivo : "falta a tarefa", false);
+		} else {
+			g_string_truncate(r, 0);
+			agenda_json(r);
+			agenda_transmitir(c);
+		}
+	} else if (!strcmp(tipo, "schedule-remove")) {
+		agenda_remover(json_chave_texto(msg, "id"));
+		g_string_truncate(r, 0);
+		agenda_json(r);
+		agenda_transmitir(c);
+	} else {
+		erro(r, "comando desconhecido", false);
+	}
+	return true;
+}
+
 static void ao_receber(SoupWebsocketConnection *ws, gint tipo_dado, GBytes *bytes, gpointer dados) {
 	struct cliente *c = dados;
 	if (tipo_dado != SOUP_WEBSOCKET_DATA_TEXT) {
@@ -1256,7 +1454,7 @@ static void ao_receber(SoupWebsocketConnection *ws, gint tipo_dado, GBytes *byte
 		erro(r, "pareie o celular primeiro", true);
 	} else if (!strcmp(tipo, "voice")) {
 		voz(ws, msg, r);
-	} else if (connect_msg(c, msg, r)) {
+	} else if (connect_msg(c, msg, r) || controle_msg(c, msg, r)) {
 		/* respondido pelo Connect */
 	} else {
 		comando(msg, r);
@@ -1603,6 +1801,8 @@ int main(int argc, char **argv) {
 	mpris_iniciar();
 	orbit_ligar(NULL);
 	g_timeout_add_seconds(3, orbit_ligar, NULL);
+	agenda_tique(NULL); /* o que venceu com o PC desligado roda já */
+	g_timeout_add_seconds(15, agenda_tique, NULL);
 
 	GMainLoop *laco = g_main_loop_new(NULL, FALSE);
 	g_unix_signal_add(SIGINT, encerrar, laco);

@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "lumna-bloqueio $*" >> "$ENERGIA_LOG"

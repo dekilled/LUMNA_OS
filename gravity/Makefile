@@ -138,10 +138,10 @@ clean:
 .PHONY: all clean
 
 # o controle do celular (servicos/json.c, mdns.c, ponteiro.c): um serviço da sessão, sem a biblioteca de interface
-connect: exemplos/connect.c servicos/emmac.c servicos/emmac.h servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
+connect: exemplos/connect.c servicos/agenda.c servicos/agenda.h servicos/energia.c servicos/energia.h servicos/emmac.c servicos/emmac.h servicos/midiac.c servicos/midiac.h servicos/midia.h servicos/json.c servicos/json.h servicos/mdns.c servicos/mdns.h servicos/ponteiro.c servicos/ponteiro.h \
 		servicos/modos.c servicos/modos.h servicos/mpris.c servicos/mpris.h wlr-virtual-pointer-unstable-v1-client-protocol.h \
 		wlr-virtual-pointer-unstable-v1-protocol.c
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/connect.c servicos/emmac.c servicos/midiac.c servicos/json.c servicos/mdns.c \
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0) -o $@ exemplos/connect.c servicos/agenda.c servicos/energia.c servicos/emmac.c servicos/midiac.c servicos/json.c servicos/mdns.c \
 		servicos/ponteiro.c servicos/modos.c servicos/mpris.c wlr-virtual-pointer-unstable-v1-protocol.c \
 		$(shell pkg-config --libs libsoup-3.0 gio-2.0 wayland-client) -lm
 

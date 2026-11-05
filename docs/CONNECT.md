@@ -12,6 +12,14 @@ Quem fala com o celular é o `lumna-connect` (serviço que não morre junto com 
 - **Enviar para o celular** na captura de tela (menu Enviar > "Enviar para NOME").
 - Cada recurso liga/desliga por celular (`notifications`, `phone_notifications`, `clipboard`, `files`, `control`) e o Connect inteiro tem chave geral. Tudo em `~/.config/lumna/connect.json` e `remotes.json`.
 
+## Controle de longe (recurso `control`)
+O celular também pode, com o recurso `control` ligado para ele no PC:
+- `info`: nome do PC, usuário, tempo ligado, carga, memória e bateria (esta não precisa de `control`).
+- `power` (`lock`, `suspend`, `reboot`, `poweroff`): bloqueia pelo `lumna-bloqueio` e o resto pelo `systemctl`.
+- `schedule-list`, `schedule-add`, `schedule-remove`: tarefas numa hora marcada (`poweroff`, `reboot`, `suspend`, `lock`, `remind`, `emma`; podem repetir todo dia). Ficam em `~/.config/lumna/schedule.json` (o mesmo formato do LUMNA antigo). O serviço confere a cada 15 s; o que venceu com o PC desligado roda na volta se passou menos de 1 hora. Lembretes e o resultado da Emma aparecem no PC e nos celulares. Quando a lista muda, os outros celulares recebem a lista nova.
+- `emma` (texto) e `emma-decide` (aprovar ou negar uma ação que a Emma pediu): passam pelo serviço da Emma; a resposta chega depois como `emma-reply`.
+- Ainda falta: `auth-respond` (senhas e confirmações do polkit).
+
 ## Comandos do socket (`lumna-connect`)
 `connect`, `parear`, `connect_ativo sim|nao`, `connect_pasta CAMINHO`, `recurso ID NOME sim|nao`, `enviar ID CAMINHO`, `copiar_para ID`, `aviso JSON`.
 
@@ -24,8 +32,8 @@ Quem fala com o celular é o `lumna-connect` (serviço que não morre junto com 
 Se algo não funcionar, rode dentro do desktop: `sh scripts/diag-connect.sh`. Ele diz o que falta e o que o serviço da Mídia e o controle estão vendo.
 
 ## Os apps do celular
-- **LUMNA Connect** (`remote/android`): só o controle remoto (direcional, texto, teclas, mídia, volume, modo, Home e voz). Não tem arquivos nem área de transferência.
-- **LUMNA Connect** (o app antigo do celular): é o que fala arquivos, área de transferência e avisos. A parte do PC foi reescrita aqui seguindo o protocolo antigo; ainda não foi testada com o app de verdade.
+- **LUMNA Connect** (`remote/android`, o antigo LUMNA Controle): hoje só o controle remoto (direcional, texto, teclas, mídia, volume, modo, Home e voz). Vai virar o app único, em telas: arquivos, área de transferência, avisos, energia, agendamentos e a Emma por texto (o PC já atende tudo isso).
+- **LUMNA Connect** (o app antigo do celular, em Vue): é o que fala arquivos, área de transferência e avisos. A parte do PC foi reescrita aqui seguindo o protocolo antigo; ainda não foi testada com o app de verdade.
 
 ## Testes
 `sh testes/connect.sh` (celular falso, sem tocar no sistema).
