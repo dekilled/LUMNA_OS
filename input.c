@@ -138,6 +138,16 @@ static void on_cursor_motion_absolute(struct wl_listener *listener, void *data) 
 		struct orbit_output *output;
 		wl_list_for_each(output, &server->outputs, link) {
 			if (output->wlr->name && !strcmp(output->wlr->name, event->pointer->output_name)) {
+				if (event->x < 0 || event->x > 1 || event->y < 0 || event->y > 1) {
+					/* o compositor de fora segura o mouse na janela em que o clique começou (um arrasto de janela): as
+					 * coordenadas passam das bordas. Elas valem como posição no layout, a partir desta saída, e o cursor
+					 * atravessa para o monitor do lado; presas ao mapeamento, ele parava na borda e a janela não passava. */
+					struct wlr_box box;
+					wlr_output_layout_get_box(server->layout, output->wlr, &box);
+					wlr_cursor_warp_closest(server->cursor, NULL, box.x + event->x * box.width, box.y + event->y * box.height);
+					process_cursor_motion(server, event->time_msec);
+					return;
+				}
 				wlr_cursor_map_input_to_output(server->cursor, &event->pointer->base, output->wlr);
 				break;
 			}
