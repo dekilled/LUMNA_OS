@@ -228,6 +228,16 @@ class H(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def chat(self, c):
+        # o servidor de verdade valida o que o shell manda (routes_chat.LumnaToolDef): descrição com mais de 800 letras dá 422 em TODA conversa
+        for ferr in c.get("lumna_tools", []):
+            if len(ferr.get("description", "")) > 800:
+                registrar(f"422 descricao longa demais: {ferr.get('name')}")
+                corpo = json.dumps({"detail": [{"loc": ["body", "lumna_tools"], "msg": "String should have at most 800 characters"}]}).encode()
+                self.send_response(422)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                return self.wfile.write(corpo)
         texto = c.get("content", "").lower()
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")

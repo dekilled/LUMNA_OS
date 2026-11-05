@@ -52,13 +52,10 @@ static const struct emmaa_def catalogo[] = {
 	{ "apps.abrir", "Abrir programa", "Abre um programa instalado pelo nome aproximado (\"firefox\", \"steam\", \"terminal\").",
 		"{\"nome\":{\"type\":\"string\"}}", "nome", EMMAA_AGIR, "auto" },
 	{ "painel.abrir", "Abrir uma configuração",
-		"Abre o Painel de controle numa seção (o jeito de mostrar onde mudar algo, e onde ficam as configurações da própria Emma). Seções: aparencia/tema, aparencia/papel, aparencia/barra, "
-		"rede/wifi, bluetooth/dispositivos, aplicativos/instalados, aplicativos/atualizacoes, telas/monitores, telas/modos, telas/areas, som/saida, som/entrada, som/apps, "
-		"celular/parear, celular/transferencia, celular/avisos, celular/arquivos, "
-		"emma/voz (a voz dela: ouvir e falar, o botão de testar), emma/ativacao (Oi Emma), emma/provedores (as IAs e as chaves), emma/roteamento, emma/personalidade, emma/recursos, emma/mcp, emma/importar, "
-		"teclado/teclado, teclado/atalhos, teclado/mouse, data/hora, data/fuso, sobre/computador, sobre/atualizacoes, armazenamento/uso, armazenamento/limpeza, armazenamento/discos, "
-		"energia/perfil, inicializacao/entrar, idioma/idioma, usuarios/conta, privacidade/permissoes. Só a categoria (emma, som, teclado) abre na primeira página dela. "
-		"As configurações da Emma ficam todas em emma/...: para \"as configurações dela\", abra emma/provedores (ou emma/voz para a voz).",
+		"Abre o Painel de controle numa seção: onde mudar algo e onde ficam as configurações da própria Emma. Seções: aparencia/tema|papel|barra, rede/wifi, bluetooth/dispositivos, "
+		"aplicativos/instalados, telas/monitores|modos, som/saida|entrada|apps, celular/parear|arquivos, emma/voz|ativacao|provedores|personalidade|recursos|mcp, "
+		"teclado/teclado|atalhos|mouse, data/hora, sobre/computador, armazenamento/uso, energia/perfil. Só a categoria (emma) abre na primeira página dela. "
+		"As configurações da Emma: emma/provedores; a voz dela: emma/voz.",
 		"{\"secao\":{\"type\":\"string\",\"description\":\"categoria/seção, como emma/voz ou teclado/mouse\"}}", "secao", EMMAA_AGIR, "auto" },
 	{ "arquivos.listar", "Listar uma pasta",
 		"Lista os arquivos de uma pasta do computador. Sem pasta, é a pasta da Emma (~/Emma). Na pasta pessoal se lê à vontade; fora dela (ou em pasta oculta) a pessoa tem de aprovar.",
