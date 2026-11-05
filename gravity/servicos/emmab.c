@@ -828,10 +828,24 @@ bool emmab_tts(const char *texto, const char *saida, char **erro) {
 		GBytes *r = soup_session_send_and_read(s, m, NULL, &e);
 		int st = r ? (int)soup_message_get_status(m) : 0;
 		bool ok = false;
+		char *detalhe = NULL; /* o motivo que o servidor deu (o "detail" do erro), para a pessoa saber o que ajustar */
 		if (r && st == 200) {
 			gsize rn;
 			const char *d = g_bytes_get_data(r, &rn);
 			ok = g_file_set_contents(saida, d, (gssize)rn, NULL);
+		} else if (r && st != 0) {
+			gsize rn;
+			const char *d = g_bytes_get_data(r, &rn);
+			char *texto = g_strndup(d, MIN(rn, 4000));
+			struct json *j = json_ler(texto);
+			if (j) {
+				const char *det = json_chave_texto(j, "detail");
+				if (*det) {
+					detalhe = g_strndup(det, 240);
+				}
+				json_liberar(j);
+			}
+			g_free(texto);
 		}
 		if (r) {
 			g_bytes_unref(r);
@@ -840,12 +854,15 @@ bool emmab_tts(const char *texto, const char *saida, char **erro) {
 		g_object_unref(m);
 		g_clear_error(&e);
 		if (st == 401 && vez == 0) {
+			g_free(detalhe);
 			esquecer_token();
 			continue;
 		}
 		if (!ok && erro) {
-			*erro = st == 0 ? g_strdup_printf("a Emma não respondeu em %s", emmab_url()) : g_strdup_printf("A voz falhou (%d). Confira a voz no app da Emma.", st);
+			*erro = st == 0 ? g_strdup_printf("a Emma não respondeu em %s", emmab_url())
+				: detalhe ? g_strdup_printf("%s", detalhe) : g_strdup_printf("A voz falhou (%d). Confira a voz no app da Emma.", st);
 		}
+		g_free(detalhe);
 		g_string_free(c, TRUE);
 		return ok;
 	}

@@ -97,6 +97,20 @@ try:
     pede("enviar", "avança um minuto")
     confere(espera(lambda: log().count("wtype -k Right") >= 12), "'avança um minuto' não andou 60 s")
 
+    # o teste da voz (Painel > Emma > Voz): a frase vai ao servidor e ao tocador, e quando falha o motivo aparece, não o silêncio
+    r = pede("voz_teste", "uma frase de teste")
+    confere(r.get("ok"), f"voz_teste: {r}")
+    confere(espera(lambda: "/tts" in log() and "uma frase de teste" in log()), "a frase do teste devia chegar ao /api/tts")
+    espera(lambda: not pede("voz_erro").get("falando"))
+    r = pede("voz_erro")
+    confere(r.get("ok") and r.get("erro") == "", f"depois de falar bem não há erro: {r}")
+    pede("voz_teste", "falha-tts")
+    confere(espera(lambda: pede("voz_erro").get("erro", "") != ""), "uma voz que falha tem de deixar o motivo")
+    r = pede("voz_erro")
+    confere("Fish" in r.get("erro", ""), f"o motivo do servidor chega ao Painel: {r}")
+    pede("voz_teste", "e agora de novo")
+    confere(espera(lambda: pede("voz_erro").get("erro", "x") == ""), "falar bem de novo apaga o erro velho")
+
     # FASE 1, com o servidor ligado: a conversa vai pelo servidor da Emma (o motor: skills, memória, RAG), com uma ação dela
     pede("enviar", "qual é a capital do Brasil")
     confere(espera(lambda: "/api/sessions/sess-1/chat" in log()), "a pergunta não chegou ao servidor")

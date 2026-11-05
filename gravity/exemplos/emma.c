@@ -1308,6 +1308,21 @@ static void tratar(struct cliente *c, char *linha) {
 	} else if (!strcmp(cmd, "ouvir_cancelar")) {
 		emmav_ouvir_parar(true);
 		responder_ok(c);
+	} else if (!strcmp(cmd, "voz_teste")) {
+		/* o Painel > Emma > Voz: fala uma frase de ponta a ponta (a voz do servidor, o tocador e a saída de som) */
+		emmav_erro_limpar();
+		emmav_falar(resto && *resto ? resto : "Olá, eu sou a Emma. Se você está me ouvindo, a minha voz está funcionando.");
+		responder_ok(c);
+	} else if (!strcmp(cmd, "voz_erro")) {
+		char *erro = emmav_ultimo_erro();
+		GString *g = g_string_new("{\"ok\":true,\"falando\":");
+		g_string_append(g, emmav_falando() ? "true" : "false");
+		g_string_append(g, ",\"erro\":");
+		json_escrever_texto(g, erro ? erro : "");
+		g_string_append_c(g, '}');
+		escrever(c, g->str);
+		g_string_free(g, TRUE);
+		g_free(erro);
 	} else if (!strcmp(cmd, "calar")) {
 		emmav_calar();
 		emmab_parar();

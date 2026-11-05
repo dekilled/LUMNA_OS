@@ -202,6 +202,43 @@ static void avisar(const char *e) {
 	}
 }
 
+/* um problema ao falar: guardado para o Painel mostrar, escrito no terminal e avisado na tela (uma vez por minuto, para não encher) */
+static GMutex erro_trinco;
+static char *ultimo_erro;
+static gint64 erro_avisado_em;
+
+static void registrar_erro(const char *msg) {
+	g_mutex_lock(&erro_trinco);
+	g_free(ultimo_erro);
+	ultimo_erro = g_strdup(msg);
+	gint64 agora = g_get_monotonic_time();
+	bool avisar_tela = agora - erro_avisado_em > 60 * G_USEC_PER_SEC;
+	if (avisar_tela) {
+		erro_avisado_em = agora;
+	}
+	g_mutex_unlock(&erro_trinco);
+	fprintf(stderr, "lumna-emma: voz: %s\n", msg);
+	if (avisar_tela && !g_getenv("LUMNA_EMMA_ESPERA_TESTE")) {
+		char *corpo = g_strdup_printf("%s\nVeja Painel > Emma > Voz.", msg);
+		char *argv[] = { "notify-send", "-a", "Emma", "A Emma não conseguiu falar", corpo, NULL };
+		g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+		g_free(corpo);
+	}
+}
+
+char *emmav_ultimo_erro(void) {
+	g_mutex_lock(&erro_trinco);
+	char *e = g_strdup(ultimo_erro);
+	g_mutex_unlock(&erro_trinco);
+	return e;
+}
+
+void emmav_erro_limpar(void) {
+	g_mutex_lock(&erro_trinco);
+	g_clear_pointer(&ultimo_erro, g_free);
+	g_mutex_unlock(&erro_trinco);
+}
+
 static void terminou(void) {
 	if (g_atomic_int_dec_and_test(&pendentes)) {
 		avisar("calada");
@@ -243,12 +280,23 @@ static void tocar(const char *arquivo, gint geracao) {
 	g_clear_error(&e);
 	g_object_unref(l);
 	if (!p) {
+		registrar_erro("não achei o pw-play nem o paplay para tocar o som (instale o pipewire-pulse ou o libpulse)");
 		return;
 	}
 	g_mutex_lock(&tocador_trinco);
 	tocador = p;
 	g_mutex_unlock(&tocador_trinco);
 	g_subprocess_wait(p, NULL, NULL); /* emmav_calar() mata o tocador e o wait volta */
+	if (g_subprocess_get_if_exited(p)) {
+		int st = g_subprocess_get_exit_status(p);
+		if (st != 0) {
+			char *m = g_strdup_printf("o tocador de som saiu com erro %d (sem saída de áudio, ou o servidor de som não está ligado)", st);
+			registrar_erro(m);
+			g_free(m);
+		} else {
+			emmav_erro_limpar();
+		}
+	}
 	(void)geracao;
 	g_mutex_lock(&tocador_trinco);
 	tocador = NULL;
@@ -266,6 +314,7 @@ static gpointer buscar_linha(gpointer d) {
 			if (!emmab_tts(f->texto, f->arquivo, &erro)) {
 				g_free(f->arquivo);
 				f->arquivo = NULL;
+				registrar_erro(erro && *erro ? erro : "o servidor da Emma não gerou a voz (veja Painel > Emma > Voz: o motor escolhido precisa estar instalado ou ter chave)");
 				g_free(erro);
 			}
 		}

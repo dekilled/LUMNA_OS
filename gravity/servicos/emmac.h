@@ -8,7 +8,9 @@
  *   ouvir_cancelar | calar       desiste de ouvir | para de falar e de pensar
  *   enviar TEXTO                 uma mensagem (a Emma fala a resposta se vier por voz: enviar_voz TEXTO)
  *   celular TEXTO                a fala que o celular já transcreveu: responde só quando a Emma acaba, com "resposta"
- *   confirmar ID sim|nao         a decisão de uma ação que pediu licença
+  *   confirmar ID sim|nao         a decisão de uma ação que pediu licença
+ *   voz_teste [TEXTO]            fala uma frase de ponta a ponta (a voz do servidor, o tocador, a saída de som); voz_erro diz se deu certo
+ *   voz_erro                     {"falando", "erro"}: o último problema ao falar, "" se não há
  *   nova                         recomeça a conversa
  *   historico                    as mensagens da conversa do painel: [{papel, texto, hora, ferramentas}]
  *   contexto [sim|nao]           a janela em foco (o chip "Contexto: ..." do painel) e se a Emma pode usá-la

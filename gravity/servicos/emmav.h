@@ -24,6 +24,9 @@ void emmav_falar_iniciar(void (*estado)(const char *estado, void *dados), void *
 void emmav_falar(const char *texto);
 void emmav_calar(void);                 /* corta o que toca e esvazia a fila */
 bool emmav_falando(void);
+/* o último problema ao falar (o servidor não gerou a voz, falta o tocador, o tocador falhou); NULL se a última fala deu certo (g_free) */
+char *emmav_ultimo_erro(void);
+void emmav_erro_limpar(void);
 
 /* o PCM s16le mono 16 kHz vira um arquivo WAV (para o /api/stt); a detecção está aqui para o teste */
 bool emmav_wav_gravar(const char *caminho, const guint8 *pcm, gsize n);

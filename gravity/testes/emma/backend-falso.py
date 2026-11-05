@@ -168,6 +168,13 @@ class H(BaseHTTPRequestHandler):
             return self.json({"text": texto})
         if self.path.endswith("/tts"):
             registrar(f"POST {self.path} {dados.decode()}")
+            if b"falha-tts" in dados:
+                self.send_response(502)
+                self.send_header("Content-Type", "application/json")
+                corpo = json.dumps({"detail": "Configure a chave do Fish Audio em Configurações → Voz"}).encode()
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                return self.wfile.write(corpo)
             b = b"RIFF0000WAVEfake"
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")

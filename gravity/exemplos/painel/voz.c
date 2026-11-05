@@ -7,6 +7,7 @@
 
 #include <string.h>
 
+#include "emmac.h"
 #include "emmar.h"
 #include "json.h"
 
@@ -20,13 +21,15 @@ struct estado {
 	char tamanhos[MAX_LISTA][16], vozes[MAX_LISTA][32];
 	int ntamanhos, nvozes;
 	char job_estado[12], job_o_que[8], job_erro[300], job_linha[200];
+	char erro_voz[300]; /* o último problema ao falar, do serviço (vazio: nenhum) */
+	bool falando;
 };
 
 static struct estado est;
 static bool ocupado, consultando, editando_fish;
 static char f_chave[200], f_voice_id[120], f_modelo[48];
 static char aviso[300];
-static double proxima;
+static double proxima, testando_ate;
 
 struct job {
 	int acao; /* 0 ler, 1 mudar (corpo), 2 instalar (nome: stt | tts) */
@@ -110,6 +113,15 @@ static void trabalho(void *d) {
 		bool tem_lv = emmar_chamar("GET", "/api/local-voice", NULL, 0, &lv);
 		ler_estado(s.corpo, tem_lv ? lv.corpo : NULL, &j->est);
 		j->est.lido = true;
+		char resp[600];
+		if (emmac_pedido("voz_erro", resp, sizeof(resp))) {
+			struct json *v = json_ler(resp);
+			if (v) {
+				g_strlcpy(j->est.erro_voz, json_chave_texto(v, "erro"), sizeof(j->est.erro_voz));
+				j->est.falando = json_bool(json_chave(v, "falando"), false);
+				json_liberar(v);
+			}
+		}
 		if (tem_lv) {
 			emmar_liberar(&lv);
 		}
@@ -231,11 +243,13 @@ static void bloco_motor(const char *id, const char *titulo, const char *dica, co
 void pn_emma_voz_desenhar(void) {
 	double agora = gv_agora();
 	bool rodando = !strcmp(est.job_estado, "running");
+	bool testando = agora < testando_ate;
+	double intervalo = testando ? 1.0 : rodando ? 1.5 : 4.0;
 	if (!ocupado && !consultando && (!est.lido || agora >= proxima) && !editando_fish) {
-		proxima = agora + (rodando ? 1.5 : 4.0);
+		proxima = agora + intervalo;
 		tarefa(0, "", NULL);
 	}
-	gv_acordar_em(rodando ? 1.5 : 4.0);
+	gv_acordar_em(intervalo);
 	CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12 } }) {
 		gv_texto(CLAY_STRING("A Emma ouve pelo microfone e fala pelo alto-falante. Cada um pode ser feito aqui no PC (de graça, sem internet) ou por um serviço de fora. "
 			"O que você muda vale na hora."), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
@@ -252,6 +266,27 @@ void pn_emma_voz_desenhar(void) {
 		gv_texto(gv_str(gv_fmt("Agora a Emma %s e %s.", est.escuta_pronta ? "consegue ouvir" : "não consegue ouvir ainda",
 			est.fala_pronta ? "consegue falar" : "não consegue falar ainda").chars), gv_t.tamanho_corpo, est.escuta_pronta && est.fala_pronta ? gv_t.sucesso : gv_t.texto, GV_PESO_MEDIO);
 
+		/* o teste de ponta a ponta: o servidor gera a voz, o tocador toca e a saída de som leva até o alto-falante */
+		CLAY_AUTO_ID({ .layout = { .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			if (gv_botao_ext(CLAY_ID("voz-testar"), &(gv_botao_opcoes){ .icone = "play", .texto = "Testar a voz da Emma", .estilo = GV_BOTAO_CHEIO, .altura = 36,
+				.desativado = est.falando })) {
+				char resp[200];
+				emmac_pedido("voz_teste", resp, sizeof(resp));
+				est.erro_voz[0] = '\0';
+				testando_ate = gv_agora() + 40;
+				proxima = 0;
+			}
+			if (est.falando) {
+				gv_texto(CLAY_STRING("Falando…"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			} else if (testando && !est.erro_voz[0]) {
+				gv_texto(CLAY_STRING("Preparando a voz… (a primeira vez demora, o modelo carrega)"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+		}
+		if (est.erro_voz[0]) {
+			gv_texto(gv_str(gv_fmt("Não deu para falar: %s", est.erro_voz).chars), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+		} else if (!testando) {
+			gv_texto(CLAY_STRING("Se você clicar e não ouvir nada, veja Som > Saída: a saída padrão, o volume e o mudo."), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
 		bloco_motor("ouvir", "Ouvir (transcrever o que você fala)", "Whisper roda no processador do PC e entende português bem.", "stt_engine", est.stt,
 			"No PC (Whisper)", est.stt_instalado, "stt", est.escuta_pronta);
 		if (!strcmp(est.stt, "local") && est.ntamanhos > 0) {

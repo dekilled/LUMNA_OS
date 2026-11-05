@@ -40,6 +40,10 @@ void pn_emma_rec_desenhar(void);
 void pn_emma_rec_abrir(void);
 void pn_emma_voz_desenhar(void);
 void pn_emma_voz_abrir(void);
+void pn_som_abrir(void);
+void pn_som_saida_desenhar(void);
+void pn_som_entrada_desenhar(void);
+void pn_som_apps_desenhar(void);
 void pn_cc_abrir(void);
 void pn_cc_parear_desenhar(void);
 void pn_cc_transf_desenhar(void);
@@ -133,9 +137,9 @@ const pn_categoria pn_telas = { "telas", "desktop", "Telas e modos", "Monitores,
 	N(telas) };
 
 static const pn_secao som[] = {
-	{ "saida", "speaker", "Saída", "Alto-falantes, fones e HDMI.", NULL, "A saída padrão;Volume e balanço" },
-	{ "entrada", "mic", "Entrada", "Microfones.", NULL, "O microfone padrão;Volume e o nível ao vivo" },
-	{ "apps", "sliders", "Apps", "O volume de cada app que está tocando.", NULL, "Volume e mudo por app;Para que saída vai" },
+	{ "saida", "speaker", "Saída", "Alto-falantes, fones e HDMI.", pn_som_saida_desenhar, NULL, NULL, NULL, NULL, NULL, pn_som_abrir },
+	{ "entrada", "mic", "Entrada", "Microfones.", pn_som_entrada_desenhar, NULL, NULL, NULL, NULL, NULL, pn_som_abrir },
+	{ "apps", "sliders", "Apps", "O volume de cada app que está tocando.", pn_som_apps_desenhar, NULL, NULL, NULL, NULL, NULL, pn_som_abrir },
 	{ "sons", "bell", "Sons do sistema", "Os sons dos avisos e das ações.", NULL, "Ligar e desligar;Volume dos avisos" },
 };
 const pn_categoria pn_som = { "som", "volume", "Som", "Saída, microfone e volume", PN_GERAL, som, N(som) };
