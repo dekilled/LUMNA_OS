@@ -215,4 +215,20 @@ browser.tabs.onRemoved.addListener((id) => {
 	}
 });
 
+// O YouTube só serve a interface de TV (youtube.com/tv) a quem se anuncia como TV: troca o User-Agent dos pedidos a ele (e o ua-tv.js, o que a página lê).
+// Só no perfil da Mídia. Os pedidos ao Google da conta (accounts.google.com) seguem como o Firefox, para o login funcionar.
+const UA_TV = "Mozilla/5.0 (SMART-TV; Linux; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) 69.0.3497.106.1/5.0 TV Safari/537.36";
+browser.webRequest.onBeforeSendHeaders.addListener(
+	(d) => {
+		for (const h of d.requestHeaders) {
+			if (h.name.toLowerCase() === "user-agent") {
+				h.value = UA_TV;
+			}
+		}
+		return { requestHeaders: d.requestHeaders };
+	},
+	{ urls: ["*://*.youtube.com/*"] },
+	["blocking", "requestHeaders"],
+);
+
 conectar();

@@ -63,7 +63,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
   - [x] Nunca dois vídeos tocando juntos: sair de um serviço (Home, outro serviço ou o voltar na primeira página) o pausa, e abrir um serviço pausa os outros; as abas seguem vivas para retomar de onde pararam
   - [x] O voltar do controle, no Firefox da Mídia, volta uma página e, na primeira, sai do serviço
   - [ ] Uma miniatura sobrevoando a tela com o vídeo que ficou para trás (hoje ele só pausa)
-  - [ ] O YouTube em formato de TV (hoje abre no de desktop)
+  - [x] O YouTube em formato de TV: a extensão o faz se anunciar como TV (conferido o mecanismo num site local; falta ver o YouTube de verdade, inclusive o login da TV)
   - [ ] Ícones das marcas (~/.local/share/lumna/midia/icones/ID.svg), Música e Vídeos locais no Início, editar/remover serviços pela tela, limite de abas vivas (a memória, já que a pausa impede dois vídeos juntos)
 - [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
 - [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)

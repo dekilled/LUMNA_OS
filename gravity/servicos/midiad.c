@@ -232,6 +232,10 @@ static const char *url_para_abrir(const char *id, bool novo, const struct midia_
 		int n = midia_recentes_ler(rec, MIDIA_MAX_RECENTES);
 		for (int i = 0; i < n; i++) {
 			if (!strcmp(rec[i].servico, id)) {
+				/* o YouTube da Mídia é o de TV: um endereço de antes, da versão de desktop, não serve para retomar */
+				if (!strcmp(id, "youtube") && !g_str_has_prefix(rec[i].url, "https://www.youtube.com/tv")) {
+					break;
+				}
 				g_strlcpy(url, rec[i].url, sizeof(url));
 				return url;
 			}

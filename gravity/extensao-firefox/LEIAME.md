@@ -35,6 +35,13 @@ O Firefox comum (o do Arch, por exemplo) só liga extensões **assinadas pela Mo
    O `.xpi` assinado pode ficar no repositório e ir para `/usr/share/lumna/midia/` no pacote do sistema. O id
    (`lumna-midia@lumna.os`) tem de ser o mesmo de sempre.
 
+## O YouTube em formato de TV
+
+O YouTube só serve a interface de TV (`youtube.com/tv`) a quem se anuncia como TV. A extensão troca o User-Agent **só nos pedidos ao
+`youtube.com`** (`fundo.js`, no cabeçalho) e o que a página lê em `navigator.userAgent` (`ua-tv.js`). O login da conta Google
+(`accounts.google.com`) segue com o User-Agent do Firefox. A preferência `general.useragent.override.*` do Firefox não serve: nesta
+versão ela não faz nada.
+
 ## Um perfil para cada Firefox, e o log
 
 O serviço usa um perfil por Firefox: `perfil` para o `firefox` comum e `perfil-NOME` para os outros (por exemplo
