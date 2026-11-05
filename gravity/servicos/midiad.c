@@ -108,10 +108,12 @@ static void estado_json(GString *s) {
 	g_string_append(s, ",\"servicos\":[");
 	for (int i = 0; i < n; i++) {
 		bool aberto = false, carregando = false;
+		const char *titulo_aba = "";
 		for (int a = 0; a < fe.n; a++) {
 			if (!strcmp(fe.abas[a].servico, serv[i].id)) {
 				aberto = true;
 				carregando = fe.abas[a].carregando;
+				titulo_aba = fe.abas[a].titulo;
 			}
 		}
 		g_string_append(s, i ? ",{\"id\":" : "{\"id\":");
@@ -122,8 +124,10 @@ static void estado_json(GString *s) {
 		json_escrever_texto(s, serv[i].url);
 		g_string_append(s, ",\"cor\":");
 		json_escrever_texto(s, serv[i].cor);
-		g_string_append_printf(s, ",\"padrao\":%s,\"ativo\":%s,\"aberto\":%s,\"carregando\":%s}", serv[i].padrao ? "true" : "false",
+		g_string_append_printf(s, ",\"padrao\":%s,\"ativo\":%s,\"aberto\":%s,\"carregando\":%s,\"titulo\":", serv[i].padrao ? "true" : "false",
 			serv[i].ativo ? "true" : "false", aberto ? "true" : "false", carregando ? "true" : "false");
+		json_escrever_texto(s, titulo_aba);
+		g_string_append_c(s, '}');
 	}
 	g_string_append(s, "],\"recentes\":[");
 	for (int i = 0; i < nr; i++) {
@@ -243,6 +247,39 @@ static void guardar_o_que_passava(void) {
 	}
 }
 
+/* nunca dois vídeos tocando juntos: sair de um serviço (ou abrir outro) pausa todos os que não são o da frente. As abas continuam vivas,
+ * para retomar de onde pararam */
+static void pausar_todos_menos(const char *id) {
+	for (int i = 0; i < fe.n; i++) {
+		if (strcmp(fe.abas[i].servico, id) != 0) {
+			ff_pausar(fe.abas[i].servico);
+		}
+	}
+}
+
+/* sai do serviço da frente e mostra o Início (o Home do controle, e o voltar na primeira página) */
+static void ir_ao_inicio(void) {
+	guardar_o_que_passava();
+	pausar_todos_menos("");
+	garantir_modo_midia();
+	if (!trazer_janela(MIDIA_APP_INICIO)) {
+		abrir_tela(&tela_inicio, "inicio", NULL);
+	}
+	fe.ativo[0] = '\0';
+}
+
+static gboolean ir_ao_inicio_idle(gpointer dados) {
+	ir_ao_inicio();
+	return G_SOURCE_REMOVE;
+}
+
+/* o Firefox respondeu ao voltar (numa linha dele): se não havia para onde voltar, sai do serviço, na linha principal */
+static void ao_voltar(bool voltou, void *dados) {
+	if (!voltou) {
+		g_idle_add(ir_ao_inicio_idle, NULL);
+	}
+}
+
 static void pedido(const char *linha, GString *r) {
 	char **p = g_strsplit(g_strstrip(g_strdup(linha)), " ", 3);
 	const char *cmd = p[0] ? p[0] : "";
@@ -263,6 +300,7 @@ static void pedido(const char *linha, GString *r) {
 				guardar_o_que_passava();
 			}
 			garantir_modo_midia();
+			pausar_todos_menos(s->id);
 			ff_abrir(s->id, url_para_abrir(s->id, p[2] && !strcmp(p[2], "novo"), s));
 			if (vivo) {
 				trazer_janela(FF_APP_ID); /* já carregado: sem capa */
@@ -283,18 +321,22 @@ static void pedido(const char *linha, GString *r) {
 				guardar_o_que_passava();
 			}
 			garantir_modo_midia();
+			pausar_todos_menos(s->id);
 			ff_ir(s->id, s->login);
 			capa_mostrar(s->id);
 			g_string_assign(r, "{\"ok\":true}");
 		}
 	} else if (!strcmp(cmd, "inicio")) {
-		guardar_o_que_passava();
-		garantir_modo_midia();
-		if (!trazer_janela(MIDIA_APP_INICIO)) {
-			abrir_tela(&tela_inicio, "inicio", NULL);
-		}
-		fe.ativo[0] = '\0';
+		ir_ao_inicio();
 		g_string_assign(r, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "voltar")) {
+		/* o voltar do controle num serviço: volta uma página; na primeira, sai do serviço */
+		if (fe.ativo[0]) {
+			ff_voltar(fe.ativo, ao_voltar, NULL);
+			g_string_assign(r, "{\"ok\":true}");
+		} else {
+			g_string_assign(r, "{\"ok\":false,\"erro\":\"nenhum serviço na frente\"}");
+		}
 	} else if (!strcmp(cmd, "seletor")) {
 		abrir_tela(&tela_seletor, "seletor", NULL);
 		g_string_assign(r, "{\"ok\":true}");

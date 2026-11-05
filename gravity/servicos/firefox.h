@@ -56,6 +56,10 @@ void ff_ir(const char *servico, const char *url);
 void ff_ativar(const char *servico);
 /* fecha a aba do serviço (a memória volta; o endereço fica nos recentes) */
 void ff_fechar(const char *servico);
+/* pausa todo vídeo e áudio da aba do serviço: sair dele não o deixa tocando por trás (a aba continua viva, para retomar de onde parou) */
+void ff_pausar(const char *servico);
+/* volta uma página na aba do serviço; fim(voltou) diz se havia para onde voltar. Roda numa linha do Firefox: quem recebe passa o resto para a sua */
+void ff_voltar(const char *servico, void (*fim)(bool voltou, void *dados), void *dados);
 /*
  * Guarda o serviço nos recentes (endereço, título e, se pedido, a miniatura). Quem sai de um
  * serviço chama com miniatura = true; o resto é só o ponto de retomada, que também se grava

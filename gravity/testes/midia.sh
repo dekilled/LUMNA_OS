@@ -12,6 +12,6 @@ env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$T" "$T/testa_midia"
 cc $CF $(pkg-config --cflags libsoup-3.0 gio-2.0) -o "$T/testa_firefox" testes/midia/testa_firefox.c servicos/firefox.c servicos/midia.c servicos/json.c \
 	$(pkg-config --libs libsoup-3.0 gio-2.0) -lpthread
 mkdir -p "$T/h2"
-env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$T/h2" LUMNA_FIREFOX="$AQUI/testes/midia/firefox-falso.sh" LUMNA_FF_ARGS="$T/h2/args.txt" \
+env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$T/h2" LUMNA_FIREFOX="$AQUI/testes/midia/firefox-falso.sh" LUMNA_FF_ARGS="$T/h2/args.txt" EXT_LOG="$T/h2/ext.log" \
 	LUMNA_EXTENSAO="$AQUI/extensao-firefox" LUMNA_TESTES="$AQUI/testes/midia" timeout 90 "$T/testa_firefox"
 echo "(arquivos de teste em $T)"

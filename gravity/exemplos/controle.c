@@ -1046,7 +1046,10 @@ static void comando(const struct json *msg, GString *r) {
 		else if (!strcmp(acao, "back")) {
 			/* num site, voltar é voltar a página (a tecla do navegador: Alt+Esquerda é do Orbit); no resto, Esc */
 			char *app = app_em_foco();
-			if (app_e_navegador(app)) {
+			char resp[256];
+			if (g_str_has_prefix(app, "lumna-midia-web") && midiac_pedido("voltar", resp, sizeof(resp)) && strstr(resp, "\"ok\":true")) {
+				/* o Firefox da Mídia: o serviço volta uma página e, na primeira, sai do serviço (e pausa) */
+			} else if (app_e_navegador(app)) {
 				tecla("XF86Back");
 			} else {
 				tecla("Escape");

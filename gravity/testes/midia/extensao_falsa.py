@@ -9,7 +9,8 @@ uuid = re.search(r'extensions\.webextensions\.uuids.*?:\\"([0-9a-f-]{36})', open
 extensao = os.path.join(perfil, "extensions")
 print("extensões do perfil:", sorted(os.listdir(extensao)) if os.path.isdir(extensao) else None, flush=True)
 
-abas = {}    # id -> {servico, url, titulo, status}
+LOG = os.environ.get("EXT_LOG")   # cada comando recebido, uma linha ("pausar netflix"), para o teste conferir
+abas = {}    # id -> {servico, url, titulo, status, hist}   hist: quantas páginas o histórico da aba tem
 proximo = 0
 
 async def main():
@@ -22,7 +23,7 @@ async def main():
                     a = abas[i]
                     await enviar({"evento": "aba", "servico": a["servico"], "tab": i, "url": a["url"], "titulo": a["titulo"], "carregando": a["status"] == "loading"})
                 async def carregar(i, url):
-                    a = abas[i]; a["url"] = url; a["status"] = "loading"; a["titulo"] = ""
+                    a = abas[i]; a["url"] = url; a["status"] = "loading"; a["titulo"] = ""; a["hist"] = a.get("hist", 0) + 1
                     await aba(i)
                     await asyncio.sleep(ATRASO)
                     if i in abas:
@@ -31,6 +32,9 @@ async def main():
                 await enviar({"evento": "ola", "versao": "teste"})
                 async for bruto in ws:
                     c = json.loads(bruto); r = {"ok": True}
+                    if LOG:
+                        with open(LOG, "a") as f:
+                            f.write("%s %s\n" % (c["cmd"], c.get("servico", "")))
                     achada = next((i for i, a in abas.items() if a["servico"] == c.get("servico")), None)
                     if c["cmd"] == "abrir":
                         if achada is None:
@@ -42,6 +46,14 @@ async def main():
                     elif c["cmd"] == "fechar" and achada is not None:
                         del abas[achada]
                         await enviar({"evento": "fechada", "servico": c["servico"], "tab": achada})
+                    elif c["cmd"] == "pausar":
+                        r = {"ok": achada is not None}
+                    elif c["cmd"] == "voltar":
+                        # como a extensão de verdade: volta uma página, e na primeira diz que não há histórico
+                        if achada is not None and abas[achada].get("hist", 0) > 1:
+                            abas[achada]["hist"] -= 1
+                        else:
+                            r = {"ok": False, "erro": "sem histórico"}
                     elif c["cmd"] == "capturar":
                         r = {"ok": True, "dados": "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0FAKEJPEG\xff\xd9").decode()} if achada else {"ok": False}
                     await enviar(dict({"id": c["id"]}, **r))

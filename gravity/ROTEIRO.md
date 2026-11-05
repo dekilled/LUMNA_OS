@@ -60,7 +60,11 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
   - [ ] Testar no Firefox de verdade: a extensão carrega e conecta (about:addons), app_id da janela (--name/--class), Widevine (o CDM baixa na primeira vez), login do Google
 - [x] Telas em Gaming/Mídia como ilhas no Orbit (fora do Alt+Tab e da dock, sem janelas entrando ou saindo) e "Trocar telas" (Super+Shift+O, botão no Início da Mídia, item no menu de modo da topbar, `swap-screens` no celular)
   - [ ] Conferir na dock de verdade que as janelas das ilhas não aparecem; arrastar com o mouse passando pela ilha; janelas de jogos que o Gaming abre com outro app_id
-  - [ ] Ícones das marcas (~/.local/share/lumna/midia/icones/ID.svg), Música e Vídeos locais no Início, editar/remover serviços pela tela, LRU de abas vivas
+  - [x] Nunca dois vídeos tocando juntos: sair de um serviço (Home, outro serviço ou o voltar na primeira página) o pausa, e abrir um serviço pausa os outros; as abas seguem vivas para retomar de onde pararam
+  - [x] O voltar do controle, no Firefox da Mídia, volta uma página e, na primeira, sai do serviço
+  - [ ] Uma miniatura sobrevoando a tela com o vídeo que ficou para trás (hoje ele só pausa)
+  - [ ] O YouTube em formato de TV (hoje abre no de desktop)
+  - [ ] Ícones das marcas (~/.local/share/lumna/midia/icones/ID.svg), Música e Vídeos locais no Início, editar/remover serviços pela tela, limite de abas vivas (a memória, já que a pausa impede dois vídeos juntos)
 - [x] Tela de login (lumna-entrada, greetd): Centralizado ou Painel lateral; `./testar-login.sh [lateral]` testa com um greetd de mentira (senha "lumna")
 - [ ] Escolher o layout do login pelo Painel (precisa de root: /etc/lumna/entrada.ini)
 - [x] Orbit: o que o desktop pedir pelo caminho — ativar, fechar, maximizar e ecrã inteiro (dos apps e da

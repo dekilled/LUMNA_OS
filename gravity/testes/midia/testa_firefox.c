@@ -25,6 +25,14 @@ static bool youtube_ativo(void) { return !strcmp(e.ativo, "youtube"); }
 static bool netflix_ativo(void) { return !strcmp(e.ativo, "netflix"); }
 static bool netflix_no_login(void) { const struct ff_aba *a = aba("netflix"); return a && !a->carregando && strstr(a->url, "/login"); }
 static bool tem_um(void) { return e.n == 1; }
+static volatile int voltou_resultado = -1; /* -1: sem resposta ainda; 0: não havia para onde voltar; 1: voltou */
+static void ao_voltar(bool voltou, void *dados) { voltou_resultado = voltou ? 1 : 0; }
+static int voltar_e_esperar(const char *servico) {
+	voltou_resultado = -1;
+	ff_voltar(servico, ao_voltar, NULL);
+	for (int t = 0; t < 3000 && voltou_resultado < 0; t += 50) usleep(50000);
+	return voltou_resultado;
+}
 int main(void) {
 	int fd = ff_iniciar();
 	assert(fd >= 0);
@@ -63,6 +71,21 @@ int main(void) {
 	ff_ir("netflix", "https://www.netflix.com/login");
 	assert(espera(netflix_no_login, 5000));
 	puts("ir (página de entrada) ok");
+	/* sair de um serviço o pausa (nunca dois vídeos tocando juntos) */
+	char *registro = NULL;
+	ff_pausar("netflix");
+	ff_pausar("naoexiste"); /* sem aba: nada */
+	usleep(500000);
+	assert(g_file_get_contents(getenv("EXT_LOG"), &registro, NULL, NULL) && strstr(registro, "pausar netflix") && !strstr(registro, "pausar naoexiste"));
+	g_free(registro);
+	puts("pausar ok");
+	/* o voltar: volta uma página; na primeira (ou sem aba) diz que não há para onde voltar, e quem pediu sai do serviço */
+	assert(voltar_e_esperar("netflix") == 1);   /* a aba tem duas páginas (browse e login) */
+	assert(voltar_e_esperar("netflix") == 0);   /* agora está na primeira */
+	assert(voltar_e_esperar("naoexiste") == 0); /* sem aba */
+	puts("voltar ok");
+	ff_ir("netflix", "https://www.netflix.com/login"); /* a aba segue como o resto do teste espera */
+	assert(espera(netflix_no_login, 5000));
 	ff_salvar("netflix", true);
 	usleep(800000);
 	struct midia_recente r[MIDIA_MAX_RECENTES];

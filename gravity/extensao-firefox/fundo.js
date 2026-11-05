@@ -15,6 +15,8 @@
  *           {"id":4,"cmd":"ativar"|"fechar"|"capturar","servico":"netflix"}
  *           {"id":6,"cmd":"ir","servico":"netflix","url":"https://..."}   leva a aba que já existe a outro endereço
  *           {"id":5,"cmd":"estado"}
+ *           {"id":7,"cmd":"pausar","servico":"netflix"}   pausa todo vídeo e áudio da aba (sair do serviço não o deixa tocando por trás)
+ *           {"id":8,"cmd":"voltar","servico":"netflix"}   volta uma página; {"ok":false,"erro":"sem histórico"} na primeira
  */
 "use strict";
 
@@ -93,6 +95,46 @@ async function executar(c) {
 		const aba = await abaDoServico(c.servico);
 		if (aba) {
 			await browser.tabs.remove(aba.id);
+		}
+		return { ok: true };
+	}
+	case "pausar": {
+		const aba = await abaDoServico(c.servico);
+		if (!aba) {
+			return { ok: false, erro: "sem aba" };
+		}
+		// todo <video> e <audio> da aba, também nos quadros de dentro (os players costumam morar num iframe)
+		await browser.tabs.executeScript(aba.id, {
+			allFrames: true,
+			matchAboutBlank: true,
+			code: "document.querySelectorAll('video,audio').forEach(function (m) { try { m.pause(); } catch (e) {} });",
+		}).catch(() => []);
+		return { ok: true };
+	}
+	case "voltar": {
+		const aba = await abaDoServico(c.servico);
+		if (!aba) {
+			return { ok: false, erro: "sem aba" };
+		}
+		const antes = aba.url || "";
+		try {
+			await browser.tabs.goBack(aba.id);
+		} catch (e) {
+			return { ok: false, erro: "sem histórico" };
+		}
+		// sem histórico o goBack não dá erro: só não faz nada. Voltou se o endereço mudou (espera um pouco a navegação)
+		let depois = antes;
+		for (let i = 0; i < 10 && depois === antes; i++) {
+			await new Promise((r) => setTimeout(r, 100));
+			depois = (await browser.tabs.get(aba.id)).url || "";
+		}
+		if (depois === antes) {
+			return { ok: false, erro: "sem histórico" };
+		}
+		// a aba em branco do começo é a primeira entrada do histórico: voltar até ela é não ter para onde voltar
+		if (["", "about:blank", "about:newtab", "about:home"].includes(depois)) {
+			await browser.tabs.goForward(aba.id).catch(() => {});
+			return { ok: false, erro: "sem histórico" };
 		}
 		return { ok: true };
 	}

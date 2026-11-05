@@ -38,10 +38,12 @@ struct rpc {
 };
 
 struct acao {
-	enum { ACAO_ABRIR, ACAO_IR, ACAO_ATIVAR, ACAO_FECHAR, ACAO_SALVAR } tipo;
+	enum { ACAO_ABRIR, ACAO_IR, ACAO_ATIVAR, ACAO_FECHAR, ACAO_SALVAR, ACAO_PAUSAR, ACAO_VOLTAR } tipo;
 	char servico[32];
 	char url[1024];
 	bool miniatura;
+	void (*fim_voltar)(bool voltou, void *dados);
+	void *dados_fim;
 };
 
 static void avisar(void) {
@@ -315,6 +317,20 @@ static gboolean salvar_periodico(gpointer dados) {
 	return G_SOURCE_CONTINUE;
 }
 
+struct voltar_ctx {
+	void (*fim)(bool voltou, void *dados);
+	void *dados;
+};
+
+static void ao_voltar(const struct json *resposta, gpointer dados) {
+	struct voltar_ctx *v = dados;
+	bool voltou = json_bool(json_chave(resposta, "ok"), false);
+	if (v->fim) {
+		v->fim(voltou, v->dados);
+	}
+	g_free(v);
+}
+
 static void executar(const struct acao *a) {
 	g_mutex_lock(&trinco);
 	bool existe = aba_do_servico(a->servico) != NULL;
@@ -345,6 +361,21 @@ static void executar(const struct acao *a) {
 	case ACAO_SALVAR:
 		if (existe) {
 			salvar_agora(a->servico, a->miniatura);
+		}
+		break;
+	case ACAO_PAUSAR:
+		if (existe) {
+			enviar_cmd("pausar", a->servico, NULL, NULL, NULL);
+		}
+		break;
+	case ACAO_VOLTAR:
+		if (existe) {
+			struct voltar_ctx *v = g_new0(struct voltar_ctx, 1);
+			v->fim = a->fim_voltar;
+			v->dados = a->dados_fim;
+			enviar_cmd("voltar", a->servico, NULL, ao_voltar, v);
+		} else if (a->fim_voltar) {
+			a->fim_voltar(false, a->dados_fim); /* sem aba, não há para onde voltar */
 		}
 		break;
 	}
@@ -631,6 +662,31 @@ void ff_fechar(const char *servico) {
 
 void ff_salvar(const char *servico, bool miniatura) {
 	pedir(ACAO_SALVAR, servico, NULL, miniatura);
+}
+
+void ff_pausar(const char *servico) {
+	pedir(ACAO_PAUSAR, servico, NULL, false);
+}
+
+void ff_voltar(const char *servico, void (*fim)(bool voltou, void *dados), void *dados) {
+	bool vivo = false;
+	if (ctx) {
+		g_mutex_lock(&trinco);
+		vivo = estado.lancado;
+		g_mutex_unlock(&trinco);
+	}
+	if (!vivo) {
+		if (fim) {
+			fim(false, dados); /* sem Firefox, não há para onde voltar (e não vale subir um só para isso) */
+		}
+		return;
+	}
+	struct acao *a = g_new0(struct acao, 1);
+	a->tipo = ACAO_VOLTAR;
+	g_strlcpy(a->servico, servico, sizeof(a->servico));
+	a->fim_voltar = fim;
+	a->dados_fim = dados;
+	g_main_context_invoke(ctx, na_linha, a);
 }
 
 void ff_ler(struct ff_estado *e) {
