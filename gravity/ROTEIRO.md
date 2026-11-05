@@ -120,3 +120,15 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
   - [ ] Testar a entrada "LUMNA · Orbit" do login (`session/lumna-orbit.desktop`), que nunca rodou na máquina
   - [ ] A tela principal no Orbit real (a chave `tela_principal` só vale no aninhado)
   - [ ] Desligar um monitor de verdade (no aninhado a tela fica preta)
+
+## 7. O que ainda não temos (lista de 5 de novembro de 2026)
+
+A página de status (docs/status/) tem o detalhe e o estado de cada linha; aqui fica o resumo. Marque `[x]` ao terminar.
+
+- [ ] **Modo Gaming**: a biblioteca de jogos em carrossel (o LUMNA antigo tem a referência: `GameLibrary.vue`), o Início do Gaming no desktop novo, ler Steam, Heroic e Lutris e abrir o jogo, gamepad como controle da interface e o desempenho enquanto joga
+- [ ] **A voz da Emma**: a página Voz no Painel (motor, voz, velocidade, microfone e saída, testar), gerenciar os modelos de voz com progresso, o ícone da Emma falando e a voz na tela de bloqueio; testar com o microfone de verdade
+- [ ] **As páginas do Painel**: 31 esqueletos (Energia, Som, Inicialização, Idioma, Usuários, Privacidade, as da Emma e as pontas; veja o PAINEL.md)
+- [ ] **O app LUMNA Controle (Android) com todo o Connect**: arquivos, área de transferência, avisos, energia do PC, agendamento, senhas e confirmações e a conversa com a Emma
+  - [ ] No PC (lumna-controle): atender `info`, `power`, `schedule-*`, `auth-*`, `emma` e `emma-decide`, como o PC antigo atendia
+- [ ] **Apps do sistema** (no Gravity): Explorador, player de música, player de vídeo, Galeria, Bloco de notas, LUMNA Code, Reminders, StoryTeller, e outros a decidir (Loja, Telefone, Navegador, visualizador de imagens e PDF, terminal, calculadora, monitor do sistema)
+
