@@ -232,7 +232,7 @@ object Transfers {
 
         fun abort() {
             runCatching { out.close() }
-            if (uri != null) runCatching { Connect.context.contentResolver.delete(uri, null, null) }
+            uri?.let { u -> runCatching { Connect.context.contentResolver.delete(u, null, null) } }
             file?.delete()
         }
 
