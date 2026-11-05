@@ -35,6 +35,13 @@ O Firefox comum (o do Arch, por exemplo) só liga extensões **assinadas pela Mo
    O `.xpi` assinado pode ficar no repositório e ir para `/usr/share/lumna/midia/` no pacote do sistema. O id
    (`lumna-midia@lumna.os`) tem de ser o mesmo de sempre.
 
+## Um perfil para cada Firefox, e o log
+
+O serviço usa um perfil por Firefox: `perfil` para o `firefox` comum e `perfil-NOME` para os outros (por exemplo
+`perfil-firefox-developer-edition`), dentro de `~/.local/share/lumna/midia/`. Assim o Developer Edition não herda o perfil em que o
+Firefox comum já marcou a nossa extensão como desativada. O que o Firefox escreve na última abertura fica em
+`~/.local/state/lumna/midia-firefox.log`, e o `scripts/diag-controle.sh` mostra o estado da extensão dentro de cada perfil.
+
 ## A primeira abertura
 
 Num perfil novo o Firefox mostra por cima da página o aviso de termos de uso e privacidade da Mozilla ("Continue"). O LUMNA não o

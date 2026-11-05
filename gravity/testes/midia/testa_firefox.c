@@ -42,7 +42,8 @@ int main(void) {
 	assert(g_file_get_contents(args, &conteudo, NULL, NULL));
 	assert(strstr(conteudo, "--kiosk") && strstr(conteudo, "--name lumna-midia-web") && !strstr(conteudo, "remote-debugging") && !strstr(conteudo, "marionette"));
 	g_free(conteudo);
-	snprintf(ponteiro, sizeof(ponteiro), "%s/.local/share/lumna/midia/perfil/extensions/lumna-midia@lumna.os", getenv("HOME"));
+	/* um perfil para cada Firefox: "perfil" é o do firefox comum e "perfil-NOME" o dos outros (aqui, o Firefox de mentira) */
+	snprintf(ponteiro, sizeof(ponteiro), "%s/.local/share/lumna/midia/perfil-firefox-falso.sh/extensions/lumna-midia@lumna.os", getenv("HOME"));
 	assert(g_file_get_contents(ponteiro, &conteudo, NULL, NULL) && g_str_has_suffix(conteudo, "extensao-firefox"));
 	g_free(conteudo);
 	puts("perfil sem WebDriver e com a extensão ok");

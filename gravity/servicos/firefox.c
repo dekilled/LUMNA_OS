@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "firefox.h"
 
+#include <fcntl.h>
 #include <gio/gio.h>
 #include <libsoup/soup.h>
 #include <signal.h>
@@ -170,9 +171,17 @@ static bool instalar_extensao(const char *perfil) {
 	return ok;
 }
 
+static const char *qual_firefox(void);
+
+/* um perfil para cada Firefox: o primeiro (o comum) marca a nossa extensão sem assinatura como desativada, e o Developer Edition, que
+ * abriria o mesmo perfil depois, herdaria isso. O comum segue em "perfil" (o nome de sempre); os outros, em "perfil-NOME" */
 static char *pasta_perfil(void) {
 	char *dados = midia_pasta_dados();
-	char *p = g_build_filename(dados, "perfil", NULL);
+	char *base = g_path_get_basename(qual_firefox());
+	char *nome = !strcmp(base, "firefox") ? g_strdup("perfil") : g_strconcat("perfil-", base, NULL);
+	char *p = g_build_filename(dados, nome, NULL);
+	g_free(nome);
+	g_free(base);
 	g_mkdir_with_parents(p, 0700);
 	uuid_da_extensao(dados);
 	GString *u = g_string_new(prefs);
@@ -512,6 +521,19 @@ static const char *qual_firefox(void) {
 	return escolhido;
 }
 
+static char *log_do_firefox; /* ~/.local/state/lumna/midia-firefox.log: o que o Firefox escreve (a última abertura) */
+
+static void ff_saida_para_log(gpointer caminho) {
+	int fd = open((const char *)caminho, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	if (fd >= 0) {
+		dup2(fd, 1);
+		dup2(fd, 2);
+		if (fd > 2) {
+			close(fd);
+		}
+	}
+}
+
 static bool lancar(void) {
 	if (pid) {
 		return true;
@@ -520,8 +542,14 @@ static bool lancar(void) {
 	char *argv[] = { (char *)qual_firefox(), "--kiosk", "--no-remote", "--profile", perfil, "--name", FF_APP_ID,
 		"--class", FF_APP_ID, "about:blank", NULL };
 	GError *erro = NULL;
-	bool ok = g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
-		NULL, NULL, &pid, &erro);
+	if (!log_do_firefox) {
+		char *dir = g_build_filename(g_get_user_state_dir(), "lumna", NULL);
+		g_mkdir_with_parents(dir, 0700);
+		log_do_firefox = g_build_filename(dir, "midia-firefox.log", NULL);
+		g_free(dir);
+	}
+	fprintf(stderr, "lumna-midia: abrindo o Firefox (%s) com o perfil %s; o que ele escreve fica em %s\n", argv[0], perfil, log_do_firefox);
+	bool ok = g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD, ff_saida_para_log, log_do_firefox, &pid, &erro);
 	g_clear_error(&erro);
 	g_free(perfil);
 	if (!ok) {

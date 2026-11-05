@@ -39,6 +39,42 @@ for x in "${LUMNA_EXTENSAO:-}" /usr/share/lumna/midia/lumna-midia.xpi; do
 done
 ls "$(dirname "$0")/../gravity/extensao-firefox/" 2>/dev/null | sed 's/^/  extensao-firefox\/: /'
 
+sec "o perfil e a extensão dentro do Firefox da Mídia"
+DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/lumna/midia"
+for P in "$DADOS"/perfil*; do
+	[ -d "$P" ] || continue
+	echo "  perfil: $P"
+	[ -f "$P/compatibility.ini" ] && echo "    última versão do Firefox que abriu: $(grep -m1 '^LastVersion' "$P/compatibility.ini")"
+	[ -e "$P/extensions/lumna-midia@lumna.os" ] && echo "    extensão posta no perfil: sim" || echo "    extensão posta no perfil: NÃO"
+	if [ -f "$P/extensions.json" ]; then
+		python3 - "$P/extensions.json" <<'PY'
+import json, sys
+try:
+    j = json.load(open(sys.argv[1]))
+except Exception as e:
+    print("    extensions.json ilegível:", e); sys.exit()
+achou = False
+for a in j.get("addons", []):
+    if a.get("id") == "lumna-midia@lumna.os":
+        achou = True
+        print("    o Firefox registrou a extensão:", {k: a.get(k) for k in ("active", "userDisabled", "appDisabled", "signedState")})
+        if a.get("appDisabled") or not a.get("active"):
+            print("    >> a extensão está DESATIVADA no perfil (assinatura?)")
+if not achou:
+    print("    o Firefox não registrou a extensão neste perfil")
+PY
+	else
+		echo "    (sem extensions.json: o Firefox ainda não abriu este perfil)"
+	fi
+done
+[ -d "$DADOS" ] || echo "  (nenhum perfil em $DADOS)"
+echo "  quem segura a porta 47822 (a conversa com a extensão):"
+ss -ltnp 2>/dev/null | grep ':47822' | sed 's/^/    /' || echo "    ninguém"
+echo "  processos do Firefox da Mídia:"
+pgrep -af 'lumna-midia-web' | cut -c1-220 | sed 's/^/    /'
+LOGF="${XDG_STATE_HOME:-$HOME/.local/state}/lumna/midia-firefox.log"
+if [ -f "$LOGF" ]; then echo "  o que o Firefox escreveu na última abertura ($LOGF), as últimas linhas:"; tail -15 "$LOGF" | sed 's/^/    /'; else echo "  (sem $LOGF: o serviço novo ainda não abriu o Firefox)"; fi
+
 sec "o serviço da Mídia (lumna-midia servico)"
 SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/lumna-midia.sock"
 if [ -S "$SOCK" ]; then
