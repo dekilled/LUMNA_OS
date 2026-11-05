@@ -873,7 +873,7 @@ static char *app_em_foco(void) {
 }
 
 static bool app_e_navegador(const char *app) {
-	return g_str_has_prefix(app, "lumna-svc-") || strcasestr(app, "chrom") || strcasestr(app, "firefox") || strcasestr(app, "epiphany");
+	return g_str_has_prefix(app, "lumna-svc-") || g_str_has_prefix(app, "lumna-midia-web") || strcasestr(app, "chrom") || strcasestr(app, "firefox") || strcasestr(app, "epiphany");
 }
 
 /* ---- o caminho do sistema ---- */

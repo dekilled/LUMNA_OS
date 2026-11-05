@@ -35,6 +35,12 @@ O Firefox comum (o do Arch, por exemplo) só liga extensões **assinadas pela Mo
    O `.xpi` assinado pode ficar no repositório e ir para `/usr/share/lumna/midia/` no pacote do sistema. O id
    (`lumna-midia@lumna.os`) tem de ser o mesmo de sempre.
 
+## A primeira abertura
+
+Num perfil novo o Firefox mostra por cima da página o aviso de termos de uso e privacidade da Mozilla ("Continue"). O LUMNA não o
+aceita por você: na primeira vez, aperte **Continue** (no controle do celular, o botão OK). O perfil lembra, e o aviso não volta.
+O perfil da Mídia é separado do seu Firefox de todo dia (`~/.local/share/lumna/midia/perfil`).
+
 ## Mensagens
 
 Ver o comentário no começo de `fundo.js`.

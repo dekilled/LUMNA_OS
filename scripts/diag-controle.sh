@@ -64,6 +64,15 @@ else
 	echo "  o serviço não está rodando ($SOCK não existe): rode  lumna-midia servico"
 fi
 
+sec "players de mídia no D-Bus (MPRIS): é por eles que o +10 s e o -10 s do controle andam o vídeo"
+echo "  (deixe um vídeo tocando na Mídia antes de rodar; se o Firefox não aparecer aqui, o controle cai nas setas do teclado)"
+if command -v busctl >/dev/null 2>&1; then
+	busctl --user list --no-pager 2>/dev/null | grep -i mpris | sed 's/^/  /' || true
+elif command -v gdbus >/dev/null 2>&1; then
+	gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.ListNames 2>/dev/null | tr ',' '\n' | grep -i mpris | sed 's/^/  /' || true
+fi
+[ -z "$(busctl --user list --no-pager 2>/dev/null | grep -i mpris)" ] && echo "  nenhum player MPRIS agora"
+
 sec "o controle e o Connect (lumna-controle)"
 if command -v lumna-controle >/dev/null 2>&1; then
 	lumna-controle estado 2>&1 | python3 -c '
