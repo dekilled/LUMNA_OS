@@ -14,4 +14,5 @@ cc $CF $(pkg-config --cflags libsoup-3.0 gio-2.0) -o "$T/testa_firefox" testes/m
 mkdir -p "$T/h2"
 env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$T/h2" LUMNA_FIREFOX="$AQUI/testes/midia/firefox-falso.sh" LUMNA_FF_ARGS="$T/h2/args.txt" EXT_LOG="$T/h2/ext.log" \
 	LUMNA_EXTENSAO="$AQUI/extensao-firefox" LUMNA_TESTES="$AQUI/testes/midia" timeout 90 "$T/testa_firefox"
+node "$AQUI/testes/midia/testa_nav.js"
 echo "(arquivos de teste em $T)"

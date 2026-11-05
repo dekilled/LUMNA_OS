@@ -31,6 +31,20 @@
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "*://*.youtube.com/tv*",
+        "*://*.youtube.com/tv/*"
+      ],
+      "js": [
+        "nav.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ]
 }

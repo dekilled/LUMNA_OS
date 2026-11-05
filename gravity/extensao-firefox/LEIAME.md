@@ -58,3 +58,11 @@ O perfil da Mídia é separado do seu Firefox de todo dia (`~/.local/share/lumna
 ## Mensagens
 
 Ver o comentário no começo de `fundo.js`.
+
+## Navegação por setas (nav.js)
+Os serviços são feitos para mouse: sem isto as setas do controle só rolavam a página e o OK não achava o que clicar. O `nav.js`
+(todas as páginas, menos o YouTube TV) faz a seta mover o foco, com um contorno violeta, para o item clicável mais perto na direção
+dela; o OK clica; sem item na direção, a seta rola a página; em campo de texto e com um vídeo grande tocando as setas ficam com
+quem já as usava. `sh testes/midia.sh` roda `testes/midia/testa_nav.js` (Chromium, com teclas de verdade).
+
+O YouTube da Mídia é sempre o `youtube.com/tv`: o `fundo.js` devolve a aba para lá se ela cair no YouTube de mouse.

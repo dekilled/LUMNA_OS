@@ -157,6 +157,12 @@ testar = [
  ("Passar janelas entre monitores", "Alt+← e Alt+→ levam a janela para o outro monitor. No \"só a da esquerda ou da direita\", as janelas da tela apagada devem ir para a que ficou, visíveis."),
  ("Topbar por monitor e o botão de tela cheia", "Painel > Aparência > Barra superior > Telas com a barra. O botão ao lado dos ícones sai da tela cheia e volta."),
  ("Connect no OnePlus com o PC novo", "Avisos do PC e do celular, enviar e receber arquivos e a área de transferência. Energia, agendamentos, informações e a Emma por texto já existem no PC, mas o app do celular ainda não tem telas para eles; senhas ainda não existem no PC novo."),
+ ("App LUMNA Connect novo (APK)", "Instalar o APK novo (pacote os.lumna.connect, instala ao lado do antigo) e passar pelas cinco telas. O erro de \"conflito\" era a chave de assinatura mudando a cada build; agora o pacote é outro e o número de versão sempre sobe."),
+ ("Tela principal", "Painel > Telas e modos > Monitores: o interruptor \"Tela principal\" em cada tela. Marque a outra e confira se o papel de parede, a barra e a dock \"só na principal\" mudam sozinhos de tela (os apps reabrem em ~2 s)."),
+ ("Arrastar janela para o outro monitor", "Arrastar pela barra de título direto até o monitor do lado, sem soltar no meio. Só reproduzi com um KDE de mentira; no seu KDE de verdade é o que vale."),
+ ("Trocar de modo sem piscar", "Mídia <-> Desktop pelo celular, com os dois monitores: a janela deve deslizar só no monitor dela, sem aparecer no do lado."),
+ ("Setas nos serviços (Netflix, Prime, Disney...)", "As setas agora movem um contorno violeta entre os itens da página e o OK clica; sem item na direção, a seta rola a página. Dentro de um vídeo em tela cheia as setas voltam a ser do player."),
+ ("YouTube em modo TV", "O servidor entrega a interface de TV a quem manda o User-Agent de TV (conferi), então a extensão deveria bastar. Agora, se a aba cair no YouTube de mouse (depois do login, por exemplo), ela volta sozinha para o youtube.com/tv. Se ainda abrir em formato desktop, me diga a URL que aparece."),
  ("Captura de tela", "Gravar com áudio e Enviar para o celular. Só foram testados com programas falsos."),
  ("A Emma", "Gerar imagem, um servidor MCP de verdade, o Oi Emma com o microfone e ela falando."),
 ]
@@ -169,6 +175,8 @@ confirmado = [
  "A Mídia no YouTube de desktop: a extensão no Developer Edition, o login do Google e os botões do controle (play, pausa, ±10 s, início, voltar, menu)",
  "O controle do Samsung (LUMNA Connect) com o PC, depois de instalar o wtype",
  "A conta ligada no YouTube TV (a interface de TV abriu)",
+ "A Mídia do LUMNA antigo, no OnePlus, controlando o PC novo (funciona muito bem)",
+ "Mover janelas entre as telas (Alt+setas), um modo por monitor sem as janelas passarem de um para o outro e a troca de modo pelo celular",
 ]
 simulado = [
  "O Connect de arquivos, avisos, informações do PC, energia, agendamentos e a Emma por texto (só com um celular falso)",

@@ -200,8 +200,36 @@ function conectar() {
 	};
 }
 
+// O YouTube da Mídia é o youtube.com/tv. Depois do login (ou de um link, ou de um "voltar") a aba pode cair no YouTube de mouse
+// (a página inicial, a busca, um vídeo): leva de volta para a interface de TV. A conta e o login não passam por aqui (accounts.google.com).
+const ultimoRedirecionamento = new Map();
+function voltarParaYoutubeTv(id, servico, url) {
+	if (servico !== "youtube" || !url) {
+		return;
+	}
+	let u;
+	try {
+		u = new URL(url);
+	} catch (e) {
+		return;
+	}
+	const ehYoutube = u.hostname === "www.youtube.com" || u.hostname === "youtube.com" || u.hostname === "m.youtube.com";
+	if (!ehYoutube || u.pathname === "/tv" || u.pathname.startsWith("/tv/") || u.pathname.startsWith("/signin") || u.pathname.startsWith("/embed")) {
+		return;
+	}
+	const agora = Date.now();
+	if (agora - (ultimoRedirecionamento.get(id) || 0) < 8000) {
+		return; // uma vez por vez: nunca em laço
+	}
+	ultimoRedirecionamento.set(id, agora);
+	browser.tabs.update(id, { url: "https://www.youtube.com/tv" }).catch(() => {});
+}
+
 browser.tabs.onUpdated.addListener((id, info, aba) => {
 	const servico = abas.get(id);
+	if (info.url !== undefined) {
+		voltarParaYoutubeTv(id, servico, info.url);
+	}
 	if (servico && (info.status !== undefined || info.url !== undefined || info.title !== undefined)) {
 		enviar(descrever(aba, servico));
 	}
