@@ -16,3 +16,4 @@ remote/android/local.properties
 /mobile/out
 /mobile/backup
 __pycache__/
+/remote/android/lumna-connect.jks

@@ -42,8 +42,6 @@ jobs:
 
       - name: Testes e APK
         working-directory: remote/android
-        env:
-          LUMNA_VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew --no-daemon testDebugUnitTest assembleRelease
 
       - uses: actions/upload-artifact@v4
