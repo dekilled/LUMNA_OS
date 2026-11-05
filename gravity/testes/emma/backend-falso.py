@@ -177,7 +177,7 @@ class H(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(corpo)))
                 self.end_headers()
                 return self.wfile.write(corpo)
-            b = b"RIFF0000WAVEfake"
+            b = b"RIFF0000WAVE" + json.loads(dados or b"{}").get("text", "fake").encode()  # o áudio de mentira é o próprio texto: dá para conferir o que tocou
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
             self.send_header("Content-Length", str(len(b)))

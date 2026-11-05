@@ -38,7 +38,7 @@ os.environ["EMMA_TESTE_CASA"] = T  # o HOME do teste
 os.environ["EMMA_AUTO_READ_FILE"] = os.path.join(T, "auto_read")  # existir = "Ler as respostas em voz alta" ligado (o backend de mentira lê)
 os.environ["EMMA_TESTE_FORA"] = os.path.join(tempfile.gettempdir(), f"emma-fora-{os.getpid()}.txt")  # um arquivo FORA da pasta pessoal (o HOME do teste é T)
 env = dict(os.environ, LUMNA_EMMA_ESPERA_TESTE="3", LUMNA_EMMA_SERVIDOR="off", XDG_CONFIG_HOME=cfg, XDG_RUNTIME_DIR=run, HOME=T, EMMA_TESTE_LOG=LOG,
-           LUMNA_EMMA_LEITURA_S="1", LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR="true",
+           LUMNA_EMMA_LEITURA_S="1", LUMNA_EMMA_URL=f"http://127.0.0.1:{porta}", LUMNA_GRAVADOR=f"cat {T}/fala.raw", LUMNA_TOCADOR=os.path.join(AQUI, "bin", "tocador-falso.sh"),
            PATH=os.path.join(AQUI, "bin") + ":" + os.environ["PATH"], DBUS_SESSION_BUS_ADDRESS="unix:path=/nonexistent")
 env.pop("WAYLAND_DISPLAY", None)
 env.pop("ORBIT_SOCK", None)
@@ -97,6 +97,18 @@ try:
     confere("/v1/chat/completions" not in log() and "/chat" not in log(), "um comando curto foi parar na Emma")
     pede("enviar", "avança um minuto")
     confere(espera(lambda: log().count("wtype -k Right") >= 12), "'avança um minuto' não andou 60 s")
+
+    # uma resposta longa: vira muitas frases na fila e o áudio de cada uma tem de tocar inteiro e na ordem (antes: 4 nomes de arquivo
+    # que se repetiam, a 5ª frase apagava a 1ª e o tocador saía com erro 1 no meio da fala)
+    frases = [f"Frase numero {i} da resposta longa." for i in range(1, 11)]
+    for f in frases:
+        pede("voz_teste", f)
+    confere(espera(lambda: log().count("tocou:Frase numero") >= 10, 30), "as 10 frases da fila deviam tocar")
+    tocadas = [l[len("tocou:"):] for l in log().splitlines() if l.startswith("tocou:Frase numero")]
+    confere(tocadas[:10] == frases, f"as frases tocam na ordem e cada uma com o próprio áudio: {tocadas}")
+    confere("tocador: sem o arquivo" not in log(), "o tocador não pode achar o arquivo apagado")
+    espera(lambda: not pede("voz_erro").get("falando"))
+    confere(pede("voz_erro").get("erro") == "", f"uma fala longa não deixa erro: {pede('voz_erro')}")
 
     antes_tts = log().count("/tts")
     # o teste da voz (Painel > Emma > Voz): a frase vai ao servidor e ao tocador, e quando falha o motivo aparece, não o silêncio

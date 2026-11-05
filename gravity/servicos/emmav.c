@@ -308,8 +308,15 @@ static gpointer buscar_linha(gpointer d) {
 	(void)d;
 	for (;;) {
 		struct frase *f = g_async_queue_pop(fila_texto);
+		/* no máximo duas frases prontas à espera de tocar: gerar tudo adiantado enche a pasta de áudio e, numa resposta longa, a pessoa
+		 * ouve a primeira frase e só depois de um tempo as outras. Se a conversa foi cortada (emmav_calar), larga a espera. */
+		while (g_async_queue_length(fila_pronta) >= 2 && geracao_vale(f->geracao)) {
+			g_usleep(80000);
+		}
 		if (geracao_vale(f->geracao)) {
-			f->arquivo = g_strdup_printf("%s/lumna-emma-voz-%d.audio", g_get_user_runtime_dir(), g_atomic_int_add(&contador, 1) % 4);
+			/* um nome só para cada frase: com poucos nomes que se repetiam, a 5ª frase escrevia por cima do arquivo da 1ª, que ainda
+			 * esperava a vez, e a 1ª ao terminar apagava o da 5ª: o tocador saía com erro 1 no meio da fala */
+			f->arquivo = g_strdup_printf("%s/lumna-emma-voz-%d-%d.audio", g_get_user_runtime_dir(), (int)getpid(), g_atomic_int_add(&contador, 1));
 			char *erro = NULL;
 			if (!emmab_tts(f->texto, f->arquivo, &erro)) {
 				g_free(f->arquivo);
