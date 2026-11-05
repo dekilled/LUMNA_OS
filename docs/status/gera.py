@@ -60,7 +60,7 @@ areas = [
  ("LUMNA Connect (no PC)", "sim", "Pareamento, área de transferência, avisos, arquivos, informações do PC, energia (bloquear, suspender, reiniciar, desligar), agendamentos e a Emma por texto. Falta no PC: senhas e confirmações (polkit).",
   "Só com um celular falso. O OnePlus com o PC novo ainda não foi testado."),
  ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
- ("App LUMNA Connect (Android)", "and", "Hoje é só o controle: direcional, texto, teclas, mídia, volume, modo, Home e voz.", "Você confirmou o controle no Samsung."),
+ ("App LUMNA Connect (Android)", "sim", "Um app só, em cinco telas: Controle, Compartilhar (arquivos e área de transferência), Emma, PC (informações, energia e agendamentos) e Ajustes. Avisos nos dois sentidos e um serviço que mantém a conexão.", "Escrito e compilado pela CI, mas nunca rodou num celular. O controle você já confirmou no Samsung; o resto é novo."),
  ("Apps do sistema", "falta", "Nenhum ainda no desktop novo (só a captura). No LUMNA antigo existem o Explorador, a Galeria, a Música, a Loja e o Telefone.", "—"),
 ]
 lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("Em andamento", "and"), "falta": ("Não existe", "sk")}
@@ -111,13 +111,14 @@ backlog = [
  ("4. App LUMNA Connect (Android) com todo o Connect", "Hoje o app é só um controle remoto. O Connect de verdade (arquivos, avisos, energia...) mora no app do OnePlus, e o PC novo ainda não atende parte dele.", [
   ("feito", "O controle no app", "Pareamento por código, direcional, texto, teclas, mídia, volume, modo, Home, falar com a Emma e microfone da TV."),
   ("ref", "A referência completa", "O Connect do LUMNA antigo: ConnectPage, Transfers e Schedules (Vue), e remote.rs, link.rs e connect.rs (Rust)."),
-  ("falta", "No app: arquivos nos dois sentidos", "Enviar e receber arquivos e fotos, com progresso."),
-  ("falta", "No app: área de transferência nos dois sentidos", "Copiar no celular e colar no PC, e o contrário."),
-  ("falta", "No app: avisos nos dois sentidos", "Os do celular no PC (serviço de notificações do Android) e os do PC no celular."),
-  ("falta", "No app: controle de energia do PC", "Bloquear, suspender, reiniciar e desligar."),
-  ("falta", "No app: agendamento de tarefas", "Programar uma ação do PC para uma hora."),
+  ("testar", "No app: arquivos nos dois sentidos", "Tela Compartilhar: enviar vários arquivos (ou Compartilhar > LUMNA Connect, de qualquer app) com progresso; o que o PC oferecer chega sozinho em Downloads/LUMNA."),
+  ("testar", "No app: área de transferência nos dois sentidos", "O que o PC copia chega no celular sozinho. Do celular: botão, ou o envio automático ao abrir o app (o Android não deixa ler a cópia em segundo plano)."),
+  ("testar", "No app: avisos nos dois sentidos", "Os do celular no PC (precisa dar acesso às notificações em Ajustes) e os do PC no celular (precisa permitir avisos)."),
+  ("testar", "No app: controle de energia do PC", "Tela PC: bloquear, suspender, reiniciar e desligar (os três últimos pedem confirmação)."),
+  ("testar", "No app: agendamento de tarefas", "Tela PC: lembrete, pedido para a Emma, bloquear, suspender, reiniciar ou desligar, a uma hora marcada e com repetição diária."),
   ("falta", "No app: senhas e confirmações", "O PC pede a senha ou uma confirmação (polkit) e o celular responde."),
-  ("falta", "No app: conversa com a Emma por texto", "Perguntar e aprovar as ações dela."),
+  ("testar", "No app: conversa com a Emma", "Tela Emma, por texto ou pela voz do celular. Falta aprovar as ações que ela pede (o PC ainda não avisa o celular desse pedido)."),
+  ("testar", "No app: manter conectado", "Um aviso fixo mantém a conexão com o app fechado, para avisos e arquivos chegarem (Ajustes)."),
   ("feito", "No PC (lumna-connect): info, power, schedule-*, emma e emma-decide", "Portados do LUMNA antigo, no mesmo formato de mensagens (e o schedule.json igual), com testes usando um celular falso. O agendador confere a cada 15 s e roda na volta o que venceu há menos de 1 h."),
   ("falta", "No PC (lumna-connect): senhas e confirmações (auth-respond)", "Pede um agente de autenticação do polkit escrito em C. É um passo grande e separado."),
   ("testar", "Connect de arquivos e avisos do PC novo com o OnePlus", "O app antigo já fala o protocolo; a parte nova do PC só foi testada com um celular falso."),
@@ -131,7 +132,7 @@ backlog = [
   ("falta", "Bloco de notas", "Não existe em nenhum dos dois."),
   ("falta", "LUMNA Code", "Definido por você: a sua versão do VS Code, com a Emma integrada. Em C com o Gravity. Ainda não começou."),
   ("falta", "Reminders", "Definido por você: calendário e lembretes centralizados, que você e a Emma gerenciam. Em C com o Gravity. O agendamento do Connect já é a base dos avisos."),
-  ("pergunta", "StoryTeller: qual é o repositório?", "Definido por você: a sua engine de histórias, com a Emma integrada, em cima do repositório do histórico Telles que já está bem estruturado. Preciso do nome certo do repositório (e da sua licença para eu ler) antes de começar."),
+  ("falta", "StoryTeller", "Definido por você: a sua engine de histórias, com a Emma integrada, em cima do repositório dekilled/world-forge-app. Ainda não comecei; vou ler o repositório antes de propor a estrutura."),
   ("falta", "O Gravity vira o \"Gravity framework\"", "Decidido por você: tudo novo é em C com o Gravity, no estilo do sistema, para construir qualquer interface dentro do LUMNA. Depois do sistema pronto, a interface do celular também vai para C, para todos os apps."),
   ("ref", "Outros que o antigo tinha", "Loja (StoreApp.vue) e Telefone (PhoneApp.vue)."),
   ("falta", "Outros em aberto", "Navegador, visualizador de imagens e PDF, terminal, calculadora, monitor do sistema. Diga quais entram."),
@@ -171,6 +172,7 @@ confirmado = [
 ]
 simulado = [
  "O Connect de arquivos, avisos, informações do PC, energia, agendamentos e a Emma por texto (só com um celular falso)",
+ "O app Android novo inteiro (compila na CI, nunca rodou num celular)",
  "A topbar por monitor e o botão de tela cheia",
  "Espelhar, só a da esquerda ou da direita e o modo por tela",
  "Os seletores de modo do Painel e passar janelas entre monitores (testei com um mouse e um falso KDE)",
@@ -182,7 +184,7 @@ simulado = [
 proximos = [
  ("Quando você chegar: testar a lista \"Para você testar\"", "Principalmente o YouTube TV e o Connect do OnePlus; o que falhar eu corrijo antes de começar coisa nova."),
  ("O Início do Gaming (a biblioteca)", "É a maior parte visível que falta e o antigo já tem a referência."),
- ("O app LUMNA Connect no Android: as telas de energia, agendamentos, informações do PC, avisos, arquivos e a Emma por texto", "O PC já entende; falta o app falar. Só dá para validar a compilação pela CI, e o teste de verdade é com o seu celular."),
+ ("Instalar o APK novo e caçar bugs", "O APK sai da CI (aba Actions, \"LUMNA Connect (APK)\"). Todas as telas são novas; o que falhar eu corrijo."),
  ("Senhas e confirmações do PC no celular (polkit)", "O último pedaço do Connect completo."),
  ("Painel do dia a dia: Energia, Som e Inicialização", "Sem eles o desktop ainda não serve como sessão única."),
  ("Os apps do sistema, um por vez", "Começando pelo Explorador, o player de vídeo e a Galeria; os que você ainda não descreveu esperam a sua resposta."),

@@ -31,9 +31,16 @@ O celular também pode, com o recurso `control` ligado para ele no PC:
 
 Se algo não funcionar, rode dentro do desktop: `sh scripts/diag-connect.sh`. Ele diz o que falta e o que o serviço da Mídia e o controle estão vendo.
 
-## Os apps do celular
-- **LUMNA Connect** (`remote/android`, o antigo LUMNA Controle): hoje só o controle remoto (direcional, texto, teclas, mídia, volume, modo, Home e voz). Vai virar o app único, em telas: arquivos, área de transferência, avisos, energia, agendamentos e a Emma por texto (o PC já atende tudo isso).
-- **LUMNA Connect** (o app antigo do celular, em Vue): é o que fala arquivos, área de transferência e avisos. A parte do PC foi reescrita aqui seguindo o protocolo antigo; ainda não foi testada com o app de verdade.
+## O app do celular (LUMNA Connect, `remote/android`)
+Um app só, em cinco telas (embaixo):
+- **Controle**: direcional, voltar, início, menu, mídia, volume, modos, teclado e a voz (a Emma do PC age).
+- **Compartilhar**: enviar arquivos (botão, ou Compartilhar > LUMNA Connect de qualquer app) e receber os que o PC oferecer (vão sozinhos para Downloads/LUMNA); a área de transferência nos dois sentidos.
+- **Emma**: conversa por texto ou pela voz do celular.
+- **PC**: como ele está, bloquear/suspender/reiniciar/desligar e agendamentos.
+- **Ajustes**: trocar ou esquecer o PC, o que o PC permite a este celular, manter conectado (aviso fixo), envio automático da cópia e avisos do celular no PC (precisa dar acesso às notificações).
+
+Cada transferência de arquivo usa a sua própria conexão com o PC (pergunta e resposta, um pedaço de 192 KiB por vez). A conexão do controle fica em `Connect.kt`, uma só para todas as telas.
+Ainda não tem: aprovar no celular uma ação que a Emma pediu, e senhas/confirmações do PC (polkit).
 
 ## Testes
 `sh testes/connect.sh` (celular falso, sem tocar no sistema).
