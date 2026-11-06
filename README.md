@@ -27,6 +27,8 @@ Por enquanto é o sistema base com SSH pela USB; a interface de celular é o pr�
 ## Estrutura
 
 ```
+orbit/                Orbit: o compositor (C, wlroots) do desktop novo
+gravity/              Gravity: a biblioteca de interface (C, Clay) e as peças do desktop novo
 crates/lumna-core     tipos e o contrato Compositor (não sabe qual compositor é)
 crates/lumna-hypr     Compositor implementado para o Hyprland (IPC por socket)
 crates/lumna-ctl      comando que os atalhos usam para falar com o shell

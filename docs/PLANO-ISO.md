@@ -15,7 +15,7 @@ Ordem que você pediu: **(1) ISO com a UI nova → (2) os programas combinados �
 
 - A ISO (`iso/`, `scripts/build-iso.sh`, GitHub Actions) monta **Hyprland + `lumna-shell` (Tauri/Vue)**.
   Pacotes: `lumna-shell`, `lumna-session`, `lumna-hyprbars`, `lumna-emma`, `lumna-mobile`.
-- O Orbit mora **noutro repositório** (`lumna_compositor`, branch `claude/orbit-compila`) e ainda não tem pacote.
+- O Orbit morava noutro repositório (`LUMNA_COMPOSITOR`); **agora é o `orbit/` deste repositório**, com o histórico dele (58 commits).
 - O Gravity (`gravity/`, ~30 apps `lumna-*` em C) não tem pacote nem entra na ISO.
 - Já existem peças da sessão nova: `lumna-orbit-session`, `lumna-orbit.desktop`, `lumna-entrada-greeter`,
   `lumna-entrada` (a tela de login), `lumna-ocioso`, `lumna-inicio`, ajudantes root + políticas polkit.
@@ -48,8 +48,7 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 
 ## Fase 1 — Empacotar a UI nova ✅ escrita (falta o CI compilar de verdade)
 
-1. **`lumna-orbit`**: PKGBUILD que compila o Orbit do `lumna_compositor` (antes: levar `claude/orbit-compila` para a
-   `main` de lá). O Arch de hoje só tem **wlroots 0.20** (pacote `wlroots0.20`); o Orbit já roda aninhado nele na sua máquina.
+1. **`lumna-orbit`**: PKGBUILD que compila o `orbit/` do próprio repositório. O Arch de hoje só tem **wlroots 0.20** (pacote `wlroots0.20`); o Orbit já roda aninhado nele na sua máquina.
 2. **`lumna-gravity`**: compila a biblioteca e todos os `lumna-*`, instala binários, `.desktop`, ícones, assets,
    extensão do Firefox e as políticas polkit.
 3. **`lumna-session`** enxuto: tira Hyprland, hyprlock, hypridle e hyprbars; entra a sessão do Orbit como padrão,

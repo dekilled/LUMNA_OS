@@ -26,12 +26,12 @@ sed -i "s/^pkgver=.*/pkgver=$LUMNA_VERSION/" "$tree"/packages/*/PKGBUILD
 echo "   versão $LUMNA_VERSION"
 build_pkg() {
   local name="$1"; shift
-  (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST,EMMA_SRC,ORBIT_SRC,ORBIT_REF \
+  (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST,EMMA_SRC \
      env PKGDEST="$OUT/repo" makepkg --noconfirm --cleanbuild "$@")
 }
 chown "$BUILDER:$BUILDER" "$OUT/repo"
 build_pkg lumna-shell --syncdeps
-# A sessão nova: o Orbit (baixa o código do repositório dele, branch ORBIT_REF) e o Gravity (C: leva minutos).
+# A sessão nova: o Orbit (orbit/) e o Gravity (gravity/), os dois em C.
 build_pkg lumna-orbit --syncdeps
 build_pkg lumna-gravity --syncdeps
 build_pkg lumna-session --nodeps

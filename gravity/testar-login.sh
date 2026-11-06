@@ -11,7 +11,7 @@
 set -e
 AQUI=$(cd "$(dirname "$0")" && pwd)
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lumna
-O="${ORBIT_DIR:-$CACHE/orbit}/src/compositor/orbit"
+O="$AQUI/../orbit"
 [ -x "$O/orbit" ] || { echo "Rode o ./testar-desktop.sh --refazer primeiro (ele compila o Orbit)."; exit 1; }
 command -v python3 >/dev/null || { echo "Falta o python3 (o greetd de mentira)."; exit 1; }
 [ -x "$AQUI/entrada" ] || make -C "$AQUI" entrada

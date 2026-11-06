@@ -4,10 +4,10 @@
 #
 #   ./testar-desktop.sh            compila o que faltar e abre
 #   ./testar-desktop.sh --tela-cheia  abre a janela do Orbit já em tela cheia (Super+F11 alterna; vale junto com --refazer)
-#   ./testar-desktop.sh --refazer  recompila o Gravity e atualiza o Orbit antes de abrir (use depois de dar git pull aqui:
+#   ./testar-desktop.sh --refazer  recompila o Gravity e o Orbit antes de abrir (use depois de dar git pull aqui:
 #                                  sem isso ele abre os binários de antes e você não vê as mudanças)
 #
-# O Orbit vem do repositório dele (branch claude/orbit-compila) para ~/.cache/lumna/orbit.
+# O Orbit é o orbit/ deste mesmo repositório (compila ali; o binário fica fora do git).
 # Lá dentro sobem o papel de parede, a topbar, a dock e os avisos, num D-Bus só deles (os avisos
 # não tiram as notificações do seu desktop). Alt+Enter abre um terminal; fechar a janela sai.
 # Para testar os avisos lá dentro: abra o terminal (Alt+Enter) e corra notify-send "Olá" "LUMNA".
@@ -22,9 +22,6 @@ set -e
 
 AQUI=$(cd "$(dirname "$0")" && pwd)
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/lumna
-ORBIT_DIR=${ORBIT_DIR:-$CACHE/orbit}
-ORBIT_REPO=https://github.com/dekilled/LUMNA_COMPOSITOR
-ORBIT_BRANCH=claude/orbit-compila
 BIN=$CACHE/bin
 
 falta() {
@@ -59,14 +56,8 @@ for m in wlroots-0.20 wlroots-0.19 wlroots-0.18 wlroots; do
 	fi
 done
 [ -n "$WLR" ] || falta "wlroots (no Arch: wlroots0.20)"
-if [ ! -d "$ORBIT_DIR/.git" ]; then
-	git clone --depth 1 -b "$ORBIT_BRANCH" "$ORBIT_REPO" "$ORBIT_DIR"
-fi
-O="$ORBIT_DIR/src/compositor/orbit"
+O="$AQUI/../orbit"
 if [ "$REFAZER" = 1 ] || [ ! -x "$O/orbit" ]; then
-	# sempre a versão mais nova antes de compilar (um clone de uma tentativa que falhou também)
-	git -C "$ORBIT_DIR" remote set-url origin "$ORBIT_REPO"
-	git -C "$ORBIT_DIR" pull --ff-only
 	rm -f "$O/orbit"
 	make -C "$O" clean >/dev/null 2>&1 || true
 	cp "$O/makefile.txt" "$O/Makefile"
