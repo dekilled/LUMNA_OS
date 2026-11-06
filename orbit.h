@@ -509,6 +509,8 @@ void orbit_foreign_destroy(struct orbit_view *view);
 bool orbit_session_bind(struct orbit_server *server);
 void orbit_lock_configure(struct orbit_output *output);
 void orbit_idle_activity(struct orbit_server *server);
+void orbit_cursor_refocus(struct orbit_server *server);
+void orbit_idle_describe(struct orbit_server *server, char *buf, size_t cap);
 void orbit_idle_update(struct orbit_server *server);
 
 bool orbit_manage_bind(struct orbit_server *server);

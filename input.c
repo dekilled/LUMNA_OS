@@ -122,6 +122,16 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	wlr_seat_pointer_notify_motion(server->seat, time, sx, sy);
 }
 
+/* o que está debaixo do cursor mudou sem o cursor mexer (uma superfície de bloqueio apareceu ou sumiu): refaz o foco do ponteiro */
+void orbit_cursor_refocus(struct orbit_server *server) {
+	if (server->cursor_mode != ORBIT_CURSOR_PASSTHROUGH) {
+		return;
+	}
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	process_cursor_motion(server, (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000));
+}
+
 static void on_cursor_motion(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;

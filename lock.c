@@ -21,6 +21,7 @@ struct orbit_lock_surface {
 	struct wlr_session_lock_surface_v1 *surface;
 	struct wlr_scene_tree *tree;
 	int cfg_w, cfg_h; /* o último tamanho mandado */
+	bool entered_once;
 	struct wl_listener commit;
 	struct wl_listener destroy;
 };
@@ -84,12 +85,17 @@ static void lock_surface_commit(struct wl_listener *listener, void *data) {
 	struct orbit_lock_surface *surface = wl_container_of(listener, surface, commit);
 	lock_surface_place(surface);
 	lock_keyboard_enter(surface);
+	if (surface->surface->surface->mapped && !surface->entered_once) {
+		surface->entered_once = true;
+		orbit_cursor_refocus(surface->lock->server); /* a tela de bloqueio nova pode estar debaixo do cursor parado */
+	}
 }
 
 static void lock_surface_destroy(struct wl_listener *listener, void *data) {
 	struct orbit_lock_surface *surface = wl_container_of(listener, surface, destroy);
 	wl_list_remove(&surface->commit.link);
 	wl_list_remove(&surface->destroy.link);
+	struct orbit_server *server = surface->lock->server;
 	if (surface->tree) {
 		wlr_scene_node_destroy(&surface->tree->node);
 	}
@@ -97,6 +103,9 @@ static void lock_surface_destroy(struct wl_listener *listener, void *data) {
 		surface->surface->data = NULL;
 	}
 	free(surface);
+	if (server->session_locked) {
+		orbit_cursor_refocus(server); /* o ponteiro estava nesta: passa para a que sobrar debaixo dele */
+	}
 }
 
 static void lock_new_surface(struct wl_listener *listener, void *data) {
@@ -235,6 +244,29 @@ void orbit_idle_update(struct orbit_server *server) {
 		}
 	}
 	wlr_idle_notifier_v1_set_inhibited(server->idle_notifier, inhibited);
+}
+
+/* orbit-msg ocioso: quem está segurando o idle (um vídeo tocando) e se a janela dele está aparecendo; JSON (a lista) em buf */
+void orbit_idle_describe(struct orbit_server *server, char *buf, size_t cap) {
+	size_t len = 0;
+	buf[0] = '\0';
+	struct orbit_inhibitor *inhibitor;
+	wl_list_for_each(inhibitor, &server->inhibitors, link) {
+		struct wlr_surface *surface = inhibitor->inhibitor->surface;
+		const char *app_id = "?";
+		struct orbit_view *view;
+		wl_list_for_each(view, &server->views, link) {
+			if (surface && view->toplevel && view->toplevel->base->surface == surface && view->toplevel->app_id) {
+				app_id = view->toplevel->app_id;
+			}
+		}
+		int n = snprintf(buf + len, cap - len, "%s{\"app_id\":\"%.80s\",\"visivel\":%s}", len ? "," : "", app_id,
+			surface && surface->mapped ? "true" : "false");
+		if (n < 0 || (size_t)n >= cap - len) {
+			break;
+		}
+		len += (size_t)n;
+	}
 }
 
 bool orbit_session_bind(struct orbit_server *server) {

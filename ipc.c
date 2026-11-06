@@ -418,6 +418,11 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			first = false;
 		}
 		put(b, "]}");
+	} else if (!strcmp(cmd, "ocioso")) {
+		/* quem segura o idle (vídeo tocando pelo idle-inhibit do Wayland); o D-Bus (Firefox, VLC) é do lumna-ocioso */
+		char lista[1024];
+		orbit_idle_describe(server, lista, sizeof(lista));
+		put(b, "{\"ok\":true,\"inibidores\":[%s]}", lista);
 	} else if (!strcmp(cmd, "areas")) {
 		/* areas [1-3]: quantos espaços o Desktop usa; o que estava nos desligados passa para o último */
 		if (arg1) {
