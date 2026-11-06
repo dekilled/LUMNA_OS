@@ -25,6 +25,7 @@
 #include "entrar.h"
 #include "hora.h"
 #include "gravity.h"
+#include "modos.h"
 #include "mpris.h"
 #include "papelini.h"
 
@@ -580,7 +581,18 @@ static void desenhar(gv_app *app, void *dados) {
 }
 
 int main(int argc, char **argv) {
-	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Bloqueio", .app_id = "lumna-bloqueio", .tipo = GV_BLOQUEIO });
+	/* começa na tela onde está o cursor (e depois segue o cursor: gv_app); sem o Orbit, na primeira */
+	struct modos_estado me;
+	static char saida_cursor[64];
+	if (modos_ler(&me) && me.orbit) {
+		for (int i = 0; i < me.n; i++) {
+			if (me.saidas[i].ponteiro) {
+				snprintf(saida_cursor, sizeof(saida_cursor), "%s", me.saidas[i].nome);
+			}
+		}
+	}
+	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Bloqueio", .app_id = "lumna-bloqueio", .tipo = GV_BLOQUEIO,
+		.saida = saida_cursor[0] ? saida_cursor : NULL });
 	if (!app) {
 		return 1;
 	}

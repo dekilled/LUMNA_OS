@@ -165,6 +165,8 @@ struct gv_app {
 	struct gv_popup popups[GV_MAX_POPUPS];
 	float ponteiro_dx, ponteiro_dy; /* da superfície onde está o ponteiro à principal */
 	bool ponteiro_no_popup;
+	struct wl_surface *ponteiro_sup; /* a superfície em que o ponteiro está (no bloqueio: pode ser uma das outras telas) */
+	double bloqueio_trocou;           /* quando o bloqueio passou de tela pela última vez */
 	float dedo_dx, dedo_dy;
 	bool dedo_no_popup;
 	uint32_t xdg_versao;
@@ -641,12 +643,17 @@ static struct gv_buffer *buffer_livre(gv_app *app) {
 
 /* ---- escala: a maior das saídas onde a superfície está ---- */
 
+static int escala_de(gv_app *app, struct wl_output *wl);
+
 static void escala_rever(gv_app *app) {
 	int escala = 1;
 	for (int i = 0; i < app->nsaidas; i++) {
 		if (app->saidas[i].dentro && app->saidas[i].escala > escala) {
 			escala = app->saidas[i].escala;
 		}
+	}
+	if (app->bloqueio && app->bloqueio_saida) {
+		escala = escala_de(app, app->bloqueio_saida); /* o bloqueio tem uma superfície por tela, e a principal troca de tela */
 	}
 	if (escala != app->escala) {
 		app->escala = escala;
@@ -768,10 +775,16 @@ static void cursor_aplicar(gv_app *app) {
 		imagem->hotspot_x / app->escala, imagem->hotspot_y / app->escala);
 }
 
+static bool bloqueio_seguir(gv_app *app);
+
 static void ponteiro_entrou(void *dados, struct wl_pointer *p, uint32_t serial, struct wl_surface *s,
 		wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
 	app->ponteiro_serial = serial;
+	app->ponteiro_sup = s;
+	if (app->bloqueio && s != app->superficie && !bloqueio_seguir(app)) {
+		return; /* numa tela sem a interface e ainda cedo para levá-la para lá: o movimento tenta de novo */
+	}
 	popup_deslocamento(app, s, &app->ponteiro_dx, &app->ponteiro_dy, &app->ponteiro_no_popup);
 	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
 	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
@@ -790,6 +803,9 @@ static void ponteiro_saiu(void *dados, struct wl_pointer *p, uint32_t serial, st
 
 static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
+	if (app->bloqueio && app->ponteiro_sup != app->superficie && !bloqueio_seguir(app)) {
+		return; /* numa tela sem a interface: tenta levá-la para cá (o intervalo mínimo evita ir e voltar na divisa) */
+	}
 	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
 	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
 	gv__entrada.toque = false;
@@ -802,6 +818,9 @@ static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fix
 static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, uint32_t t, uint32_t botao,
 		uint32_t estado) {
 	gv_app *app = dados;
+	if (app->bloqueio && app->ponteiro_sup != app->superficie) {
+		return; /* o clique numa tela que ainda não tem a interface não vale */
+	}
 	if (botao == BTN_RIGHT) {
 		if (estado == WL_POINTER_BUTTON_STATE_PRESSED) {
 			app->aperto_serial = serial; /* o popup do menu precisa do serial para o grab */
@@ -1326,10 +1345,12 @@ static const struct zwlr_layer_surface_v1_listener camada_ouvinte = {
 
 /* ---- o bloqueio da sessão ---- */
 
+/* o configure da principal e o das outras telas vêm pela mesma função: elas trocam de papel (bloqueio_seguir) */
+static void extra_configurar(void *dados, struct ext_session_lock_surface_v1 *s, uint32_t serial, uint32_t largura, uint32_t altura);
+
 static void bloqueio_configurar(void *dados, struct ext_session_lock_surface_v1 *s, uint32_t serial, uint32_t largura,
 		uint32_t altura) {
-	ext_session_lock_surface_v1_ack_configure(s, serial);
-	tamanho_novo(dados, largura, altura);
+	extra_configurar(dados, s, serial, largura, altura);
 }
 
 static const struct ext_session_lock_surface_v1_listener bloqueio_sup_ouvinte = { .configure = bloqueio_configurar };
@@ -1404,6 +1425,10 @@ static void extra_configurar(void *dados, struct ext_session_lock_surface_v1 *s,
 		uint32_t altura) {
 	gv_app *app = dados;
 	ext_session_lock_surface_v1_ack_configure(s, serial);
+	if (s == app->bloqueio_sup) {
+		tamanho_novo(app, largura, altura);
+		return;
+	}
 	for (int i = 0; i < GV_MAX_SAIDAS; i++) {
 		struct gv_bloqueio_extra *e = &app->extras[i];
 		if (e->bloq == s) {
@@ -1428,10 +1453,7 @@ static void extra_criar(gv_app *app, struct wl_output *saida) {
 		}
 		e->saida = saida;
 		e->sup = wl_compositor_create_surface(app->compositor);
-		/* sem entrada: o rato e os dedos por cima destas não chegam à app */
-		struct wl_region *nada = wl_compositor_create_region(app->compositor);
-		wl_surface_set_input_region(e->sup, nada);
-		wl_region_destroy(nada);
+		/* com entrada: o rato que chega a uma destas diz que a pessoa foi para aquela tela, e a interface vai para lá (bloqueio_seguir) */
 		e->bloq = ext_session_lock_v1_get_lock_surface(app->bloqueio, e->sup, saida);
 		ext_session_lock_surface_v1_add_listener(e->bloq, &extra_ouvinte, app);
 		return;
@@ -1457,6 +1479,50 @@ static void extra_saiu(gv_app *app, struct wl_output *saida) {
 			extra_destruir(&app->extras[i]);
 		}
 	}
+}
+
+/*
+ * A interface do bloqueio (a senha, o relógio, o player) vai para a tela onde o ponteiro estiver. O ext-session-lock prende cada superfície a uma
+ * saída e não deixa recriá-la, então nada se destrói: a superfície principal e a "extra" daquela tela TROCAM DE PAPEL (as referências e o
+ * tamanho trocam de dono). A que estava debaixo do ponteiro passa a ser a principal, e o ponteiro nem percebe. O que se digitou fica, é o
+ * mesmo estado da app. Pelo menos meio segundo entre trocas (na divisa dos monitores o ponteiro pode ir e voltar). Devolve se trocou.
+ */
+static bool bloqueio_seguir(gv_app *app) {
+	if (!app->bloqueio || !app->trancado || !app->bloqueio_sup) {
+		return false;
+	}
+	struct gv_bloqueio_extra *alvo = NULL;
+	for (int i = 0; i < GV_MAX_SAIDAS; i++) {
+		if (app->extras[i].sup && app->extras[i].sup == app->ponteiro_sup) {
+			alvo = &app->extras[i];
+		}
+	}
+	if (!alvo || !alvo->configurado || !alvo->saida || gv_agora() - app->bloqueio_trocou < 0.5) {
+		return false;
+	}
+	app->bloqueio_trocou = gv_agora();
+	struct wl_surface *sup = app->superficie;
+	app->superficie = alvo->sup;
+	alvo->sup = sup;
+	struct ext_session_lock_surface_v1 *bloq = app->bloqueio_sup;
+	app->bloqueio_sup = alvo->bloq;
+	alvo->bloq = bloq;
+	struct wl_output *saida = app->bloqueio_saida;
+	app->bloqueio_saida = alvo->saida;
+	alvo->saida = saida;
+	/* os buffers ficam onde estão (cada um avisa o seu dono quando o compositor o solta): qualquer um se anexa a qualquer superfície */
+	int l = app->largura, a = app->altura;
+	app->largura = alvo->largura;
+	app->altura = alvo->altura;
+	alvo->largura = l;
+	alvo->altura = a;
+	app->escala = escala_de(app, app->bloqueio_saida);
+	wl_surface_set_buffer_scale(app->superficie, app->escala);
+	alvo->escala = 0; /* a escala dela se refaz no próximo desenho */
+	gv__escrita_superficie(app->superficie);
+	app->precisa = true;
+	extra_desenhar(app, alvo); /* a que tinha a interface passa a mostrar só o fundo */
+	return true;
 }
 
 void gv_app_bloqueio_fundo(gv_app *app, const char *imagem) {

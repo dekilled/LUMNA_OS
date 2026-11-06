@@ -124,9 +124,9 @@ ocioso: exemplos/ocioso.c ext-idle-notify-v1-client-protocol.h ext-idle-notify-v
 		$(shell pkg-config --libs wayland-client gio-unix-2.0)
 
 # a tela de bloqueio: o PIN e a senha (servicos/entrar.c), o que toca (servicos/mpris.c) e o papel
-bloqueio: exemplos/bloqueio.c servicos/hora.c servicos/hora.h servicos/entrar.c servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a
+bloqueio: exemplos/bloqueio.c servicos/hora.c servicos/hora.h servicos/entrar.c servicos/mpris.c servicos/modos.c servicos/json.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/bloqueio.c servicos/hora.c servicos/entrar.c \
-		servicos/mpris.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+		servicos/mpris.c servicos/modos.c servicos/json.c servicos/papelini.c servicos/desenvolvedor.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
 # a tela de login (o greetd corre-a dentro de um Orbit só dela: orbit -S lumna-entrada)
 entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a

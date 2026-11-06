@@ -359,6 +359,10 @@ void gv__escrita_iniciar(struct wl_display *display, struct wl_seat *seat, struc
 	}
 }
 
+void gv__escrita_superficie(struct wl_surface *superficie) {
+	e.superficie = superficie;
+}
+
 void gv__campo_pede(const char *texto, int cursor, int ancora, Clay_BoundingBox caixa, uint32_t dica,
 		uint32_t proposito) {
 	e.quer = true;

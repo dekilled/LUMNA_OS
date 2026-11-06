@@ -1,6 +1,8 @@
 /*
  * lumna-ocioso: tranca a sessão sozinho. Depois de uns minutos sem mexer (ext-idle-notify; um
- * vídeo a tocar segura, pelo idle-inhibit do compositor) e antes de o computador dormir (logind:
+ * vídeo a tocar segura, por duas vias: o idle-inhibit do Wayland, que o compositor trata, e o D-Bus
+ * org.freedesktop.ScreenSaver / PowerManagement, que o Firefox, o Chromium, o VLC e outros usam e que
+ * este programa atende: enquanto houver quem pediu, não tranca) e antes de o computador dormir (logind:
  * PrepareForSleep, com um atraso para a tela de bloqueio aparecer antes). Lê o tempo do
  * ~/.config/lumna/bloqueio.ini, que o Painel grava, e vigia o arquivo:
  *
@@ -57,9 +59,148 @@ static void trancar(void) {
 	g_child_watch_add(bloqueio_pid, bloqueio_saiu, NULL);
 }
 
+static void trancar_agora(void) {
+	trancar();
+}
+
+/* ---- quem pediu para não trancar (vídeo tocando, apresentação...) ---- */
+
+static GDBusConnection *sessao;
+static GHashTable *inibidores;   /* cookie (uint) -> "dono\napp: motivo" */
+static guint proximo_cookie = 1;
+static bool ficou_ocioso_inibido; /* o tempo passou enquanto havia quem pediu: tranca quando a última pessoa soltar */
+
+static const char *const servico_xml =
+	"<node>"
+	" <interface name='org.freedesktop.ScreenSaver'>"
+	"  <method name='Inhibit'><arg type='s' name='application_name' direction='in'/><arg type='s' name='reason_for_inhibit' direction='in'/><arg type='u' name='cookie' direction='out'/></method>"
+	"  <method name='UnInhibit'><arg type='u' name='cookie' direction='in'/></method>"
+	"  <method name='GetActive'><arg type='b' direction='out'/></method>"
+	"  <method name='SetActive'><arg type='b' direction='in'/><arg type='b' direction='out'/></method>"
+	"  <method name='Lock'/>"
+	"  <method name='SimulateUserActivity'/>"
+	"  <method name='GetActiveTime'><arg type='u' direction='out'/></method>"
+	"  <method name='GetSessionIdleTime'><arg type='u' direction='out'/></method>"
+	" </interface>"
+	" <interface name='org.freedesktop.PowerManagement.Inhibit'>"
+	"  <method name='Inhibit'><arg type='s' direction='in'/><arg type='s' direction='in'/><arg type='u' direction='out'/></method>"
+	"  <method name='UnInhibit'><arg type='u' direction='in'/></method>"
+	"  <method name='HasInhibit'><arg type='b' direction='out'/></method>"
+	" </interface>"
+	"</node>";
+
+static bool ha_inibidor(void) {
+	return inibidores && g_hash_table_size(inibidores) > 0;
+}
+
+static void aviso_refazer(void);
+
+/* o último soltou: se o tempo já tinha passado, a contagem recomeça do zero (não tranca de repente ao terminar o vídeo) */
+static void inibidor_mudou(void) {
+	if (!ha_inibidor() && ficou_ocioso_inibido) {
+		ficou_ocioso_inibido = false;
+		aviso_refazer();
+	}
+}
+
+static void inibidor_soltar_cookie(guint cookie) {
+	if (inibidores && g_hash_table_remove(inibidores, GUINT_TO_POINTER(cookie))) {
+		inibidor_mudou();
+	}
+}
+
+static void servico_metodo(GDBusConnection *c, const gchar *dono, const gchar *caminho, const gchar *iface, const gchar *metodo,
+		GVariant *params, GDBusMethodInvocation *inv, gpointer d) {
+	if (!strcmp(metodo, "Inhibit")) {
+		const char *app, *motivo;
+		g_variant_get(params, "(&s&s)", &app, &motivo);
+		guint cookie = proximo_cookie++;
+		g_hash_table_insert(inibidores, GUINT_TO_POINTER(cookie), g_strdup_printf("%s\n%s: %s", dono, app, motivo));
+		fprintf(stderr, "lumna-ocioso: %s pediu para não trancar (%s)\n", app, motivo);
+		g_dbus_method_invocation_return_value(inv, g_variant_new("(u)", cookie));
+	} else if (!strcmp(metodo, "UnInhibit")) {
+		guint cookie;
+		g_variant_get(params, "(u)", &cookie);
+		inibidor_soltar_cookie(cookie);
+		g_dbus_method_invocation_return_value(inv, NULL);
+	} else if (!strcmp(metodo, "HasInhibit")) {
+		g_dbus_method_invocation_return_value(inv, g_variant_new("(b)", ha_inibidor()));
+	} else if (!strcmp(metodo, "GetActive")) {
+		g_dbus_method_invocation_return_value(inv, g_variant_new("(b)", bloqueio_pid != 0));
+	} else if (!strcmp(metodo, "SetActive")) {
+		gboolean ligar;
+		g_variant_get(params, "(b)", &ligar);
+		if (ligar) {
+			trancar_agora();
+		}
+		g_dbus_method_invocation_return_value(inv, g_variant_new("(b)", TRUE));
+	} else if (!strcmp(metodo, "Lock")) {
+		trancar_agora();
+		g_dbus_method_invocation_return_value(inv, NULL);
+	} else if (!strcmp(metodo, "GetActiveTime") || !strcmp(metodo, "GetSessionIdleTime")) {
+		g_dbus_method_invocation_return_value(inv, g_variant_new("(u)", 0));
+	} else { /* SimulateUserActivity */
+		g_dbus_method_invocation_return_value(inv, NULL);
+	}
+}
+
+static const GDBusInterfaceVTable servico_vtable = { .method_call = servico_metodo };
+
+/* quem pediu e saiu sem soltar (o Firefox fechou com o vídeo tocando) deixa de contar */
+static void nome_mudou(GDBusConnection *c, const gchar *de, const gchar *caminho, const gchar *iface, const gchar *sinal,
+		GVariant *params, gpointer d) {
+	const char *nome, *antigo, *novo;
+	g_variant_get(params, "(&s&s&s)", &nome, &antigo, &novo);
+	if (!*novo && *antigo && inibidores) {
+		GHashTableIter it;
+		gpointer k, v;
+		bool mudou = false;
+		g_hash_table_iter_init(&it, inibidores);
+		while (g_hash_table_iter_next(&it, &k, &v)) {
+			if (g_str_has_prefix((const char *)v, antigo) && ((const char *)v)[strlen(antigo)] == '\n') {
+				g_hash_table_iter_remove(&it);
+				mudou = true;
+			}
+		}
+		if (mudou) {
+			inibidor_mudou();
+		}
+	}
+}
+
+static void servico_nome_perdido(GDBusConnection *c, const gchar *nome, gpointer d) {
+	fprintf(stderr, "lumna-ocioso: %s já tem outro dono (estamos dentro de outra sessão?); só o idle-inhibit do Wayland vale\n", nome);
+}
+
+static void servico_ligar(void) {
+	sessao = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
+	if (!sessao) {
+		return;
+	}
+	inibidores = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+	GDBusNodeInfo *no = g_dbus_node_info_new_for_xml(servico_xml, NULL);
+	const char *caminhos[] = { "/org/freedesktop/ScreenSaver", "/ScreenSaver", "/org/freedesktop/PowerManagement/Inhibit",
+		"/org/freedesktop/PowerManagement" };
+	for (int i = 0; no && i < 4; i++) {
+		GDBusInterfaceInfo *info = g_dbus_node_info_lookup_interface(no, i < 2 ? "org.freedesktop.ScreenSaver" : "org.freedesktop.PowerManagement.Inhibit");
+		if (info && !g_dbus_connection_register_object(sessao, caminhos[i], info, &servico_vtable, NULL, NULL, NULL)) {
+			fprintf(stderr, "lumna-ocioso: não registrou %s\n", caminhos[i]);
+		}
+	}
+	g_dbus_connection_signal_subscribe(sessao, "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged", "/org/freedesktop/DBus",
+		NULL, G_DBUS_SIGNAL_FLAGS_NONE, nome_mudou, NULL, NULL);
+	g_bus_own_name_on_connection(sessao, "org.freedesktop.ScreenSaver", G_BUS_NAME_OWNER_FLAGS_NONE, NULL, servico_nome_perdido, NULL, NULL);
+	g_bus_own_name_on_connection(sessao, "org.freedesktop.PowerManagement", G_BUS_NAME_OWNER_FLAGS_NONE, NULL, NULL, NULL, NULL);
+}
+
 /* ---- sem mexer ---- */
 
 static void ficou_ocioso(void *d, struct ext_idle_notification_v1 *n) {
+	if (ha_inibidor()) {
+		/* alguém (um vídeo) pediu para não trancar: espera; ao soltar, a contagem recomeça */
+		ficou_ocioso_inibido = true;
+		return;
+	}
 	trancar();
 }
 
@@ -217,6 +358,7 @@ int main(void) {
 	}
 	g_free(pasta);
 
+	servico_ligar();
 	sistema = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
 	if (sistema) {
 		g_dbus_connection_signal_subscribe(sistema, "org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",

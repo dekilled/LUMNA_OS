@@ -95,6 +95,7 @@ struct wl_seat;
 struct wl_surface;
 bool gv__escrita_global(struct wl_registry *registo, uint32_t nome, const char *iface, uint32_t versao);
 void gv__escrita_iniciar(struct wl_display *display, struct wl_seat *seat, struct wl_surface *superficie);
+void gv__escrita_superficie(struct wl_surface *superficie); /* a principal mudou (o bloqueio passou para outra tela) */
 void gv__escrita_fim_do_quadro(void);
 /* O campo focado diz, a cada quadro, o que o teclado no ecrã deve saber dele. */
 void gv__campo_pede(const char *texto, int cursor, int ancora, Clay_BoundingBox cursor_caixa, uint32_t dica, uint32_t proposito);

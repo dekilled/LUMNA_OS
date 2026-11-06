@@ -12,6 +12,7 @@
 #define CAMINHO "/org/mpris/MediaPlayer2"
 
 static GDBusConnection *ligacao;
+static GMainContext *contexto; /* o da linha do mpris: os pedidos saem por ele (o da linha principal não roda, e a resposta nunca seria vista) */
 static GMutex trinco;
 static struct mpris_estado estado;
 static char nome_atual[256];
@@ -156,6 +157,7 @@ static gboolean rever(gpointer dados) {
 
 static gpointer linha(gpointer d) {
 	GMainContext *ctx = g_main_context_new();
+	contexto = ctx;
 	g_main_context_push_thread_default(ctx);
 	ligacao = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
 	if (!ligacao) {
@@ -192,19 +194,76 @@ int64_t mpris_posicao(const struct mpris_estado *e) {
 	return e->duracao_us > 0 && p > e->duracao_us ? e->duracao_us : p;
 }
 
+struct pedido_mpris {
+	char nome[256], metodo[32];
+	GVariant *params;
+};
+
+/* o resultado de um pedido: o que falha aparece no log (antes ia no vazio e o botão "não fazia nada"); e um player que recusa
+ * Play ou Pause (alguns só entendem PlayPause) leva o PlayPause no lugar */
+static void chamada_pronta(GObject *origem, GAsyncResult *r, gpointer dados) {
+	struct pedido_mpris *p = dados;
+	GError *erro = NULL;
+	GVariant *v = g_dbus_connection_call_finish(G_DBUS_CONNECTION(origem), r, &erro);
+	if (v) {
+		g_variant_unref(v);
+	} else {
+		fprintf(stderr, "mpris: %s em %s falhou: %s\n", p->metodo, p->nome, erro ? erro->message : "?");
+		if (!strcmp(p->metodo, "Play") || !strcmp(p->metodo, "Pause")) {
+			g_dbus_connection_call(ligacao, p->nome, CAMINHO, "org.mpris.MediaPlayer2.Player", "PlayPause", NULL, NULL,
+				G_DBUS_CALL_FLAGS_NONE, 1500, NULL, NULL, NULL);
+		}
+		g_clear_error(&erro);
+	}
+	g_free(p);
+}
+
+static gboolean chamar_na_linha(gpointer dados) {
+	struct pedido_mpris *p = dados;
+	GVariant *params = p->params;
+	p->params = NULL;
+	g_dbus_connection_call(ligacao, p->nome, CAMINHO, "org.mpris.MediaPlayer2.Player", p->metodo, params, NULL, G_DBUS_CALL_FLAGS_NONE,
+		1500, NULL, chamada_pronta, p);
+	return G_SOURCE_REMOVE;
+}
+
+static void chamar_em(const char *nome, const char *metodo, GVariant *params) {
+	if (!ligacao || !contexto || !nome[0]) {
+		if (params) {
+			g_variant_unref(g_variant_ref_sink(params));
+		}
+		return;
+	}
+	struct pedido_mpris *p = g_new0(struct pedido_mpris, 1);
+	snprintf(p->nome, sizeof(p->nome), "%s", nome);
+	snprintf(p->metodo, sizeof(p->metodo), "%s", metodo);
+	p->params = params;
+	g_main_context_invoke(contexto, chamar_na_linha, p);
+}
+
 static void chamar(const char *metodo) {
 	char nome[256];
 	g_mutex_lock(&trinco);
 	snprintf(nome, sizeof(nome), "%s", nome_atual);
 	g_mutex_unlock(&trinco);
-	if (ligacao && nome[0]) {
-		g_dbus_connection_call(ligacao, nome, CAMINHO, "org.mpris.MediaPlayer2.Player", metodo, NULL, NULL,
-			G_DBUS_CALL_FLAGS_NONE, 1000, NULL, NULL, NULL);
-	}
+	chamar_em(nome, metodo, NULL);
 }
 
+/* tocar ou pausar: pelo estado que se vê, com Play e Pause (o PlayPause de alguns players, como o Firefox com a janela escondida,
+ * depende do estado interno deles e às vezes não faz nada); o ícone e a posição se acertam já, sem esperar a próxima leitura */
 void mpris_tocar_pausar(void) {
-	chamar("PlayPause");
+	char nome[256];
+	g_mutex_lock(&trinco);
+	snprintf(nome, sizeof(nome), "%s", nome_atual);
+	bool tocava = estado.tocando;
+	if (estado.tem) {
+		estado.posicao_us = mpris_posicao(&estado);
+		estado.lida_us = g_get_monotonic_time();
+		estado.tocando = !tocava;
+	}
+	g_mutex_unlock(&trinco);
+	chamar_em(nome, tocava ? "Pause" : "Play", NULL);
+	avisar();
 }
 
 void mpris_proxima(void) {
@@ -220,8 +279,5 @@ void mpris_buscar(int64_t delta_us) {
 	g_mutex_lock(&trinco);
 	snprintf(nome, sizeof(nome), "%s", nome_atual);
 	g_mutex_unlock(&trinco);
-	if (ligacao && nome[0]) {
-		g_dbus_connection_call(ligacao, nome, CAMINHO, "org.mpris.MediaPlayer2.Player", "Seek", g_variant_new("(x)", delta_us), NULL,
-			G_DBUS_CALL_FLAGS_NONE, 1000, NULL, NULL, NULL);
-	}
+	chamar_em(nome, "Seek", g_variant_new("(x)", delta_us));
 }
