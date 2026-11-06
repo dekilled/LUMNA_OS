@@ -2,7 +2,7 @@
  * Os modos do desktop (Desktop, Gaming, Mídia): o estado vem do Orbit (orbit-msg modo) e a
  * configuração fica em ~/.config/lumna/modos.ini, que o Painel grava:
  *
- *   [geral]    layout = tela | estender       um modo por tela, ou todas as telas juntas
+ *   [geral]    (um "layout = ..." de antes é ignorado: cada tela tem sempre o seu modo)
  *              areas = 1 a 3                  quantos espaços de trabalho o Desktop usa
  *              ao_ligar = desktop|gaming|midia
  *   [desktop] [gaming] [midia]
@@ -31,7 +31,6 @@ struct modos_saida {
 
 struct modos_estado {
 	bool orbit; /* o Orbit respondeu */
-	bool estender;
 	int areas; /* quantos espaços o Desktop usa (1 a MODOS_AREAS_MAX) */
 	struct modos_saida saidas[MODOS_MAX_SAIDAS];
 	int n;
@@ -40,7 +39,6 @@ struct modos_estado {
 struct modos_cfg {
 	int ao_ligar;
 	int areas;
-	bool estender;
 	struct {
 		bool esconder_dock, nao_perturbe;
 	} m[MODO_N];
@@ -62,9 +60,8 @@ bool orbit_area_util(const char *saida, int *x, int *y, int *largura, int *altur
 int modos_em_foco(const struct modos_estado *e);
 /* o modo de uma saída pelo nome (-1 se não houver) */
 int modos_da_saida(const struct modos_estado *e, const char *saida);
-/* troca o modo (da saída dada, ou da em foco se NULL; todas, no layout "estender") */
+/* troca o modo (da saída dada, ou da em foco se NULL): só dela, as outras telas ficam como estão */
 bool modos_definir(int modo, const char *saida);
-bool modos_definir_layout(bool estender);
 /* os espaços de trabalho (com o modo e as janelas) de duas telas trocam de lugar: a TV em Mídia passa para o monitor e vice-versa */
 bool modos_trocar_telas(void);
 bool modos_definir_areas(int areas);              /* liga/desliga espaços do Desktop; as janelas dos desligados vão para o último */

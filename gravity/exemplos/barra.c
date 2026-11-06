@@ -630,23 +630,6 @@ static void menu_modo(void) {
 				gv_popup_fechar(CLAY_ID("menu-modo"));
 			}
 		}
-		if (modos_est.orbit && modos_est.n > 1) {
-			gv_separador(false, 0);
-			CLAY(CLAY_ID("md-ext"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 10, 10 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
-					gv_texto(CLAY_STRING("Estender o modo"), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_NORMAL);
-					gv_texto(CLAY_STRING("Todas as telas trocam juntas"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
-				}
-				bool ext = modos_est.estender;
-				if (gv_interruptor(CLAY_ID("md-ext-v"), &ext)) {
-					modos_definir_layout(ext);
-					struct modos_cfg c;
-					modos_cfg_ler(&c);
-					c.estender = ext;
-					modos_cfg_gravar(&c);
-				}
-			}
-		}
 		if (modos_est.orbit && modos_est.n > 1 && gv_menu_item(CLAY_ID("md-trocar"), "screens", "Trocar as telas de lugar", NULL)) {
 			modos_trocar_telas();
 			gv_popup_fechar(CLAY_ID("menu-modo"));

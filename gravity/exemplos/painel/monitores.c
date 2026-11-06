@@ -460,26 +460,15 @@ void pn_monitores_desenhar(void) {
 		gv_texto(gv_str(mensagem), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 	}
 	if (vivo.n > 1) {
-		/* "Estender" e "Por modo" são as duas formas de estender: o modo troca em todas as telas juntas, ou cada tela tem o seu (modos.ini layout) */
-		static const char *const disp_nomes[] = { "Estender", "Por modo (cada tela com o seu modo)", "Espelhar", "Só a da esquerda", "Só a da direita" };
-		struct modos_estado me;
-		modos_ler(&me);
-		int idx = disp_i == 0 ? (me.estender ? 0 : 1) : disp_i + 1;
+		/* o padrão é estender: um desktop contínuo nas telas. Cada tela tem sempre o seu modo: abrir a Mídia ou o Gaming numa só muda aquela */
+		static const char *const disp_nomes[] = { "Estender", "Espelhar", "Só a da esquerda", "Só a da direita" };
+		int idx = disp_i;
 		if (pn_ajuste_lista(CLAY_ID("mo-disp"), "screens", "Como usar as telas",
-			    "Estender: um desktop nas telas. Por modo: Mídia numa, Desktop noutra. Espelhar: o mesmo em todas", disp_nomes, 5, &idx)) {
-			if (idx <= 1) {
-				disp_i = 0;
-				struct modos_cfg c;
-				modos_cfg_ler(&c);
-				c.estender = idx == 0;
-				modos_cfg_gravar(&c);
-				modos_definir_layout(c.estender);
-			} else {
-				disp_i = idx - 1;
-			}
+			    "Estender: um desktop contínuo; a Mídia ou o Gaming numa tela só mudam aquela. Espelhar: o mesmo em todas", disp_nomes, 4, &idx)) {
+			disp_i = idx;
 			pn_gravar("disposicao.ini", gv_fmt("# Gravado pelo Painel de controle (Telas e modos > Monitores)\ndisposicao = %s\n", disp_chaves[disp_i]).chars);
 		}
-		if (idx == 1) {
+		if (idx == 0) {
 			pn_modos_por_tela();
 		}
 	}

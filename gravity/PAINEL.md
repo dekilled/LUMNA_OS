@@ -164,7 +164,7 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
   Falta: identificar cada tela piscando um número nela, e a tela principal no Orbit real (a chave
   `tela_principal` do `orbit.ini` hoje só vale no Orbit aninhado).
 - ⏳ Luz noturna;
-- ✅ Modos (Desktop, Gaming, Mídia): o modo ao ligar, estender o modo às telas (ou um por tela) e, por modo,
+- ✅ Modos (Desktop, Gaming, Mídia): o modo ao ligar, cada tela com o seu modo (a Mídia ou o Gaming numa só mudam aquela; sem nenhuma em modo especial, o Desktop estendido) e, por modo,
   esconder a dock e o "não perturbe" (`modos.ini`). A base está no Orbit (um espaço por modo e por saída:
   trocar nunca fecha nem move janela; `orbit-msg modo`, o evento `modo`, Super+Tab e Super+Shift+Tab);
   a topbar tem o seletor (o nome do modo), o `lumna-modos` mostra o seletor no meio da tela a cada troca, a
@@ -297,7 +297,7 @@ Cada peça vigia o seu arquivo em `~/.config/lumna/` e aplica na hora:
 | --- | --- | --- |
 | `telas.ini` | resolução, escala, rotação, posição e ligar ou desligar, uma seção por tela | Orbit |
 | `disposicao.ini` | `disposicao = estender \| espelhar \| esquerda \| direita` | Orbit |
-| `modos.ini` | `layout = tela \| estender`, o modo ao ligar, as áreas e o que cada modo faz | Orbit, dock e avisos |
+| `modos.ini` | o modo ao ligar, as áreas e o que cada modo faz (um `layout = ...` de antes é ignorado) | Orbit, dock e avisos |
 | `barra.ini` | segundos, data, áreas e `telas = principal \| todas \| nenhuma \| NOME,NOME` | barra |
 | `hora.ini` | o formato da hora (24 ou 12 horas) | barra e bloqueio |
 

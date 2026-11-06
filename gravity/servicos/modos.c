@@ -96,7 +96,6 @@ bool modos_ler(struct modos_estado *e) {
 		return false;
 	}
 	e->orbit = true;
-	e->estender = strstr(r, "\"layout\":\"estender\"") != NULL;
 	const char *ar = strstr(r, "\"areas\":");
 	e->areas = ar ? atoi(ar + 8) : MODOS_AREAS_MAX;
 	if (e->areas < 1 || e->areas > MODOS_AREAS_MAX) {
@@ -192,11 +191,6 @@ bool modos_trocar_telas(void) {
 	return pedir("trocar_telas", r, sizeof(r)) && strstr(r, "\"ok\":true");
 }
 
-bool modos_definir_layout(bool estender) {
-	char r[256];
-	return pedir(estender ? "modo_layout estender" : "modo_layout tela", r, sizeof(r)) && strstr(r, "\"ok\":true");
-}
-
 bool modos_definir_areas(int areas) {
 	char pedido[40], r[256];
 	snprintf(pedido, sizeof(pedido), "areas %d", areas);
@@ -268,9 +262,7 @@ void modos_cfg_ler(struct modos_cfg *c) {
 			*igual = '\0';
 			char *k = g_strstrip(s), *v = g_strstrip(igual + 1);
 			if (secao == -1) {
-				if (!strcmp(k, "layout")) {
-					c->estender = !strcmp(v, "estender");
-				} else if (!strcmp(k, "areas")) {
+				if (!strcmp(k, "areas")) {
 					c->areas = atoi(v) < 1 ? 1 : atoi(v) > MODOS_AREAS_MAX ? MODOS_AREAS_MAX : atoi(v);
 				} else if (!strcmp(k, "ao_ligar") && modos_de_id(v) >= 0) {
 					c->ao_ligar = modos_de_id(v);
@@ -291,7 +283,7 @@ void modos_cfg_ler(struct modos_cfg *c) {
 
 bool modos_cfg_gravar(const struct modos_cfg *c) {
 	GString *s = g_string_new("# Os modos do desktop (o Painel de controle grava este arquivo)\n[geral]\n");
-	g_string_append_printf(s, "layout = %s\nareas = %d\nao_ligar = %s\n", c->estender ? "estender" : "tela", c->areas, modos_id(c->ao_ligar));
+	g_string_append_printf(s, "areas = %d\nao_ligar = %s\n", c->areas, modos_id(c->ao_ligar));
 	for (int i = 0; i < MODO_N; i++) {
 		g_string_append_printf(s, "\n[%s]\nesconder_dock = %s\nnao_perturbe = %s\n", modos_id(i), c->m[i].esconder_dock ? "sim" : "nao",
 			c->m[i].nao_perturbe ? "sim" : "nao");

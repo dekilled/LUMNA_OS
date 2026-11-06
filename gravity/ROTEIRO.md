@@ -113,7 +113,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
   - [ ] Testar na máquina: a gravação com áudio
 - [x] Vários monitores no Orbit aninhado (dentro de outro desktop)
   - [x] Uma janela por monitor do desktop de fora, cada uma em tela cheia no seu; `tela_principal` e `telas_de_fora` no `orbit.ini`
-  - [x] A disposição das telas: estender, por modo, espelhar, só a da esquerda e só a da direita (`disposicao.ini`; Painel → Telas e modos → Monitores)
+  - [x] A disposição das telas: estender (cada tela com o seu modo), espelhar, só a da esquerda e só a da direita (`disposicao.ini`; Painel → Telas e modos → Monitores)
   - [x] O mouse no lugar certo em cada janela
   - [ ] Testar no KDE de verdade (foi testado num desktop de fora falso, com dois monitores)
 - [ ] O Orbit como a sessão do sistema, e não numa janela

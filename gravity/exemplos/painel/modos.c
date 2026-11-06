@@ -30,9 +30,6 @@ void pn_modos_aplicar(void) {
 	modos_cfg_ler(&atual);
 	cfg.areas = gravada.areas = atual.areas;
 	if (modos_cfg_gravar(&cfg)) {
-		if (cfg.estender != gravada.estender) {
-			modos_definir_layout(cfg.estender);
-		}
 		gravada = cfg;
 	}
 }
@@ -103,7 +100,7 @@ void pn_modos_desenhar(void) {
 			}
 		}
 	}
-	if (e.orbit && e.n > 1 && !e.estender) {
+	if (e.orbit && e.n > 1) {
 		pn_subtitulo(CLAY_ID("md-s0"), "Modo de cada tela");
 		pn_modos_por_tela();
 	}
@@ -113,9 +110,6 @@ void pn_modos_desenhar(void) {
 		nomes[i] = modos_nome(i);
 	}
 	pn_ajuste_lista(CLAY_ID("md-ligar"), "power", "Modo ao ligar", "O modo em que o desktop abre", nomes, MODO_N, &cfg.ao_ligar);
-	pn_linha_comecar(CLAY_ID("md-layout"), "screens", "Estender o modo às telas", "Desligado: cada tela tem o seu modo (Desktop numa, Gaming noutra)");
-	gv_interruptor(CLAY_ID("md-layout-v"), &cfg.estender);
-	pn_linha_acabar();
 	for (int m = 0; m < MODO_N; m++) {
 		pn_subtitulo(CLAY_IDI("md-t", (uint32_t)m), gv_fmt("Modo %s", modos_nome(m)).chars);
 		if (m == MODO_DESKTOP) {
