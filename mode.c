@@ -16,7 +16,7 @@
  *
  * Cada saída tem sempre o seu modo: trocar o modo de uma tela nunca mexe nas outras. O padrão é todas no Desktop, estendido;
  * abrir a Mídia ou o Gaming numa tela só muda aquela (as outras seguem estendidas entre si), e quando nenhuma está num modo especial o
- * Desktop estendido volta como era. Mídia e Gaming existem uma vez só: pedir um que outra tela tem leva o espaço dele para a tela pedida.
+ * Desktop estendido volta como era. Mídia e Gaming existem uma vez só: pedir um que outra tela tem troca as duas telas de lugar.
  * O modo ao ligar vem de ~/.config/lumna/modos.ini ([geral] ao_ligar). No telemóvel não há modos: fica sempre no Desktop.
  */
 
@@ -126,22 +126,6 @@ static struct orbit_output *mode_holder(struct orbit_server *server, struct orbi
 	return NULL;
 }
 
-/*
- * O Gaming e a Mídia existem uma vez só (a janela da Mídia é uma): quem pede um deles numa tela que
- * não o tem leva o espaço inteiro para ela, com as janelas, e a tela que o tinha volta ao Desktop dela.
- * Assim a Mídia abre na tela pedida e não "cola" na primeira que a teve.
- */
-static void mode_take(struct orbit_server *server, struct orbit_output *from, struct orbit_output *holder) {
-	struct orbit_view *view;
-	wl_list_for_each(view, &server->views, link) {
-		if (view->output == holder && view->tag == holder->tag) {
-			orbit_split_release(server, view);
-			orbit_view_set_output(view, from, true);
-		}
-	}
-	holder->tag = holder->desktop_tag;
-}
-
 /* troca o modo da saída dada (a em foco, se NULL): só dela, as outras ficam como estão */
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode) {
 	if (mode < 0 || mode >= ORBIT_MODES) {
@@ -153,19 +137,24 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	if (!is_mode_output(from)) {
 		return;
 	}
+	/*
+	 * O Gaming e a Mídia existem uma vez só (a janela da Mídia é uma). Pedir um que outra tela já tem TROCA as duas telas de lugar: a Mídia
+	 * (com as janelas) vai para a tela pedida, e o que a pedida tinha (o Desktop dela, com as janelas) vai para a que tinha a Mídia.
+	 */
 	struct orbit_output *holder = mode_holder(server, from, mode);
-	int tag = tag_of_mode(from, mode);
-	if (from->tag != tag) {
-		if (from->tag < ORBIT_TAGS) {
-			from->desktop_tag = from->tag;
-		}
-		from->tag = tag;
-	}
 	if (holder) {
-		mode_take(server, from, holder);
+		orbit_outputs_swap(server, from, holder);
+	} else {
+		int tag = tag_of_mode(from, mode);
+		if (from->tag != tag) {
+			if (from->tag < ORBIT_TAGS) {
+				from->desktop_tag = from->tag;
+			}
+			from->tag = tag;
+		}
+		orbit_arrange(server);
+		focus_top(server, from);
 	}
-	orbit_arrange(server);
-	focus_top(server, from);
 	write_mode_file(from->mode);
 	/* o seletor aparece mesmo se o modo já era esse (Super+Tab de novo), na saída que trocou */
 	setenv("LUMNA_SAIDA", from->wlr->name, 1);
