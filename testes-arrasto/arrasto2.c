@@ -10,6 +10,7 @@ static void anda(double dx, double dy) {
 int main(int argc, char **argv) {
 	if (!strcmp(argv[1], "casa")) { anda(-9000, -9000); return 0; }
 	if (!strcmp(argv[1], "mover")) { anda(atof(argv[2]), atof(argv[3])); return 0; }
+	if (!strcmp(argv[1], "clicar")) { ponteiro_botao(0, true); usleep(60000); ponteiro_botao(0, false); return 0; }
 	if (!strcmp(argv[1], "arrastar")) {
 		ponteiro_botao(0, true);
 		usleep(150000);

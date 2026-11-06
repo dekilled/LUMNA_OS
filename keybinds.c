@@ -263,8 +263,18 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 		orbit_outputs_swap_from(server, cursor_output(server));
 		break;
 	case ORBIT_MEDIA_MENU: {
+		/* o seletor de serviços é da tela que está em Mídia, onde quer que o cursor esteja (a TV passa o filme e o cursor fica no monitor) */
 		struct orbit_output *output = cursor_output(server);
-		if (output && output->mode == ORBIT_MODE_MEDIA) {
+		if (!output || output->mode != ORBIT_MODE_MEDIA) {
+			struct orbit_output *other;
+			output = NULL;
+			wl_list_for_each(other, &server->outputs, link) {
+				if (other->mode == ORBIT_MODE_MEDIA && !output_is_phone(other->wlr)) {
+					output = other;
+				}
+			}
+		}
+		if (output) {
 			spawn(server->media_menu);
 		}
 		break;
