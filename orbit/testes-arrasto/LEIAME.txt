@@ -1,0 +1,13 @@
+Arrastar uma janela de um monitor para o outro (Orbit aninhado). O KDE segura o mouse na janela em que o clique começou, então
+durante o arrasto as coordenadas passam das bordas (x > 1); input.c as trata como posição no layout. Para provar sem KDE:
+um Orbit "host" com um remendo que imita essa regra (enquanto há botão apertado, o movimento só vai para a janela de origem),
+o nested por cima, e arrasto.c (mouse virtual: aperta, anda e solta). Antes da correção o cursor do nested ficava no monitor
+de origem; depois, passa para o do lado.
+
+teste_alt.sh: segura Alt (wtype), agarra uma janela solta pela parte esquerda e a larga com o cursor na última coluna do monitor da esquerda.
+Antes da correção ela ficava no monitor de origem, encaixada na metade direita (o encaixe de borda armava numa borda que era a do vizinho);
+depois, passa para o outro monitor com o tamanho de antes. Uso: sh teste_alt.sh PASTA_DO_BUILD (precisa de weston-simple-shm e wtype).
+
+teste_borda.sh: como teste_alt.sh, com X de destino do cursor, DY, quanto fica parado antes de soltar (ms) e OFF= (onde agarra a janela, a partir da borda
+esquerda dela). Casos: zona da lateral (encaixa ao soltar), atravessar para o outro monitor (não encaixa), borda da janela encostando com o cursor longe
+(OFF=150, X=150), meio da tela (nada) e cima (maximiza). Uso: OFF=150 sh teste_borda.sh PASTA 150 0 100.

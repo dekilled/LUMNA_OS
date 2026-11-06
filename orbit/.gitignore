@@ -1,0 +1,6 @@
+# o que a compilação gera (regressao.sh e makefile.txt): nunca vai para o git
+/Makefile
+/orbit
+/orbit-msg
+/*-protocol.h
+/*-protocol.c
