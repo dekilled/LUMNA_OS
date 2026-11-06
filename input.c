@@ -125,7 +125,11 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 static void on_cursor_motion(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;
-	wlr_cursor_move(server->cursor, &event->pointer->base, event->delta_x, event->delta_y);
+	/* aninhado: o mouse está mapeado para a saída da janela de fora onde ele está (no movimento absoluto, abaixo), e esse mapeamento também
+	 * segurava o movimento relativo dentro dela: durante um arrasto o relativo puxava o cursor de volta para a borda do monitor, em cabo
+	 * de guerra com o absoluto. Sem dispositivo, o movimento vale no layout todo. */
+	struct wlr_input_device *dev = event->pointer->output_name ? NULL : &event->pointer->base;
+	wlr_cursor_move(server->cursor, dev, event->delta_x, event->delta_y);
 	process_cursor_motion(server, event->time_msec);
 }
 

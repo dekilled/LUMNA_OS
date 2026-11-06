@@ -241,13 +241,13 @@ Modos (Desktop, Gaming, Mídia)
 Cada saída tem um modo, e cada modo tem o seu espaço de trabalho (o Desktop usa de 1 a 3, quantos estiverem
 ligados; Gaming e Mídia, um próprio cada): trocar de modo nunca fecha nem move janela, e as de cada modo ficam onde estavam. O
 modo de uma saída é o espaço em que ela está, então trocar de espaço por fora (Alt+1, a dock) também
-mantém o modo certo. O layout "tela" troca só a saída em foco; "estender" troca todas juntas. Vêm do
-~/.config/lumna/modos.ini ([geral] layout = tela|estender, ao_ligar = desktop|gaming|midia). No telemóvel
+mantém o modo certo. Cada saída tem sempre o seu modo: trocar o de uma tela não mexe nas outras (o padrão é
+todas no Desktop, estendido; só a tela onde se abre a Mídia ou o Gaming muda, e sem nenhuma em modo especial o Desktop
+estendido volta). Vem do ~/.config/lumna/modos.ini ([geral] ao_ligar = desktop|gaming|midia). No telemóvel
 não há modos.
   orbit-msg saidas                         inclui "util": a área que sobra depois da barra e da dock
-  orbit-msg modo                           o modo de cada saída (e o espaço do Desktop dela), o layout e "areas"
+  orbit-msg modo                           o modo de cada saída (e o espaço do Desktop dela) e "areas"
   orbit-msg modo gaming [SAIDA]            troca (seguinte e anterior também)
-  orbit-msg modo_layout estender           todas as saídas juntas
   orbit-msg areas [N]                      quantos espaços o Desktop usa (1-3); as janelas dos desligados
                                            vão para o último que ficou ligado
   [geral] areas = 3                        o mesmo, em modos.ini

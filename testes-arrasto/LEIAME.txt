@@ -3,3 +3,7 @@ durante o arrasto as coordenadas passam das bordas (x > 1); input.c as trata com
 um Orbit "host" com um remendo que imita essa regra (enquanto há botão apertado, o movimento só vai para a janela de origem),
 o nested por cima, e arrasto.c (mouse virtual: aperta, anda e solta). Antes da correção o cursor do nested ficava no monitor
 de origem; depois, passa para o do lado.
+
+teste_alt.sh: segura Alt (wtype), agarra uma janela solta pela parte esquerda e a larga com o cursor na última coluna do monitor da esquerda.
+Antes da correção ela ficava no monitor de origem, encaixada na metade direita (o encaixe de borda armava numa borda que era a do vizinho);
+depois, passa para o outro monitor com o tamanho de antes. Uso: sh teste_alt.sh PASTA_DO_BUILD (precisa de weston-simple-shm e wtype).

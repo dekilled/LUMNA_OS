@@ -296,6 +296,19 @@ void orbit_move_begin(struct orbit_server *server, struct orbit_view *view) {
 }
 
 /* o cursor mexeu a arrastar: a janela segue, e nas bordas aparece a prévia do encaixe */
+/* há outra saída ligada logo depois desta borda (dx, dy: de que lado)? Olha dois pontos, perto dos cantos, para um monitor menor ao lado também contar */
+static bool output_beyond(struct orbit_server *server, const struct wlr_box *box, int dx, int dy) {
+	for (int k = 0; k < 3; k++) {
+		double frac = k == 0 ? 0.1 : k == 1 ? 0.5 : 0.9;
+		double px = dx < 0 ? box->x - 1 : dx > 0 ? box->x + box->width : box->x + box->width * frac;
+		double py = dy < 0 ? box->y - 1 : dy > 0 ? box->y + box->height : box->y + box->height * frac;
+		if (wlr_output_layout_output_at(server->layout, px, py)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void orbit_move_motion(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
 	struct orbit_output *sob = output_at(server, server->cursor->x, server->cursor->y);
@@ -318,11 +331,13 @@ void orbit_move_motion(struct orbit_server *server) {
 	struct wlr_box full;
 	wlr_output_layout_get_box(server->layout, output->wlr, &full);
 	double x = server->cursor->x, y = server->cursor->y;
-	if (x <= full.x + ORBIT_SNAP_EDGE) {
+	/* só se encaixa na borda que é o fim do desktop: com outro monitor do lado, a borda é por onde a janela passa (o encaixe de meia
+	 * tela armava no instante da travessia e a janela grudava na borda em vez de ir para o outro monitor) */
+	if (x <= full.x + ORBIT_SNAP_EDGE && !output_beyond(server, &full, -1, 0)) {
 		server->snap_pending = 1;
-	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_EDGE) {
+	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_EDGE && !output_beyond(server, &full, 1, 0)) {
 		server->snap_pending = 2;
-	} else if (y <= full.y + ORBIT_SNAP_EDGE) {
+	} else if (y <= full.y + ORBIT_SNAP_EDGE && !output_beyond(server, &full, 0, -1)) {
 		server->snap_pending = 3;
 	}
 	if (!server->snap_pending) {
@@ -354,6 +369,23 @@ void orbit_move_end(struct orbit_server *server) {
 		return;
 	}
 	struct orbit_output *dest = output_at(server, server->cursor->x, server->cursor->y);
+	/* o cursor pode ficar parado na borda do monitor (o compositor de fora segura o mouse na janela do clique) com a janela já quase toda
+	 * do outro lado: vale a saída que cobre a maior parte da janela, e não o pixel em que o cursor ficou */
+	if (dest && !snap) {
+		struct wlr_box jan = { view->x, view->y, view->w > 0 ? view->w : 1, view->h > 0 ? view->h : 1 };
+		struct orbit_output *o, *maior = dest;
+		long area_maior = 0;
+		wl_list_for_each(o, &server->outputs, link) {
+			struct wlr_box ob, inter;
+			wlr_output_layout_get_box(server->layout, o->wlr, &ob);
+			long area = wlr_box_intersection(&inter, &jan, &ob) ? (long)inter.width * inter.height : 0;
+			if (area > area_maior && (o == dest || !orbit_output_isolated(o))) {
+				area_maior = area;
+				maior = o;
+			}
+		}
+		dest = maior;
+	}
 	if (dest && dest != view->output && !orbit_output_isolated(dest) && !orbit_view_isolated(view)) {
 		orbit_split_release(server, view);
 		orbit_view_set_output(view, dest, false); /* largada com o mouse: já está no lugar */

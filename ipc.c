@@ -407,7 +407,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			}
 		}
 		struct orbit_output *output;
-		put(b, "{\"ok\":true,\"layout\":\"%s\",\"areas\":%d,\"saidas\":[", server->mode_extend ? "estender" : "tela", server->areas);
+		put(b, "{\"ok\":true,\"areas\":%d,\"saidas\":[", server->areas);
 		bool first = true;
 		struct orbit_output *under = cursor_output(server);
 		wl_list_for_each_reverse(output, &server->outputs, link) {
@@ -418,13 +418,6 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			first = false;
 		}
 		put(b, "]}");
-	} else if (!strcmp(cmd, "modo_layout")) {
-		if (!arg1 || (strcmp(arg1, "tela") && strcmp(arg1, "estender"))) {
-			fail(b, "uso: modo_layout tela|estender");
-			return;
-		}
-		orbit_mode_set_extend(server, !strcmp(arg1, "estender"));
-		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "areas")) {
 		/* areas [1-3]: quantos espaços o Desktop usa; o que estava nos desligados passa para o último */
 		if (arg1) {
@@ -752,7 +745,7 @@ void orbit_ipc_sync(struct orbit_server *server) {
 				struct ipc_buf b = { 0 };
 				put(&b, "{\"evento\":\"modo\",\"saida\":");
 				put_str(&b, output->wlr->name);
-				put(&b, ",\"modo\":\"%s\",\"layout\":\"%s\"}", orbit_mode_name(output->mode), server->mode_extend ? "estender" : "tela");
+				put(&b, ",\"modo\":\"%s\"}", orbit_mode_name(output->mode));
 				broadcast(&b);
 				free(b.data);
 			}

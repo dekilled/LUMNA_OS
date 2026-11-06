@@ -271,7 +271,6 @@ struct orbit_server {
 	char brightness_down[ORBIT_CMD_LEN];
 	char mode_osd[ORBIT_CMD_LEN]; /* o seletor que aparece ao trocar de modo */
 	int areas;                    /* quantos espaços do Desktop estão ligados (1 a ORBIT_TAGS) */
-	bool mode_extend;             /* os modos trocam em todas as saídas juntas */
 	int mode_boot;                /* o modo da primeira saída ao ligar */
 	bool mode_booted;
 	char launcher[ORBIT_CMD_LEN];
@@ -545,7 +544,6 @@ bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, str
 bool orbit_outputs_swap_from(struct orbit_server *server, struct orbit_output *from);
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode);
 void orbit_mode_step(struct orbit_server *server, int dir);
-void orbit_mode_set_extend(struct orbit_server *server, bool extend);
 void orbit_mode_config_load(struct orbit_server *server);
 void orbit_mode_init_output(struct orbit_server *server, struct orbit_output *output);
 /* float.c: as janelas livres do desktop */

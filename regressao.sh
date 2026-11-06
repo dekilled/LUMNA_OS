@@ -28,6 +28,8 @@ if [ -n "$PKGS" ]; then
 	run=$(mktemp -d)
 	chmod 700 "$run"
 	mkdir -p "$run/cfg/lumna"
+	# um modos.ini de antes, com o "layout = estender" que juntava os modos de todas as telas: agora é ignorado
+	printf '[geral]\nlayout = estender\nao_ligar = desktop\n' >"$run/cfg/lumna/modos.ini"
 	XDG_CONFIG_HOME="$run/cfg" XDG_RUNTIME_DIR=$run WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=2 WLR_RENDERER=pixman ./orbit >"$run/log" 2>&1 &
 	pid=$!
 	sock=
@@ -54,6 +56,18 @@ if [ -n "$PKGS" ]; then
 		printf '[HEADLESS-2]\nligada=1\n' >"$run/cfg/lumna/t.tmp" && mv "$run/cfg/lumna/t.tmp" "$run/cfg/lumna/telas.ini"
 		sleep 1
 		./orbit-msg -s "$sock" saidas | grep -q '"ligada":false' && { echo "a saída não voltou a ligar" >&2; ok=0; }
+		# cada tela tem sempre o seu modo: a Mídia numa não mexe na outra, e sem nenhuma em modo especial é tudo Desktop de novo
+		./orbit-msg -s "$sock" modo midia HEADLESS-1 >/dev/null
+		sleep 0.5
+		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-1","modo":"midia"' || { echo "a Mídia não ligou na tela pedida" >&2; ok=0; }
+		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-2","modo":"desktop"' || { echo "a Mídia numa tela mexeu na outra" >&2; ok=0; }
+		./orbit-msg -s "$sock" modo gaming HEADLESS-2 >/dev/null
+		sleep 0.5
+		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-1","modo":"midia"' || { echo "o Gaming numa tela tirou a outra da Mídia" >&2; ok=0; }
+		./orbit-msg -s "$sock" modo desktop HEADLESS-1 >/dev/null
+		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-2","modo":"gaming"' || { echo "voltar ao Desktop numa tela mexeu na outra" >&2; ok=0; }
+		./orbit-msg -s "$sock" modo desktop HEADLESS-2 >/dev/null
+		./orbit-msg -s "$sock" modo | grep -q '"modo":"midia"\|"modo":"gaming"' && { echo "sem nenhuma tela em modo especial devia ser tudo Desktop" >&2; ok=0; }
 	fi
 	kill "$pid" 2>/dev/null || true
 	wait "$pid" 2>/dev/null || true

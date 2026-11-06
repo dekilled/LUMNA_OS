@@ -14,9 +14,9 @@
  * uma saída é só o espaço em que ela está (output->tag), então trocar de espaço por fora (o
  * foreign-toplevel da dock, Alt+1) mantém o modo certo, e o evento "modo" sai de qualquer jeito.
  *
- * Layout: "tela" (um modo por tela: só a saída em foco troca) ou "estender" (todas trocam juntas).
- * Vem de ~/.config/lumna/modos.ini ([geral] layout e ao_ligar) e muda em voo com `orbit-msg modo_layout`.
- * No telemóvel não há modos: fica sempre no Desktop.
+ * Cada saída tem sempre o seu modo: trocar o modo de uma tela nunca mexe nas outras. O padrão é todas no Desktop, estendido;
+ * abrir a Mídia ou o Gaming numa tela só muda aquela, e quando nenhuma está num modo especial o Desktop estendido volta como era.
+ * O modo ao ligar vem de ~/.config/lumna/modos.ini ([geral] ao_ligar). No telemóvel não há modos: fica sempre no Desktop.
  */
 
 static const char *const nomes[ORBIT_MODES] = { "desktop", "gaming", "midia" };
@@ -111,7 +111,7 @@ static bool is_mode_output(struct orbit_output *output) {
 	return output && !output_is_phone(output->wlr);
 }
 
-/* troca o modo: da saída dada (a em foco, se NULL) ou de todas, no layout "estender" */
+/* troca o modo da saída dada (a em foco, se NULL): só dela */
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode) {
 	if (mode < 0 || mode >= ORBIT_MODES) {
 		return;
@@ -122,25 +122,15 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	if (!is_mode_output(from)) {
 		return;
 	}
-	struct orbit_output *output;
-	wl_list_for_each(output, &server->outputs, link) {
-		if (!is_mode_output(output) || (server->mode_extend ? false : output != from)) {
-			continue;
+	int tag = tag_of_mode(from, mode);
+	if (from->tag != tag) {
+		if (from->tag < ORBIT_TAGS) {
+			from->desktop_tag = from->tag;
 		}
-		int tag = tag_of_mode(output, mode);
-		if (output->tag != tag) {
-			if (output->tag < ORBIT_TAGS) {
-				output->desktop_tag = output->tag;
-			}
-			output->tag = tag;
-		}
+		from->tag = tag;
 	}
 	orbit_arrange(server);
-	wl_list_for_each(output, &server->outputs, link) {
-		if (is_mode_output(output) && (server->mode_extend || output == from)) {
-			focus_top(server, output);
-		}
-	}
+	focus_top(server, from);
 	write_mode_file(from->mode);
 	/* o seletor aparece mesmo se o modo já era esse (Super+Tab de novo), na saída que trocou */
 	setenv("LUMNA_SAIDA", from->wlr->name, 1);
@@ -154,17 +144,6 @@ void orbit_mode_step(struct orbit_server *server, int dir) {
 		return;
 	}
 	orbit_mode_set(server, from, (from->mode + dir + ORBIT_MODES) % ORBIT_MODES);
-}
-
-void orbit_mode_set_extend(struct orbit_server *server, bool extend) {
-	server->mode_extend = extend;
-	if (extend) {
-		/* juntar: todas seguem a saída em foco */
-		struct orbit_output *from = cursor_output(server);
-		if (is_mode_output(from)) {
-			orbit_mode_set(server, from, from->mode);
-		}
-	}
 }
 
 /*
@@ -194,9 +173,8 @@ void orbit_areas_set(struct orbit_server *server, int count) {
 	orbit_arrange(server);
 }
 
-/* ~/.config/lumna/modos.ini: [geral] layout = tela|estender, ao_ligar = desktop|gaming|midia, areas = 1-3 */
+/* ~/.config/lumna/modos.ini: [geral] ao_ligar = desktop|gaming|midia, areas = 1-3 (um "layout" de antes é ignorado) */
 void orbit_mode_config_load(struct orbit_server *server) {
-	server->mode_extend = false;
 	server->mode_boot = ORBIT_MODE_DESKTOP;
 	server->areas = ORBIT_TAGS;
 	const char *config = getenv("XDG_CONFIG_HOME");
@@ -237,9 +215,7 @@ void orbit_mode_config_load(struct orbit_server *server) {
 			value++;
 		}
 		value[strcspn(value, " \t\r\n")] = '\0';
-		if (!strcmp(key, "layout")) {
-			server->mode_extend = !strcmp(value, "estender");
-		} else if (!strcmp(key, "ao_ligar")) {
+		if (!strcmp(key, "ao_ligar")) {
 			int m = orbit_mode_parse(value);
 			server->mode_boot = m >= 0 ? m : ORBIT_MODE_DESKTOP;
 		}
