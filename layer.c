@@ -71,7 +71,10 @@ static void layer_unmap(struct wl_listener *listener, void *data) {
 static void layer_commit(struct wl_listener *listener, void *data) {
 	struct orbit_layer *layer = wl_container_of(listener, layer, commit);
 	if (!layer->surface->output) {
-		struct orbit_output *output = cursor_output(layer->server);
+		struct orbit_output *output = orbit_output_for_layer(layer->server, layer->surface->namespace);
+		if (!output) {
+			output = cursor_output(layer->server);
+		}
 		if (output) {
 			layer->surface->output = output->wlr;
 		}
@@ -272,7 +275,10 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, new_layer_surface);
 	struct wlr_layer_surface_v1 *surface = data;
 	if (!surface->output) {
-		struct orbit_output *output = cursor_output(server);
+		struct orbit_output *output = orbit_output_for_layer(server, surface->namespace);
+		if (!output) {
+			output = cursor_output(server);
+		}
 		if (!output) {
 			wlr_log(WLR_ERROR, "camada sem saída");
 			wlr_layer_surface_v1_destroy(surface);

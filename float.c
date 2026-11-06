@@ -1,5 +1,7 @@
 #include "orbit.h"
 
+#include <time.h>
+
 #include <stdlib.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/edges.h>
@@ -18,6 +20,7 @@
 #define ORBIT_MIN_W 240
 #define ORBIT_MIN_H 160
 #define ORBIT_SNAP_EDGE 2 /* px da borda da saída que fazem o gatilho */
+#define ORBIT_SNAP_DWELL_MS 400 /* na borda entre dois monitores o encaixe só arma se o cursor ficar parado nela: passar direto atravessa */
 
 /* o tamanho da janela que o cliente diz (no 0.19 passou a um campo) */
 static struct wlr_box client_geometry(struct orbit_view *view) {
@@ -309,6 +312,23 @@ static bool output_beyond(struct orbit_server *server, const struct wlr_box *box
 	return false;
 }
 
+static uint32_t snap_now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
+void orbit_move_motion(struct orbit_server *server);
+
+/* o cursor ficou parado na borda entre dois monitores: vale como encaixe (a janela segue agarrada) */
+static int snap_dwell_tick(void *data) {
+	struct orbit_server *server = data;
+	if (server->grabbed && server->cursor_mode == ORBIT_CURSOR_MOVE) {
+		orbit_move_motion(server);
+	}
+	return 0;
+}
+
 void orbit_move_motion(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
 	struct orbit_output *sob = output_at(server, server->cursor->x, server->cursor->y);
@@ -331,14 +351,40 @@ void orbit_move_motion(struct orbit_server *server) {
 	struct wlr_box full;
 	wlr_output_layout_get_box(server->layout, output->wlr, &full);
 	double x = server->cursor->x, y = server->cursor->y;
-	/* só se encaixa na borda que é o fim do desktop: com outro monitor do lado, a borda é por onde a janela passa (o encaixe de meia
-	 * tela armava no instante da travessia e a janela grudava na borda em vez de ir para o outro monitor) */
-	if (x <= full.x + ORBIT_SNAP_EDGE && !output_beyond(server, &full, -1, 0)) {
-		server->snap_pending = 1;
-	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_EDGE && !output_beyond(server, &full, 1, 0)) {
-		server->snap_pending = 2;
-	} else if (y <= full.y + ORBIT_SNAP_EDGE && !output_beyond(server, &full, 0, -1)) {
-		server->snap_pending = 3;
+	/* Na borda que é o fim do desktop o encaixe arma na hora. Na que tem outro monitor do lado ela é por onde a janela passa: só arma se o
+	 * cursor ficar parado nela (ORBIT_SNAP_DWELL_MS); passando direto a janela atravessa e não gruda (antes armava no instante da travessia). */
+	int edge = 0;
+	bool shared = false;
+	if (x <= full.x + ORBIT_SNAP_EDGE) {
+		edge = 1;
+		shared = output_beyond(server, &full, -1, 0);
+	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_EDGE) {
+		edge = 2;
+		shared = output_beyond(server, &full, 1, 0);
+	} else if (y <= full.y + ORBIT_SNAP_EDGE) {
+		edge = 3;
+		shared = output_beyond(server, &full, 0, -1);
+	}
+	if (edge && shared) {
+		uint32_t now = snap_now_ms();
+		if (server->snap_dwell_edge != edge || server->snap_dwell_output != output) {
+			server->snap_dwell_edge = edge;
+			server->snap_dwell_output = output;
+			server->snap_dwell_since = now;
+		}
+		if (now - server->snap_dwell_since >= ORBIT_SNAP_DWELL_MS) {
+			server->snap_pending = edge;
+		} else if (server->display) {
+			if (!server->snap_dwell_timer) {
+				server->snap_dwell_timer = wl_event_loop_add_timer(wl_display_get_event_loop(server->display), snap_dwell_tick, server);
+			}
+			if (server->snap_dwell_timer) {
+				wl_event_source_timer_update(server->snap_dwell_timer, ORBIT_SNAP_DWELL_MS - (int)(now - server->snap_dwell_since) + 5);
+			}
+		}
+	} else {
+		server->snap_dwell_edge = 0;
+		server->snap_pending = edge;
 	}
 	if (!server->snap_pending) {
 		preview(server, NULL);
@@ -360,6 +406,7 @@ void orbit_move_motion(struct orbit_server *server) {
 void orbit_move_end(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
 	int snap = server->snap_pending;
+	server->snap_dwell_edge = 0;
 	server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
 	server->grabbed = NULL;
 	server->snap_pending = 0;

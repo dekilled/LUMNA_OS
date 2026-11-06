@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
 		ponteiro_botao(0, true);
 		usleep(150000);
 		anda(atof(argv[2]), atof(argv[3]));
-		usleep(300000);
+		usleep(argc > 4 ? atoi(argv[4]) * 1000 : 300000); /* quanto fica parado no fim, antes de soltar (ms) */
 		ponteiro_botao(0, false);
 		return 0;
 	}

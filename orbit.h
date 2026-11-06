@@ -256,6 +256,10 @@ struct orbit_server {
 	uint32_t resize_edges;
 	int snap_pending;       /* a arrastar, na borda: 1 esquerda, 2 direita, 3 maximizar */
 	struct wlr_scene_rect *snap_preview;
+	int snap_dwell_edge;    /* a arrastar numa borda compartilhada com outro monitor: a borda (1/2/3) e há quanto tempo o cursor está nela */
+	struct orbit_output *snap_dwell_output;
+	uint32_t snap_dwell_since;
+	struct wl_event_source *snap_dwell_timer;
 	int master_pct;
 	int gap;
 	float phone_scale;
@@ -544,6 +548,7 @@ bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, str
 bool orbit_outputs_swap_from(struct orbit_server *server, struct orbit_output *from);
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode);
 void orbit_mode_step(struct orbit_server *server, int dir);
+struct orbit_output *orbit_output_for_layer(struct orbit_server *server, const char *app_id);
 void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, int dir);
 void orbit_mode_config_load(struct orbit_server *server);
 void orbit_mode_init_output(struct orbit_server *server, struct orbit_output *output);

@@ -301,6 +301,22 @@ static int family_mode(const char *app_id) {
 	return -1;
 }
 
+/* a tela de uma camada (a capa "Abrindo" da Mídia, o seletor de serviços) que não pediu uma: a do modo dela, não a do cursor, que pode
+ * já ter passado para o outro monitor; NULL se não é de um modo */
+struct orbit_output *orbit_output_for_layer(struct orbit_server *server, const char *app_id) {
+	int mode = family_mode(app_id);
+	struct orbit_output *output;
+	if (mode < 0) {
+		return NULL;
+	}
+	wl_list_for_each(output, &server->outputs, link) {
+		if (output->mode == mode && !output_is_phone(output->wlr)) {
+			return output;
+		}
+	}
+	return NULL;
+}
+
 struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id) {
 	struct orbit_output *cursor = cursor_output(server);
 	int mode = family_mode(app_id);
