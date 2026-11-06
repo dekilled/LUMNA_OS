@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (4 de novembro de 2026, contado no código):** 62 de 74 páginas prontas e 12 ainda só o esqueleto
+**Em números (6 de novembro de 2026, contado no código):** todas as páginas que existem estão prontas, menos o Teclado na tela (ainda só o esqueleto); VPN, Ponto de acesso e Receber arquivos estão no plano, mas ainda nem têm página
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -163,7 +163,7 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
   direita. No Orbit aninhado a tela "desligada" fica preta, porque uma janela de outro sistema não se desliga.
   Falta: identificar cada tela piscando um número nela, e a tela principal no Orbit real (a chave
   `tela_principal` do `orbit.ini` hoje só vale no Orbit aninhado).
-- ⏳ Luz noturna;
+- ✅ Luz noturna: desligada, sempre ou num horário (a luz esquenta e volta aos poucos, 30 min em cada ponta), de 2500 a 6000 K. O `lumna-luz` aplica pela gama da tela (`wlr-gamma-control`); só um programa de cor controla a tela por vez. Testado: a matemática, o horário e o daemon contra o Orbit headless (que não tem gama); falta ver na tela de verdade;
 - ✅ Modos (Desktop, Gaming, Mídia): o modo ao ligar, cada tela com o seu modo (a Mídia ou o Gaming numa só mudam aquela; sem nenhuma em modo especial, o Desktop estendido; cada barra mostra e troca o modo da PRÓPRIA tela, e a Mídia/Gaming existem numa tela só por vez: pedida noutra, as duas telas trocam de lugar) e, por modo,
   esconder a dock e o "não perturbe" (`modos.ini`). A base está no Orbit (um espaço por modo e por saída:
   trocar nunca fecha nem move janela; `orbit-msg modo`, o evento `modo`, Super+Tab e Super+Shift+Tab);
@@ -173,9 +173,8 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 - ✅ Áreas de trabalho: quantas o Desktop usa (de 1 a 3) e o papel de parede de cada uma; a troca entre elas desliza.
 
 **Som**
-- 🔨 Saída, Entrada e Apps: o `mixer` e a topbar já controlam o volume pelo PipeWire (`servicos/som.c`); as três
-  páginas do Painel ainda são esqueleto, e é para elas que o `mixer` vai passar.
-- 🔨 Sons do sistema.
+- ✅ Saída, Entrada e Apps (pelo PipeWire, `servicos/som.c`);
+- ✅ Sons do sistema: o som dos avisos (normal, crítico, por app) e o volume deles; o `lumna-avisos` toca e respeita o `suppress-sound`.
 
 **LUMNA Connect**
 - ✅ Pareamento: a chave geral do Connect, o código (vale uma vez e tem validade) e os endereços para digitar no app, e os
@@ -199,8 +198,8 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
 - ✅ Importar do harness: traz conversas, memórias e a personalidade de um backup;
 - ✅ Perfis SFW e NSFW: um prompt para cada perfil na Personalidade, e o PIN e o botão na topbar para entrar no NSFW;
 - ⏳ Voz com Fish Audio e voz local, Embeddings e Permissões das ações: as outras telas do harness, na sequência;
-- ⏳ Privacidade;
-- ⏳ Automações.
+- ✅ Privacidade: quanto a Emma guarda (conversas do Chat, conversas da popup, memórias dos projetos) e apagar cada coisa, sempre com confirmação;
+- ✅ Automações: os lembretes que a Emma agenda quando você pede; ver e cancelar (com confirmação).
 
 ### Inicialização (a aba nova)
 
@@ -317,7 +316,7 @@ como se fosse uma tela.
    - Barra superior;
    - Tela de bloqueio.
 3. ✅ Inicialização (as 4 páginas: Ao entrar, Apps ao iniciar, Entrada e Em segundo plano; falta testar na máquina de verdade).
-4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade. Falta o Teclado na tela.
+4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade, Usuários, Sons. Falta só o Teclado na tela (o Gravity ainda não tem teclado virtual).
 5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do LUMNA Connect; falta o
    Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).
 6. As ⏳, à medida que os serviços entram: o NetworkManager e o BlueZ já entraram; falta o UPower (Energia).

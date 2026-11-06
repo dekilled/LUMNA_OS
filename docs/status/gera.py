@@ -11,7 +11,7 @@ O resultado também vai para o artefato (a página publicada). Regras da casa:
 import html, os, sys
 E = html.escape
 AQUI = os.path.dirname(os.path.abspath(__file__))
-HOJE = "5 de novembro de 2026"
+HOJE = "6 de novembro de 2026"
 
 # ---------------------------------------------------------------------------------------------------------- O PAINEL
 # (contagem feita lendo gravity/exemplos/painel: página sem função de desenho = esqueleto)
@@ -20,22 +20,22 @@ painel = [
   ("Aparência", ["Tema","Cores","Papel de parede","Dock","Barra superior","Tela de bloqueio","Tamanho e textos"], []),
   ("Rede e internet", ["Wi-Fi","Cabo","Adaptadores","Várias conexões","Proxy"], ["VPN","Ponto de acesso"]),
   ("Bluetooth", ["Dispositivos","Nome e visibilidade"], ["Receber arquivos"]),
-  ("Aplicativos", ["Instalados","Atualizações"], ["Apps padrão","Permissões"]),
-  ("Telas e modos", ["Monitores","Modos","Áreas de trabalho"], ["Luz noturna"]),
-  ("Som", ["Saída","Entrada","Apps"], ["Sons do sistema"]),
+  ("Aplicativos", ["Instalados","Atualizações","Apps padrão","Permissões"], []),
+  ("Telas e modos", ["Monitores","Luz noturna","Modos","Áreas de trabalho"], []),
+  ("Som", ["Saída","Entrada","Apps","Sons do sistema"], []),
   ("LUMNA Connect", ["Pareamento","Área de transferência","Avisos do celular","Arquivos"], []),
-  ("Emma", ["Oi Emma","Provedores","Roteamento","Personalidade","Recursos","Servidores MCP","Importar do harness","Voz"], ["Privacidade","Automações"]),
+  ("Emma", ["Voz","Oi Emma","Provedores","Roteamento","Personalidade","Recursos","Servidores MCP","Importar do harness","Privacidade","Automações"], []),
  ]),
- ("Inicialização", [("Inicialização", [], ["Ao entrar","Apps ao iniciar","Entrada","Em segundo plano"])]),
+ ("Inicialização", [("Inicialização", ["Ao entrar","Apps ao iniciar","Entrada","Em segundo plano"], [])]),
  ("Sistema", [
   ("Sobre", ["Este computador","Atualizações do sistema","Avisos legais"], []),
   ("Armazenamento", ["Uso do disco","Limpeza","Discos e pendrives"], []),
-  ("Energia", [], ["Perfil de energia","Bateria","Tela e suspensão","Botão de ligar"]),
+  ("Energia", ["Perfil de energia","Bateria","Tela e suspensão","Botão de ligar"], []),
   ("Teclado e mouse", ["Teclado","Atalhos","Mouse e touchpad"], ["Teclado na tela"]),
   ("Data e hora", ["Data e hora","Fuso horário","Formato"], []),
-  ("Idioma e região", [], ["Idioma","Formatos regionais","Métodos de entrada"]),
-  ("Usuários", [], ["Sua conta","Senha e PIN","Outros usuários"]),
-  ("Privacidade", [], ["Permissões dos apps","Histórico e recentes","Diagnóstico"]),
+  ("Idioma e região", ["Idioma","Formatos regionais","Métodos de entrada"], []),
+  ("Usuários", ["Sua conta","Senha e PIN","Outros usuários"], []),
+  ("Privacidade", ["Permissões dos apps","Histórico e recentes","Diagnóstico"], []),
   ("Desenvolvedor", ["Desenvolvedor"], []),
  ]),
 ]
@@ -51,8 +51,8 @@ areas = [
   "Você confirmou: janelas por monitor, tela cheia e o mouse no lugar."),
  ("Mídia", "and", "Início, seletor, controle pelo celular, nunca dois vídeos juntos e o YouTube em formato de TV.",
   "Você confirmou: extensão, login do Google e os botões do controle no YouTube de desktop. Falta o YouTube TV e a Netflix."),
- ("Painel de controle", "and", f"{tot_ok} de {tot} páginas prontas ({pct}%). As outras {tot_sk} são esqueleto, com a lista do que vão ter.",
-  "Rede e Bluetooth foram testados com simulação."),
+ ("Painel de controle", "and", f"{tot_ok} de {tot} páginas prontas ({pct}%). Falta o Teclado na tela (esqueleto) e três páginas planejadas que ainda nem existem.",
+  "Tudo foi testado com simulação e com o Orbit sem tela (headless); em máquina de verdade ainda não: gama da Luz noturna, perfil automático da bateria, a senha de administrador (polkit) e o idioma do sistema."),
  ("Emma", "and", "Servidor, assistente, arquivos e comandos, código, perfis SFW e NSFW, imagens e visão, Oi Emma, histórias e MCP.",
   "Você confirmou o PIN do perfil NSFW. Imagens, MCP, Oi Emma e a voz: sem confirmação sua."),
  ("Telas e monitores", "sim", "Estender, por modo, espelhar, só a da esquerda ou da direita, topbar por monitor e o botão de tela cheia.",
@@ -68,7 +68,7 @@ lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("
 # ------------------------------------------------------------------------------------------------------ O FIO DA MEADA
 timeline = [
  ("A base", "Gravity (a biblioteca de interface), Orbit (o compositor) e as peças do desktop: papel de parede, topbar, dock, lançador, avisos, bloqueio e login.", "feito"),
- ("O Painel de controle", "Aparência, Rede, Bluetooth, Aplicativos, Sobre, Armazenamento, Data e hora, Teclado e mouse e Monitores. Parou com 31 páginas esqueleto.", "parou"),
+ ("O Painel de controle", "Aparência, Rede, Bluetooth, Aplicativos, Sobre, Armazenamento, Data e hora, Teclado e mouse e Monitores; depois vieram Inicialização, Apps padrão, Permissões, Idioma, Energia, Usuários, Sons, Luz noturna e as da Emma (Privacidade e Automações).", "parou"),
  ("Modos e áreas de trabalho", "Desktop, Gaming e Mídia, as áreas de trabalho com animação, as ilhas por tela, trocar telas e o Início da Mídia.", "feito"),
  ("A Emma", "O serviço em segundo plano, o chat, o painel dela, arquivos e comandos, código na conversa, as histórias, perfis SFW e NSFW, imagens e visão, Oi Emma, MCP e a sessão contínua.", "feito"),
  ("Captura de tela", "Foto e vídeo com áudio, área, janela ou tela inteira, editor de anotações e enviar para a Emma ou para o celular.", "feito"),
@@ -99,14 +99,10 @@ backlog = [
   ("testar", "Falar com a Emma, com microfone de verdade", "O servidor e o serviço estão prontos; ninguém confirmou ainda na sua máquina."),
   ("pergunta", "\"Voz da Emma\" é ela falar, ela ouvir, ou os dois?", "Estou assumindo os dois: falar e ouvir (o microfone e a palavra \"Oi Emma\")."),
  ]),
- ("3. Páginas do Painel de controle", f"{tot_sk} páginas ainda são esqueleto. Em ordem de uso no dia a dia:", [
-  ("falta", "Energia (4)", "Perfil de energia, bateria, tela e suspensão, botão de ligar. Precisa do serviço de energia (UPower e brilho)."),
-  ("falta", "Som (4)", "Saída, entrada, volume por app e sons do sistema. A topbar e o Mixer já controlam o volume; falta o Painel."),
-  ("falta", "Inicialização (4)", "Ao entrar, apps ao iniciar, entrada (login automático) e serviços em segundo plano."),
-  ("falta", "Emma (3)", "Voz, Privacidade e Automações."),
-  ("falta", "Idioma e região (3), Usuários (3), Privacidade (3)", "Idioma, formatos, métodos de entrada; sua conta, senha e PIN, outros usuários; permissões, histórico e diagnóstico."),
-  ("falta", "As pontas", "Luz noturna, Apps padrão, Permissões, VPN, Ponto de acesso, Receber arquivos por Bluetooth e Teclado na tela."),
-  ("ref", "Páginas que o LUMNA antigo tinha", "Impressoras e Dados móveis (PrintersPage.vue e MobileDataPage.vue)."),
+ ("3. Páginas do Painel de controle", f"o que falta no Painel é pouco: ", [
+  ("falta", "Teclado na tela", "O Gravity ainda não tem teclado virtual; a página fica \"em breve\" até existir um (o antigo era do shell Tauri)."),
+ ("falta", "As pontas", "VPN, Ponto de acesso e Receber arquivos por Bluetooth: estão no plano, mas ainda nem têm página."),
+ ("ref", "Páginas que o LUMNA antigo tinha", "Impressoras e Dados móveis (PrintersPage.vue e MobileDataPage.vue)."),
  ]),
  ("4. App LUMNA Connect (Android) com todo o Connect", "Hoje o app é só um controle remoto. O Connect de verdade (arquivos, avisos, energia...) mora no app do OnePlus, e o PC novo ainda não atende parte dele.", [
   ("feito", "O controle no app", "Pareamento por código, direcional, texto, teclas, mídia, volume, modo, Home, falar com a Emma e microfone da TV."),

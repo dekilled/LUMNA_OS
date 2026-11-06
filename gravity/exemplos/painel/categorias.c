@@ -34,6 +34,10 @@ void pn_emma_imp_desenhar(void);
 void pn_emma_imp_abrir(void);
 void pn_emma_ativ_desenhar(void);
 void pn_emma_ativ_abrir(void);
+void pn_emma_priv_desenhar(void);
+void pn_emma_priv_abrir(void);
+void pn_emma_auto_desenhar(void);
+void pn_emma_auto_abrir(void);
 void pn_emma_mcp_desenhar(void);
 void pn_emma_mcp_abrir(void);
 void pn_emma_rec_desenhar(void);
@@ -241,8 +245,8 @@ static const pn_secao emma[] = {
 		pn_emma_mcp_abrir },
 	{ "importar", "download", "Importar do harness", "Traz conversas, memórias e a personalidade de um backup do harness.", pn_emma_imp_desenhar, NULL, NULL, NULL, NULL, NULL,
 		pn_emma_imp_abrir },
-	{ "privacidade", "shield", "Privacidade", "O que a Emma guarda.", NULL, "O histórico;Apagar as conversas" },
-	{ "automacoes", "zap", "Automações", "Tarefas que a Emma faz sozinha.", NULL, "As automações e quando correm" },
+	{ "privacidade", "shield", "Privacidade", "O que a Emma guarda.", pn_emma_priv_desenhar, NULL, NULL, NULL, NULL, NULL, pn_emma_priv_abrir },
+	{ "automacoes", "zap", "Automações", "Tarefas que a Emma faz sozinha.", pn_emma_auto_desenhar, NULL, NULL, NULL, NULL, NULL, pn_emma_auto_abrir },
 };
 const pn_categoria pn_emma = { "emma", "mic", "Emma", "Voz e preferências", PN_GERAL, emma, N(emma) };
 
