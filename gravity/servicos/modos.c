@@ -180,6 +180,26 @@ int modos_da_saida(const struct modos_estado *e, const char *saida) {
 	return -1;
 }
 
+const char *modos_saida_do_modo(const struct modos_estado *e, int modo) {
+	for (int i = 0; i < e->n; i++) {
+		if (e->saidas[i].modo == modo) {
+			return e->saidas[i].nome;
+		}
+	}
+	return NULL;
+}
+
+bool modos_garantir(int modo, const char *saida) {
+	struct modos_estado e;
+	if (!modos_ler(&e) || !e.orbit) {
+		return false;
+	}
+	if (modos_saida_do_modo(&e, modo)) {
+		return true;
+	}
+	return modos_definir(modo, saida);
+}
+
 bool modos_definir(int modo, const char *saida) {
 	char pedido[120], r[1024];
 	snprintf(pedido, sizeof(pedido), "modo %s%s%s", modos_id(modo), saida && *saida ? " " : "", saida && *saida ? saida : "");

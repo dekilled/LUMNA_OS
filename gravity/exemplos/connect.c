@@ -943,9 +943,7 @@ static void ir_para_inicio(GString *r) {
 		erro(r, "o Orbit não respondeu", false);
 		return;
 	}
-	if (modos_em_foco(&e) != MODO_MIDIA) {
-		modos_definir(MODO_MIDIA, NULL);
-	}
+	modos_garantir(MODO_MIDIA, NULL); /* já numa tela: fica nela; senão, na do cursor */
 	char *lista = g_malloc(32768);
 	if (orbit_pedido("janelas", lista, 32768)) {
 		struct json *j = json_ler(lista);

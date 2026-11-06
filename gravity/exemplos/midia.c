@@ -595,7 +595,7 @@ static void desenhar_capa(gv_app *app, void *dados) {
 	if (gv_agora() - modo_visto > 0.25) {
 		modo_visto = gv_agora();
 		struct modos_estado me;
-		if (modos_ler(&me) && me.orbit && modos_em_foco(&me) != MODO_MIDIA) {
+		if (modos_ler(&me) && me.orbit && !modos_saida_do_modo(&me, MODO_MIDIA)) {
 			gv_app_sair(app);
 			return;
 		}

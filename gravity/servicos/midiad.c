@@ -78,10 +78,8 @@ static bool trazer_janela(const char *app_id) {
 }
 
 static void garantir_modo_midia(void) {
-	struct modos_estado e;
-	if (modos_ler(&e) && modos_em_foco(&e) != MODO_MIDIA) {
-		modos_definir(MODO_MIDIA, NULL);
-	}
+	/* se alguma tela já está na Mídia a janela abre nela, e as outras ficam como estão */
+	modos_garantir(MODO_MIDIA, NULL);
 }
 
 /* ---- o estado, para as telas ---- */

@@ -60,6 +60,10 @@ bool orbit_area_util(const char *saida, int *x, int *y, int *largura, int *altur
 int modos_em_foco(const struct modos_estado *e);
 /* o modo de uma saída pelo nome (-1 se não houver) */
 int modos_da_saida(const struct modos_estado *e, const char *saida);
+/* a primeira saída que está neste modo (NULL se nenhuma): Gaming e Mídia existem numa tela só por vez */
+const char *modos_saida_do_modo(const struct modos_estado *e, int modo);
+/* garante que algum monitor está neste modo: se já há um, não mexe em nenhum (a janela abre nele); senão põe o da saída dada (NULL: a em foco) */
+bool modos_garantir(int modo, const char *saida);
 /* troca o modo (da saída dada, ou da em foco se NULL): só dela, as outras telas ficam como estão */
 bool modos_definir(int modo, const char *saida);
 /* os espaços de trabalho (com o modo e as janelas) de duas telas trocam de lugar: a TV em Mídia passa para o monitor e vice-versa */

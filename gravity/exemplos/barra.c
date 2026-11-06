@@ -144,6 +144,26 @@ static void modos_atualizar(void) {
 	modos_ler(&modos_est);
 }
 
+/* a tela desta barra (a das outras vem de --saida; a principal é a primeira de gv_saidas): o modo, o menu e os espaços são DELA, não da tela onde o cursor está */
+static char saida_propria[32];
+
+static void saida_propria_ler(gv_app *app) {
+	if (minha_saida) {
+		snprintf(saida_propria, sizeof(saida_propria), "%s", minha_saida);
+		return;
+	}
+	const char *s[8];
+	if (gv_saidas(app, s, 8) > 0) {
+		snprintf(saida_propria, sizeof(saida_propria), "%s", s[0]);
+	}
+}
+
+/* o modo da tela desta barra (o do cursor só se ainda não sei qual é a minha) */
+static int modo_proprio(void) {
+	int m = saida_propria[0] ? modos_da_saida(&modos_est, saida_propria) : -1;
+	return m >= 0 ? m : modos_em_foco(&modos_est);
+}
+
 /* corre sem esperar (o filho do filho fica com o init: sem zumbis na barra) */
 static void executar(const char *programa, const char *arg, const char *arg2);
 
@@ -603,7 +623,7 @@ static void menu_copiados(void) {
 
 static void menu_modo(void) {
 	GV_POPUP(CLAY_ID("menu-modo"), CLAY_ID("modo"), .alinhar = GV_ALINHAR_INICIO, .largura = POPUP_LARGURA, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
-		int atual = modos_em_foco(&modos_est);
+		int atual = modo_proprio();
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 14, 14, 12, 6 } } }) {
 			gv_texto(CLAY_STRING("Alternar modo"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
 		}
@@ -626,7 +646,7 @@ static void menu_modo(void) {
 				}
 			}
 			if (tocado && m != atual) {
-				modos_definir(m, NULL);
+				modos_definir(m, saida_propria[0] ? saida_propria : NULL);
 				gv_popup_fechar(CLAY_ID("menu-modo"));
 			}
 		}
@@ -982,6 +1002,7 @@ static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 
 static void desenhar_barra(gv_app *app, void *dados) {
 	(void)dados;
+	saida_propria_ler(app);
 	/* um popup que pede para digitar (o PIN do perfil, a senha do Wi-Fi) precisa do teclado: a barra, que não o usa, o pede enquanto ele está aberto
 	 * (sai quando o popup fecha: tocar fora, Esc ou entrar) */
 	{
@@ -1038,17 +1059,25 @@ static void desenhar_barra(gv_app *app, void *dados) {
 				.backgroundColor = gv_popup_aberto(CLAY_ID("menu-modo")) ? gv_t.selecionado : gv_por_cima(rotulo) ? gv_t.sob_cursor : (Clay_Color){ 0 },
 				.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
 				gv_focavel(rotulo, gv_t.raio_pequeno);
-				gv_texto(gv_str(modos_nome(modos_em_foco(&modos_est))), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_texto(gv_str(modos_nome(modo_proprio())), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 				gv_icone("chevron-down", 14, gv_t.texto_suave);
 			}
 		}
 		/* meio: os espaços de trabalho (só no Desktop, e só se há mais de um) */
 		CLAY(CLAY_ID("areas"), { .layout = { .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-			const struct modos_saida *foco = NULL;
+			const struct modos_saida *foco = NULL; /* a tela desta barra */
 			for (int i = 0; i < modos_est.n; i++) {
-				if (!foco || modos_est.saidas[i].ponteiro) {
+				if (saida_propria[0] && !strcmp(modos_est.saidas[i].nome, saida_propria)) {
 					foco = &modos_est.saidas[i];
 				}
+			}
+			for (int i = 0; !foco && i < modos_est.n; i++) {
+				if (modos_est.saidas[i].ponteiro) {
+					foco = &modos_est.saidas[i];
+				}
+			}
+			if (!foco && modos_est.n) {
+				foco = &modos_est.saidas[0];
 			}
 			bool ver = areas && foco && modos_est.orbit && foco->modo == MODO_DESKTOP && modos_est.areas > 1;
 			for (int i = 0; ver && i < modos_est.areas; i++) {
