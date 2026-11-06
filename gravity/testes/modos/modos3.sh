@@ -81,6 +81,27 @@ kill $j1 $j2 2>/dev/null
 msg modo desktop HEADLESS-3 >/dev/null; sleep 0.3
 confere "fim" desktop desktop desktop
 
+
+# a capa "Abrindo" e o seletor da Mídia (camadas sem tela pedida) vão para a tela em Mídia, mesmo com o cursor na outra
+msg modo midia HEADLESS-1 >/dev/null; sleep 0.3
+XDG_RUNTIME_DIR=$run WAYLAND_DISPLAY=$(basename "$sock" .sock | sed 's/^orbit\.//') "$janela" lumna-midia-capa camada >"$run/j3.log" 2>&1 &
+j3=$!
+sleep 1.5
+if command -v grim >/dev/null 2>&1; then
+	for o in HEADLESS-1 HEADLESS-2; do
+		XDG_RUNTIME_DIR=$run WAYLAND_DISPLAY=$(basename "$sock" .sock | sed 's/^orbit\.//') grim -o $o "$run/capa-$o.png"
+	done
+	vermelho() { python3 -c "
+from PIL import Image
+im = Image.open('$1').convert('RGB')
+print(sum(1 for x in range(0, im.width, 40) for y in range(100, im.height, 40) if im.getpixel((x, y))[0] > 200 and im.getpixel((x, y))[1] < 60))"; }
+	[ "$(vermelho "$run/capa-HEADLESS-1.png")" -gt 50 ] || fail "a capa devia cobrir a tela em Mídia (HEADLESS-1)"
+	[ "$(vermelho "$run/capa-HEADLESS-2.png")" -lt 5 ] || fail "a capa não devia aparecer na tela que está em Desktop (HEADLESS-2)"
+else
+	echo "sem grim: capa não conferida" >&2
+fi
+kill $j3 2>/dev/null
+msg modo desktop HEADLESS-1 >/dev/null; sleep 0.3
 kill "$orbit" 2>/dev/null; wait "$orbit" 2>/dev/null
 if [ "$falhas" -ne 0 ]; then tail -20 "$run/log" >&2; rm -rf "$run"; exit 1; fi
 rm -rf "$run"

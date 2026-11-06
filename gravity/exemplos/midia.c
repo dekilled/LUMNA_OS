@@ -788,6 +788,16 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "lumna-midia: tela desconhecida: %s\n", papel);
 		return 1;
 	}
+	/* a capa e o seletor são da tela que está em Mídia, não da onde o cursor estiver (ele pode ter passado para o outro monitor) */
+	static char saida_midia[32];
+	if (o.tipo == GV_CAMADA) {
+		struct modos_estado me;
+		const char *sm = modos_ler(&me) && me.orbit ? modos_saida_do_modo(&me, MODO_MIDIA) : NULL;
+		if (sm) {
+			g_strlcpy(saida_midia, sm, sizeof(saida_midia));
+			o.saida = saida_midia;
+		}
+	}
 	estado_rever();
 	gv_app *app = gv_app_criar(&o);
 	if (!app) {
