@@ -265,6 +265,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 				output->tag + 1, output_is_phone(output->wlr) ? "true" : "false",
 				output == under ? "true" : "false", output->off ? "false" : "true", wlr_output_is_wl(output->wlr) ? "false" : "true", rotation,
 				util.x - box.x, util.y - box.y, util.width, util.height, output->wlr->phys_width, output->wlr->phys_height);
+			put(b, ",\"apagada\":%s", !output->off && !output->wlr->enabled ? "true" : "false"); /* DPMS: apagada pelo lumna-ocioso, ainda no desktop */
 			put(b, ",\"principal\":%s,\"fabricante\":", orbit_output_is_primary(server, output) ? "true" : "false");
 			put_str(b, output->host && output->host->fabricante[0] ? output->host->fabricante : output->wlr->make ? output->wlr->make : "");
 			put(b, ",\"modelo\":");

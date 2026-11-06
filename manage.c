@@ -3,6 +3,7 @@
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/util/log.h>
 
 static void gamma_set(struct wl_listener *listener, void *data) {
@@ -20,6 +21,33 @@ static void gamma_set(struct wl_listener *listener, void *data) {
 	}
 	wlr_output_state_finish(&state);
 	(void)listener;
+}
+
+/* wlr-output-power-management: apagar e acender o monitor sem tirá-lo do desktop (as janelas ficam onde estão) */
+static void power_set_mode(struct wl_listener *listener, void *data) {
+	struct orbit_server *server = wl_container_of(listener, server, output_power_set_mode);
+	struct wlr_output_power_v1_set_mode_event *event = data;
+	struct wlr_output *output = event->output;
+	if (!output) {
+		return;
+	}
+	bool on = event->mode == ZWLR_OUTPUT_POWER_V1_MODE_ON;
+	if (output->enabled == on) {
+		return;
+	}
+	struct wlr_output_state state;
+	wlr_output_state_init(&state);
+	wlr_output_state_set_enabled(&state, on);
+	if (!wlr_output_commit_state(output, &state)) {
+		wlr_log(WLR_ERROR, "ligar ou desligar a tela de %s falhou", output->name);
+	} else {
+		wlr_log(WLR_INFO, "tela %s %s", output->name, on ? "ligada" : "apagada");
+		if (on) {
+			wlr_output_schedule_frame(output);
+		}
+	}
+	wlr_output_state_finish(&state);
+	(void)server;
 }
 
 static bool head_state(struct wlr_output *output, struct wlr_output_configuration_head_v1 *head, bool test) {
@@ -132,6 +160,13 @@ bool orbit_manage_bind(struct orbit_server *server) {
 	if (!server->output_manager) {
 		wlr_log(WLR_ERROR, "falha ao criar o output management");
 		return false;
+	}
+	server->output_power = wlr_output_power_manager_v1_create(server->display);
+	if (server->output_power) {
+		server->output_power_set_mode.notify = power_set_mode;
+		wl_signal_add(&server->output_power->events.set_mode, &server->output_power_set_mode);
+	} else {
+		wlr_log(WLR_ERROR, "falha ao criar o output power (a tela não apaga sozinha)");
 	}
 	server->output_apply.notify = output_apply;
 	wl_signal_add(&server->output_manager->events.apply, &server->output_apply);

@@ -285,6 +285,9 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 	case ORBIT_EMMA:
 		spawn(server->emma);
 		break;
+	case ORBIT_POWER_BUTTON:
+		spawn(server->power_button);
+		break;
 	case ORBIT_EMMA_MIC:
 		spawn(server->emma_mic);
 		break;
@@ -398,6 +401,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, WLR_MODIFIER_CTRL, XKB_KEY_Print, ORBIT_RECORD, 0);           /* Ctrl+Print: gravar (Print de novo para) */
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_F11, ORBIT_HOST_FULLSCREEN, 0); /* aninhado: a janela do Orbit em tela cheia */
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_a, ORBIT_EMMA_MIC, 0);
+	bind_put(server, 0, XKB_KEY_XF86PowerOff, ORBIT_POWER_BUTTON, 0);
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_o, ORBIT_SWAP_OUTPUTS, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Left, ORBIT_SNAP_LEFT, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Right, ORBIT_SNAP_RIGHT, 0);
@@ -455,6 +459,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "seletor_midia", ORBIT_MEDIA_MENU, 0 },
 	{ "emma", ORBIT_EMMA, 0 },
 	{ "emma_voz", ORBIT_EMMA_MIC, 0 },
+	{ "botao_ligar", ORBIT_POWER_BUTTON, 0 },
 	{ "trocar_telas", ORBIT_SWAP_OUTPUTS, 0 },
 	{ "encaixar_esquerda", ORBIT_SNAP_LEFT, 0 },
 	{ "encaixar_direita", ORBIT_SNAP_RIGHT, 0 },

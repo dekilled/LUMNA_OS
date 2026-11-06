@@ -92,7 +92,7 @@ Configuração
   botao_primario, velocidade, perfil, rolagem_natural, tocar_para_clicar...) refaz o mapa do teclado e os
   ajustes do libinput (precisa de libinput no PKGS); telas.ini (uma secção por saída: ligada, modo=LxA@HZ,
   escala, rotacao, x, y) aplica o modo, a escala, a rotação, a posição e liga ou desliga a saída (nunca a
-  última). orbit-msg entrada mostra o que está aplicado e os dispositivos; orbit-msg saidas traz os modos.
+  última). orbit-msg entrada mostra o que está aplicado e os dispositivos; orbit-msg saidas traz os modos. A tela apaga e acende (wlr-output-power-management: o lumna-ocioso apaga o monitor parado; as janelas ficam onde estão) e saidas mostra "apagada". O botão de ligar (XF86PowerOff) roda [geral] botao_ligar (lumna-botao-ligar).
 
 Protocolos
   foreign toplevel anuncia título, app id, saída, foco e ecrã inteiro.

@@ -59,6 +59,7 @@ struct wlr_idle_inhibit_manager_v1;
 struct wlr_idle_notifier_v1;
 struct wlr_gamma_control_manager_v1;
 struct wlr_output_manager_v1;
+struct wlr_output_power_manager_v1;
 struct wlr_output;
 
 enum orbit_node_kind {
@@ -125,6 +126,7 @@ enum orbit_action {
 	ORBIT_MEDIA_MENU, /* Super+M: o seletor de serviços, só no modo Mídia */
 	ORBIT_EMMA,       /* Super+A: o painel da Emma (de novo, fecha) */
 	ORBIT_EMMA_MIC,   /* Super+Shift+A: ligar (ou encerrar) o microfone da Emma */
+	ORBIT_POWER_BUTTON, /* o botão de ligar (XF86PowerOff): o que o Painel (Energia) escolheu */
 	ORBIT_SWAP_OUTPUTS, /* trocar os espaços de trabalho entre as telas */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
 	ORBIT_MODE_PREV,
@@ -217,6 +219,8 @@ struct orbit_server {
 	struct wl_listener gamma_set;
 	struct wlr_output_manager_v1 *output_manager;
 	struct wl_listener output_apply;
+	struct wlr_output_power_manager_v1 *output_power; /* ligar e desligar a tela (DPMS): o lumna-ocioso apaga o monitor parado */
+	struct wl_listener output_power_set_mode;
 	struct wl_listener output_test;
 
 	struct wlr_cursor *cursor;
@@ -279,6 +283,7 @@ struct orbit_server {
 	char media_menu[ORBIT_CMD_LEN]; /* o seletor de serviços da Mídia */
 	char emma[ORBIT_CMD_LEN];       /* abre ou fecha o painel da Emma */
 	char emma_mic[ORBIT_CMD_LEN];   /* liga o microfone da Emma (lumna-emma ouvir) */
+	char power_button[ORBIT_CMD_LEN]; /* o que fazer com o botão de ligar (lumna-botao-ligar) */
 	struct wlr_output *nested_output; /* aninhado: a saída que é uma janela do compositor de fora */
 	bool host_fullscreen, host_fullscreen_cfg; /* a janela dele em tela cheia (agora, e [geral] tela_cheia = sim) */
 	int host_telas_cfg;             /* [geral] telas_de_fora: 0 = automático (uma janela por monitor de fora), N = N janelas */
