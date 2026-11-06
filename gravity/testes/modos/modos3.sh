@@ -82,6 +82,26 @@ msg modo desktop HEADLESS-3 >/dev/null; sleep 0.3
 confere "fim" desktop desktop desktop
 
 
+# trocar de lugar: a Mídia numa tela e uma janela comum no Desktop de outra; pedir a Mídia na tela da janela comum TROCA as duas
+# (a Mídia vai para a pedida e o Desktop dela, com a janela, vai para a que tinha a Mídia)
+WL=$(basename "$sock" .sock | sed 's/^orbit\.//')
+XDG_RUNTIME_DIR=$run WAYLAND_DISPLAY=$WL "$janela" janela-troca >"$run/j4.log" 2>&1 &
+j4=$!
+sleep 1.5
+C=$(saida_da_janela janela-troca)
+for M in HEADLESS-1 HEADLESS-2 HEADLESS-3; do [ "$M" != "$C" ] && break; done
+msg modo midia $M >/dev/null; sleep 0.4
+XDG_RUNTIME_DIR=$run WAYLAND_DISPLAY=$WL "$janela" lumna-midia-inicio >"$run/j5.log" 2>&1 &
+j5=$!
+sleep 1.5
+[ "$(saida_da_janela lumna-midia-inicio)" = "$M" ] || fail "troca: a janela da Mídia devia abrir em $M"
+msg modo midia $C >/dev/null; sleep 0.6
+[ "$(modo_de $C)" = "midia" ] && [ "$(modo_de $M)" = "desktop" ] || fail "troca: a Mídia devia ter ido para $C (e $M voltado ao Desktop)"
+[ "$(saida_da_janela lumna-midia-inicio)" = "$C" ] || fail "troca: a janela da Mídia devia ter ido para $C, está em '$(saida_da_janela lumna-midia-inicio)'"
+[ "$(saida_da_janela janela-troca)" = "$M" ] || fail "troca: a janela do Desktop de $C devia ter ido para $M, está em '$(saida_da_janela janela-troca)'"
+kill $j4 $j5 2>/dev/null
+msg modo desktop $C >/dev/null; sleep 0.3
+
 # a capa "Abrindo" e o seletor da Mídia (camadas sem tela pedida) vão para a tela em Mídia, mesmo com o cursor na outra
 msg modo midia HEADLESS-1 >/dev/null; sleep 0.3
 XDG_RUNTIME_DIR=$run WAYLAND_DISPLAY=$(basename "$sock" .sock | sed 's/^orbit\.//') "$janela" lumna-midia-capa camada >"$run/j3.log" 2>&1 &
