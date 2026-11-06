@@ -112,6 +112,20 @@ void pn_entrada_abrir(void);
 void pn_fundo_desenhar(void);
 void pn_fundo_abrir(void);
 
+/* Apps e privacidade (privacidade_pg.c) */
+void pn_padrao_desenhar(void);
+void pn_padrao_abrir(void);
+bool pn_padrao_pendente(void);
+void pn_padrao_aplicar(void);
+void pn_padrao_descartar(void);
+void pn_perm_abrir(void);
+void pn_perm_por_permissao_desenhar(void);
+void pn_perm_por_app_desenhar(void);
+void pn_hist_abrir(void);
+void pn_hist_desenhar(void);
+void pn_diag_abrir(void);
+void pn_diag_desenhar(void);
+
 /* Sistema → Teclado e mouse → Atalhos (atalhos.c) */
 void pn_atalhos_desenhar(void);
 bool pn_atalhos_pendente(void);
@@ -129,9 +143,9 @@ extern const pn_categoria pn_bluetooth;
 static const pn_secao aplicativos[] = {
 	{ "instalados", "grid", "Instalados", "Os apps deste computador.", pn_apps_desenhar, NULL, NULL, NULL, NULL, NULL,
 		pn_apps_abrir },
-	{ "padrao", "check", "Apps padrão", "Que app abre cada coisa.", NULL,
-		"Navegador, música, vídeo, imagens, e-mail e terminal" },
-	{ "permissoes", "shield", "Permissões", "O que cada app pode usar.", NULL, "Câmera, microfone, localização e arquivos" },
+	{ "padrao", "check", "Apps padrão", "Que app abre cada coisa.", pn_padrao_desenhar, NULL, pn_padrao_pendente, pn_padrao_aplicar,
+		pn_padrao_descartar, NULL, pn_padrao_abrir },
+	{ "permissoes", "shield", "Permissões", "O que cada app pode usar.", pn_perm_por_permissao_desenhar, NULL, NULL, NULL, NULL, NULL, pn_perm_abrir },
 	{ "atualizacoes", "refresh", "Atualizações", "Manter os apps em dia.", pn_apps_atu_desenhar, NULL, NULL, NULL, NULL, NULL,
 		pn_apps_abrir },
 };
@@ -265,9 +279,9 @@ static const pn_secao usuarios[] = {
 const pn_categoria pn_usuarios = { "usuarios", "users", "Usuários", "Contas e senhas", PN_SISTEMA, usuarios, N(usuarios) };
 
 static const pn_secao privacidade[] = {
-	{ "permissoes", "shield", "Permissões dos apps", "Câmera, microfone e localização.", NULL, "Por app" },
-	{ "historico", "clock", "Histórico e recentes", "O que o LUMNA lembra.", NULL, "Limpar os recentes do lançador" },
-	{ "diagnostico", "info", "Diagnóstico", "Relatórios de erro.", NULL, "Mandar ou não" },
+	{ "permissoes", "shield", "Permissões dos apps", "Câmera, microfone e localização.", pn_perm_por_app_desenhar, NULL, NULL, NULL, NULL, NULL, pn_perm_abrir },
+	{ "historico", "clock", "Histórico e recentes", "O que o LUMNA lembra.", pn_hist_desenhar, NULL, NULL, NULL, NULL, NULL, pn_hist_abrir },
+	{ "diagnostico", "info", "Diagnóstico", "Relatórios de erro.", pn_diag_desenhar, NULL, NULL, NULL, NULL, NULL, pn_diag_abrir },
 };
 const pn_categoria pn_privacidade = { "privacidade", "shield", "Privacidade", "Permissões e segurança", PN_SISTEMA, privacidade,
 	N(privacidade) };

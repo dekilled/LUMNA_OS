@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (4 de novembro de 2026, contado no código):** 47 de 74 páginas prontas e 27 ainda só o esqueleto
+**Em números (4 de novembro de 2026, contado no código):** 52 de 74 páginas prontas e 22 ainda só o esqueleto
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -149,8 +149,8 @@ Pelo BlueZ (`servicos/bluetooth.c`); teste sem hardware em `testes/bluez-falso.s
 
 **Aplicativos**
 - ✅ Instalados (pacman, AUR e AppImages; a página do app: origem, versão, tamanho, pasta, datas, o que depende dele, atualização, desativar e desinstalar mostrando antes o que sai junto e o que quebraria; `servicos/pacotes.c`);
-- 🔨 Apps padrão (navegador, música, vídeo, imagens, e-mail);
-- ⏳ Permissões (câmera, microfone, localização, arquivos);
+- ✅ Apps padrão (navegador, e-mail, música, vídeo, imagens, PDF, texto e pastas, pelo mimeapps.list);
+- ✅ Permissões (câmera, microfone, localização, captura de tela, avisos e segundo plano, pelo PermissionStore dos portais: vale para Flatpak e apps que usam os portais; app sem sandbox o sistema não limita);
 - ✅ Atualizações (os apps com versão nova; atualizar roda `yay -Syu`/`pacman -Syu` num terminal: o Arch atualiza o sistema inteiro junto).
 
 **Telas e modos**
@@ -245,9 +245,9 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
   - ⏳ senha e PIN;
   - ⏳ outros usuários.
 - **Privacidade:**
-  - ⏳ permissões dos apps;
-  - 🔨 histórico e recentes (limpar os recentes do lançador);
-  - ⏳ diagnóstico.
+  - ✅ permissões dos apps (as mesmas, por app);
+  - ✅ histórico e recentes (lembrar ou não, limpar os recentes e a área de transferência);
+  - ✅ diagnóstico (os logs deste computador: ver e apagar; nada é enviado).
 - **Desenvolvedor:**
   - ✅ o modo desenvolvedor (`desenvolvedor.ini`): tela de toque no desktop (com o teclado de números no PIN) e aplicar o
     Painel em tempo real.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# O Painel (Inicialização) com cliques de verdade num Orbit headless e o mouse virtual: os interruptores e o Aplicar gravam o que dizem.
+# O Painel (Inicialização e Privacidade) com cliques de verdade num Orbit headless e o mouse virtual: os interruptores e o Aplicar gravam o que dizem.
 # sh painel_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY ARRASTO2
 orbit_dir=${1:?}; g=${2:?}; M=${3:?}
 run=$(mktemp -d); chmod 700 "$run"; mkdir -p "$run/cfg/lumna" "$run/cfg/autostart" "$run/etc/greetd" "$run/etc/xdg"
@@ -41,6 +41,17 @@ abrir inicializacao/entrada
 clicar_em 1165 327
 sleep 1
 grep -q "initial_session" "$run/etc/greetd/config.toml" && fail "o interruptor devia desligar o login automático: $(cat "$run/etc/greetd/config.toml")"
+fechar
+
+# Privacidade → Histórico: desligar "lembrar os recentes" grava o ini, avisa o GTK e esvazia a lista
+mkdir -p "$run/share"
+export XDG_DATA_HOME=$run/share
+printf '<xbel><bookmark href="file:///a"/></xbel>' > "$run/share/recently-used.xbel"
+abrir privacidade/historico
+clicar_em 1165 327
+grep -q "lembrar_recentes = nao" "$run/cfg/lumna/privacidade.ini" 2>/dev/null || fail "o interruptor devia gravar lembrar_recentes = nao"
+grep -q "gtk-recent-files-enabled=false" "$run/cfg/gtk-3.0/settings.ini" 2>/dev/null || fail "o GTK devia parar de lembrar"
+grep -q "<bookmark " "$run/share/recently-used.xbel" && fail "a lista de recentes devia ter sido esvaziada"
 fechar
 
 kill $orbit 2>/dev/null; wait 2>/dev/null

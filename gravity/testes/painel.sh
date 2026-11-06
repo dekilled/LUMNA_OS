@@ -40,4 +40,18 @@ sh testes/painel/testa_entrada_ajustar.sh "$T/ent"
 cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/testa_segundoplano" testes/painel/testa_segundoplano.c servicos/segundoplano.c $(pkg-config --libs gio-unix-2.0)
 printf 'syncthing.service sim sim Syncthing - Open Source Continuous File Synchronization\nbackup.service nao nao Copia de seguranca\npipewire.service sim sim PipeWire\n' > "$T/fundo.txt"
 FUNDO_ESTADO="$T/fundo.txt" PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_segundoplano"
+# os apps padrão (mimeapps.list)
+cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/testa_appspadrao" testes/painel/testa_appspadrao.c servicos/appspadrao.c $(pkg-config --libs gio-unix-2.0)
+mkdir -p "$T/padrao"
+"$T/testa_appspadrao" "$T/padrao"
+# as permissões dos apps (PermissionStore dos portais), contra um de mentira
+cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/testa_permissoes" testes/painel/testa_permissoes.c servicos/permissoes.c $(pkg-config --libs gio-unix-2.0)
+cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/permissoes_falsas" testes/painel/permissoes_falsas.c $(pkg-config --libs gio-unix-2.0)
+dbus-run-session -- sh -c "'$T/permissoes_falsas' > '$T/pf.log' 2>&1 & pf=\$!; sleep 1; '$T/testa_permissoes'; r=\$?; kill \$pf; exit \$r" > "$T/perm.log" 2>&1 || true
+grep -v "fd limit" "$T/perm.log"
+grep -q "permissoes ok" "$T/perm.log"
+# privacidade (recentes e logs)
+cc $CF -o "$T/testa_privacidade" testes/painel/testa_privacidade.c servicos/privacidade.c servicos/modos.c $LG
+mkdir -p "$T/priv"
+"$T/testa_privacidade" "$T/priv"
 echo "(arquivos de teste em $T)"

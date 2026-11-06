@@ -33,6 +33,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "gravity.h"
+#include "privacidade.h"
 
 #define MAX_APPS 512
 #define MAX_FAVORITOS 64
@@ -414,6 +415,12 @@ static int por_data(const void *a, const void *b) {
 }
 
 static void carregar_recentes(void) {
+	struct privacidade priv;
+	privacidade_ler(&priv);
+	if (!priv.lembrar_recentes) {
+		nrecentes = 0; /* Privacidade → Histórico e recentes: não lembrar */
+		return;
+	}
 	char caminho[1024];
 	snprintf(caminho, sizeof(caminho), "%s/recently-used.xbel", g_get_user_data_dir());
 	gchar *xml = NULL;
