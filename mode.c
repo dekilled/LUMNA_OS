@@ -16,7 +16,8 @@
  *
  * Cada saída tem sempre o seu modo: trocar o modo de uma tela nunca mexe nas outras. O padrão é todas no Desktop, estendido;
  * abrir a Mídia ou o Gaming numa tela só muda aquela (as outras seguem estendidas entre si), e quando nenhuma está num modo especial o
- * Desktop estendido volta como era. Mídia e Gaming existem uma vez só: pedir um que outra tela tem troca as duas telas de lugar.
+ * Desktop estendido volta como era. Mídia e Gaming existem uma vez só: pedir um que outra tela tem (pelo Super+Tab, pelo seletor ou pela
+ * topbar) troca as duas telas de lugar. As janelas de um desses espaços nunca vão para a dock nem para o Alt+Tab, mesmo com a tela mostrando outro.
  * O modo ao ligar vem de ~/.config/lumna/modos.ini ([geral] ao_ligar). No telemóvel não há modos: fica sempre no Desktop.
  */
 
@@ -105,7 +106,9 @@ bool orbit_output_isolated(const struct orbit_output *output) {
 }
 
 bool orbit_view_isolated(const struct orbit_view *view) {
-	return view && orbit_output_isolated(view->output);
+	/* a janela é de um espaço de Gaming ou Mídia (view->tag), e não só quando a tela dela mostra esse espaço: ela nunca aparece na dock
+	 * nem no Alt+Tab, nem como "minimizada" quando a tela volta ao Desktop (a Mídia é sempre em tela cheia e não minimiza) */
+	return view && (view->tag >= ORBIT_TAGS || orbit_output_isolated(view->output));
 }
 
 static bool is_mode_output(struct orbit_output *output) {
@@ -162,19 +165,12 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	spawn(server->mode_osd);
 }
 
-/* o próximo modo (dir = 1) ou o anterior (-1) desta saída, pulando o que outra tela já tem: passar de volta pelo Gaming não rouba o jogo */
+/* o próximo modo (dir = 1) ou o anterior (-1) desta saída. Todos se alcançam, mesmo os que outra tela já tem: pedir um deles troca as duas telas de lugar */
 void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, int dir) {
 	if (!is_mode_output(from)) {
 		return;
 	}
-	int mode = from->mode;
-	for (int i = 0; i < ORBIT_MODES; i++) {
-		mode = (mode + dir + ORBIT_MODES) % ORBIT_MODES;
-		if (!mode_holder(server, from, mode)) {
-			break;
-		}
-	}
-	orbit_mode_set(server, from, mode);
+	orbit_mode_set(server, from, (from->mode + dir + ORBIT_MODES) % ORBIT_MODES);
 }
 
 void orbit_mode_step(struct orbit_server *server, int dir) {
