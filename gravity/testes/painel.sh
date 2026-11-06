@@ -72,4 +72,12 @@ printf '#!/bin/sh\n[ "$1" = passwd ] && grep "^$2:" "$LUMNA_ETC/passwd"\n[ "$1" 
 cc $CF $(pkg-config --cflags gdk-pixbuf-2.0) -o "$T/testa_contas" testes/painel/testa_contas.c servicos/contas.c $LG $(pkg-config --libs gdk-pixbuf-2.0)
 mkdir -p "$T/con"
 PATH="$T/usr/bin:$PATH" "$T/testa_contas" "$T/con" "$AQUI/../session/lumna-usuarios"
+# os sons do sistema (pasta de sons e pw-play falsos)
+cc $CF -o "$T/testa_sons" testes/painel/testa_sons.c servicos/sons.c $LG
+mkdir -p "$T/som"
+PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_sons" "$T/som"
+# a luz noturna (horário, temperatura e rampas)
+cc $CF -o "$T/testa_luz" testes/painel/testa_luz.c servicos/luz.c $LG -lm
+mkdir -p "$T/luz"
+"$T/testa_luz" "$T/luz"
 echo "(arquivos de teste em $T)"

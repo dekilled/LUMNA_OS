@@ -1,0 +1,3 @@
+#!/bin/sh
+# um pw-play de mentira: anota o que mandaram tocar em $SONS_LOG
+echo "$@" >> "${SONS_LOG:?}"

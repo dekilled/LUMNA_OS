@@ -23,6 +23,7 @@
 
 #include "avisos.h"
 #include "gravity.h"
+#include "sons.h"
 #include "modos.h"
 
 #define MAX_ITENS 100
@@ -136,6 +137,14 @@ static void chegou_aviso(const struct aviso *a) {
 	it->a = *a;
 	it->no_canto = !centro && ((!nao_perturbe && !modo_silencio) || a->urgencia == AVISO_CRITICA);
 	it->novo = i < 0; /* uma atualização (a música seguinte) não volta a entrar a deslizar */
+	/* o som (Som → Sons do sistema): só o aviso novo que aparece no canto (no não perturbe só os críticos), sem os de prioridade baixa */
+	if (it->no_canto && it->novo && !a->sem_som && a->urgencia != AVISO_BAIXA) {
+		struct sons_cfg sons;
+		sons_ler(&sons);
+		if (sons.avisos) {
+			sons_tocar(a->urgencia == AVISO_CRITICA ? sons.critico : sons.aviso, sons.volume);
+		}
+	}
 	double d = duracao(a);
 	it->sai_em = d > 0 ? gv_agora() + d : 0;
 	if (!it->no_canto && a->transitorio) {

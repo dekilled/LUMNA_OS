@@ -137,6 +137,22 @@ void pn_bateria_desenhar(void);
 void pn_suspensao_desenhar(void);
 void pn_botao_desenhar(void);
 
+/* Telas e modos → Luz noturna (luz.c) */
+void pn_luz_desenhar(void);
+void pn_luz_abrir(void);
+bool pn_luz_pendente(void);
+void pn_luz_aplicar(void);
+void pn_luz_descartar(void);
+void pn_luz_restaurar(void);
+
+/* Som → Sons do sistema (sons.c) */
+void pn_sons_desenhar(void);
+void pn_sons_abrir(void);
+bool pn_sons_pendente(void);
+void pn_sons_aplicar(void);
+void pn_sons_descartar(void);
+void pn_sons_restaurar(void);
+
 /* Sistema → Usuários (usuarios.c) */
 void pn_usuarios_abrir(void);
 void pn_conta_desenhar(void);
@@ -182,7 +198,8 @@ const pn_categoria pn_aplicativos = { "aplicativos", "grid", "Aplicativos", "Ins
 static const pn_secao telas[] = {
 	{ "monitores", "screens", "Monitores", "Resolução, escala e posição das telas.", pn_monitores_desenhar, NULL, pn_monitores_pendente,
 		pn_monitores_aplicar, pn_monitores_descartar, pn_monitores_restaurar, pn_monitores_abrir },
-	{ "luz", "moon", "Luz noturna", "Cores mais quentes à noite.", NULL, "Ligar, intensidade e horário" },
+	{ "luz", "moon", "Luz noturna", "Cores mais quentes à noite.", pn_luz_desenhar, NULL, pn_luz_pendente, pn_luz_aplicar, pn_luz_descartar,
+		pn_luz_restaurar, pn_luz_abrir },
 	{ "modos", "desktop", "Modos", "Desktop, Gaming e Mídia: o modo ao ligar e o que cada um faz.", pn_modos_desenhar, NULL, pn_modos_pendente,
 		pn_modos_aplicar, pn_modos_descartar, pn_modos_restaurar, pn_modos_abrir },
 	{ "areas", "stack", "Áreas de trabalho", "Quantas áreas o Desktop usa e como se troca entre elas.", pn_areas_desenhar, NULL, pn_areas_pendente,
@@ -195,7 +212,8 @@ static const pn_secao som[] = {
 	{ "saida", "speaker", "Saída", "Alto-falantes, fones e HDMI.", pn_som_saida_desenhar, NULL, NULL, NULL, NULL, NULL, pn_som_abrir },
 	{ "entrada", "mic", "Entrada", "Microfones.", pn_som_entrada_desenhar, NULL, NULL, NULL, NULL, NULL, pn_som_abrir },
 	{ "apps", "sliders", "Apps", "O volume de cada app que está tocando.", pn_som_apps_desenhar, NULL, NULL, NULL, NULL, NULL, pn_som_abrir },
-	{ "sons", "bell", "Sons do sistema", "Os sons dos avisos e das ações.", NULL, "Ligar e desligar;Volume dos avisos" },
+	{ "sons", "bell", "Sons do sistema", "Os sons dos avisos e das ações.", pn_sons_desenhar, NULL, pn_sons_pendente, pn_sons_aplicar, pn_sons_descartar,
+		pn_sons_restaurar, pn_sons_abrir },
 };
 const pn_categoria pn_som = { "som", "volume", "Som", "Saída, microfone e volume", PN_GERAL, som, N(som) };
 

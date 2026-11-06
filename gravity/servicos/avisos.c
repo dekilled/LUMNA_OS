@@ -248,6 +248,8 @@ static uint32_t notificar(GVariant *p) {
 			a->residente = g_variant_get_boolean(valor);
 		} else if (!strcmp(dica, "transient") && g_variant_is_of_type(valor, G_VARIANT_TYPE_BOOLEAN)) {
 			a->transitorio = g_variant_get_boolean(valor);
+		} else if (!strcmp(dica, "suppress-sound") && g_variant_is_of_type(valor, G_VARIANT_TYPE_BOOLEAN)) {
+			a->sem_som = g_variant_get_boolean(valor);
 		} else if ((!strcmp(dica, "image-path") || !strcmp(dica, "image_path")) &&
 			g_variant_is_of_type(valor, G_VARIANT_TYPE_STRING)) {
 			const char *s = g_variant_get_string(valor, NULL);

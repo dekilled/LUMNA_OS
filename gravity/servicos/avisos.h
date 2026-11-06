@@ -35,6 +35,7 @@ struct aviso {
 	int expira_ms;         /* -1: o tempo do LUMNA; 0: só sai quando a pessoa fechar */
 	bool residente;        /* fica depois de uma ação (um player) */
 	bool transitorio;      /* não vai para a central */
+	bool sem_som;           /* a app pediu silêncio (a dica suppress-sound) */
 	int64_t quando;        /* time() da chegada */
 };
 
