@@ -15,7 +15,8 @@
  * foreign-toplevel da dock, Alt+1) mantém o modo certo, e o evento "modo" sai de qualquer jeito.
  *
  * Cada saída tem sempre o seu modo: trocar o modo de uma tela nunca mexe nas outras. O padrão é todas no Desktop, estendido;
- * abrir a Mídia ou o Gaming numa tela só muda aquela, e quando nenhuma está num modo especial o Desktop estendido volta como era.
+ * abrir a Mídia ou o Gaming numa tela só muda aquela (as outras seguem estendidas entre si), e quando nenhuma está num modo especial o
+ * Desktop estendido volta como era. Mídia e Gaming existem uma vez só: pedir um que outra tela tem leva o espaço dele para a tela pedida.
  * O modo ao ligar vem de ~/.config/lumna/modos.ini ([geral] ao_ligar). No telemóvel não há modos: fica sempre no Desktop.
  */
 
@@ -111,7 +112,37 @@ static bool is_mode_output(struct orbit_output *output) {
 	return output && !output_is_phone(output->wlr);
 }
 
-/* troca o modo da saída dada (a em foco, se NULL): só dela */
+/* a outra saída que já está neste modo (Gaming e Mídia são um espaço só: só uma tela por vez os tem) */
+static struct orbit_output *mode_holder(struct orbit_server *server, struct orbit_output *except, int mode) {
+	struct orbit_output *output;
+	if (mode == ORBIT_MODE_DESKTOP) {
+		return NULL;
+	}
+	wl_list_for_each(output, &server->outputs, link) {
+		if (output != except && is_mode_output(output) && output->mode == mode) {
+			return output;
+		}
+	}
+	return NULL;
+}
+
+/*
+ * O Gaming e a Mídia existem uma vez só (a janela da Mídia é uma): quem pede um deles numa tela que
+ * não o tem leva o espaço inteiro para ela, com as janelas, e a tela que o tinha volta ao Desktop dela.
+ * Assim a Mídia abre na tela pedida e não "cola" na primeira que a teve.
+ */
+static void mode_take(struct orbit_server *server, struct orbit_output *from, struct orbit_output *holder) {
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->output == holder && view->tag == holder->tag) {
+			orbit_split_release(server, view);
+			orbit_view_set_output(view, from, true);
+		}
+	}
+	holder->tag = holder->desktop_tag;
+}
+
+/* troca o modo da saída dada (a em foco, se NULL): só dela, as outras ficam como estão */
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode) {
 	if (mode < 0 || mode >= ORBIT_MODES) {
 		return;
@@ -122,12 +153,16 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	if (!is_mode_output(from)) {
 		return;
 	}
+	struct orbit_output *holder = mode_holder(server, from, mode);
 	int tag = tag_of_mode(from, mode);
 	if (from->tag != tag) {
 		if (from->tag < ORBIT_TAGS) {
 			from->desktop_tag = from->tag;
 		}
 		from->tag = tag;
+	}
+	if (holder) {
+		mode_take(server, from, holder);
 	}
 	orbit_arrange(server);
 	focus_top(server, from);
@@ -138,12 +173,23 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	spawn(server->mode_osd);
 }
 
-void orbit_mode_step(struct orbit_server *server, int dir) {
-	struct orbit_output *from = cursor_output(server);
+/* o próximo modo (dir = 1) ou o anterior (-1) desta saída, pulando o que outra tela já tem: passar de volta pelo Gaming não rouba o jogo */
+void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, int dir) {
 	if (!is_mode_output(from)) {
 		return;
 	}
-	orbit_mode_set(server, from, (from->mode + dir + ORBIT_MODES) % ORBIT_MODES);
+	int mode = from->mode;
+	for (int i = 0; i < ORBIT_MODES; i++) {
+		mode = (mode + dir + ORBIT_MODES) % ORBIT_MODES;
+		if (!mode_holder(server, from, mode)) {
+			break;
+		}
+	}
+	orbit_mode_set(server, from, mode);
+}
+
+void orbit_mode_step(struct orbit_server *server, int dir) {
+	orbit_mode_cycle(server, cursor_output(server), dir);
 }
 
 /*

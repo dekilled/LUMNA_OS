@@ -396,7 +396,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 				return;
 			}
 			if (!strcmp(arg1, "seguinte") || !strcmp(arg1, "anterior")) {
-				orbit_mode_set(server, output, (output->mode + (arg1[0] == 's' ? 1 : ORBIT_MODES - 1)) % ORBIT_MODES);
+				orbit_mode_cycle(server, output, arg1[0] == 's' ? 1 : -1);
 			} else {
 				int m = orbit_mode_parse(arg1);
 				if (m < 0) {

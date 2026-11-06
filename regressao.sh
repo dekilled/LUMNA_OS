@@ -61,6 +61,13 @@ if [ -n "$PKGS" ]; then
 		sleep 0.5
 		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-1","modo":"midia"' || { echo "a Mídia não ligou na tela pedida" >&2; ok=0; }
 		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-2","modo":"desktop"' || { echo "a Mídia numa tela mexeu na outra" >&2; ok=0; }
+		# a Mídia existe numa tela só: pedida noutra, passa para ela e a primeira volta ao Desktop (o resto não mexe)
+		./orbit-msg -s "$sock" modo midia HEADLESS-2 >/dev/null
+		sleep 0.5
+		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-1","modo":"desktop"' || { echo "a Mídia pedida noutra tela devia sair da primeira" >&2; ok=0; }
+		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-2","modo":"midia"' || { echo "a Mídia devia passar para a tela pedida" >&2; ok=0; }
+		./orbit-msg -s "$sock" modo midia HEADLESS-1 >/dev/null
+		sleep 0.5
 		./orbit-msg -s "$sock" modo gaming HEADLESS-2 >/dev/null
 		sleep 0.5
 		./orbit-msg -s "$sock" modo | grep -q '"saida":"HEADLESS-1","modo":"midia"' || { echo "o Gaming numa tela tirou a outra da Mídia" >&2; ok=0; }
