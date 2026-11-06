@@ -29,6 +29,9 @@ bool contas_admin(const char *login, bool admin, char *erro, size_t tam);
 bool contas_nome(const char *login, const char *nome, char *erro, size_t tam);
 bool contas_senha(const char *login, const char *senha, char *erro, size_t tam);
 
+/* o nome de usuário de quem está logado */
+const char *contas_eu(void);
+
 /* a foto de quem está logado (~/.face): o caminho se existe, senão NULL; definir a partir de uma imagem (recorta ao quadrado e vira 256 px) */
 const char *contas_foto(void);
 bool contas_foto_definir(const char *imagem, char *erro, size_t tam);

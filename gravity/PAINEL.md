@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (4 de novembro de 2026, contado no código):** 59 de 74 páginas prontas e 15 ainda só o esqueleto
+**Em números (4 de novembro de 2026, contado no código):** 62 de 74 páginas prontas e 12 ainda só o esqueleto
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -241,9 +241,9 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
   - ✅ formatos (data, números, dinheiro, papel e medidas, com amostra);
   - ✅ métodos de entrada (fcitx5 e ibus: ligar ao entrar, configurar e instalar; os layouts ficam em Teclado).
 - **Usuários:**
-  - ⏳ sua conta (foto, nome);
-  - ⏳ senha e PIN;
-  - ⏳ outros usuários.
+  - ✅ sua conta (foto em ~/.face, que o bloqueio também mostra, e o nome);
+  - ✅ senha e PIN (a senha pelo passwd no terminal; o PIN é o do LUMNA);
+  - ✅ outros usuários (ver, adicionar, tirar e administrador, pelo session/lumna-usuarios com pkexec e a política os.lumna.usuarios).
 - **Privacidade:**
   - ✅ permissões dos apps (as mesmas, por app);
   - ✅ histórico e recentes (lembrar ou não, limpar os recentes e a área de transferência);
@@ -317,7 +317,7 @@ como se fosse uma tela.
    - Barra superior;
    - Tela de bloqueio.
 3. ✅ Inicialização (as 4 páginas: Ao entrar, Apps ao iniciar, Entrada e Em segundo plano; falta testar na máquina de verdade).
-4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade. Faltam Usuários e o Teclado na tela.
+4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade. Falta o Teclado na tela.
 5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do LUMNA Connect; falta o
    Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).
 6. As ⏳, à medida que os serviços entram: o NetworkManager e o BlueZ já entraram; falta o UPower (Energia).

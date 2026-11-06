@@ -137,6 +137,12 @@ void pn_bateria_desenhar(void);
 void pn_suspensao_desenhar(void);
 void pn_botao_desenhar(void);
 
+/* Sistema → Usuários (usuarios.c) */
+void pn_usuarios_abrir(void);
+void pn_conta_desenhar(void);
+void pn_senha_desenhar(void);
+void pn_outros_desenhar(void);
+
 /* Sistema → Idioma e região (idioma.c) */
 void pn_idioma_desenhar(void);
 void pn_idioma_abrir(void);
@@ -297,9 +303,9 @@ static const pn_secao idioma[] = {
 const pn_categoria pn_idioma = { "idioma", "globe", "Idioma e região", "Português (Brasil)", PN_SISTEMA, idioma, N(idioma) };
 
 static const pn_secao usuarios[] = {
-	{ "conta", "user", "Sua conta", "O seu nome e a sua foto.", NULL, "Foto e nome" },
-	{ "senha", "lock", "Senha e PIN", "Como você entra.", NULL, "Trocar a senha;O PIN" },
-	{ "outros", "users", "Outros usuários", "As outras contas.", NULL, "Adicionar e remover" },
+	{ "conta", "user", "Sua conta", "O seu nome e a sua foto.", pn_conta_desenhar, NULL, NULL, NULL, NULL, NULL, pn_usuarios_abrir },
+	{ "senha", "lock", "Senha e PIN", "Como você entra.", pn_senha_desenhar, NULL, NULL, NULL, NULL, NULL, pn_usuarios_abrir },
+	{ "outros", "users", "Outros usuários", "As outras contas.", pn_outros_desenhar, NULL, NULL, NULL, NULL, NULL, pn_usuarios_abrir },
 };
 const pn_categoria pn_usuarios = { "usuarios", "users", "Usuários", "Contas e senhas", PN_SISTEMA, usuarios, N(usuarios) };
 

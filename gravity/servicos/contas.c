@@ -38,10 +38,14 @@ static bool no_grupo(const char *grupo, const char *login) {
 	return achou;
 }
 
+const char *contas_eu(void) {
+	return getenv("LUMNA_USUARIO") ? getenv("LUMNA_USUARIO") : g_get_user_name(); /* LUMNA_USUARIO: testes */
+}
+
 int contas_listar(struct conta *lista, int max) {
 	char *c = g_strdup_printf("%s/passwd", etc()), *texto = NULL;
 	int n = 0;
-	const char *eu = getenv("LUMNA_USUARIO") ? getenv("LUMNA_USUARIO") : g_get_user_name(); /* LUMNA_USUARIO: testes */
+	const char *eu = contas_eu();
 	if (g_file_get_contents(c, &texto, NULL, NULL)) {
 		char **linhas = g_strsplit(texto, "\n", -1);
 		for (char **l = linhas; *l && n < max; l++) {

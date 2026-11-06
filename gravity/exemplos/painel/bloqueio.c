@@ -163,7 +163,7 @@ static bool cartao_layout(Clay_ElementId id, const char *nome, bool lateral, boo
 	return tocado;
 }
 
-static void secao_pin(void) {
+void pn_pin_secao(void) {
 	int tamanho = entrar_pin_tamanho();
 	pn_linha_comecar(CLAY_ID("bl-pin"), "lock", "PIN",
 		tamanho ? gv_fmt("Um PIN de %d números; a senha do Linux também desbloqueia", tamanho).chars
@@ -305,7 +305,7 @@ void pn_bloqueio_desenhar(void) {
 	gv_interruptor(CLAY_ID("bl-susp-v"), &b.suspender);
 	pn_linha_acabar();
 	pn_subtitulo(CLAY_ID("bl-s2"), "Desbloquear");
-	secao_pin();
+	pn_pin_secao();
 	CLAY(CLAY_ID("bl-agora"), { .layout = { .padding = { 0, 0, 14, 0 } } }) {
 		if (gv_botao(CLAY_ID("bl-bloquear"), "lock", "Bloquear agora", GV_BOTAO_ELEVADO)) {
 			pn_executar("lumna-bloqueio");

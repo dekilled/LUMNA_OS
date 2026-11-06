@@ -444,10 +444,20 @@ static void entrar_senha(void) {
 static void painel_entrar(void) {
 	CLAY(CLAY_ID("entrar-meio"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 10,
 		.childAlignment = { .x = CLAY_ALIGN_X_CENTER } } }) {
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(112), CLAY_SIZING_FIXED(112) },
-			.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
-			.backgroundColor = gv_cor(0x16141ee6), .cornerRadius = CLAY_CORNER_RADIUS(56), .border = { .color = branco(0.15f), .width = GV_BORDA(1) } }) {
-			gv_icone("user", 56, branco(0.95f));
+		/* a foto da pessoa (~/.face, que o Painel → Usuários grava), senão o ícone */
+		static char foto[512]; /* fica de pé até o desenho (o Clay só lê no fim do quadro) */
+		snprintf(foto, sizeof(foto), "%s/.face", g_get_home_dir());
+		if (g_file_test(foto, G_FILE_TEST_IS_REGULAR)) {
+			Clay_ElementId f = CLAY_ID("foto");
+			CLAY(f, gv_imagem(f, foto, GV_AJUSTE_COBRIR, (Clay_ElementDeclaration){
+				.layout = { .sizing = { CLAY_SIZING_FIXED(112), CLAY_SIZING_FIXED(112) } }, .cornerRadius = CLAY_CORNER_RADIUS(56),
+				.border = { .color = branco(0.15f), .width = GV_BORDA(1) } })) {}
+		} else {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(112), CLAY_SIZING_FIXED(112) },
+				.childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = gv_cor(0x16141ee6), .cornerRadius = CLAY_CORNER_RADIUS(56), .border = { .color = branco(0.15f), .width = GV_BORDA(1) } }) {
+				gv_icone("user", 56, branco(0.95f));
+			}
 		}
 		const char *nome = g_get_real_name();
 		texto(gv_str(nome && *nome && strcmp(nome, "Unknown") ? nome : g_get_user_name()), 28, 1, GV_PESO_MEDIO);
