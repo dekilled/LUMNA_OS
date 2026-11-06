@@ -4,6 +4,13 @@ Escrito em 6 de novembro de 2026. Objetivo: você instalar o LUMNA numa máquina
 com **Orbit + Gravity no lugar do Hyprland + shell Tauri**, e testar o sistema inteiro de verdade.
 Ordem que você pediu: **(1) ISO com a UI nova → (2) os programas combinados → (3) UI mobile.**
 
+## Decisões já tomadas (6 de novembro)
+
+1. **A primeira ISO leva uma sessão de emergência**: o Hyprland antigo, escolhível no login, até o Orbit provar que sobe
+   numa tela de verdade. Depois que você validar, o antigo sai (a tag guarda tudo).
+2. **Instalador e agente do polkit novos, em Gravity**, no mesmo visual do resto, em cima do `lumna-install`.
+   Só disco inteiro por enquanto.
+
 ## O que existe hoje (conferido no código)
 
 - A ISO (`iso/`, `scripts/build-iso.sh`, GitHub Actions) monta **Hyprland + `lumna-shell` (Tauri/Vue)**.
@@ -61,8 +68,8 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 
 ## Fase 3 — A ISO e a remoção da UI antiga (em duas etapas, para não ficar sem volta)
 
-1. **ISO de teste (branch `iso-orbit`)**: sai só com a UI nova. O código antigo **continua no repositório**, só não
-   é empacotado. Marco o estado atual com a tag `ui-antiga-hyprland`.
+1. **ISO de teste (branch `iso-orbit`)**: a sessão padrão é a nova (Orbit); o Hyprland antigo vai junto só como
+   sessão de emergência escolhível no login. O código antigo **continua no repositório**. Marco o estado atual com a tag `ui-antiga-hyprland`.
 2. Você testa. **Só depois do seu "pode apagar"** entra o PR que remove: `shell/`, `crates/lumna-hypr`, `lumna-ctl`,
    `hyprland.lua`, `greeter.lua`, `lumna-hyprbars`, scripts e docs do Hyprland. A tag guarda tudo.
 3. CI gera a ISO a cada push na branch; a tag `v*` publica na Release.
@@ -79,8 +86,8 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 
 ## Riscos e como seguro cada um
 
-- **Tela preta no boot (Orbit em DRM real, nunca testado):** primeira ISO leva uma sessão de **emergência**
-  (a clássica, ou um terminal) até o Orbit provar que sobe. *(decisão 1, abaixo)*
+- **Tela preta no boot (Orbit em DRM real, nunca testado):** primeira ISO leva o Hyprland antigo como sessão de **emergência**
+  até o Orbit provar que sobe. *(decisão 1)*
 - **wlroots 0.20 só compilado:** se der problema, fixo o pacote em `wlroots0.18`/`0.19` do repositório.
 - **Sem agente polkit:** é bloqueante, entra na Fase 2 antes da ISO.
 - **Emma sem as ações do shell antigo:** auditoria na Fase 0; o que faltar entra antes da ISO se for essencial.
