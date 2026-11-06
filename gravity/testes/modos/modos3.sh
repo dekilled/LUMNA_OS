@@ -25,6 +25,7 @@ confere() { # confere "descrição" modo1 modo2 modo3
 	r="$(modo_de HEADLESS-1) $(modo_de HEADLESS-2) $(modo_de HEADLESS-3)"
 	[ "$r" = "$*" ] || fail "$d: esperava '$*' e veio '$r'"
 }
+na_dock() { msg janelas | tr '{' '\n' | grep "\"app_id\":\"$1\"" | grep -o '"na_dock":[a-z]*' | head -1 | cut -d: -f2; }
 saida_da_janela() { msg janelas | tr '{' '\n' | grep "\"app_id\":\"$1\"" | grep -o '"saida":"[A-Z0-9-]*"' | head -1 | sed 's/.*:"\(.*\)"/\1/'; }
 
 [ -z "$sock" ] && { echo "o orbit não abriu o socket" >&2; cat "$run/log" >&2; exit 1; }
@@ -53,10 +54,12 @@ confere "Mídia na 1 e Gaming na 3" midia desktop gaming
 # a Mídia pedida noutra tela leva o espaço dela (e as janelas) e a que a tinha volta ao Desktop; o Gaming da 3 não é roubado
 msg modo midia HEADLESS-2 >/dev/null; sleep 0.4
 confere "Mídia passa da 1 para a 2" desktop midia gaming
-# o ciclo (Super+Tab) da tela 1 não rouba nem a Mídia nem o Gaming: desktop -> (nenhum livre) -> desktop
+# o ciclo (Super+Tab) alcança todos os modos, mesmo os que outra tela tem: da tela 1 (Desktop) o seguinte é o Gaming, que está na 3 e troca com ela
 msg modo seguinte HEADLESS-1 >/dev/null; sleep 0.3
-confere "ciclo da tela 1 com Mídia e Gaming ocupados" desktop midia gaming
-msg modo desktop HEADLESS-2 >/dev/null; msg modo desktop HEADLESS-3 >/dev/null; sleep 0.3
+confere "ciclo da tela 1: Gaming troca com a 3" gaming midia desktop
+msg modo seguinte HEADLESS-1 >/dev/null; sleep 0.3
+confere "ciclo da tela 1: Mídia troca com a 2" midia gaming desktop
+msg modo desktop HEADLESS-1 >/dev/null; msg modo desktop HEADLESS-2 >/dev/null; msg modo desktop HEADLESS-3 >/dev/null; sleep 0.3
 confere "tudo de volta" desktop desktop desktop
 
 # janelas de verdade: a Mídia (app_id lumna-midia) abre na tela que está em Mídia, mesmo com o cursor noutra
@@ -99,8 +102,12 @@ msg modo midia $C >/dev/null; sleep 0.6
 [ "$(modo_de $C)" = "midia" ] && [ "$(modo_de $M)" = "desktop" ] || fail "troca: a Mídia devia ter ido para $C (e $M voltado ao Desktop)"
 [ "$(saida_da_janela lumna-midia-inicio)" = "$C" ] || fail "troca: a janela da Mídia devia ter ido para $C, está em '$(saida_da_janela lumna-midia-inicio)'"
 [ "$(saida_da_janela janela-troca)" = "$M" ] || fail "troca: a janela do Desktop de $C devia ter ido para $M, está em '$(saida_da_janela janela-troca)'"
+[ "$(na_dock lumna-midia-inicio)" = "false" ] || fail "troca: a janela da Mídia não devia aparecer na dock"
+[ "$(na_dock janela-troca)" = "true" ] || fail "troca: a janela do Desktop devia aparecer na dock"
+# a tela da Mídia volta ao Desktop: a janela da Mídia continua no espaço dela, fora da dock (nunca "minimizada" na barra)
+msg modo desktop $C >/dev/null; sleep 0.5
+[ "$(na_dock lumna-midia-inicio)" = "false" ] || fail "a janela da Mídia apareceu na dock quando a tela voltou ao Desktop"
 kill $j4 $j5 2>/dev/null
-msg modo desktop $C >/dev/null; sleep 0.3
 
 # a capa "Abrindo" e o seletor da Mídia (camadas sem tela pedida) vão para a tela em Mídia, mesmo com o cursor na outra
 msg modo midia HEADLESS-1 >/dev/null; sleep 0.3

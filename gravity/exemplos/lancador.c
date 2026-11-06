@@ -975,6 +975,22 @@ static void ao_abrir(void) {
 	gv_focar(CLAY_ID("busca"));
 }
 
+/* o pid do arquivo ainda é de um lançador? (um lançador que caiu deixa o arquivo; o número pode ter passado a outro processo, e aí o toque
+ * da dock mandaria um SIGTERM a ele e não abriria nada) */
+static bool e_um_lancador(int pid) {
+	char caminho[64], nome[128] = "";
+	snprintf(caminho, sizeof(caminho), "/proc/%d/comm", pid);
+	FILE *f = fopen(caminho, "r");
+	if (!f) {
+		return false;
+	}
+	if (!fgets(nome, sizeof(nome), f)) {
+		nome[0] = '\0';
+	}
+	fclose(f);
+	return strstr(nome, "lancador") != NULL;
+}
+
 /* chamar outra vez fecha o aberto (a dock abre e fecha com o mesmo toque) */
 static bool alternar_instancia(void) {
 	char caminho[1024];
@@ -983,7 +999,7 @@ static bool alternar_instancia(void) {
 	FILE *f = fopen(caminho, "r");
 	if (f) {
 		int pid = 0;
-		if (fscanf(f, "%d", &pid) == 1 && pid > 0 && kill(pid, 0) == 0) {
+		if (fscanf(f, "%d", &pid) == 1 && pid > 0 && kill(pid, 0) == 0 && e_um_lancador(pid)) {
 			fclose(f);
 			kill(pid, SIGTERM);
 			return true;
