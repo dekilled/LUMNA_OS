@@ -98,6 +98,20 @@ void pn_formato_aplicar(void);
 void pn_formato_descartar(void);
 void pn_formato_restaurar(void);
 
+/* Inicialização (inicializacao.c) */
+void pn_entrar_desenhar(void);
+bool pn_entrar_pendente(void);
+void pn_entrar_aplicar(void);
+void pn_entrar_descartar(void);
+void pn_entrar_restaurar(void);
+void pn_entrar_abrir(void);
+void pn_apps_ini_desenhar(void);
+void pn_apps_ini_abrir(void);
+void pn_entrada_desenhar(void);
+void pn_entrada_abrir(void);
+void pn_fundo_desenhar(void);
+void pn_fundo_abrir(void);
+
 /* Sistema → Teclado e mouse → Atalhos (atalhos.c) */
 void pn_atalhos_desenhar(void);
 bool pn_atalhos_pendente(void);
@@ -176,11 +190,11 @@ const pn_categoria pn_emma = { "emma", "mic", "Emma", "Voz e preferências", PN_
 /* ---- Inicialização ---- */
 
 static const pn_secao inicializacao[] = {
-	{ "entrar", "enter", "Ao entrar", "O que acontece quando você entra.", NULL,
-		"O modo inicial: Desktop, Gaming ou Mídia;Reabrir as janelas da última sessão" },
-	{ "apps", "grid", "Apps ao iniciar", "Os apps que abrem sozinhos.", NULL, "A lista (~/.config/autostart);Adicionar e remover" },
-	{ "entrada", "lock", "Entrada", "Como se entra no LUMNA.", NULL, "Login automático, PIN ou senha;A tela de boas-vindas" },
-	{ "fundo", "stack", "Em segundo plano", "Os serviços que correm por trás.", NULL, "Os serviços do usuário;Ligar e desligar" },
+	{ "entrar", "enter", "Ao entrar", "O que acontece quando você entra.", pn_entrar_desenhar, NULL, pn_entrar_pendente, pn_entrar_aplicar,
+		pn_entrar_descartar, pn_entrar_restaurar, pn_entrar_abrir },
+	{ "apps", "grid", "Apps ao iniciar", "Os apps que abrem sozinhos.", pn_apps_ini_desenhar, NULL, NULL, NULL, NULL, NULL, pn_apps_ini_abrir },
+	{ "entrada", "lock", "Entrada", "Como se entra no LUMNA.", pn_entrada_desenhar, NULL, NULL, NULL, NULL, NULL, pn_entrada_abrir },
+	{ "fundo", "stack", "Em segundo plano", "Os serviços que correm por trás.", pn_fundo_desenhar, NULL, NULL, NULL, NULL, NULL, pn_fundo_abrir },
 };
 const pn_categoria pn_inicializacao = { "inicializacao", "power", "Inicialização", "Ao ligar e ao entrar", PN_INICIALIZACAO,
 	inicializacao, N(inicializacao) };

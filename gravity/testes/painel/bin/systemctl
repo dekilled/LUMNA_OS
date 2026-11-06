@@ -1,0 +1,20 @@
+#!/bin/sh
+# um systemctl --user de mentira: o estado fica em $FUNDO_ESTADO (uma linha por unidade: NOME habilitado ativo "descrição")
+[ "$1" = "--user" ] && shift
+E=${FUNDO_ESTADO:?}
+case "$1" in
+list-unit-files)
+	awk '{ print $1 " " ($2 == "sim" ? "enabled" : "disabled") " enabled" } END { print "dbus.service static -"; print "app-x@.service static -"; print "gerado.service generated -" }' "$E" ;;
+list-units)
+	awk '{ d = $4; for (i = 5; i <= NF; i++) d = d " " $i; print "  " $1 " loaded " ($3 == "sim" ? "active" : "inactive") " " ($3 == "sim" ? "running" : "dead") " " d }' "$E" ;;
+enable|disable)
+	[ "$2" = "--now" ] && U=$3 || U=$2
+	grep -q "^$U " "$E" || { echo "Failed: unit $U does not exist" >&2; exit 1; }
+	V=$([ "$1" = enable ] && echo sim || echo nao)
+	awk -v u="$U" -v v="$V" '$1 == u { $2 = v; if ($0 !~ /x/) {}; $3 = v } { print }' "$E" > "$E.n" && mv "$E.n" "$E" ;;
+start|stop)
+	U=$2; grep -q "^$U " "$E" || { echo "Failed: unit $U not found" >&2; exit 1; }
+	V=$([ "$1" = start ] && echo sim || echo nao)
+	awk -v u="$U" -v v="$V" '$1 == u { $3 = v } { print }' "$E" > "$E.n" && mv "$E.n" "$E" ;;
+*) exit 1 ;;
+esac

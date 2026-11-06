@@ -26,4 +26,18 @@ env -u XDG_DATA_HOME XDG_CONFIG_HOME="$T/cfg" "$T/testa_hora" "$T/cfg/lumna/hora
 cc $CF -o "$T/testa_entrada" testes/painel/testa_entrada.c servicos/entrada.c servicos/telas.c servicos/json.c servicos/modos.c $LG -lm
 mkdir -p "$T/cfg2"
 env -u XDG_DATA_HOME XDG_CONFIG_HOME="$T/cfg2" LUMNA_XKB_LST="$AQUI/testes/painel/evdev-falso.lst" env -u XKB_DEFAULT_LAYOUT "$T/testa_entrada"
+# apps que abrem ao entrar (autostart)
+cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/testa_autostart" testes/painel/testa_autostart.c servicos/autostart.c $(pkg-config --libs gio-unix-2.0)
+mkdir -p "$T/auto"
+env -u XDG_DATA_HOME "$T/testa_autostart" "$T/auto"
+# a sessão (reabrir os apps do último login)
+cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/testa_sessao" testes/painel/testa_sessao.c servicos/sessao.c servicos/json.c servicos/modos.c $(pkg-config --libs gio-unix-2.0)
+mkdir -p "$T/sess"
+env "$T/testa_sessao" "$T/sess"
+# o que o Painel muda na tela de login (session/lumna-entrada-ajustar)
+sh testes/painel/testa_entrada_ajustar.sh "$T/ent"
+# os serviços do usuário (Em segundo plano), com um systemctl falso
+cc $CF $(pkg-config --cflags gio-unix-2.0) -o "$T/testa_segundoplano" testes/painel/testa_segundoplano.c servicos/segundoplano.c $(pkg-config --libs gio-unix-2.0)
+printf 'syncthing.service sim sim Syncthing - Open Source Continuous File Synchronization\nbackup.service nao nao Copia de seguranca\npipewire.service sim sim PipeWire\n' > "$T/fundo.txt"
+FUNDO_ESTADO="$T/fundo.txt" PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_segundoplano"
 echo "(arquivos de teste em $T)"

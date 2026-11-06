@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (4 de novembro de 2026, contado no código):** 43 de 74 páginas prontas e 31 ainda só o esqueleto
+**Em números (4 de novembro de 2026, contado no código):** 47 de 74 páginas prontas e 27 ainda só o esqueleto
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -204,10 +204,10 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
 
 ### Inicialização (a aba nova)
 
-- 🔨 **Ao entrar:** o modo inicial (Desktop, Gaming ou Mídia) e reabrir as janelas da última sessão.
-- 🔨 **Apps ao iniciar:** a lista de apps que abrem sozinhos (`~/.config/autostart`), com adicionar e remover.
-- ⏳ **Entrada:** login automático, PIN ou senha, e a tela de boas-vindas.
-- ⏳ **Em segundo plano:** os serviços do usuário (systemd --user), ligar e desligar.
+- ✅ **Ao entrar:** o modo inicial (Desktop, Gaming ou Mídia) e reabrir as janelas da última sessão (`inicio.ini`; quem faz é o `lumna-inicio`, que também guarda a sessão de 15 em 15 s).
+- ✅ **Apps ao iniciar:** a lista de apps que abrem sozinhos (`~/.config/autostart`), ligar, desligar, adicionar (um app instalado ou um comando) e tirar. Os do sistema só se desligam.
+- ✅ **Entrada:** login automático (`session/lumna-entrada-ajustar`, com pkexec e a política `os.lumna.entrada`), o desenho e o papel de parede da tela de login, e o atalho para Senha e PIN.
+- ✅ **Em segundo plano:** os serviços do usuário (systemd --user): ligar ao entrar, iniciar e parar.
 
 ### Sistema
 
@@ -316,7 +316,7 @@ como se fosse uma tela.
    - Tamanho e textos;
    - Barra superior;
    - Tela de bloqueio.
-3. 🔨 Inicialização (as 4 páginas ainda são esqueleto).
+3. ✅ Inicialização (as 4 páginas: Ao entrar, Apps ao iniciar, Entrada e Em segundo plano; falta testar na máquina de verdade).
 4. As seções 🔨 do Sistema: já estão Atalhos e Data e hora; faltam Energia, Histórico e recentes e as outras.
 5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do LUMNA Connect; falta o
    Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).

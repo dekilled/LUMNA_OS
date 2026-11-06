@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>LUMNA OS</vendor>
+  <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
+  <action id="os.lumna.entrada">
+    <description>Change how the login screen works</description>
+    <description xml:lang="pt_BR">Mudar como a tela de login funciona</description>
+    <message>Your password is needed to change the login screen.</message>
+    <message xml:lang="pt_BR">A sua senha é necessária para mudar a tela de login.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- Toda vez: entrar sem senha é uma mudança que merece a senha. -->
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/lumna/lumna-entrada-ajustar</annotate>
+  </action>
+</policyconfig>

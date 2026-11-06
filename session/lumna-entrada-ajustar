@@ -1,0 +1,71 @@
+#!/bin/sh
+# lumna-entrada-ajustar: o que o Painel (Inicialização → Entrada) muda na tela de login. Precisa de root: o Painel
+# chama com pkexec (política os.lumna.entrada).
+#
+#   lumna-entrada-ajustar login-automatico ligar USUARIO   entra sozinho como USUARIO ([initial_session] do greetd)
+#   lumna-entrada-ajustar login-automatico desligar
+#   lumna-entrada-ajustar layout centro|lateral            o desenho da tela de login (/etc/lumna/entrada.ini)
+#   lumna-entrada-ajustar papel CAMINHO                    usa esta imagem de fundo na tela de login
+#   lumna-entrada-ajustar papel -                          volta ao fundo de fábrica
+#
+# Para testar sem root: LUMNA_ETC=/pasta/falsa (no lugar de /etc) e LUMNA_SESSAO_CMD.
+ETC=${LUMNA_ETC:-/etc}
+GREETD=$ETC/greetd/config.toml
+INI=$ETC/lumna/entrada.ini
+SESSAO=${LUMNA_SESSAO_CMD:-lumna-orbit-session}
+
+die() { echo "lumna-entrada-ajustar: $*" >&2; exit 1; }
+
+tira_bloco() { # tira o bloco [initial_session] (até o próximo [bloco] ou o fim) do greetd
+	[ -f "$GREETD" ] || return 0
+	awk '/^\[initial_session\]/ { pula = 1; next } /^\[/ { pula = 0 } !pula { print }' "$GREETD" > "$GREETD.novo" && mv "$GREETD.novo" "$GREETD"
+}
+
+poe_chave() { # poe_chave chave valor: acerta a chave no entrada.ini
+	mkdir -p "$(dirname "$INI")"
+	[ -f "$INI" ] || : > "$INI"
+	grep -v "^$1[ =]" "$INI" > "$INI.novo"
+	[ -n "$2" ] && echo "$1 = $2" >> "$INI.novo"
+	mv "$INI.novo" "$INI"
+	chmod 644 "$INI"
+}
+
+case "$1" in
+login-automatico)
+	case "$2" in
+	ligar)
+		[ -n "$3" ] || die "falta o usuário"
+		# só quem existe e é gente de verdade (uid de 1000 a 59999)
+		uid=$(getent passwd "$3" | cut -d: -f3)
+		{ [ -n "$uid" ] && [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ]; } || die "usuário inválido: $3"
+		mkdir -p "$(dirname "$GREETD")"
+		tira_bloco
+		printf '\n[initial_session]\ncommand = "%s"\nuser = "%s"\n' "$SESSAO" "$3" >> "$GREETD"
+		;;
+	desligar) tira_bloco ;;
+	*) die "uso: login-automatico ligar USUARIO | desligar" ;;
+	esac
+	;;
+layout)
+	case "$2" in
+	centro|lateral) poe_chave layout "$2" ;;
+	*) die "uso: layout centro|lateral" ;;
+	esac
+	;;
+papel)
+	[ -n "$2" ] || die "uso: papel CAMINHO|-"
+	if [ "$2" = "-" ]; then
+		rm -f "$ETC"/lumna/entrada-papel.*
+		poe_chave papel ""
+	else
+		[ -f "$2" ] || die "não achei $2"
+		case "$2" in *.jpg|*.jpeg|*.png|*.webp) ;; *) die "só imagens (jpg, png, webp)" ;; esac
+		ext=${2##*.}
+		mkdir -p "$ETC/lumna"
+		rm -f "$ETC"/lumna/entrada-papel.*
+		cp "$2" "$ETC/lumna/entrada-papel.$ext" && chmod 644 "$ETC/lumna/entrada-papel.$ext"
+		poe_chave papel "$ETC/lumna/entrada-papel.$ext"
+	fi
+	;;
+*) die "uso: lumna-entrada-ajustar login-automatico|layout|papel ..." ;;
+esac

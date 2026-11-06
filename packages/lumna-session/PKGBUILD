@@ -56,6 +56,8 @@ package() {
   install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
   install -Dm755 lumna-confirm "$pkgdir/usr/lib/lumna/lumna-confirm"
   install -Dm644 os.lumna.confirm.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.confirm.policy"
+  install -Dm755 lumna-entrada-ajustar "$pkgdir/usr/lib/lumna/lumna-entrada-ajustar"
+  install -Dm644 os.lumna.entrada.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.entrada.policy"
   # Chaves do pacman (sistemas instalados sem elas) e relógio certo (assinaturas têm validade).
   install -Dm755 lumna-keyring "$pkgdir/usr/lib/lumna/lumna-keyring"
   install -Dm644 lumna-keyring.service "$pkgdir/usr/lib/systemd/system/lumna-keyring.service"
