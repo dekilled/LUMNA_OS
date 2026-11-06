@@ -18,7 +18,7 @@ PY
 read SAIDA X Y W HH FLUT < /tmp/claude-0/drag/jan.txt
 echo "janela em $SAIDA x=$X y=$Y ${W}x${HH} flutuante=$FLUT"
 # saídas: a da esquerda e onde acaba (x=1280)
-GX=$((X + 40)); GY=$((Y + 40))
+GX=$((X + ${OFF:-40})); GY=$((Y + 40))
 /tmp/claude-0/drag/arrasto2 casa; sleep 0.3
 /tmp/claude-0/drag/arrasto2 mover $GX $GY; sleep 0.3
 (wtype -M alt -s 7000 -m alt >/dev/null 2>&1 &)

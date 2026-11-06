@@ -8,5 +8,6 @@ teste_alt.sh: segura Alt (wtype), agarra uma janela solta pela parte esquerda e 
 Antes da correção ela ficava no monitor de origem, encaixada na metade direita (o encaixe de borda armava numa borda que era a do vizinho);
 depois, passa para o outro monitor com o tamanho de antes. Uso: sh teste_alt.sh PASTA_DO_BUILD (precisa de weston-simple-shm e wtype).
 
-teste_borda.sh: como teste_alt.sh, com o X de destino, o DY e quanto fica parado antes de soltar (ms). Casos: borda de fora (encaixa na hora), borda
-entre monitores com pausa curta (atravessa) e com pausa longa >= 0,4 s (encaixa), cima (maximiza). Uso: sh teste_borda.sh PASTA 1279 0 1000.
+teste_borda.sh: como teste_alt.sh, com X de destino do cursor, DY, quanto fica parado antes de soltar (ms) e OFF= (onde agarra a janela, a partir da borda
+esquerda dela). Casos: zona da lateral (encaixa ao soltar), atravessar para o outro monitor (não encaixa), borda da janela encostando com o cursor longe
+(OFF=150, X=150), meio da tela (nada) e cima (maximiza). Uso: OFF=150 sh teste_borda.sh PASTA 150 0 100.

@@ -255,11 +255,7 @@ struct orbit_server {
 	int grab_w, grab_h;     /* o tamanho ao começar a mudá-lo */
 	uint32_t resize_edges;
 	int snap_pending;       /* a arrastar, na borda: 1 esquerda, 2 direita, 3 maximizar */
-	struct wlr_scene_rect *snap_preview;
-	int snap_dwell_edge;    /* a arrastar numa borda compartilhada com outro monitor: a borda (1/2/3) e há quanto tempo o cursor está nela */
-	struct orbit_output *snap_dwell_output;
-	uint32_t snap_dwell_since;
-	struct wl_event_source *snap_dwell_timer;
+	struct wlr_scene_rect *snap_rects[10]; /* a prévia do encaixe: as duas metades (a do alvo cheia, a outra só no contorno) */
 	int master_pct;
 	int gap;
 	float phone_scale;

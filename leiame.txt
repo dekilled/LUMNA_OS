@@ -225,9 +225,9 @@ arrastam-se pela barra de título (xdg move) ou com Alt+arrastar, e mudam
 de tamanho pelas bordas (6 px por dentro), pelo pedido da janela (xdg
 resize) ou com Alt+botão direito. O encaixe só vem de um gatilho: largar
 na borda esquerda/direita da tela (metade) ou em cima (maximizar), com a
-prévia enquanto se arrasta, ou Super+setas. Na borda que é o fim do desktop o
-encaixe arma na hora; na que tem outro monitor do lado (por onde a janela
-passa) só arma se o cursor ficar parado ~0,4 s nela. Arrastar uma janela encaixada
+prévia enquanto se arrasta, ou Super+setas. As laterais de cada monitor são uma
+zona (56 px): a janela atravessa por ela para o outro monitor, e só encaixa se for SOLTA com o cursor na zona ou com a borda da
+janela encostada na lateral (a prévia mostra as duas metades, a do alvo cheia). Em cima, uma faixa fina maximiza. Arrastar uma janela encaixada
 ou maximizada solta-a no tamanho livre de antes. arranjo = mestre (ou
 monoculo, espiral, dwindle) volta ao mosaico.
   Alt+botão        arrastar; ao largar noutra saída, a janela muda de mãe

@@ -1,7 +1,5 @@
 #include "orbit.h"
 
-#include <time.h>
-
 #include <stdlib.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/edges.h>
@@ -19,8 +17,9 @@
 
 #define ORBIT_MIN_W 240
 #define ORBIT_MIN_H 160
-#define ORBIT_SNAP_EDGE 2 /* px da borda da saída que fazem o gatilho */
-#define ORBIT_SNAP_DWELL_MS 400 /* na borda entre dois monitores o encaixe só arma se o cursor ficar parado nela: passar direto atravessa */
+#define ORBIT_SNAP_ZONE 56 /* px, nas laterais de cada monitor: a zona de encaixe. Só vale se SOLTAR a janela com o cursor nela; passar por ela atravessa */
+#define ORBIT_SNAP_WINDOW 12 /* px: a janela arrastada "chegou" à lateral quando a borda dela fica a menos disto da do monitor (ou passa dela) */
+#define ORBIT_SNAP_TOP 4   /* em cima (maximizar): fina, porque quem arrasta pela barra de título anda sempre perto do topo */
 
 /* o tamanho da janela que o cliente diz (no 0.19 passou a um campo) */
 static struct wlr_box client_geometry(struct orbit_view *view) {
@@ -240,24 +239,61 @@ void orbit_snap_key(struct orbit_server *server, int dir) {
 
 /* ---- arrastar ---- */
 
-static void preview(struct orbit_server *server, struct wlr_box *box) {
-	if (!box) {
-		if (server->snap_preview) {
-			wlr_scene_node_set_enabled(&server->snap_preview->node, false);
+/* um retângulo vazado (contorno de largura w) feito de 4 retângulos, a partir do índice i de snap_rects */
+static void zone_outline(struct orbit_server *server, int i, const struct wlr_box *b, int w, const float color[4]) {
+	struct wlr_box part[4] = { { b->x, b->y, b->width, w }, { b->x, b->y + b->height - w, b->width, w },
+		{ b->x, b->y + w, w, b->height - 2 * w }, { b->x + b->width - w, b->y + w, w, b->height - 2 * w } };
+	for (int k = 0; k < 4; k++) {
+		struct wlr_scene_rect **r = &server->snap_rects[i + k];
+		if (!*r) {
+			*r = wlr_scene_rect_create(server->tile_tree, part[k].width, part[k].height, color);
+			if (!*r) {
+				return;
+			}
 		}
-		return;
+		wlr_scene_rect_set_size(*r, part[k].width, part[k].height);
+		wlr_scene_rect_set_color(*r, color);
+		wlr_scene_node_set_position(&(*r)->node, part[k].x, part[k].y);
+		wlr_scene_node_set_enabled(&(*r)->node, true);
+		wlr_scene_node_raise_to_top(&(*r)->node);
 	}
-	if (!server->snap_preview) {
-		float color[4] = { 0.30f * 0.3f, 0.22f * 0.3f, 0.55f * 0.3f, 0.3f };
-		server->snap_preview = wlr_scene_rect_create(server->tile_tree, box->width, box->height, color);
-		if (!server->snap_preview) {
+}
+
+static void zone_fill(struct orbit_server *server, int i, const struct wlr_box *b, const float color[4]) {
+	struct wlr_scene_rect **r = &server->snap_rects[i];
+	if (!*r) {
+		*r = wlr_scene_rect_create(server->tile_tree, b->width, b->height, color);
+		if (!*r) {
 			return;
 		}
 	}
-	wlr_scene_rect_set_size(server->snap_preview, box->width, box->height);
-	wlr_scene_node_set_position(&server->snap_preview->node, box->x, box->y);
-	wlr_scene_node_set_enabled(&server->snap_preview->node, true);
-	wlr_scene_node_raise_to_top(&server->snap_preview->node);
+	wlr_scene_rect_set_size(*r, b->width, b->height);
+	wlr_scene_rect_set_color(*r, color);
+	wlr_scene_node_set_position(&(*r)->node, b->x, b->y);
+	wlr_scene_node_set_enabled(&(*r)->node, true);
+	wlr_scene_node_raise_to_top(&(*r)->node);
+}
+
+/* a prévia do encaixe: o alvo (cheio) e, nas laterais, a outra metade só no contorno, como no desenho "duas metades" */
+static void preview(struct orbit_server *server, struct wlr_box *box, struct wlr_box *other) {
+	for (int i = 0; i < 10; i++) {
+		if (server->snap_rects[i]) {
+			wlr_scene_node_set_enabled(&server->snap_rects[i]->node, false);
+		}
+	}
+	if (!box) {
+		return;
+	}
+	static const float fill[4] = { 0.50f * 0.26f, 0.36f * 0.26f, 0.95f * 0.26f, 0.26f };
+	static const float line[4] = { 0.66f, 0.52f, 1.0f, 1.0f };
+	static const float faint_fill[4] = { 0.50f * 0.07f, 0.36f * 0.07f, 0.95f * 0.07f, 0.07f };
+	static const float faint_line[4] = { 0.66f * 0.5f, 0.52f * 0.5f, 1.0f * 0.5f, 0.5f };
+	if (other) {
+		zone_fill(server, 0, other, faint_fill);
+		zone_outline(server, 1, other, 2, faint_line);
+	}
+	zone_fill(server, 5, box, fill);
+	zone_outline(server, 6, box, 3, line);
 }
 
 void orbit_move_begin(struct orbit_server *server, struct orbit_view *view) {
@@ -300,35 +336,6 @@ void orbit_move_begin(struct orbit_server *server, struct orbit_view *view) {
 
 /* o cursor mexeu a arrastar: a janela segue, e nas bordas aparece a prévia do encaixe */
 /* há outra saída ligada logo depois desta borda (dx, dy: de que lado)? Olha dois pontos, perto dos cantos, para um monitor menor ao lado também contar */
-static bool output_beyond(struct orbit_server *server, const struct wlr_box *box, int dx, int dy) {
-	for (int k = 0; k < 3; k++) {
-		double frac = k == 0 ? 0.1 : k == 1 ? 0.5 : 0.9;
-		double px = dx < 0 ? box->x - 1 : dx > 0 ? box->x + box->width : box->x + box->width * frac;
-		double py = dy < 0 ? box->y - 1 : dy > 0 ? box->y + box->height : box->y + box->height * frac;
-		if (wlr_output_layout_output_at(server->layout, px, py)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-static uint32_t snap_now_ms(void) {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
-}
-
-void orbit_move_motion(struct orbit_server *server);
-
-/* o cursor ficou parado na borda entre dois monitores: vale como encaixe (a janela segue agarrada) */
-static int snap_dwell_tick(void *data) {
-	struct orbit_server *server = data;
-	if (server->grabbed && server->cursor_mode == ORBIT_CURSOR_MOVE) {
-		orbit_move_motion(server);
-	}
-	return 0;
-}
-
 void orbit_move_motion(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
 	struct orbit_output *sob = output_at(server, server->cursor->x, server->cursor->y);
@@ -345,72 +352,56 @@ void orbit_move_motion(struct orbit_server *server) {
 	struct orbit_output *output = output_at(server, server->cursor->x, server->cursor->y);
 	server->snap_pending = 0;
 	if (!orbit_free_desktop(server, output)) {
-		preview(server, NULL);
+		preview(server, NULL, NULL);
 		return;
 	}
 	struct wlr_box full;
 	wlr_output_layout_get_box(server->layout, output->wlr, &full);
 	double x = server->cursor->x, y = server->cursor->y;
-	/* Na borda que é o fim do desktop o encaixe arma na hora. Na que tem outro monitor do lado ela é por onde a janela passa: só arma se o
-	 * cursor ficar parado nela (ORBIT_SNAP_DWELL_MS); passando direto a janela atravessa e não gruda (antes armava no instante da travessia). */
-	int edge = 0;
-	bool shared = false;
-	if (x <= full.x + ORBIT_SNAP_EDGE) {
-		edge = 1;
-		shared = output_beyond(server, &full, -1, 0);
-	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_EDGE) {
-		edge = 2;
-		shared = output_beyond(server, &full, 1, 0);
-	} else if (y <= full.y + ORBIT_SNAP_EDGE) {
-		edge = 3;
-		shared = output_beyond(server, &full, 0, -1);
-	}
-	if (edge && shared) {
-		uint32_t now = snap_now_ms();
-		if (server->snap_dwell_edge != edge || server->snap_dwell_output != output) {
-			server->snap_dwell_edge = edge;
-			server->snap_dwell_output = output;
-			server->snap_dwell_since = now;
-		}
-		if (now - server->snap_dwell_since >= ORBIT_SNAP_DWELL_MS) {
-			server->snap_pending = edge;
-		} else if (server->display) {
-			if (!server->snap_dwell_timer) {
-				server->snap_dwell_timer = wl_event_loop_add_timer(wl_display_get_event_loop(server->display), snap_dwell_tick, server);
-			}
-			if (server->snap_dwell_timer) {
-				wl_event_source_timer_update(server->snap_dwell_timer, ORBIT_SNAP_DWELL_MS - (int)(now - server->snap_dwell_since) + 5);
-			}
-		}
-	} else {
-		server->snap_dwell_edge = 0;
-		server->snap_pending = edge;
+	/* As laterais do monitor são uma zona (ORBIT_SNAP_ZONE): a janela passa por ela direto para o monitor do lado, e só entra no arranjo
+	 * (metade da tela) se for SOLTA com o cursor dentro dela. Em cima, uma faixa fina maximiza. */
+	/* A zona aparece também quando é a JANELA que chega à lateral (a borda dela encosta na do monitor), mesmo com o cursor mais para dentro:
+	 * uma janela larga agarrada pelo meio chega à borda muito antes do cursor. Só conta se a janela está na maior parte neste monitor
+	 * (senão é uma travessia: a janela passando para o outro lado) e o cursor está na metade daquela lateral. */
+	struct wlr_box g = geometry(view);
+	int gw = g.width > 0 ? g.width : view->w, gh = g.height > 0 ? g.height : view->h;
+	struct wlr_box win = { view->x, view->y, gw > 0 ? gw : 1, gh > 0 ? gh : 1 }, inter;
+	bool mostly_here = wlr_box_intersection(&inter, &win, &full) && (long)inter.width * inter.height * 2 >= (long)win.width * win.height;
+	bool left_half = x < full.x + full.width / 2.0;
+	if (x <= full.x + ORBIT_SNAP_ZONE || (mostly_here && left_half && view->x <= full.x + ORBIT_SNAP_WINDOW)) {
+		server->snap_pending = 1;
+	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_ZONE || (mostly_here && !left_half && view->x + win.width >= full.x + full.width - ORBIT_SNAP_WINDOW)) {
+		server->snap_pending = 2;
+	} else if (y <= full.y + ORBIT_SNAP_TOP) {
+		server->snap_pending = 3;
 	}
 	if (!server->snap_pending) {
-		preview(server, NULL);
+		preview(server, NULL, NULL);
 		return;
 	}
 	struct orbit_output *old = view->output;
 	view->output = output;
-	struct wlr_box box;
+	struct wlr_box box, other;
+	struct wlr_box *other_ptr = NULL;
 	if (server->snap_pending == 3) {
 		box = orbit_layer_usable(output, &full);
 	} else {
 		box = orbit_snap_box(view, server->snap_pending);
+		other = orbit_snap_box(view, server->snap_pending == 1 ? 2 : 1);
+		other_ptr = &other;
 	}
 	view->output = old;
-	preview(server, &box);
+	preview(server, &box, other_ptr);
 }
 
 /* largou: muda de tela se for o caso, e encaixa se estava numa borda */
 void orbit_move_end(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
 	int snap = server->snap_pending;
-	server->snap_dwell_edge = 0;
 	server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
 	server->grabbed = NULL;
 	server->snap_pending = 0;
-	preview(server, NULL);
+	preview(server, NULL, NULL);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
 	if (!view || !view->mapped) {
 		return;
