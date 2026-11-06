@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=LUMNA (clássico · emergência)
+Comment=A sessão antiga (Hyprland), só para o caso de o Orbit não subir
+Exec=/usr/bin/lumna-classico-session
+TryExec=/usr/bin/lumna-classico-session
+Type=Application
+DesktopNames=Hyprland;LUMNA

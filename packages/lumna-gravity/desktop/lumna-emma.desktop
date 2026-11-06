@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Emma
+Comment=A assistente do LUMNA
+Exec=lumna-emma-app
+Icon=lumna-emma
+StartupWMClass=lumna-emma-app
+Categories=Utility;
+Keywords=emma;assistente;ia;chat;

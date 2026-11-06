@@ -1,0 +1,58 @@
+name: Pacotes da UI nova
+
+# Compila só os pacotes da sessão nova (Orbit e Gravity) e confere os arquivos: leva minutos, não monta a ISO.
+# Roda a cada push na branch iso-orbit. (A ISO nova sai por uma tag orbit-*: ver iso.yml.)
+on:
+  push:
+    branches: [iso-orbit]
+  workflow_dispatch:
+
+jobs:
+  pacotes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Ferramentas
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git sudo libxml2 libarchive
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+
+      - uses: actions/checkout@v4
+
+      - name: Compila os pacotes
+        run: |
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          mkdir -p /tmp/repo && chown builder:builder /tmp/repo
+          for pkg in lumna-orbit lumna-gravity; do
+            (cd "packages/$pkg" && sudo -u builder env PKGDEST=/tmp/repo makepkg --noconfirm --cleanbuild --syncdeps)
+          done
+          (cd packages/lumna-session && sudo -u builder env PKGDEST=/tmp/repo makepkg --noconfirm --cleanbuild --nodeps)
+          (cd packages/lumna-classico && sudo -u builder env PKGDEST=/tmp/repo makepkg --noconfirm --cleanbuild --nodeps)
+          ls -lh /tmp/repo
+
+      - name: Confere os arquivos e as bibliotecas
+        run: |
+          mkdir -p /tmp/check
+          for pkg in lumna-orbit lumna-gravity lumna-session; do bsdtar -xf "$(ls /tmp/repo/$pkg-[0-9]*.pkg.tar.zst | head -1)" -C /tmp/check; done
+          missing=0
+          for f in usr/bin/orbit usr/bin/orbit-msg usr/bin/lumna-painel usr/bin/lumna-barra usr/bin/lumna-dock usr/bin/lumna-lancador \
+                   usr/bin/lumna-avisos usr/bin/lumna-bloqueio usr/bin/lumna-entrada usr/bin/lumna-emma usr/bin/lumna-emma-app \
+                   usr/bin/lumna-captura usr/bin/lumna-orbit-session usr/bin/lumna-entrada-greeter \
+                   usr/share/wayland-sessions/lumna-orbit.desktop usr/lib/lumna/lumna-entrada-ajustar; do
+            [ -e "/tmp/check/$f" ] || { echo "FALTA: $f"; missing=1; }
+          done
+          for bin in /tmp/check/usr/bin/orbit /tmp/check/usr/bin/lumna-*; do
+            head -c4 "$bin" | grep -q ELF || continue
+            if ldd "$bin" 2>&1 | grep -q "not found"; then echo "biblioteca faltando em ${bin##*/}:"; ldd "$bin" | grep "not found"; missing=1; fi
+          done
+          for policy in /tmp/check/usr/share/polkit-1/actions/*.policy; do xmllint --noout "$policy" || missing=1; done
+          exit $missing
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pacotes-ui-nova
+          path: /tmp/repo/*.pkg.tar.zst
+          retention-days: 3

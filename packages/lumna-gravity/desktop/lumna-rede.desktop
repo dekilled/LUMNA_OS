@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Rede
+Comment=Wi-Fi, cabo e conexões
+Exec=lumna-rede
+Icon=lumna-rede
+StartupWMClass=lumna-rede
+Categories=Settings;Network;
+Keywords=wifi;rede;internet;

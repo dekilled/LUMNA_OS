@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Painel de controle
+Comment=Aparência, rede, som, energia, Emma e o resto do sistema
+Exec=lumna-painel
+Icon=lumna-painel
+StartupWMClass=lumna-painel
+Categories=Settings;
+Keywords=configuracoes;ajustes;wifi;rede;bluetooth;som;energia;tema;sistema;

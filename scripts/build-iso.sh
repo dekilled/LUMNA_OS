@@ -11,6 +11,8 @@ docker run --rm --privileged --network host \
   -v "$root:/src" \
   -v lumna-cargo:/cache \
   ${EMMA_SRC:+-v "$(realpath "$EMMA_SRC"):/emma:ro" -e EMMA_SRC=/emma} \
+  ${LUMNA_CANAL:+-e LUMNA_CANAL="$LUMNA_CANAL"} ${ORBIT_REF:+-e ORBIT_REF="$ORBIT_REF"} \
+  ${ORBIT_SRC:+-v "$(realpath "$ORBIT_SRC"):/orbit:ro" -e ORBIT_SRC=/orbit} \
   -e CARGO_HOME=/cache/cargo -e CARGO_TARGET_DIR=/cache/target \
   ${NODE_EXTRA_CA_CERTS:+-e NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt} \
   lumna-builder bash -c 'mkdir -p /cache && chown -R builder:builder /cache && /src/iso/build.sh; status=$?

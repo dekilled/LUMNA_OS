@@ -1,0 +1,52 @@
+# Gravity: o desktop do LUMNA OS em C (biblioteca de interface + as peças: topbar, dock, início, avisos,
+# bloqueio, login, Painel de controle, Emma, Mídia, captura, Connect...). Compilado a partir de gravity/.
+pkgname=lumna-gravity
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="O desktop do LUMNA OS em Gravity: topbar, dock, início, avisos, bloqueio, Painel, Emma, Mídia, Connect"
+arch=(x86_64 aarch64)
+url="https://github.com/dekilled/LUMNA_OS"
+license=(GPL-3.0-or-later)
+depends=(
+  # bibliotecas
+  wayland libxkbcommon cairo pango glib2 gdk-pixbuf2 libpulse libsoup3 dbus
+  # o que as peças chamam: teclado virtual do controle (wtype), área de transferência, captura e gravação
+  wtype wl-clipboard grim wf-recorder
+  # som, energia, discos, rede, Bluetooth, bateria e senha de administrador (pkexec)
+  wireplumber pipewire-pulse power-profiles-daemon udisks2 networkmanager bluez upower polkit
+  # sessão: systemd (localectl, timedatectl), abrir arquivos e links, avisos, rotas, discos
+  systemd xdg-utils libnotify iproute2 util-linux ffmpeg
+  # a Mídia e os links abrem no Firefox; o terminal é o foot
+  firefox foot
+  # o que o instalador de apps do Painel usa (pacman, checkupdates)
+  pacman-contrib)
+makedepends=(wayland-protocols zip)
+options=(!strip !debug)
+
+_root="$(realpath "$startdir/../..")"
+# nome do binário no repositório -> /usr/bin/lumna-<nome>
+_apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
+  energia luz modos connect midia emma emma-chat emma-app perfil captura)
+
+build() {
+  cd "$_root/gravity"
+  make -j"$(nproc)" "${_apps[@]}"
+  make extensao
+}
+
+package() {
+  cd "$_root/gravity"
+  local a
+  for a in "${_apps[@]}"; do
+    install -Dm755 "$a" "$pkgdir/usr/bin/lumna-$a"
+  done
+  # o que as peças leem de /usr/share/lumna: a arte da Emma e a extensão do Firefox da Mídia
+  install -d "$pkgdir/usr/share/lumna/emma"
+  cp -a assets/emma/. "$pkgdir/usr/share/lumna/emma/"
+  install -Dm644 extensao-firefox/lumna-midia.xpi "$pkgdir/usr/share/lumna/midia/lumna-midia.xpi"
+  # os atalhos dos apps e os ícones deles (tema hicolor)
+  cd "$_root/packages/lumna-gravity"
+  install -Dm644 -t "$pkgdir/usr/share/applications" desktop/*.desktop
+  install -Dm644 -t "$pkgdir/usr/share/icons/hicolor/scalable/apps" icones/*.svg
+  install -Dm644 lumna-portals.conf "$pkgdir/usr/share/xdg-desktop-portal/lumna-portals.conf"
+}

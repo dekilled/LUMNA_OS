@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Galeria
+Comment=Fotos e vídeos
+Exec=lumna-galeria
+Icon=lumna-galeria
+StartupWMClass=gravity-galeria
+Categories=Graphics;
+Keywords=fotos;imagens;videos;galeria;

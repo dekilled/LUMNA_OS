@@ -6,3 +6,4 @@ Exec=lumna-ctl store
 Icon=/usr/share/lumna/icons/store.svg
 Categories=System;PackageManager;
 Keywords=loja;store;apps;programas;instalar;flatpak;flathub;aur;pacman;atualizar;
+OnlyShowIn=Hyprland;

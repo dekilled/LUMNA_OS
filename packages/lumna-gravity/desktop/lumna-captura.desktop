@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Captura de tela
+Comment=Foto e gravação da tela
+Exec=lumna-captura
+Icon=lumna-captura
+StartupWMClass=lumna-captura
+Categories=Utility;
+Keywords=print;screenshot;captura;gravar;tela;

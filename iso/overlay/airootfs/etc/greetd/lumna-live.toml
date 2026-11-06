@@ -1,11 +1,13 @@
-# Sessão live do pendrive: entra direto no LUMNA, sem senha.
+# Sessão live do pendrive: entra direto no LUMNA (Orbit), sem senha. Se a sessão cair (o Orbit nunca
+# rodou em todo hardware), o greetd volta para a tela de login, onde dá para escolher "LUMNA (clássico ·
+# emergência)"; a senha do live está no /etc/motd.
 [terminal]
 vt = 1
 
 [default_session]
-command = "agreety --cmd /usr/bin/lumna-session"
+command = "lumna-entrada-greeter"
 user = "greeter"
 
 [initial_session]
-command = "/usr/bin/lumna-session"
+command = "/usr/bin/lumna-orbit-session"
 user = "lumna"

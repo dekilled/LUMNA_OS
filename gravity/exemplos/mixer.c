@@ -298,7 +298,7 @@ static void rodape(gv_app *app) {
 		gv_separador(true, 40);
 		if (gv_botao(CLAY_ID("ajustes"), "settings", "Ajustes de áudio", GV_BOTAO_SIMPLES)) {
 			if (fork() == 0) {
-				execlp("lumna-ctl", "lumna-ctl", "settings", "som", (char *)NULL);
+				execlp("lumna-painel", "lumna-painel", "--secao", "som/saida", (char *)NULL);
 				_exit(1);
 			}
 			gv_app_sair(app);

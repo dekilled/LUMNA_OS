@@ -77,8 +77,8 @@ PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c e
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-unix-2.0 libpulse) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-unix-2.0 libpulse) -lpthread
 
-apps: exemplos/apps.c libgravity.a
-	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
+apps: exemplos/apps.c servicos/desktopenv.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -o $@ $< libgravity.a $(LDLIBS)
 
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
@@ -102,7 +102,7 @@ captura: exemplos/captura.c servicos/telas.c servicos/telas.h servicos/modos.c s
 perfil: exemplos/perfil.c servicos/emmac.c servicos/emmac.h servicos/json.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/perfil.c servicos/emmac.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
-lancador: exemplos/lancador.c servicos/privacidade.c servicos/privacidade.h servicos/modos.c libgravity.a
+lancador: exemplos/lancador.c servicos/desktopenv.h servicos/privacidade.c servicos/privacidade.h servicos/modos.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/lancador.c servicos/privacidade.c servicos/modos.c libgravity.a $(LDLIBS)
 
 # os avisos: o servidor org.freedesktop.Notifications (GDBus) e o canto e a central

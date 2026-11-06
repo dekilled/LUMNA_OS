@@ -7,3 +7,4 @@ Icon=/usr/share/lumna/icons/files.svg
 Categories=System;FileManager;
 MimeType=inode/directory;
 Keywords=arquivos;pastas;explorador;files;folder;pendrive;lixeira;
+OnlyShowIn=Hyprland;

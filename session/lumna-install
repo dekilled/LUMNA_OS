@@ -8,7 +8,7 @@
 #
 # O disco é APAGADO INTEIRO: GPT, partição EFI de 1 GiB (FAT32, montada em /boot) e o resto em
 # Btrfs com subvolumes @, @home, @log, @cache e @snapshots (compressão zstd). Boot por
-# systemd-boot (só UEFI). A tela de login é a do LUMNA (greetd + lumna-greeter).
+# systemd-boot (só UEFI). A tela de login é a do LUMNA (greetd + lumna-entrada-greeter).
 #
 # Andamento para a tela: linhas "@@ PORCENTAGEM texto".
 set -euo pipefail
@@ -18,7 +18,7 @@ DISK="" USERNAME="" FULLNAME="" HOSTNAME_="lumna" TIMEZONE="America/Sao_Paulo"
 KEYBOARD="br abnt2" LOCALE="pt_BR.UTF-8" DRY=0
 SOURCE="${LUMNA_INSTALL_SOURCE:-/run/archiso/airootfs}"
 TARGET="/mnt/lumna-install"
-REPO_URL="https://github.com/dekilled/LUMNA_OS/releases/download/repo"
+REPO_URL="$(cat "$SOURCE/usr/share/lumna/repo-url" 2>/dev/null || echo https://github.com/dekilled/LUMNA_OS/releases/download/repo)"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -187,12 +187,12 @@ arch-chroot "$TARGET" chown "$USERNAME:" "/home/$USERNAME/.config/user-dirs.dirs
 step 83 "Tela de login e serviços"
 mkdir -p "$TARGET/etc/greetd"
 cat > "$TARGET/etc/greetd/config.toml" <<GREETD
-# Tela de login do LUMNA (greetd + lumna-greeter).
+# Tela de login do LUMNA (greetd + lumna-entrada, a tela de login em Gravity dentro de um Orbit só dela).
 [terminal]
 vt = 1
 
 [default_session]
-command = "lumna-greeter"
+command = "lumna-entrada-greeter"
 user = "greeter"
 GREETD
 ln -sf /usr/lib/systemd/system/greetd.service "$TARGET/etc/systemd/system/display-manager.service"

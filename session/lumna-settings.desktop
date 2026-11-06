@@ -6,3 +6,4 @@ Exec=lumna-ctl settings
 Icon=/usr/share/lumna/icons/settings.svg
 Categories=Settings;
 Keywords=wifi;rede;bluetooth;som;audio;volume;impressora;sistema;configuracoes;
+OnlyShowIn=Hyprland;

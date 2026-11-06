@@ -1,18 +1,22 @@
-# Sessão LUMNA: configuração do Hyprland, entrada na tela de login e arte.
+# Sessão do LUMNA OS: a entrada da sessão do Orbit (a padrão), o login (greetd), os ajudantes de administrador
+# e as políticas do polkit, o instalador e as dependências do sistema. A sessão antiga (Hyprland, só de
+# emergência por enquanto) mora no pacote lumna-classico.
 pkgname=lumna-session
 pkgver=0.0.1
 pkgrel=1
-pkgdesc="Sessão Wayland do LUMNA OS (Hyprland + lumna-shell)"
+pkgdesc="Sessão do LUMNA OS (Orbit + Gravity): login, ajudantes de administrador, instalador e dependências"
 arch=(any)
 url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
 depends=(
-  lumna-shell hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-  swaybg foot pipewire pipewire-pulse wireplumber polkit
-  firefox mousepad gvfs
+  lumna-orbit lumna-gravity greetd
+  # portais: escolher arquivo, abrir link (gtk) e compartilhar tela (wlr; o Orbit tem o wlr-screencopy)
+  xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
+  foot pipewire pipewire-pulse wireplumber polkit
+  firefox mousepad gvfs thunar
   mpv mpv-mpris ffmpeg playerctl wtype
   noto-fonts noto-fonts-emoji inter-font
-  # Configurações: Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware
+  # Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware
   iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
   # Loja: Flatpak, AUR (git + base-devel para compilar) e checkupdates (pacman-contrib)
   flatpak git base-devel pacman-contrib curl
@@ -22,37 +26,31 @@ depends=(
   glib2 udisks2 xdg-utils
   # Ações da Emma: copiar/colar, captura de tela e avisos pelo terminal
   wl-clipboard grim libnotify
-  # Energia: perfil de energia (economia, equilibrado, desempenho)
-  power-profiles-daemon
-  # Tela de bloqueio e tempo parado (bloquear, desligar a tela, suspender)
-  hyprlock hypridle
+  # Energia: perfil de energia e bateria
+  power-profiles-daemon upower
 )
 
 _root="$(realpath "$startdir/../..")"
 
 package() {
   cd "$_root/session"
-  install -Dm755 lumna-session "$pkgdir/usr/bin/lumna-session"
-  install -Dm755 lumna-greeter "$pkgdir/usr/bin/lumna-greeter"
+  # a sessão do Orbit e a tela de login
+  install -Dm755 lumna-orbit-session "$pkgdir/usr/bin/lumna-orbit-session"
+  install -Dm755 lumna-entrada-greeter "$pkgdir/usr/bin/lumna-entrada-greeter"
+  install -Dm644 lumna-orbit.desktop "$pkgdir/usr/share/wayland-sessions/lumna-orbit.desktop"
+  install -Dm755 lumna-modo "$pkgdir/usr/bin/lumna-modo"
   install -Dm755 lumna-botao-ligar "$pkgdir/usr/bin/lumna-botao-ligar"
   install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
-  install -Dm755 lumna-shell-run "$pkgdir/usr/lib/lumna/lumna-shell-run"
-  install -Dm644 greeter.lua "$pkgdir/usr/share/lumna/greeter.lua"
   install -Dm644 lumna-tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/lumna.conf"
+  # instalador (o app novo vem na fase 2; por ora o script e a política)
   install -Dm755 lumna-install "$pkgdir/usr/lib/lumna/lumna-install"
   install -Dm644 os.lumna.install.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.install.policy"
+  # arte
   install -Dm644 icons/installer.svg "$pkgdir/usr/share/lumna/icons/installer.svg"
-  install -Dm644 hyprland.lua "$pkgdir/usr/share/lumna/hyprland.lua"
   install -Dm644 wallpaper.png "$pkgdir/usr/share/lumna/wallpaper.png"
   install -Dm644 -t "$pkgdir/usr/share/lumna/wallpapers" wallpapers/*.jpg
-  install -Dm644 lumna.desktop "$pkgdir/usr/share/wayland-sessions/lumna.desktop"
-  install -Dm644 lumna-settings.desktop "$pkgdir/usr/share/applications/lumna-settings.desktop"
-  install -Dm644 icons/settings.svg "$pkgdir/usr/share/lumna/icons/settings.svg"
-  install -Dm644 lumna-store.desktop "$pkgdir/usr/share/applications/lumna-store.desktop"
-  install -Dm644 icons/store.svg "$pkgdir/usr/share/lumna/icons/store.svg"
-  install -Dm644 lumna-files.desktop "$pkgdir/usr/share/applications/lumna-files.desktop"
-  install -Dm644 icons/files.svg "$pkgdir/usr/share/lumna/icons/files.svg"
   install -Dm644 mimeapps.list "$pkgdir/usr/share/applications/mimeapps.list"
+  # ajudantes de administrador (o Painel e a Loja chamam por pkexec) e as políticas deles
   install -Dm755 lumna-pkg "$pkgdir/usr/lib/lumna/lumna-pkg"
   install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
   install -Dm755 lumna-confirm "$pkgdir/usr/lib/lumna/lumna-confirm"
@@ -60,9 +58,10 @@ package() {
   install -Dm755 lumna-entrada-ajustar "$pkgdir/usr/lib/lumna/lumna-entrada-ajustar"
   install -Dm644 os.lumna.entrada.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.entrada.policy"
   install -Dm755 lumna-idioma-gerar "$pkgdir/usr/lib/lumna/lumna-idioma-gerar"
+  install -Dm644 os.lumna.idioma.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.idioma.policy"
   install -Dm755 lumna-usuarios "$pkgdir/usr/lib/lumna/lumna-usuarios"
   install -Dm644 os.lumna.usuarios.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.usuarios.policy"
-  install -Dm644 os.lumna.idioma.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.idioma.policy"
+  install -Dm755 lumna-rede-mesclar "$pkgdir/usr/lib/lumna/lumna-rede-mesclar"
   # Chaves do pacman (sistemas instalados sem elas) e relógio certo (assinaturas têm validade).
   install -Dm755 lumna-keyring "$pkgdir/usr/lib/lumna/lumna-keyring"
   install -Dm644 lumna-keyring.service "$pkgdir/usr/lib/systemd/system/lumna-keyring.service"

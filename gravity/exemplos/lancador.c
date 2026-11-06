@@ -33,6 +33,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "gravity.h"
+#include "desktopenv.h"
 #include "privacidade.h"
 
 #define MAX_APPS 512
@@ -145,6 +146,7 @@ static void ler_desktop(const char *caminho, const char *id) {
 	int nn = -1, nd = -1, ng = -1;
 	char generico[128] = "", cats[512] = "";
 	bool entrada = false, aplicacao = false, escondido = false;
+	char so_em[160] = "", nao_em[160] = "";
 	char linha[1024];
 	while (fgets(linha, sizeof(linha), f)) {
 		linha[strcspn(linha, "\r\n")] = '\0';
@@ -191,9 +193,14 @@ static void ler_desktop(const char *caminho, const char *id) {
 			aplicacao = !strcmp(v, "Application");
 		} else if (!strcmp(linha, "NoDisplay") || !strcmp(linha, "Hidden")) {
 			escondido |= !strcmp(v, "true");
+		} else if (!strcmp(linha, "OnlyShowIn")) {
+			snprintf(so_em, sizeof(so_em), "%s", v);
+		} else if (!strcmp(linha, "NotShowIn")) {
+			snprintf(nao_em, sizeof(nao_em), "%s", v);
 		}
 	}
 	fclose(f);
+	escondido |= !desktopenv_visivel(so_em, nao_em); /* de outro desktop: some, e o do sistema com o mesmo id não volta */
 	if (escondido && nescondidos < 256) {
 		snprintf(escondidos[nescondidos++], sizeof(escondidos[0]), "%s", id);
 	}

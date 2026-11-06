@@ -80,4 +80,6 @@ PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_sons" "$T/som"
 cc $CF -o "$T/testa_luz" testes/painel/testa_luz.c servicos/luz.c $LG -lm
 mkdir -p "$T/luz"
 "$T/testa_luz" "$T/luz"
+cc $CF -o "$T/testa_desktopenv" testes/painel/testa_desktopenv.c -Iservicos
+"$T/testa_desktopenv"
 echo "(arquivos de teste em $T)"

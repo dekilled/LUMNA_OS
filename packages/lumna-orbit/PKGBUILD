@@ -1,0 +1,45 @@
+# Orbit: o compositor do LUMNA OS (wlroots). O código mora noutro repositório (LUMNA_COMPOSITOR, em
+# src/compositor/orbit): ORBIT_SRC aponta para uma cópia local dele; sem isso, o build baixa a branch ORBIT_REF.
+pkgname=lumna-orbit
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="Orbit, o compositor Wayland do LUMNA OS (modos, várias telas, wlroots)"
+arch=(x86_64 aarch64)
+url="https://github.com/dekilled/LUMNA_COMPOSITOR"
+license=(GPL-3.0-or-later)
+# O Arch só tem o wlroots 0.20 (pacote wlroots0.20): o Orbit compila nele (PKGS abaixo).
+depends=(wlroots0.20 wayland libxkbcommon libinput pixman mesa
+  # o que os atalhos do Orbit chamam: terminal, brilho, volume (wpctl), captura (lumna-gravity)
+  foot brightnessctl wireplumber)
+makedepends=(git wayland-protocols)
+options=(!strip !debug)
+
+_url="https://github.com/dekilled/LUMNA_COMPOSITOR"
+_ref="${ORBIT_REF:-claude/orbit-compila}"
+
+prepare() {
+  rm -rf "$srcdir/orbit-src"
+  if [ -n "${ORBIT_SRC:-}" ]; then
+    cp -a "$ORBIT_SRC" "$srcdir/orbit-src"
+  else
+    git clone --depth 1 --branch "$_ref" "$_url" "$srcdir/orbit-src"
+  fi
+  [ -f "$srcdir/orbit-src/src/compositor/orbit/makefile.txt" ] || { echo "sem src/compositor/orbit/makefile.txt: $srcdir/orbit-src" >&2; return 1; }
+}
+
+build() {
+  cd "$srcdir/orbit-src/src/compositor/orbit"
+  cp makefile.txt Makefile
+  make PKGS="${ORBIT_PKGS:-wlroots-0.20 wayland-server xkbcommon}"
+}
+
+package() {
+  cd "$srcdir/orbit-src/src/compositor/orbit"
+  install -Dm755 orbit "$pkgdir/usr/bin/orbit"
+  install -Dm755 orbit-msg "$pkgdir/usr/bin/orbit-msg"
+  install -Dm644 orbit.ini "$pkgdir/usr/share/doc/lumna-orbit/orbit.ini"
+  install -Dm644 leiame.txt "$pkgdir/usr/share/doc/lumna-orbit/leiame.txt"
+  # o commit que foi empacotado, para o Painel > Sobre e para os relatos de erro
+  (cd "$srcdir/orbit-src" && git rev-parse --short HEAD 2>/dev/null || echo desconhecido) > "$srcdir/commit"
+  install -Dm644 "$srcdir/commit" "$pkgdir/usr/share/doc/lumna-orbit/COMMIT"
+}

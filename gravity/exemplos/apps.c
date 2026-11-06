@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "desktopenv.h"
 #include "gravity.h"
 
 #define MAX_APPS 512
@@ -61,6 +62,7 @@ static void ler(const char *caminho, const char *id) {
 	snprintf(a.id, sizeof(a.id), "%s", id);
 	int nota_nome = -1, nota_comentario = -1;
 	bool na_entrada = false, aplicacao = false, escondido = false;
+	char so_em[160] = "", nao_em[160] = "";
 	char linha[1024];
 	while (fgets(linha, sizeof(linha), f)) {
 		linha[strcspn(linha, "\r\n")] = '\0';
@@ -89,9 +91,14 @@ static void ler(const char *caminho, const char *id) {
 			aplicacao = !strcmp(valor, "Application");
 		} else if (!strcmp(linha, "NoDisplay") || !strcmp(linha, "Hidden")) {
 			escondido |= !strcmp(valor, "true");
+		} else if (!strcmp(linha, "OnlyShowIn")) {
+			snprintf(so_em, sizeof(so_em), "%s", valor);
+		} else if (!strcmp(linha, "NotShowIn")) {
+			snprintf(nao_em, sizeof(nao_em), "%s", valor);
 		}
 	}
 	fclose(f);
+	escondido |= !desktopenv_visivel(so_em, nao_em);
 	if (aplicacao && !escondido && a.nome[0] && a.exec[0] && napps < MAX_APPS) {
 		apps[napps++] = a;
 	}

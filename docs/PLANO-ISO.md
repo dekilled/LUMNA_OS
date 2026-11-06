@@ -19,7 +19,7 @@ Ordem que você pediu: **(1) ISO com a UI nova → (2) os programas combinados �
 - O Gravity (`gravity/`, ~30 apps `lumna-*` em C) não tem pacote nem entra na ISO.
 - Já existem peças da sessão nova: `lumna-orbit-session`, `lumna-orbit.desktop`, `lumna-entrada-greeter`,
   `lumna-entrada` (a tela de login), `lumna-ocioso`, `lumna-inicio`, ajudantes root + políticas polkit.
-- **Nunca rodei o Orbit num DRM real**: só headless e aninhado. É o maior risco do plano (tela preta no boot).
+- **O Orbit nunca rodou num DRM real**: só headless e aninhado (você já rodou aninhado no seu Arch, com wlroots 0.20). É o maior risco do plano (tela preta no boot).
 - Neste ambiente não tenho KVM nem QEMU x86: **eu monto a ISO (pelo GitHub Actions), mas quem dá o boot é você.**
 
 ## O que o shell antigo faz e o novo ainda não (lacunas)
@@ -39,18 +39,17 @@ Bloqueiam a ISO instalável (têm que existir antes do primeiro teste):
 Podem esperar (viram a fase 2): Music, Galeria nova, Biblioteca Gaming, Navegador, Player de vídeo,
 teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Receber arquivos.
 
-## Fase 0 — Auditoria (curta, antes de codar)
+## Fase 0 — Auditoria ✅ feita: ver [AUDITORIA-UI.md](AUDITORIA-UI.md)
 
 1. Inventário completo: cada tela/função do shell antigo → "Gravity já tem / falta / descartada".
 2. Conferir o que o `lumna-emma` cobre das ações da Emma.
 3. Conferir dependências de runtime de cada binário (`ldd`) para fechar o `depends` do pacote.
 4. Entregável: tabela no fim deste arquivo, com o que bloqueia a ISO e o que não.
 
-## Fase 1 — Empacotar a UI nova
+## Fase 1 — Empacotar a UI nova ✅ escrita (falta o CI compilar de verdade)
 
 1. **`lumna-orbit`**: PKGBUILD que compila o Orbit do `lumna_compositor` (antes: levar `claude/orbit-compila` para a
-   `main` de lá). O Arch de hoje só tem **wlroots 0.20**; o código já compila nele (conferido com os headers), mas
-   só **compilado, nunca rodado em 0.20**.
+   `main` de lá). O Arch de hoje só tem **wlroots 0.20** (pacote `wlroots0.20`); o Orbit já roda aninhado nele na sua máquina.
 2. **`lumna-gravity`**: compila a biblioteca e todos os `lumna-*`, instala binários, `.desktop`, ícones, assets,
    extensão do Firefox e as políticas polkit.
 3. **`lumna-session`** enxuto: tira Hyprland, hyprlock, hypridle e hyprbars; entra a sessão do Orbit como padrão,
@@ -68,11 +67,12 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 
 ## Fase 3 — A ISO e a remoção da UI antiga (em duas etapas, para não ficar sem volta)
 
-1. **ISO de teste (branch `iso-orbit`)**: a sessão padrão é a nova (Orbit); o Hyprland antigo vai junto só como
+1. **ISO de teste (tag `orbit-*`, canal próprio `repo-orbit`/`teste-orbit`)**: a sessão padrão é a nova (Orbit); o Hyprland antigo vai junto só como
    sessão de emergência escolhível no login. O código antigo **continua no repositório**. Marco o estado atual com a tag `ui-antiga-hyprland`.
 2. Você testa. **Só depois do seu "pode apagar"** entra o PR que remove: `shell/`, `crates/lumna-hypr`, `lumna-ctl`,
    `hyprland.lua`, `greeter.lua`, `lumna-hyprbars`, scripts e docs do Hyprland. A tag guarda tudo.
-3. CI gera a ISO a cada push na branch; a tag `v*` publica na Release.
+3. Pacotes: o CI compila só Orbit e Gravity a cada push na branch `iso-orbit` (`pacotes.yml`, minutos). A ISO sai ao empurrar
+   uma tag `orbit-*` (`iso.yml`). A `main` (UI antiga) e o repositório `[lumna]` dela **não são tocados**.
 
 ## Fase 4 — Testar de verdade (em degraus)
 
@@ -88,7 +88,7 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 
 - **Tela preta no boot (Orbit em DRM real, nunca testado):** primeira ISO leva o Hyprland antigo como sessão de **emergência**
   até o Orbit provar que sobe. *(decisão 1)*
-- **wlroots 0.20 só compilado:** se der problema, fixo o pacote em `wlroots0.18`/`0.19` do repositório.
+- **wlroots 0.20 em DRM real:** se der problema, fixo o pacote em outra versão do repositório.
 - **Sem agente polkit:** é bloqueante, entra na Fase 2 antes da ISO.
 - **Emma sem as ações do shell antigo:** auditoria na Fase 0; o que faltar entra antes da ISO se for essencial.
 - **Perder o antigo:** tag `ui-antiga-hyprland` + remoção só com o seu OK.

@@ -26,12 +26,16 @@ sed -i "s/^pkgver=.*/pkgver=$LUMNA_VERSION/" "$tree"/packages/*/PKGBUILD
 echo "   versão $LUMNA_VERSION"
 build_pkg() {
   local name="$1"; shift
-  (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST,EMMA_SRC \
+  (cd "$tree/packages/$name" && sudo -u "$BUILDER" --preserve-env=CARGO_TARGET_DIR,CARGO_HOME,NODE_EXTRA_CA_CERTS,PKGDEST,EMMA_SRC,ORBIT_SRC,ORBIT_REF \
      env PKGDEST="$OUT/repo" makepkg --noconfirm --cleanbuild "$@")
 }
 chown "$BUILDER:$BUILDER" "$OUT/repo"
 build_pkg lumna-shell --syncdeps
+# A sessão nova: o Orbit (baixa o código do repositório dele, branch ORBIT_REF) e o Gravity (C: leva minutos).
+build_pkg lumna-orbit --syncdeps
+build_pkg lumna-gravity --syncdeps
 build_pkg lumna-session --nodeps
+build_pkg lumna-classico --nodeps
 # Barra de título das janelas: plugin compilado contra o Hyprland do ISO. Se não compilar (Hyprland
 # novo demais para o plugin), o ISO sai sem ele e a topbar continua com os botões da janela.
 if build_pkg lumna-hyprbars --syncdeps; then
@@ -51,6 +55,28 @@ else
 fi
 repo-add "$OUT/repo/lumna.db.tar.gz" "$OUT"/repo/*.pkg.tar.zst
 
+# Conferência dos pacotes da sessão nova: os arquivos que a sessão chama existem e nenhum binário ficou com biblioteca faltando.
+echo ">> conferindo lumna-orbit e lumna-gravity"
+check="$WORK/check"; rm -rf "$check"; mkdir -p "$check"
+for pkg in lumna-orbit lumna-gravity lumna-session; do
+  bsdtar -xf "$(ls "$OUT"/repo/$pkg-[0-9]*.pkg.tar.zst | head -1)" -C "$check"
+done
+missing=0
+for f in usr/bin/orbit usr/bin/orbit-msg usr/bin/lumna-painel usr/bin/lumna-barra usr/bin/lumna-dock usr/bin/lumna-lancador usr/bin/lumna-avisos \
+         usr/bin/lumna-bloqueio usr/bin/lumna-entrada usr/bin/lumna-emma usr/bin/lumna-emma-app usr/bin/lumna-captura \
+         usr/bin/lumna-orbit-session usr/bin/lumna-entrada-greeter usr/share/wayland-sessions/lumna-orbit.desktop \
+         usr/share/polkit-1/actions/os.lumna.entrada.policy usr/lib/lumna/lumna-entrada-ajustar; do
+  [ -e "$check/$f" ] || { echo "   FALTA no pacote: $f"; missing=1; }
+done
+for bin in "$check"/usr/bin/orbit "$check"/usr/bin/lumna-*; do
+  head -c4 "$bin" | grep -q ELF || continue
+  if ldd "$bin" 2>&1 | grep -q "not found"; then echo "   biblioteca faltando em ${bin##*/}:"; ldd "$bin" | grep "not found"; missing=1; fi
+done
+for policy in "$check"/usr/share/polkit-1/actions/*.policy; do xmllint --noout "$policy" || missing=1; done
+[ "$missing" = 0 ] || { echo "   a conferência dos pacotes falhou"; exit 1; }
+# De onde o sistema instalado puxa as atualizações do LUMNA (o canal do build: repo, ou repo-orbit nas ISOs de teste da UI nova).
+echo "https://github.com/dekilled/LUMNA_OS/releases/download/repo${LUMNA_CANAL:-}" > "$WORK/repo-url"
+
 # A configuração do Hyprland é validada pelo próprio Hyprland (já instalado pelo makepkg).
 for config in hyprland.lua greeter.lua; do
   sudo -u "$BUILDER" bash -c 'export XDG_RUNTIME_DIR=$(mktemp -d); Hyprland --verify-config --config "$1"' _ "$tree/session/$config" \
@@ -62,6 +88,7 @@ echo ">> 2/3 perfil"
 profile="$WORK/profile"
 cp -r /usr/share/archiso/configs/releng "$profile"
 cp -a "$SRC/iso/overlay/airootfs/." "$profile/airootfs/"
+install -Dm644 "$WORK/repo-url" "$profile/airootfs/usr/share/lumna/repo-url"
 # O greetd assume o tty1 no lugar do login automático do root.
 rm -rf "$profile/airootfs/etc/systemd/system/getty@tty1.service.d"
 # O releng espera o relógio sincronizar pela internet antes de seguir o boot (por causa do
