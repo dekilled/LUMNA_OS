@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>LUMNA OS</vendor>
+  <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
+  <action id="os.lumna.idioma">
+    <description>Make a language available on this computer</description>
+    <description xml:lang="pt_BR">Deixar um idioma disponível neste computador</description>
+    <message>Your password is needed to add a language.</message>
+    <message xml:lang="pt_BR">A sua senha é necessária para adicionar um idioma.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/lumna/lumna-idioma-gerar</annotate>
+  </action>
+</policyconfig>

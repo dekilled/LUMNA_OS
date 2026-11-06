@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (4 de novembro de 2026, contado no código):** 52 de 74 páginas prontas e 22 ainda só o esqueleto
+**Em números (4 de novembro de 2026, contado no código):** 55 de 74 páginas prontas e 19 ainda só o esqueleto
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -237,9 +237,9 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
   - ✅ fuso horário;
   - ✅ formato: 24 ou 12 horas, que a barra e a tela de bloqueio leem de `hora.ini`.
 - **Idioma e região:**
-  - ⏳ idioma;
-  - ⏳ formatos;
-  - ⏳ métodos de entrada.
+  - ✅ idioma (o idioma do sistema e adicionar mais, pelo localectl e o lumna-idioma-gerar);
+  - ✅ formatos (data, números, dinheiro, papel e medidas, com amostra);
+  - ✅ métodos de entrada (fcitx5 e ibus: ligar ao entrar, configurar e instalar; os layouts ficam em Teclado).
 - **Usuários:**
   - ⏳ sua conta (foto, nome);
   - ⏳ senha e PIN;

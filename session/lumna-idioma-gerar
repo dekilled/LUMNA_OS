@@ -1,0 +1,27 @@
+#!/bin/sh
+# lumna-idioma-gerar LOCALE: deixa um idioma disponível no sistema (liga no /etc/locale.gen e roda o locale-gen).
+# Precisa de root: o Painel (Idioma e região) chama com pkexec (política os.lumna.idioma).
+#   lumna-idioma-gerar pt_BR.UTF-8
+# Para testar sem root: LUMNA_ETC, LUMNA_SUPPORTED (a lista de idiomas suportados) e LUMNA_LOCALE_GEN (o programa que gera).
+ETC=${LUMNA_ETC:-/etc}
+SUPPORTED=${LUMNA_SUPPORTED:-/usr/share/i18n/SUPPORTED}
+GERAR=${LUMNA_LOCALE_GEN:-locale-gen}
+GEN=$ETC/locale.gen
+
+die() { echo "lumna-idioma-gerar: $*" >&2; exit 1; }
+
+L=$1
+[ -n "$L" ] || die "uso: lumna-idioma-gerar pt_BR.UTF-8"
+case "$L" in *[!A-Za-z0-9_.@-]*) die "nome inválido" ;; esac
+case "$L" in *.UTF-8) ;; *) die "só idiomas em UTF-8" ;; esac
+grep -qx "$L UTF-8" "$SUPPORTED" || die "$L não é um idioma suportado"
+mkdir -p "$ETC"
+[ -f "$GEN" ] || : > "$GEN"
+if grep -q "^$L UTF-8" "$GEN"; then
+	:
+elif grep -q "^#[ ]*$L UTF-8" "$GEN"; then
+	sed "s/^#[ ]*\($L UTF-8\)/\1/" "$GEN" > "$GEN.novo" && mv "$GEN.novo" "$GEN"
+else
+	echo "$L UTF-8" >> "$GEN"
+fi
+"$GERAR"

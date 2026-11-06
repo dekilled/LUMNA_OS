@@ -126,6 +126,16 @@ void pn_hist_desenhar(void);
 void pn_diag_abrir(void);
 void pn_diag_desenhar(void);
 
+/* Sistema → Idioma e região (idioma.c) */
+void pn_idioma_desenhar(void);
+void pn_idioma_abrir(void);
+bool pn_idioma_pendente(void);
+void pn_idioma_aplicar(void);
+void pn_idioma_descartar(void);
+void pn_formatos_desenhar(void);
+void pn_ime_desenhar(void);
+void pn_ime_abrir(void);
+
 /* Sistema → Teclado e mouse → Atalhos (atalhos.c) */
 void pn_atalhos_desenhar(void);
 bool pn_atalhos_pendente(void);
@@ -265,9 +275,11 @@ static const pn_secao data[] = {
 const pn_categoria pn_data = { "data", "clock", "Data e hora", "Fuso horário e formato", PN_SISTEMA, data, N(data) };
 
 static const pn_secao idioma[] = {
-	{ "idioma", "globe", "Idioma", "O idioma do sistema.", NULL, "O idioma;Os idiomas extra" },
-	{ "formatos", "text", "Formatos regionais", "Números, moeda e datas.", NULL, "A região" },
-	{ "entrada", "keyboard", "Métodos de entrada", "Escrever noutros alfabetos.", NULL, "Adicionar e trocar" },
+	{ "idioma", "globe", "Idioma", "O idioma do sistema.", pn_idioma_desenhar, NULL, pn_idioma_pendente, pn_idioma_aplicar, pn_idioma_descartar, NULL,
+		pn_idioma_abrir },
+	{ "formatos", "text", "Formatos regionais", "Números, moeda e datas.", pn_formatos_desenhar, NULL, pn_idioma_pendente, pn_idioma_aplicar,
+		pn_idioma_descartar, NULL, pn_idioma_abrir },
+	{ "entrada", "keyboard", "Métodos de entrada", "Escrever noutros alfabetos.", pn_ime_desenhar, NULL, NULL, NULL, NULL, NULL, pn_ime_abrir },
 };
 const pn_categoria pn_idioma = { "idioma", "globe", "Idioma e região", "Português (Brasil)", PN_SISTEMA, idioma, N(idioma) };
 

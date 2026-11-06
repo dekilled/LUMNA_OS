@@ -1,0 +1,4 @@
+#!/bin/sh
+# um `locale -a` de mentira
+[ "$1" = "-a" ] || exit 1
+printf 'C\nC.utf8\nPOSIX\nde_DE.utf8\nen_US.utf8\nes_ES.iso88591\npt_BR.utf8\npt_PT.utf8\n'

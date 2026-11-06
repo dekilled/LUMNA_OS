@@ -1,0 +1,15 @@
+#!/bin/sh
+# um localectl de mentira: set-locale CHAVE=VALOR... reescreve $LUMNA_ETC/locale.conf (como o systemd faz)
+[ "$1" = "set-locale" ] || exit 1
+shift
+F=${LUMNA_ETC:?}/locale.conf
+for kv in "$@"; do
+	case "$kv" in
+	LANG=*|LC_*=*) ;;
+	*) echo "Invalid locale assignment: $kv" >&2; exit 1 ;;
+	esac
+done
+: > "$F.novo"
+[ -f "$F" ] && grep -v "^\(LANG\|LC_TIME\|LC_NUMERIC\|LC_MONETARY\|LC_PAPER\|LC_MEASUREMENT\)=" "$F" >> "$F.novo"
+for kv in "$@"; do echo "$kv" >> "$F.novo"; done
+mv "$F.novo" "$F"

@@ -54,4 +54,8 @@ grep -q "permissoes ok" "$T/perm.log"
 cc $CF -o "$T/testa_privacidade" testes/painel/testa_privacidade.c servicos/privacidade.c servicos/modos.c $LG
 mkdir -p "$T/priv"
 "$T/testa_privacidade" "$T/priv"
+# idioma e região (localectl e locale falsos, e o session/lumna-idioma-gerar de verdade)
+cc $CF -o "$T/testa_idioma" testes/painel/testa_idioma.c servicos/idioma.c $LG
+mkdir -p "$T/idi"
+PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_idioma" "$T/idi" "$AQUI/../session/lumna-idioma-gerar"
 echo "(arquivos de teste em $T)"
