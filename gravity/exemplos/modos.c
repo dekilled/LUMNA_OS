@@ -17,6 +17,8 @@
 
 static int modo_agora = MODO_DESKTOP;
 static double inicio, abertura;
+static bool ja_esta; /* o Orbit avisa que o modo pedido já era o desta tela */
+static double aviso_ate;
 static char saida[32];
 
 static char *arquivo_pid(void) {
@@ -72,6 +74,10 @@ static void desenhar(gv_app *app, void *dados) {
 						modos_definir(m, saida[0] ? saida : NULL);
 						modo_agora = m;
 						inicio = gv_agora();
+					} else if (gv_tocado(id) && esta) {
+						ja_esta = true; /* clicou no que já está ativo: nada a trocar, só avisa */
+						aviso_ate = gv_agora() + 1.6;
+						inicio = gv_agora();
 					}
 					CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(140), CLAY_SIZING_FIXED(104) },
 							.padding = CLAY_PADDING_ALL(12), .childGap = 10, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
@@ -83,7 +89,11 @@ static void desenhar(gv_app *app, void *dados) {
 					}
 				}
 			}
-			gv_texto(CLAY_STRING("Super + Tab troca de modo"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			if (ja_esta && (aviso_ate <= 0 || gv_agora() < aviso_ate)) {
+				gv_texto(gv_str(gv_fmt("Este monitor já está no modo %s", modos_nome(modo_agora)).chars), gv_t.tamanho_corpo - 1, gv_t.acento, GV_PESO_MEDIO);
+			} else {
+				gv_texto(CLAY_STRING("Super + Tab de novo troca para o próximo"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
 		}
 	}
 }
@@ -100,6 +110,7 @@ int main(void) {
 			modo_agora = modos_em_foco(&e);
 		}
 	}
+	ja_esta = getenv("LUMNA_JA") != NULL; /* sem hora para sair: vale enquanto o seletor estiver aberto */
 	tomar_lugar();
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Modos", .app_id = "lumna-modos", .tipo = GV_CAMADA, .nivel = GV_NIVEL_OVERLAY,
 		.largura = 520, .altura = 190, .saida = saida[0] ? saida : NULL });

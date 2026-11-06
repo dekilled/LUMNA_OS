@@ -645,7 +645,8 @@ static void menu_modo(void) {
 					gv_icone("check", 20, gv_t.acento);
 				}
 			}
-			if (tocado && m != atual) {
+			if (tocado) {
+				/* o modo que já está ativo também vai ao Orbit: ele não troca nada e o seletor avisa "este monitor já está no modo X" */
 				modos_definir(m, saida_propria[0] ? saida_propria : NULL);
 				gv_popup_fechar(CLAY_ID("menu-modo"));
 			}
