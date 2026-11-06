@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>LUMNA OS</vendor>
+  <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
+  <action id="os.lumna.usuarios">
+    <description>Manage the user accounts of this computer</description>
+    <description xml:lang="pt_BR">Gerenciar as contas de usuário deste computador</description>
+    <message>Your password is needed to change user accounts.</message>
+    <message xml:lang="pt_BR">A sua senha é necessária para mudar as contas de usuário.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- Toda vez: mexer em contas e senhas merece a senha de novo. -->
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/lumna/lumna-usuarios</annotate>
+  </action>
+</policyconfig>

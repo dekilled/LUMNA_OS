@@ -12,7 +12,7 @@ orbit=$!
 sleep 2
 export WAYLAND_DISPLAY=$(ls "$run"/orbit.*.sock | head -1 | xargs basename | sed 's/^orbit\.//; s/\.sock$//')
 clicar_em() { "$M" casa; sleep 0.2; "$M" mover "$1" "$2"; sleep 0.3; "$M" clicar; sleep 0.8; }
-abrir() { "$g/painel" --secao "$1" >"$run/p.log" 2>&1 & pid=$!; sleep 3.5; }
+abrir() { "$g/painel" --secao "$1" >"$run/p.log" 2>&1 & pid=$!; sleep 5; }
 fechar() { kill $pid 2>/dev/null; wait $pid 2>/dev/null; }
 
 # Apps ao iniciar: desligar o Syncthing (o interruptor da primeira linha)
@@ -52,6 +52,17 @@ clicar_em 1165 327
 grep -q "lembrar_recentes = nao" "$run/cfg/lumna/privacidade.ini" 2>/dev/null || fail "o interruptor devia gravar lembrar_recentes = nao"
 grep -q "gtk-recent-files-enabled=false" "$run/cfg/gtk-3.0/settings.ini" 2>/dev/null || fail "o GTK devia parar de lembrar"
 grep -q "<bookmark " "$run/share/recently-used.xbel" && fail "a lista de recentes devia ter sido esvaziada"
+fechar
+
+# Energia → Perfil: "Usar" a Economia vale na hora; o interruptor automático e o Aplicar gravam o energia.ini
+echo balanced > "$run/perfil.txt"
+export PERFIL_ESTADO=$run/perfil.txt
+abrir energia/perfil
+clicar_em 1157 461
+[ "$(cat "$run/perfil.txt")" = "power-saver" ] || fail "Usar devia pôr o perfil em power-saver: $(cat "$run/perfil.txt")"
+clicar_em 1165 568
+clicar_em 1149 674
+grep -q "perfil_auto = sim" "$run/cfg/lumna/energia.ini" 2>/dev/null || fail "o Aplicar devia gravar perfil_auto = sim ($(cat "$run/cfg/lumna/energia.ini" 2>/dev/null))"
 fechar
 
 kill $orbit 2>/dev/null; wait 2>/dev/null

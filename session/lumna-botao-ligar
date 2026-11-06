@@ -1,0 +1,13 @@
+#!/bin/sh
+# O botão de ligar: o Orbit roda isto quando ele é apertado (o logind não age: o lumna-ocioso segura o "handle-power-key").
+# O que fazer vem de ~/.config/lumna/energia.ini (Painel → Energia → Botão de ligar):
+#   botao = perguntar (o menu de desligar, o padrão) | desligar | suspender | hibernar | nada
+INI=${XDG_CONFIG_HOME:-$HOME/.config}/lumna/energia.ini
+botao=$(sed -n 's/^botao[ ]*=[ ]*//p' "$INI" 2>/dev/null | head -n1 | tr -d ' \r')
+case "$botao" in
+desligar) exec systemctl poweroff ;;
+suspender) exec systemctl suspend ;;
+hibernar) exec systemctl hibernate ;;
+nada) exit 0 ;;
+*) exec lumna-energia ;;
+esac

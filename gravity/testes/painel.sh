@@ -58,4 +58,18 @@ mkdir -p "$T/priv"
 cc $CF -o "$T/testa_idioma" testes/painel/testa_idioma.c servicos/idioma.c $LG
 mkdir -p "$T/idi"
 PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_idioma" "$T/idi" "$AQUI/../session/lumna-idioma-gerar"
+# a bateria (/sys falso)
+cc $CF -o "$T/testa_bateria" testes/painel/testa_bateria.c servicos/bateria.c $LG
+mkdir -p "$T/bat"
+"$T/testa_bateria" "$T/bat"
+# o perfil de energia (powerprofilesctl falso)
+cc $CF -o "$T/testa_perfil" testes/painel/testa_perfil.c servicos/perfil.c $LG
+echo balanced > "$T/perfil.txt"
+PERFIL_ESTADO="$T/perfil.txt" PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_perfil"
+# as contas (Usuários): /etc falso e o session/lumna-usuarios em modo seco, com getent e id falsos
+mkdir -p "$T/usr/bin"
+printf '#!/bin/sh\n[ "$1" = passwd ] && grep "^$2:" "$LUMNA_ETC/passwd"\n[ "$1" = group ] && grep "^$2:" "$LUMNA_ETC/group"\nexit 0\n' > "$T/usr/bin/getent"; chmod +x "$T/usr/bin/getent"
+cc $CF $(pkg-config --cflags gdk-pixbuf-2.0) -o "$T/testa_contas" testes/painel/testa_contas.c servicos/contas.c $LG $(pkg-config --libs gdk-pixbuf-2.0)
+mkdir -p "$T/con"
+PATH="$T/usr/bin:$PATH" "$T/testa_contas" "$T/con" "$AQUI/../session/lumna-usuarios"
 echo "(arquivos de teste em $T)"

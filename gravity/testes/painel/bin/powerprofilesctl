@@ -1,0 +1,17 @@
+#!/bin/sh
+# um powerprofilesctl de mentira: o perfil de agora fica em $PERFIL_ESTADO
+E=${PERFIL_ESTADO:?}
+A=$(cat "$E" 2>/dev/null || echo balanced)
+case "$1" in
+get) echo "$A" ;;
+list)
+	for p in performance balanced power-saver; do
+		[ "$p" = "$A" ] && m="*" || m=" "
+		printf '%s %s:\n    CpuDriver:\tintel_pstate\n    PlatformDriver:\tplatform_profile\n' "$m" "$p"
+		[ "$p" = performance ] && printf '    Degraded:\tno\n'
+		echo
+	done ;;
+set)
+	case "$2" in performance|balanced|power-saver) echo "$2" > "$E" ;; *) echo "Invalid profile $2" >&2; exit 1 ;; esac ;;
+*) exit 1 ;;
+esac

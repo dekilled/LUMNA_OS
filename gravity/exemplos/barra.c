@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "bandeja.h"
+#include "bateria.h"
 #include "bluetooth.h"
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include "emmac.h"
@@ -66,7 +67,7 @@ static void menu_alternar(Clay_ElementId id) {
 	}
 }
 /* o que a barra mostra (~/.config/lumna/barra.ini, gravado pelo Painel; vigiado) */
-static bool segundos, com_data, areas = true;
+static bool segundos, com_data, areas = true, bateria_pct = true;
 /* em que telas a barra aparece: "principal" (a primeira), "todas", "nenhuma", ou uma lista de nomes (HDMI-A-1,DP-1) */
 static char telas_cfg[256] = "principal";
 static bool telas_reler = true;     /* o arquivo mudou ou uma tela entrou ou saiu: rever as telas */
@@ -101,6 +102,8 @@ static void ler_ajustes(void) {
 				com_data = sim;
 			} else if (!strcmp(chave, "areas")) {
 				areas = sim;
+			} else if (!strcmp(chave, "bateria")) {
+				bateria_pct = sim;
 			} else if (!strcmp(chave, "telas")) {
 				snprintf(telas_cfg, sizeof(telas_cfg), "%s", valor);
 			}
@@ -146,6 +149,8 @@ static void modos_atualizar(void) {
 
 /* a tela desta barra (a das outras vem de --saida; a principal é a primeira de gv_saidas): o modo, o menu e os espaços são DELA, não da tela onde o cursor está */
 static char saida_propria[32];
+static struct bateria_info bat; /* a bateria de agora (relida de 30 em 30 s) */
+static double bat_lida = -100;
 
 static void saida_propria_ler(gv_app *app) {
 	if (minha_saida) {
@@ -1153,6 +1158,27 @@ static void desenhar_barra(gv_app *app, void *dados) {
 			}
 			if (icone_barra(CLAY_ID("bt"), icone_bt(), gv_popup_aberto(CLAY_ID("menu-bt")))) {
 				menu_alternar(CLAY_ID("menu-bt"));
+			}
+			/* a bateria (só em quem tem): o ícone e, se o Painel deixar, a porcentagem; tocar abre Energia */
+			if (gv_agora() - bat_lida > 30) {
+				bat_lida = gv_agora();
+				bateria_ler(&bat);
+			}
+			if (bat.existe) {
+				Clay_ElementId id = CLAY_ID("bateria");
+				bool tocado = gv_tocado(id);
+				CLAY(id, { .layout = { .padding = { 8, 8, 0, 0 }, .sizing = { .height = CLAY_SIZING_FIXED(32) }, .childGap = 4, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+					tocado |= gv_focavel(id, gv_t.raio_pequeno);
+					gv_icone(bat.carregando ? "zap" : "battery", 20, bat.pct <= 15 && !bat.na_tomada ? gv_t.perigo : gv_t.icone);
+					if (bateria_pct) {
+						gv_texto(gv_fmt("%d%%", bat.pct), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+					}
+				}
+				if (tocado) {
+					executar("lumna-painel", "--secao", "energia/bateria");
+				}
+				gv_acordar_em(bat_lida + 30 - gv_agora() + 0.05);
 			}
 			if (modos_est.orbit && icone_barra(CLAY_ID("copiados"), "clipboard", gv_popup_aberto(CLAY_ID("menu-copiados")))) {
 				copiados_ler();

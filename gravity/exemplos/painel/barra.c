@@ -10,12 +10,12 @@
 
 /* em quais telas: 0 só na principal, 1 em todas, 2 em nenhuma, 3 as que eu escolher (a lista, nomes separados por vírgula) */
 struct barra_ajustes {
-	bool segundos, data, areas;
+	bool segundos, data, areas, bateria;
 	int telas;
 	char lista[256];
 };
 static struct telas_estado monitores; /* os monitores de agora (lidos ao abrir a página) */
-static const struct barra_ajustes fabrica = { .areas = true };
+static const struct barra_ajustes fabrica = { .areas = true, .bateria = true };
 static struct barra_ajustes b, gravada;
 
 void pn_barra_abrir(void) {
@@ -37,6 +37,8 @@ void pn_barra_abrir(void) {
 				gravada.data = sim;
 			} else if (!strcmp(chave, "areas")) {
 				gravada.areas = sim;
+			} else if (!strcmp(chave, "bateria")) {
+				gravada.bateria = sim;
 			} else if (!strcmp(chave, "telas")) {
 				gravada.telas = !strcmp(valor, "principal") ? 0 : !strcmp(valor, "todas") ? 1 : !strcmp(valor, "nenhuma") ? 2 : 3;
 				if (gravada.telas == 3) {
@@ -57,8 +59,8 @@ bool pn_barra_pendente(void) {
 void pn_barra_aplicar(void) {
 	char texto[512];
 	const char *telas = b.telas == 0 ? "principal" : b.telas == 1 ? "todas" : b.telas == 2 ? "nenhuma" : b.lista[0] ? b.lista : "principal";
-	snprintf(texto, sizeof(texto), "# A barra superior (o Painel de controle grava este arquivo)\nsegundos = %s\ndata = %s\nareas = %s\ntelas = %s\n",
-		b.segundos ? "sim" : "nao", b.data ? "sim" : "nao", b.areas ? "sim" : "nao", telas);
+	snprintf(texto, sizeof(texto), "# A barra superior (o Painel de controle grava este arquivo)\nsegundos = %s\ndata = %s\nareas = %s\nbateria = %s\ntelas = %s\n",
+		b.segundos ? "sim" : "nao", b.data ? "sim" : "nao", b.areas ? "sim" : "nao", b.bateria ? "sim" : "nao", telas);
 	if (pn_gravar("barra.ini", texto)) {
 		gravada = b;
 	}
@@ -138,8 +140,23 @@ void pn_barra_desenhar(void) {
 	pn_linha_comecar(CLAY_ID("barra-data"), "clock", "Mostrar a data", "Ao lado da hora (Dom, 25 de out)");
 	gv_interruptor(CLAY_ID("barra-data-v"), &b.data);
 	pn_linha_acabar();
+	pn_linha_comecar(CLAY_ID("barra-bat"), "battery", "Mostrar a porcentagem da bateria", "Ao lado do ícone da bateria (só em quem tem bateria)");
+	gv_interruptor(CLAY_ID("barra-bat-v"), &b.bateria);
+	pn_linha_acabar();
 	pn_subtitulo(CLAY_ID("barra-s2"), "Ao centro");
 	pn_linha_comecar(CLAY_ID("barra-areas"), "stack", "Indicador das áreas de trabalho", "Os tracinhos no meio da barra");
 	gv_interruptor(CLAY_ID("barra-areas-v"), &b.areas);
 	pn_linha_acabar();
+}
+
+/* Energia → Bateria também liga e desliga a porcentagem: lê e grava só esta chave, pelo mesmo arquivo */
+bool pn_barra_bateria_pct(void) {
+	pn_barra_abrir();
+	return gravada.bateria;
+}
+
+void pn_barra_bateria_definir(bool ligar) {
+	pn_barra_abrir();
+	b.bateria = ligar;
+	pn_barra_aplicar();
 }

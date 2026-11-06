@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (4 de novembro de 2026, contado no código):** 55 de 74 páginas prontas e 19 ainda só o esqueleto
+**Em números (4 de novembro de 2026, contado no código):** 59 de 74 páginas prontas e 15 ainda só o esqueleto
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -220,10 +220,10 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
   - ✅ limpeza (lixeira, temporários, cache do pacman, com confirmação);
   - ✅ discos e pendrives (montar, abrir, ejetar pelo udisks).
 - **Energia:**
-  - ⏳ perfil de energia (power-profiles-daemon);
-  - ⏳ bateria (UPower);
-  - 🔨 tela e suspensão (desligar a tela e suspender depois de X min);
-  - ⏳ o botão de ligar.
+  - ✅ perfil de energia (power-profiles-daemon; troca sozinho para Economia na bateria, pelo lumna-ocioso);
+  - ✅ bateria (lida do /sys: carga, o que falta, saúde e ciclos; a porcentagem na barra);
+  - ✅ tela e suspensão (o lumna-ocioso apaga a tela pelo wlr-output-power-management do Orbit e suspende depois de X min);
+  - ✅ o botão de ligar (perguntar, desligar, suspender, hibernar ou nada: o Orbit roda o lumna-botao-ligar; o lumna-ocioso segura o handle-power-key do logind).
 - **Teclado e mouse:**
   - ✅ teclado: vários layouts do XKB com a tecla que troca de um para o outro, Caps Lock (Ctrl ou Esc) e a
     repetição das teclas (`entrada.ini`, o Orbit refaz o mapa na hora);
@@ -317,7 +317,7 @@ como se fosse uma tela.
    - Barra superior;
    - Tela de bloqueio.
 3. ✅ Inicialização (as 4 páginas: Ao entrar, Apps ao iniciar, Entrada e Em segundo plano; falta testar na máquina de verdade).
-4. As seções 🔨 do Sistema: já estão Atalhos e Data e hora; faltam Energia, Histórico e recentes e as outras.
+4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade. Faltam Usuários e o Teclado na tela.
 5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do LUMNA Connect; falta o
    Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).
 6. As ⏳, à medida que os serviços entram: o NetworkManager e o BlueZ já entraram; falta o UPower (Energia).

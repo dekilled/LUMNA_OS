@@ -34,6 +34,7 @@ package() {
   cd "$_root/session"
   install -Dm755 lumna-session "$pkgdir/usr/bin/lumna-session"
   install -Dm755 lumna-greeter "$pkgdir/usr/bin/lumna-greeter"
+  install -Dm755 lumna-botao-ligar "$pkgdir/usr/bin/lumna-botao-ligar"
   install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
   install -Dm755 lumna-shell-run "$pkgdir/usr/lib/lumna/lumna-shell-run"
   install -Dm644 greeter.lua "$pkgdir/usr/share/lumna/greeter.lua"
@@ -59,6 +60,8 @@ package() {
   install -Dm755 lumna-entrada-ajustar "$pkgdir/usr/lib/lumna/lumna-entrada-ajustar"
   install -Dm644 os.lumna.entrada.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.entrada.policy"
   install -Dm755 lumna-idioma-gerar "$pkgdir/usr/lib/lumna/lumna-idioma-gerar"
+  install -Dm755 lumna-usuarios "$pkgdir/usr/lib/lumna/lumna-usuarios"
+  install -Dm644 os.lumna.usuarios.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.usuarios.policy"
   install -Dm644 os.lumna.idioma.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.idioma.policy"
   # Chaves do pacman (sistemas instalados sem elas) e relógio certo (assinaturas têm validade).
   install -Dm755 lumna-keyring "$pkgdir/usr/lib/lumna/lumna-keyring"

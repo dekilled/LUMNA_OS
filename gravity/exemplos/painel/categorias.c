@@ -126,6 +126,17 @@ void pn_hist_desenhar(void);
 void pn_diag_abrir(void);
 void pn_diag_desenhar(void);
 
+/* Sistema → Energia (energia.c) */
+void pn_energia_abrir(void);
+bool pn_energia_pendente(void);
+void pn_energia_aplicar(void);
+void pn_energia_descartar(void);
+void pn_energia_restaurar(void);
+void pn_perfil_desenhar(void);
+void pn_bateria_desenhar(void);
+void pn_suspensao_desenhar(void);
+void pn_botao_desenhar(void);
+
 /* Sistema → Idioma e região (idioma.c) */
 void pn_idioma_desenhar(void);
 void pn_idioma_abrir(void);
@@ -245,11 +256,13 @@ const pn_categoria pn_armazenamento = { "armazenamento", "drive", "Armazenamento
 	armazenamento, N(armazenamento) };
 
 static const pn_secao energia[] = {
-	{ "perfil", "zap", "Perfil de energia", "Economia, equilibrado ou desempenho.", NULL, "O perfil;Automático na bateria" },
-	{ "bateria", "battery", "Bateria", "A carga e a saúde da bateria.", NULL, "A porcentagem na barra;A saúde" },
-	{ "suspensao", "moon", "Tela e suspensão", "Quando a tela apaga e o computador dorme.", NULL,
-		"Desligar a tela depois de;Suspender depois de" },
-	{ "botao", "power", "Botão de ligar", "O que o botão faz.", NULL, "Desligar, suspender ou perguntar" },
+	{ "perfil", "zap", "Perfil de energia", "Economia, equilibrado ou desempenho.", pn_perfil_desenhar, NULL, pn_energia_pendente, pn_energia_aplicar,
+		pn_energia_descartar, pn_energia_restaurar, pn_energia_abrir },
+	{ "bateria", "battery", "Bateria", "A carga e a saúde da bateria.", pn_bateria_desenhar, NULL, NULL, NULL, NULL, NULL, pn_energia_abrir },
+	{ "suspensao", "moon", "Tela e suspensão", "Quando a tela apaga e o computador dorme.", pn_suspensao_desenhar, NULL, pn_energia_pendente,
+		pn_energia_aplicar, pn_energia_descartar, pn_energia_restaurar, pn_energia_abrir },
+	{ "botao", "power", "Botão de ligar", "O que o botão faz.", pn_botao_desenhar, NULL, pn_energia_pendente, pn_energia_aplicar, pn_energia_descartar,
+		pn_energia_restaurar, pn_energia_abrir },
 };
 const pn_categoria pn_energia = { "energia", "battery", "Energia", "Bateria e suspensão", PN_SISTEMA, energia, N(energia) };
 

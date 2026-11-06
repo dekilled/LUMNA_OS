@@ -1,0 +1,70 @@
+#!/bin/sh
+# lumna-usuarios: o que o Painel (Usuários) faz com as contas do computador. Precisa de root: o Painel chama com pkexec
+# (política os.lumna.usuarios). A senha de uma conta nova (ou nova de uma existente) vem na entrada padrão, nunca nos argumentos.
+#
+#   lumna-usuarios adicionar LOGIN "Nome completo" [admin]   cria a conta (senha na entrada padrão)
+#   lumna-usuarios remover LOGIN [apagar]                    tira a conta (e a pasta pessoal, se "apagar")
+#   lumna-usuarios admin LOGIN sim|nao                       entra ou sai do grupo dos administradores
+#   lumna-usuarios nome LOGIN "Nome completo"                muda o nome completo
+#   lumna-usuarios senha LOGIN                               nova senha de uma conta (na entrada padrão)
+#
+# LUMNA_USUARIOS_SECO=1 só mostra os comandos (para testar sem root). Só mexe em contas de gente (uid de 1000 a 59999), e nunca
+# na de quem está pedindo (o PKEXEC_UID).
+SECO=${LUMNA_USUARIOS_SECO:-}
+run() { if [ -n "$SECO" ]; then echo "$@"; else "$@"; fi; }
+die() { echo "lumna-usuarios: $*" >&2; exit 1; }
+
+valida_login() {
+	printf '%s' "$1" | grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' || die "o nome de usuário só tem letras minúsculas, números, _ e - (e começa por letra)"
+}
+uid_de() { getent passwd "$1" | cut -d: -f3; }
+so_gente() { # a conta existe e é de gente
+	u=$(uid_de "$1")
+	{ [ -n "$u" ] && [ "$u" -ge 1000 ] && [ "$u" -lt 60000 ]; } || die "$1 não é uma conta de usuário"
+	case "$(getent passwd "$1" | cut -d: -f7)" in */nologin|*/false) die "$1 não é uma conta de usuário (é de serviço)" ;; esac
+}
+nao_eu() {
+	[ -n "$PKEXEC_UID" ] && [ "$(uid_de "$1")" = "$PKEXEC_UID" ] && die "não dá para mexer na própria conta por aqui"
+	return 0
+}
+grupo_admin() {
+	if getent group wheel >/dev/null 2>&1; then echo wheel; elif getent group sudo >/dev/null 2>&1; then echo sudo; else echo wheel; fi
+}
+limpa_nome() { printf '%s' "$1" | tr -d ':,\n\r' | cut -c1-100; }
+
+case "$1" in
+adicionar)
+	valida_login "$2"
+	[ -n "$(uid_de "$2")" ] && die "já existe um usuário $2"
+	nome=$(limpa_nome "$3")
+	read -r senha
+	[ -n "$senha" ] || die "falta a senha (na entrada padrão)"
+	run useradd -m -c "$nome" -s /bin/bash "$2" || die "o useradd não conseguiu"
+	if [ -n "$SECO" ]; then echo "chpasswd (a senha de $2)"; else printf '%s:%s\n' "$2" "$senha" | chpasswd || die "não deu para pôr a senha"; fi
+	[ "$4" = admin ] && run usermod -aG "$(grupo_admin)" "$2"
+	exit 0
+	;;
+remover)
+	valida_login "$2"; so_gente "$2"; nao_eu "$2"
+	if [ "$3" = apagar ]; then run userdel -r "$2"; else run userdel "$2"; fi
+	;;
+admin)
+	valida_login "$2"; so_gente "$2"; nao_eu "$2"
+	case "$3" in
+	sim) run usermod -aG "$(grupo_admin)" "$2" ;;
+	nao) run gpasswd -d "$2" "$(grupo_admin)" ;;
+	*) die "uso: admin LOGIN sim|nao" ;;
+	esac
+	;;
+nome)
+	valida_login "$2"; so_gente "$2"
+	run usermod -c "$(limpa_nome "$3")" "$2"
+	;;
+senha)
+	valida_login "$2"; so_gente "$2"; nao_eu "$2"
+	read -r senha
+	[ -n "$senha" ] || die "falta a senha (na entrada padrão)"
+	if [ -n "$SECO" ]; then echo "chpasswd (a senha de $2)"; else printf '%s:%s\n' "$2" "$senha" | chpasswd; fi
+	;;
+*) die "uso: lumna-usuarios adicionar|remover|admin|nome|senha ..." ;;
+esac

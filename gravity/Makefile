@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio modos connect midia emma emma-chat emma-app perfil captura
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia modos connect midia emma emma-chat emma-app perfil captura
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -72,7 +72,7 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c exemplos/painel/persona.c exemplos/painel/importar.c exemplos/painel/ativacao.c exemplos/painel/mcp.c exemplos/painel/recursos.c exemplos/painel/voz.c exemplos/painel/som.c servicos/som.c exemplos/painel/inicializacao.c servicos/autostart.c servicos/segundoplano.c servicos/greetd.c exemplos/painel/privacidade_pg.c servicos/appspadrao.c servicos/permissoes.c servicos/privacidade.c exemplos/painel/idioma.c servicos/idioma.c exemplos/painel/connect.c servicos/connectc.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c exemplos/painel/persona.c exemplos/painel/importar.c exemplos/painel/ativacao.c exemplos/painel/mcp.c exemplos/painel/recursos.c exemplos/painel/voz.c exemplos/painel/som.c servicos/som.c exemplos/painel/inicializacao.c servicos/autostart.c servicos/segundoplano.c servicos/greetd.c exemplos/painel/privacidade_pg.c servicos/appspadrao.c servicos/permissoes.c servicos/privacidade.c exemplos/painel/idioma.c servicos/idioma.c exemplos/painel/energia.c servicos/bateria.c servicos/perfil.c exemplos/painel/connect.c servicos/connectc.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
 	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c servicos/modos.c servicos/json.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-unix-2.0 libpulse) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-unix-2.0 libpulse) -lpthread
@@ -83,8 +83,8 @@ apps: exemplos/apps.c libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/emmac.c servicos/emmac.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/emmac.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
+barra: exemplos/barra.c servicos/bateria.c servicos/bateria.h servicos/emmac.c servicos/emmac.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/bateria.c servicos/emmac.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a
@@ -119,9 +119,16 @@ ext-idle-notify-v1-client-protocol.h:
 	$(WAYLAND_SCANNER) client-header $(WAYLAND_PROTOCOLS)/staging/ext-idle-notify/ext-idle-notify-v1.xml $@
 ext-idle-notify-v1-protocol.c:
 	$(WAYLAND_SCANNER) private-code $(WAYLAND_PROTOCOLS)/staging/ext-idle-notify/ext-idle-notify-v1.xml $@
-ocioso: exemplos/ocioso.c ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c
-	$(CC) $(CFLAGS) $(shell pkg-config --cflags gio-unix-2.0) -o $@ exemplos/ocioso.c ext-idle-notify-v1-protocol.c \
+wlr-output-power-management-unstable-v1-client-protocol.h: protocolos/wlr-output-power-management-unstable-v1.xml
+	$(WAYLAND_SCANNER) client-header $< $@
+wlr-output-power-management-unstable-v1-protocol.c: protocolos/wlr-output-power-management-unstable-v1.xml
+	$(WAYLAND_SCANNER) private-code $< $@
+ocioso: exemplos/ocioso.c ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c wlr-output-power-management-unstable-v1-client-protocol.h wlr-output-power-management-unstable-v1-protocol.c
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags gio-unix-2.0) -o $@ exemplos/ocioso.c ext-idle-notify-v1-protocol.c wlr-output-power-management-unstable-v1-protocol.c \
 		$(shell pkg-config --libs wayland-client gio-unix-2.0)
+
+energia: exemplos/energia.c servicos/energia.c servicos/energia.h servicos/json.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/energia.c servicos/energia.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
 inicio: exemplos/inicio.c servicos/autostart.c servicos/sessao.c servicos/json.c servicos/modos.c
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-unix-2.0) -o $@ exemplos/inicio.c servicos/autostart.c servicos/sessao.c \
@@ -137,7 +144,7 @@ entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio modos connect midia emma emma-chat emma-app perfil captura ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia modos connect midia emma emma-chat emma-app perfil captura ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
