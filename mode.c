@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 #include <unistd.h>
 #include <wlr/util/log.h>
 
@@ -140,6 +141,15 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	if (!is_mode_output(from)) {
 		return;
 	}
+	if (from->mode == mode) {
+		/* já está neste modo: nada a trocar; o seletor só avisa */
+		setenv("LUMNA_SAIDA", from->wlr->name, 1);
+		setenv("LUMNA_MODO", orbit_mode_name(from->mode), 1);
+		setenv("LUMNA_JA", "1", 1);
+		spawn(server->mode_osd);
+		unsetenv("LUMNA_JA");
+		return;
+	}
 	/*
 	 * O Gaming e a Mídia existem uma vez só (a janela da Mídia é uma). Pedir um que outra tela já tem TROCA as duas telas de lugar: a Mídia
 	 * (com as janelas) vai para a tela pedida, e o que a pedida tinha (o Desktop dela, com as janelas) vai para a que tinha a Mídia.
@@ -165,6 +175,12 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	spawn(server->mode_osd);
 }
 
+static uint32_t mode_now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
 /* o próximo modo (dir = 1) ou o anterior (-1) desta saída. Todos se alcançam, mesmo os que outra tela já tem: pedir um deles troca as duas telas de lugar */
 void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, int dir) {
 	if (!is_mode_output(from)) {
@@ -173,8 +189,27 @@ void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, in
 	orbit_mode_set(server, from, (from->mode + dir + ORBIT_MODES) % ORBIT_MODES);
 }
 
+/*
+ * Super+Tab: o primeiro só ABRE o seletor, com o modo de agora em destaque, e não troca nada; outro Super+Tab com ele aberto (ORBIT_MODE_OSD_MS
+ * depois do último) vai para o próximo modo (Shift+Tab, para o anterior). Assim usar o seletor de novo num monitor em Mídia não o tira da Mídia.
+ */
+#define ORBIT_MODE_OSD_MS 1800
+
 void orbit_mode_step(struct orbit_server *server, int dir) {
-	orbit_mode_cycle(server, cursor_output(server), dir);
+	struct orbit_output *from = cursor_output(server);
+	if (!is_mode_output(from)) {
+		return;
+	}
+	uint32_t now = mode_now_ms();
+	if (server->mode_osd_output == from && (int32_t)(server->mode_osd_until - now) > 0) {
+		orbit_mode_cycle(server, from, dir);
+	} else {
+		setenv("LUMNA_SAIDA", from->wlr->name, 1);
+		setenv("LUMNA_MODO", orbit_mode_name(from->mode), 1);
+		spawn(server->mode_osd);
+	}
+	server->mode_osd_output = from;
+	server->mode_osd_until = now + ORBIT_MODE_OSD_MS;
 }
 
 /*

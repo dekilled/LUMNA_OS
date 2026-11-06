@@ -213,7 +213,8 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Alt+Tab          a janela usada antes; segurando o Alt, as outras
                    (as minimizadas também voltam); Alt+Shift+Tab ao contrário
   Super+H          minimizar a janela focada
-  Super+Tab        o modo seguinte (Desktop, Gaming, Mídia); Super+Shift+Tab, o anterior
+  Super+Tab        abre o seletor de modo (sem trocar); de novo, com ele aberto, vai para o modo seguinte; Super+Shift+Tab, o anterior.
+                   Pedir o modo que a tela já tem não troca nada e o seletor avisa
   Super            abrir / fechar o lançador ([geral] lancador)
   Super+M          o seletor de serviços, só no modo Mídia ([geral] seletor_midia)
   Super+← / →      encaixar na metade (de novo no mesmo lado solta)

@@ -270,6 +270,8 @@ struct orbit_server {
 	char brightness_up[ORBIT_CMD_LEN];
 	char brightness_down[ORBIT_CMD_LEN];
 	char mode_osd[ORBIT_CMD_LEN]; /* o seletor que aparece ao trocar de modo */
+	struct orbit_output *mode_osd_output; /* o seletor está aberto nesta saída... */
+	uint32_t mode_osd_until;              /* ...até este instante (ms): um Super+Tab dentro disso vai para o próximo modo */
 	int areas;                    /* quantos espaços do Desktop estão ligados (1 a ORBIT_TAGS) */
 	int mode_boot;                /* o modo da primeira saída ao ligar */
 	bool mode_booted;
