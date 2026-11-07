@@ -44,7 +44,8 @@ else
   echo "   lumna-hyprbars não compilou: o ISO sai sem a barra de título nas janelas"
   with_bars=0
 fi
-# A Emma vem de outro repositório (NewHarnessV2, privado): só entra quando o código foi passado.
+# A Emma: sem EMMA_SRC (o NewHarnessV2 é privado), usa a cópia que faz parte deste repositório (emma-servidor/).
+: "${EMMA_SRC:=$tree/emma-servidor}"
 if [ -n "${EMMA_SRC:-}" ] && [ -f "$EMMA_SRC/backend/server.py" ]; then
   pacman -S --needed --noconfirm python python-pip >/dev/null
   EMMA_SRC="$EMMA_SRC" build_pkg lumna-emma --nodeps
