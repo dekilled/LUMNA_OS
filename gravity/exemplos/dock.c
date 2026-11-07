@@ -358,7 +358,7 @@ static void tocar(const char *app_id, const char *comando, const gv_janela **jan
 static bool tem_icone_lumna(const char *nome) {
 	/* os do LUMNA são poucos e sem pontos nem barras; o resto é do tema */
 	static const char *const lumna[] = { "lumna", "folder", "globe", "bag", "sliders", "mic", "settings", "music",
-		"camera", "image", "phone", "chat", "terminal", "mail", "video", "gamepad", "document", "grid", "user" };
+		"camera", "image", "phone", "chat", "terminal", "mail", "video", "gamepad", "document", "grid", "user", "download" };
 	for (size_t i = 0; i < sizeof(lumna) / sizeof(lumna[0]); i++) {
 		if (!strcmp(nome, lumna[i])) {
 			return true;
