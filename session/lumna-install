@@ -197,16 +197,17 @@ user = "greeter"
 GREETD
 ln -sf /usr/lib/systemd/system/greetd.service "$TARGET/etc/systemd/system/display-manager.service"
 
-# Repositório [lumna]: as atualizações do LUMNA chegam junto com as do Arch.
-if ! grep -q '^\[lumna\]' "$TARGET/etc/pacman.conf"; then
-  cat >> "$TARGET/etc/pacman.conf" <<PACMAN
+# Repositório [lumna]: as atualizações do LUMNA chegam junto com as do Arch. O pacman.conf copiado do pendrive pode já ter
+# um [lumna] (o do build, que aponta para uma pasta que só existia na máquina que montou a ISO): tira e põe o certo.
+awk '/^\[lumna\]/ { pular = 1; next } /^\[/ { pular = 0 } !pular' "$TARGET/etc/pacman.conf" > "$TARGET/etc/pacman.conf.novo"
+mv "$TARGET/etc/pacman.conf.novo" "$TARGET/etc/pacman.conf"
+cat >> "$TARGET/etc/pacman.conf" <<PACMAN
 
 # Pacotes do LUMNA OS (shell, sessão), publicados pelo GitHub Actions.
 [lumna]
 SigLevel = Optional TrustAll
 Server = $REPO_URL
 PACMAN
-fi
 
 # ---- 4. boot ----
 
