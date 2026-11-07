@@ -67,7 +67,7 @@ principal() {
   "$SRC/scripts/confere-pacotes.sh" "$OUT"
   # o banco do repositório, refeito com tudo
   (cd "$OUT" && rm -f lumna.db lumna.db.tar.gz lumna.files lumna.files.tar.gz && repo-add lumna.db.tar.gz ./*.pkg.tar.zst >/dev/null)
-  for db in lumna.db lumna.files; do cp "$OUT/$db.tar.gz" "$OUT/$db"; done  # a release não guarda symlink: o banco vai com o nome que o pacman procura
+  for db in lumna.db lumna.files; do rm -f "$OUT/$db"; cp "$OUT/$db.tar.gz" "$OUT/$db"; done  # a release não guarda symlink: o banco vai com o nome que o pacman procura
   if [ "$PUBLICAR" != 1 ]; then
     echo ">> PUBLICAR=0: nada foi publicado"
     return 0
