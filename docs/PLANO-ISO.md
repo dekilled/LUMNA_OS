@@ -101,6 +101,13 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 - Fica para depois: assinar os pacotes (hoje o repositório é `SigLevel = Optional TrustAll`: confia no HTTPS do GitHub e na sua
   conta), aviso automático de "há atualizações" e um canal estável separado do de teste.
 
+## Boot: GRUB em UEFI e em BIOS
+
+O instalador instala sempre com o **GRUB**, com o `/boot` dentro do Btrfs (`@`): em UEFI a partição EFI fica em `/boot/efi` (com o GRUB
+também no caminho padrão `EFI/BOOT`, para a placa que perde as entradas); em BIOS é uma partição "BIOS boot" de 1 MiB. Assim o kernel entra nos
+snapshots (o "Desfazer a última atualização" não deixa kernel e módulos fora de sincronia) e há um caminho só, testado nos dois modos.
+Limite: com o Secure Boot ligado o GRUB sem assinatura não carrega (desligue-o por enquanto).
+
 ## Fase 5 — Programas (depois da ISO validada)
 
 Ordem sugerida (a confirmar com você): Arquivos → Loja → Teclado na tela (+ input-method nos apps de fora) →

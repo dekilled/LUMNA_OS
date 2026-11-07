@@ -242,7 +242,7 @@ static void p_resumo(void) {
 	linha_resumo("Computador", host);
 	linha_resumo("Idioma e teclado", gv_fmt("%s · %s", idiomas_nome[idioma], teclados_nome[teclado]).chars);
 	linha_resumo("Fuso horário", fuso);
-	linha_resumo("Boot", !strcmp(instalador_boot(), "BIOS") ? "BIOS (modo legado), com o GRUB" : "UEFI, com o systemd-boot");
+	linha_resumo("Boot", !strcmp(instalador_boot(), "BIOS") ? "BIOS (modo legado), com o GRUB" : "UEFI, com o GRUB");
 	gv_texto(CLAY_STRING("Não desligue o computador nem tire o pendrive durante a instalação. O administrador vai pedir a sua senha antes de começar."),
 		gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 	if (gv_botao_ext(CLAY_ID("rs-instalar"), &(gv_botao_opcoes){ .icone = "download", .texto = "Instalar agora", .estilo = GV_BOTAO_CHEIO })) {

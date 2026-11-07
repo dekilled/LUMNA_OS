@@ -11,16 +11,26 @@ printf '#!/bin/sh\ncase "$*" in *TYPE*) echo disk ;; esac\n' > "$t/bin/lsblk"; c
 export LUMNA_INSTALL_SOURCE=$t/src
 # PATH só com o que o script precisa (sem grub-install, para testar a falta)
 seco() { echo senha | PATH="$t/bin:$PATH" bash "$INST" --dry-run --disk /dev/loop0 --user maria --name "Maria" --hostname lumna --timezone America/Sao_Paulo --keyboard "br abnt2" --locale pt_BR.UTF-8 2>&1; }
-if command -v grub-install >/dev/null; then
-  fail "este teste espera um sistema sem grub-install no PATH (tem um em $(command -v grub-install))"
+if command -v grub-install >/dev/null || command -v efibootmgr >/dev/null; then
+  fail "este teste espera um sistema sem grub-install nem efibootmgr no PATH"
 fi
-saida=$(LUMNA_FIRMWARE=uefi seco); echo "$saida" | grep -q "boot uefi" || fail "UEFI devia passar sem o grub: $saida"
+export LUMNA_GRUB_LIB=$t/grub
+# sem o grub: nenhum dos dois modos instala (o GRUB faz o boot em UEFI e em BIOS)
+saida=$(LUMNA_FIRMWARE=uefi seco); echo "$saida" | grep -q "falta o grub" || fail "UEFI sem o grub devia falhar dizendo que falta o grub: $saida"
 saida=$(LUMNA_FIRMWARE=bios seco); echo "$saida" | grep -q "falta o grub" || fail "BIOS sem o grub devia falhar dizendo que falta o grub: $saida"
 printf '#!/bin/sh\nexit 0\n' > "$t/bin/grub-install"; chmod +x "$t/bin/grub-install"
-saida=$(LUMNA_FIRMWARE=bios seco); echo "$saida" | grep -q "boot bios" || fail "BIOS com o grub devia passar: $saida"
+# com o grub mas sem o módulo do modo
+saida=$(LUMNA_FIRMWARE=bios seco); echo "$saida" | grep -q "não tem o módulo i386-pc" || fail "BIOS sem o módulo i386-pc devia falhar: $saida"
+saida=$(LUMNA_FIRMWARE=uefi seco); echo "$saida" | grep -q "não tem o módulo x86_64-efi" || fail "UEFI sem o módulo x86_64-efi devia falhar: $saida"
+mkdir -p "$t/grub/i386-pc" "$t/grub/x86_64-efi"
+saida=$(LUMNA_FIRMWARE=bios seco); echo "$saida" | grep -q "boot bios" || fail "BIOS com o grub e o módulo devia passar (sem o efibootmgr): $saida"
+# UEFI também precisa do efibootmgr
+saida=$(LUMNA_FIRMWARE=uefi seco); echo "$saida" | grep -q "falta o efibootmgr" || fail "UEFI sem o efibootmgr devia falhar: $saida"
+printf '#!/bin/sh\nexit 0\n' > "$t/bin/efibootmgr"; chmod +x "$t/bin/efibootmgr"
+saida=$(LUMNA_FIRMWARE=uefi seco); echo "$saida" | grep -q "boot uefi" || fail "UEFI com tudo devia passar: $saida"
 saida=$(LUMNA_FIRMWARE=ia64 seco); echo "$saida" | grep -q "modo de boot desconhecido" || fail "modo desconhecido devia falhar: $saida"
 # sem forçar, no sistema de teste (sem /sys/firmware/efi num container): vira BIOS se não houver EFI
 if [ ! -d /sys/firmware/efi ]; then
   saida=$(seco); echo "$saida" | grep -q "boot bios" || fail "sem /sys/firmware/efi devia ser BIOS: $saida"
 fi
-[ "$falhas" -eq 0 ] && echo "lumna-install --dry-run (UEFI e BIOS): ok" || { echo "$falhas falha(s)"; exit 1; }
+[ "$falhas" -eq 0 ] && echo "lumna-install --dry-run (UEFI e BIOS, os dois com GRUB): ok" || { echo "$falhas falha(s)"; exit 1; }

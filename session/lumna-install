@@ -7,9 +7,10 @@
 #   (a senha chega pela entrada padrão, numa linha: nunca na linha de comando)
 #
 # O disco é APAGADO INTEIRO, sempre em GPT, com o resto em Btrfs com subvolumes @, @home, @log, @cache e
-# @snapshots (compressão zstd). O boot segue o modo em que o computador iniciou o pendrive:
-#   UEFI: partição EFI de 1 GiB (FAT32, montada em /boot) e boot por systemd-boot;
-#   BIOS (legado): uma partição "BIOS boot" de 1 MiB e boot por GRUB; o /boot fica dentro do Btrfs (@).
+# @snapshots (compressão zstd). O boot é sempre por GRUB, com o /boot DENTRO do Btrfs (@): o kernel entra nos snapshots (o "voltar"
+# da atualização leva o kernel junto). O que muda é o modo em que o computador iniciou o pendrive:
+#   UEFI: partição EFI de 1 GiB (FAT32, em /boot/efi); o GRUB fica nela (e também no caminho padrão EFI/BOOT, para a BIOS que perde entradas);
+#   BIOS (legado): uma partição "BIOS boot" de 1 MiB e o GRUB no começo do disco.
 # LUMNA_FIRMWARE=uefi|bios força o modo (para os testes). A tela de login é a do LUMNA (greetd + lumna-entrada-greeter).
 #
 # Andamento para a tela: linhas "@@ PORCENTAGEM texto".
@@ -55,10 +56,13 @@ if [ -z "$FW" ]; then
   if [ -d /sys/firmware/efi ]; then FW=uefi; else FW=bios; fi
 fi
 case "$FW" in
-  uefi) ;;
-  bios) command -v grub-install >/dev/null || fail "falta o grub neste pendrive (ele faz o boot em BIOS)" ;;
+  uefi) GRUB_ALVO=x86_64-efi ;;
+  bios) GRUB_ALVO=i386-pc ;;
   *) fail "modo de boot desconhecido: $FW (uefi ou bios)" ;;
 esac
+command -v grub-install >/dev/null || fail "falta o grub neste pendrive (ele faz o boot, em UEFI e em BIOS)"
+[ -d "${LUMNA_GRUB_LIB:-/usr/lib/grub}/$GRUB_ALVO" ] || fail "o grub deste pendrive não tem o módulo $GRUB_ALVO (modo $FW)"
+[ "$FW" = bios ] || command -v efibootmgr >/dev/null || fail "falta o efibootmgr neste pendrive (o GRUB registra o boot na UEFI com ele)"
 [ -d "$SOURCE/usr" ] || fail "não achei o sistema do pendrive em $SOURCE"
 # O pendrive em que o próprio live está não pode ser o destino.
 if lsblk -nro MOUNTPOINTS "$DISK" | grep -q '^/run/archiso'; then
@@ -115,7 +119,10 @@ mount -o "$OPTS,subvol=@home" "$ROOT" "$TARGET/home"
 mount -o "$OPTS,subvol=@log" "$ROOT" "$TARGET/var/log"
 mount -o "$OPTS,subvol=@cache" "$ROOT" "$TARGET/var/cache"
 mount -o "$OPTS,subvol=@snapshots" "$ROOT" "$TARGET/.snapshots"
-[ "$FW" = uefi ] && mount -o umask=0077 "$ESP" "$TARGET/boot"
+if [ "$FW" = uefi ]; then
+  mkdir -p "$TARGET/boot/efi"
+  mount -o umask=0077 "$ESP" "$TARGET/boot/efi"
+fi
 
 # ---- 2. sistema ----
 
@@ -241,10 +248,9 @@ fallback_options="-S autodetect"
 PRESET
 arch-chroot "$TARGET" mkinitcpio -P >/dev/null 2>&1 || arch-chroot "$TARGET" mkinitcpio -P
 
-if [ "$FW" = bios ]; then
-  step 94 "Instalando o carregador de boot (GRUB, BIOS)"
-  # O GRUB acha sozinho o Btrfs e o subvolume @ (o /boot está dentro dele): põe rootflags=subvol=@ no kernel.
-  cat > "$TARGET/etc/default/grub" <<GRUBCFG
+step 94 "Instalando o carregador de boot (GRUB, $FW)"
+# O GRUB acha sozinho o Btrfs e o subvolume @ (o /boot está dentro dele): põe rootflags=subvol=@ no kernel.
+cat > "$TARGET/etc/default/grub" <<GRUBCFG
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=2
 GRUB_DISTRIBUTOR="LUMNA OS"
@@ -252,35 +258,18 @@ GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"
 GRUB_PRELOAD_MODULES="part_gpt part_msdos btrfs"
 GRUB_DISABLE_OS_PROBER=true
 GRUBCFG
+if [ "$FW" = bios ]; then
   arch-chroot "$TARGET" grub-install --target=i386-pc --recheck "$DISK" >/dev/null
-  arch-chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
-  [ -s "$TARGET/boot/grub/grub.cfg" ] || fail "o GRUB não gerou o menu de boot"
-  step 98 "Terminando"
-  sync
-  step 100 "Pronto"
-  exit 0
+else
+  # 1) com a entrada "LUMNA" na memória da placa (NVRAM). Em VM sem NVRAM ou numa placa que recusa, segue só com o 2.
+  arch-chroot "$TARGET" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=LUMNA --recheck >/dev/null 2>&1 \
+    || echo "aviso: a placa não aceitou a entrada LUMNA na NVRAM; o boot fica pelo caminho padrão (EFI/BOOT)" >&2
+  # 2) no caminho padrão (EFI/BOOT/BOOTX64.EFI): é o que a placa procura quando perde as entradas, e a única que existe numa VM nova
+  arch-chroot "$TARGET" grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable --recheck >/dev/null
+  [ -e "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" ] || fail "o GRUB não ficou na partição EFI"
 fi
-step 94 "Instalando o carregador de boot"
-arch-chroot "$TARGET" bootctl --esp-path=/boot install >/dev/null 2>&1 || arch-chroot "$TARGET" bootctl --esp-path=/boot --no-variables install
-root_uuid=$(blkid -s UUID -o value "$ROOT")
-mkdir -p "$TARGET/boot/loader/entries"
-cat > "$TARGET/boot/loader/loader.conf" <<LOADER
-default lumna.conf
-timeout 2
-editor no
-LOADER
-cat > "$TARGET/boot/loader/entries/lumna.conf" <<ENTRY
-title   LUMNA OS
-linux   /vmlinuz-linux
-initrd  /initramfs-linux.img
-options root=UUID=$root_uuid rootflags=subvol=@ rw quiet loglevel=3
-ENTRY
-cat > "$TARGET/boot/loader/entries/lumna-fallback.conf" <<ENTRY
-title   LUMNA OS (modo de segurança)
-linux   /vmlinuz-linux
-initrd  /initramfs-linux-fallback.img
-options root=UUID=$root_uuid rootflags=subvol=@ rw
-ENTRY
+arch-chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+[ -s "$TARGET/boot/grub/grub.cfg" ] || fail "o GRUB não gerou o menu de boot"
 
 step 98 "Terminando"
 sync

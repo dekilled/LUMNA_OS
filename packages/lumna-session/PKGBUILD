@@ -20,8 +20,8 @@ depends=(
   iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
   # Loja: Flatpak, AUR (git + base-devel para compilar) e checkupdates (pacman-contrib)
   flatpak git base-devel pacman-contrib curl
-  # Instalador: particionar, Btrfs, copiar o sistema, boot (systemd-boot em UEFI; grub em BIOS)
-  gptfdisk btrfs-progs dosfstools rsync arch-install-scripts grub
+  # Instalador: particionar, Btrfs, copiar o sistema, boot (grub, em UEFI e em BIOS; o efibootmgr registra o boot na UEFI)
+  gptfdisk btrfs-progs dosfstools rsync arch-install-scripts grub efibootmgr
   # Arquivos: lixeira e abrir com o programa padrão (gio), discos e pendrives (udisks)
   glib2 udisks2 xdg-utils
   # Ações da Emma: copiar/colar, captura de tela e avisos pelo terminal
