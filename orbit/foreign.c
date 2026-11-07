@@ -84,6 +84,7 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	if (!view->mapped) {
 		return;
 	}
+	orbit_deco_update(view); /* título, foco e maximizada também mudam o desenho da barra */
 	/* as janelas de uma tela em Gaming ou Mídia não aparecem na dock nem no alternador; ao voltar, reaparecem */
 	if (orbit_view_isolated(view) != (view->foreign == NULL)) {
 		if (view->foreign) {

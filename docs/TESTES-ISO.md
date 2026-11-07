@@ -45,6 +45,10 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.12 | Notificação: `notify-send Oi "teste"` no terminal | Aparece o aviso no canto | ☐ |
 | 2.13 | Bloquear a tela (Painel > Tela de bloqueio ou o menu de energia) e desbloquear | Bloqueia e desbloqueia | ☐ |
 | 2.14 | Menu de energia (botão da barra) | Mostra desligar, reiniciar, suspender | ☐ |
+| 2.15 | Abrir o terminal (`Alt+Enter`) | A janela tem a **barra de título do Orbit** (título, minimizar, maximizar, fechar), igual à dos apps do LUMNA | ☐ |
+| 2.16 | Arrastar o terminal pela barra; duplo clique na barra | Move a janela; o duplo clique maximiza e restaura | ☐ |
+| 2.17 | Botões da barra: minimizar (volta pela dock), maximizar, fechar | Cada um faz o que diz | ☐ |
+| 2.18 | Abrir o **Firefox**, o Thunar e o **Blender** (se tiver) | Cada um tem barra: a do Orbit (Blender) ou a deles com botões (Firefox/Thunar). Se o Firefox não tiver barra: botão direito na barra de abas > "Barra de título" | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

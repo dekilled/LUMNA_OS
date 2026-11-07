@@ -146,6 +146,12 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 			return;
 		}
 		server->border_px = number;
+	} else if (strcasecmp(key, "barra_titulo") == 0 || strcasecmp(key, "title_bar") == 0) {
+		if (!parse_int(value, 0, ORBIT_BAR_MAX, &number)) {
+			wlr_log(WLR_ERROR, "config linha %d: barra_titulo %s inválida (0 a %d; 0 desliga as barras do Orbit)", line, value, ORBIT_BAR_MAX);
+			return;
+		}
+		server->bar_h = number;
 	} else if (strcasecmp(key, "animacao") == 0 || strcasecmp(key, "anim") == 0) {
 		if (!parse_int(value, 0, ORBIT_ANIM_MAX, &number)) {
 			wlr_log(WLR_ERROR, "config linha %d: animacao %s inválida", line, value);
@@ -332,6 +338,7 @@ void orbit_config_load(struct orbit_server *server) {
 	server->background[2] = 0.071f;
 	server->background[3] = 1.0f;
 	server->border_px = ORBIT_BORDER_DEFAULT;
+	server->bar_h = ORBIT_BAR_DEFAULT;
 	server->border_color[0] = 0.545f;
 	server->border_color[1] = 0.659f;
 	server->border_color[2] = 0.600f;

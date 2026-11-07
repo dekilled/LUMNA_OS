@@ -14,6 +14,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <xkbcommon/xkbcommon.h>
 #include "nested.h"
@@ -29,6 +30,8 @@
 #define ORBIT_CMD_LEN 192
 #define ORBIT_MAX_BINDS 48
 #define ORBIT_BORDER_DEFAULT 1
+#define ORBIT_BAR_DEFAULT 54 /* a barra de título que o Orbit desenha (px); como a dos apps do LUMNA */
+#define ORBIT_BAR_MAX 120
 #define ORBIT_BORDER_MAX 8
 #define ORBIT_ANIM_DEFAULT 120
 #define ORBIT_ANIM_MAX 400
@@ -194,6 +197,13 @@ struct orbit_server {
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
+	struct wlr_xdg_decoration_manager_v1 *deco_mgr; /* a barra de título que o Orbit desenha (deco.c) */
+	struct wl_listener new_deco;
+	int bar_h;                 /* a altura da barra de título, em px (0: o Orbit não desenha barras) */
+	uint32_t bar_click_time;   /* o último aperto numa barra (o duplo clique maximiza) */
+	struct orbit_view *bar_click_view;
+	struct orbit_view *bar_pending; /* apertou a barra de uma janela maximizada/encaixada: só começa a arrastar (e a soltá-la) quando o mouse andar */
+	double bar_pending_x, bar_pending_y;
 	struct wl_listener new_xdg_popup;
 	struct wl_list views;
 
@@ -364,6 +374,17 @@ struct orbit_view {
 	bool maximized;  /* ocupa a área útil da saída (sem a barra e a dock); as outras ficam por baixo */
 	bool mapped;
 	struct wlr_scene_rect *border;
+	/* a barra de título do lado do servidor (deco.c): só nas janelas que usam o xdg-decoration e aceitam que o Orbit a desenhe */
+	struct wlr_xdg_toplevel_decoration_v1 *xdg_deco;
+	struct wl_listener deco_request_mode;
+	struct wl_listener deco_destroy;
+	bool ssd;                     /* o modo é "servidor desenha" */
+	struct wlr_scene_buffer *bar; /* a barra: filha da árvore da janela, acima da superfície */
+	int bar_w;                    /* a largura (px lógicos) com que foi desenhada */
+	float bar_scale;
+	bool bar_focus, bar_max;
+	int bar_hover;                /* qual botão está sob o cursor (enum orbit_deco_zone) */
+	char bar_title[256];
 	struct wlr_foreign_toplevel_handle_v1 *foreign;
 	struct wlr_output *foreign_output;
 	struct wl_listener foreign_activate;
@@ -523,6 +544,19 @@ void orbit_idle_update(struct orbit_server *server);
 bool orbit_manage_bind(struct orbit_server *server);
 void orbit_outputs_publish(struct orbit_server *server);
 void orbit_borders_sync(struct orbit_server *server);
+
+/* ---- a barra de título (deco.c) ---- */
+enum orbit_deco_zone { ORBIT_DECO_NONE = 0, ORBIT_DECO_BAR, ORBIT_DECO_MIN, ORBIT_DECO_MAX, ORBIT_DECO_CLOSE };
+void orbit_deco_bind(struct orbit_server *server);
+int orbit_deco_top(struct orbit_view *view); /* a altura que a barra ocupa em cima da janela (0: sem barra) */
+void orbit_deco_update(struct orbit_view *view); /* redesenha o que mudou (título, foco, tamanho, botão sob o cursor) */
+void orbit_deco_destroy(struct orbit_view *view);
+void orbit_deco_pending_motion(struct orbit_server *server);
+void orbit_deco_send_mode(struct orbit_view *view); /* manda ao cliente o modo (barra do Orbit ou do cliente) quando a superfície já pode receber */
+struct orbit_view *orbit_deco_at(struct orbit_server *server, double lx, double ly, enum orbit_deco_zone *zone);
+void orbit_deco_hover(struct orbit_server *server, struct orbit_view *view, enum orbit_deco_zone zone);
+/* o aperto do botão esquerdo na barra: fecha, minimiza, maximiza, ou começa a arrastar */
+void orbit_deco_press(struct orbit_server *server, struct orbit_view *view, enum orbit_deco_zone zone, uint32_t time);
 void orbit_slide(struct orbit_view *view, int x, int y);
 void orbit_slide_stop(struct orbit_view *view);
 void orbit_slide_leave(struct orbit_view *view, int dx);

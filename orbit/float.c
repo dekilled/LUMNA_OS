@@ -111,15 +111,16 @@ void orbit_float_place_new(struct orbit_view *view) {
 	}
 	struct wlr_box usable = output ? orbit_layer_usable(output, &full) : full;
 	struct wlr_box g = client_geometry(view);
+	int top = orbit_deco_top(view); /* a barra de título fica por cima da janela e também tem de caber */
 	int w = g.width > 0 ? g.width : usable.width * 3 / 5;
-	int h = g.height > 0 ? g.height : usable.height * 7 / 10;
+	int h = g.height > 0 ? g.height : (usable.height - top) * 7 / 10;
 	bool resize = g.width < 1 || g.height < 1;
 	if (w > usable.width - 2 * server->gap) {
 		w = usable.width - 2 * server->gap;
 		resize = true;
 	}
-	if (h > usable.height - 2 * server->gap) {
-		h = usable.height - 2 * server->gap;
+	if (h > usable.height - 2 * server->gap - top) {
+		h = usable.height - 2 * server->gap - top;
 		resize = true;
 	}
 	int others = 0;
@@ -131,12 +132,12 @@ void orbit_float_place_new(struct orbit_view *view) {
 	}
 	int step = (others % 6) * 32;
 	view->x = usable.x + (usable.width - w) / 2 + step;
-	view->y = usable.y + (usable.height - h) / 2 + step;
+	view->y = usable.y + top + (usable.height - top - h) / 2 + step;
 	if (view->x + w > usable.x + usable.width) {
 		view->x = usable.x + server->gap;
 	}
 	if (view->y + h > usable.y + usable.height) {
-		view->y = usable.y + server->gap;
+		view->y = usable.y + server->gap + top;
 	}
 	view->fx = view->x;
 	view->fy = view->y;
@@ -184,6 +185,7 @@ void orbit_float_show(struct orbit_view *view) {
 		view->cfg_w = view->fw;
 		view->cfg_h = view->fh;
 	}
+	orbit_deco_update(view);
 }
 
 /* a metade da área útil de um encaixe (1 esquerda, 2 direita) */
@@ -317,8 +319,9 @@ void orbit_move_begin(struct orbit_server *server, struct orbit_view *view) {
 		int w = view->fw > 0 ? view->fw : g.width;
 		view->maximized = false;
 		view->snap = 0;
+		int top = orbit_deco_top(view);
 		view->x = (int)(cx - rel * w);
-		view->y = (int)cy - 16;
+		view->y = top > 0 ? (int)cy + top / 2 : (int)cy - 16; /* com barra: o cursor no meio dela */
 		view->fx = view->x;
 		view->fy = view->y;
 		orbit_arrange(server);
@@ -460,7 +463,9 @@ uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly) {
 		return 0;
 	}
 	struct wlr_box g = geometry(view);
-	double x = lx - view->x, y = ly - view->y;
+	int top = orbit_deco_top(view); /* a caixa de fora começa no topo da barra */
+	double x = lx - view->x, y = ly - (view->y - top);
+	int altura = g.height + top;
 	uint32_t edges = 0;
 	if (x < ORBIT_EDGE_GRAB) {
 		edges |= WLR_EDGE_LEFT;
@@ -469,7 +474,7 @@ uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly) {
 	}
 	if (y < ORBIT_EDGE_GRAB) {
 		edges |= WLR_EDGE_TOP;
-	} else if (y > g.height - ORBIT_EDGE_GRAB) {
+	} else if (y > altura - ORBIT_EDGE_GRAB) {
 		edges |= WLR_EDGE_BOTTOM;
 	}
 	return edges;

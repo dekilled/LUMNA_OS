@@ -335,3 +335,9 @@ os modificadores e o atraso em relação à hora em que o sistema de fora a mand
 Tela principal (telas.ini): "principal=1" numa seção marca a tela principal ([DP-1]). Sem marca, vale o monitor de fora do
 aninhado (tela_principal) e depois a mais à esquerda. orbit-msg saidas diz qual é ("principal":true). A barra, o papel de parede
 e a dock "só na principal" seguem essa tela; os apps do Gravity reabrem sozinhos quando ela muda.
+
+Barra de título (deco.c)
+  O Orbit fala o xdg-decoration: quem pede (foot, Blender pelo libdecor, o Firefox com a barra do sistema...) fica com a barra que ele
+  desenha, no visual dos apps do LUMNA (título, minimizar, maximizar e fechar; arrastar move, duplo clique maximiza). Quem pede para
+  desenhar a própria (CSD) e quem não fala o protocolo (os apps em Gravity, os GTK) fica como estava. barra_titulo = 0 no orbit.ini
+  desliga. Teste: testes-arrasto/teste_barra.sh PASTA_DO_BUILD (precisa do foot e do mouse virtual arrasto2).

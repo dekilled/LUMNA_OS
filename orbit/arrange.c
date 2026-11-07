@@ -31,6 +31,12 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 	if (h < 1) {
 		h = 1;
 	}
+	/* a barra de título (se a janela tem uma do Orbit) fica por cima da área do cliente: a caixa dada é a de fora, o cliente ocupa o resto */
+	int top = orbit_deco_top(view);
+	if (top > 0) {
+		y += top;
+		h = h > top + 1 ? h - top : 1;
+	}
 	int b = view->server->border_px;
 	/* maximizada ou em ecrã inteiro, a janela vai até à borda: sem moldura */
 	bool inset = !view->fullscreen && !view->maximized && view->border && b > 0 && w > b * 2 && h > b * 2;
@@ -75,6 +81,7 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 		view->cfg_tiled = edges;
 	}
 	orbit_foreign_sync(view);
+	orbit_deco_update(view);
 }
 
 static void hide_view(struct orbit_view *view) {
@@ -485,6 +492,9 @@ void orbit_arrange(struct orbit_server *server) {
 void orbit_borders_sync(struct orbit_server *server) {
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
+		if (view->mapped) {
+			orbit_deco_update(view); /* o foco muda a cor do título */
+		}
 		if (!view->border || !view->border->node.enabled) {
 			continue;
 		}

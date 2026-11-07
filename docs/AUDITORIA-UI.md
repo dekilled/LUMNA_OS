@@ -28,7 +28,7 @@
 | Teclado na tela e gestos (`touchkeys.rs`, `keyboard.rs`, `haptics.rs`) | — | ❌ fase 5 |
 | Impressoras (`printers.rs`) | — | ❌ (o CUPS roda; falta a página) |
 | Celular (`mobile.rs`, `mobilelock.rs`, `phone.rs`) | — | adiado: UI mobile é a fase 6 |
-| Barra de título das janelas (`lumna-hyprbars`, `WindowBar.vue`) | ? | ⚠️ **conferir**: se o Orbit desenha a barra (ou se as janelas ficam só com moldura redonda) |
+| Barra de título das janelas (`lumna-hyprbars`, `WindowBar.vue`) | `orbit/deco.c`: o Orbit desenha a barra (xdg-decoration), no visual dos apps nativos | ✅ feito (testado com o foot e o mouse virtual; Firefox e Blender só no PC de verdade) |
 
 ## Ações da Emma (`actions.rs` no shell antigo × `servicos/emmaa.c`)
 

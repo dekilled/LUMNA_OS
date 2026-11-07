@@ -311,6 +311,7 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 		view->server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
 	}
 	orbit_foreign_destroy(view);
+	orbit_deco_destroy(view);
 	if (view->border) {
 		wlr_scene_node_destroy(&view->border->node);
 		view->border = NULL;
@@ -322,9 +323,11 @@ static void xdg_commit(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, commit);
 	if (view->toplevel->base->initial_commit) {
 		wlr_xdg_toplevel_set_size(view->toplevel, 0, 0);
+		orbit_deco_send_mode(view); /* o modo da barra vai junto com o primeiro configure */
 		view->cfg_valid = false;
 	} else if (view->mapped) {
 		orbit_foreign_sync(view);
+		orbit_deco_update(view); /* o cliente mudou de tamanho: a barra acompanha a largura */
 	}
 }
 
@@ -466,4 +469,5 @@ void orbit_views_bind(struct orbit_server *server) {
 	wl_signal_add(&server->xdg_shell->events.new_toplevel, &server->new_xdg_toplevel);
 	server->new_xdg_popup.notify = server_new_xdg_popup;
 	wl_signal_add(&server->xdg_shell->events.new_popup, &server->new_xdg_popup);
+	orbit_deco_bind(server);
 }

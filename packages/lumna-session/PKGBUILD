@@ -47,6 +47,9 @@ package() {
   # instalador (o app novo vem na fase 2; por ora o script e a política)
   install -Dm755 lumna-install "$pkgdir/usr/lib/lumna/lumna-install"
   install -Dm644 os.lumna.install.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.install.policy"
+  # os botões das barras de título dos apps GTK (o Firefox, o Thunar...)
+  install -Dm644 gtk-settings.ini "$pkgdir/etc/gtk-3.0/settings.ini"
+  install -Dm644 gtk-settings.ini "$pkgdir/etc/gtk-4.0/settings.ini"
   # arte
   install -Dm644 icons/installer.svg "$pkgdir/usr/share/lumna/icons/installer.svg"
   install -Dm644 wallpaper.png "$pkgdir/usr/share/lumna/wallpaper.png"

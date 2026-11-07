@@ -91,6 +91,7 @@ void orbit_gesture_end(struct orbit_server *server) {
 
 static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	orbit_idle_activity(server); /* mexer o rato conta mesmo fora das janelas */
+	orbit_deco_pending_motion(server);
 	if (server->cursor_mode == ORBIT_CURSOR_GESTURE) {
 		orbit_gesture_motion(server, server->cursor->x, server->cursor->y);
 		return;
@@ -107,10 +108,22 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	struct wlr_surface *surface = NULL;
 	struct orbit_view *under = view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 	if (!surface) {
-		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
+		/* a barra de título que o Orbit desenha: o botão sob o cursor acende, e nas bordas dela a seta de mudar o tamanho */
+		enum orbit_deco_zone zone;
+		struct orbit_view *bar = orbit_deco_at(server, server->cursor->x, server->cursor->y, &zone);
+		orbit_deco_hover(server, bar, zone);
+		const char *cursor = "left_ptr";
+		if (bar && zone == ORBIT_DECO_BAR) {
+			uint32_t edges = orbit_float_edges_at(bar, server->cursor->x, server->cursor->y);
+			if (edges) {
+				cursor = orbit_edges_cursor(edges);
+			}
+		}
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, cursor);
 		wlr_seat_pointer_clear_focus(server->seat);
 		return;
 	}
+	orbit_deco_hover(server, NULL, ORBIT_DECO_NONE);
 	uint32_t edges = orbit_float_edges_at(under, server->cursor->x, server->cursor->y);
 	if (edges) {
 		/* na borda de uma janela livre: a seta de mudar o tamanho (a janela não vê o cursor aqui) */
@@ -176,6 +189,9 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 	struct wlr_pointer_button_event *event = data;
 	orbit_idle_activity(server);
 	server->super_tap = false; /* Super+clique não é o Super sozinho */
+	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
+		server->bar_pending = NULL; /* soltou a barra sem arrastar: era um clique */
+	}
 
 	if (server->cursor_mode == ORBIT_CURSOR_MOVE && event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		struct orbit_view *view = server->grabbed;
@@ -221,6 +237,20 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 		if (!(mods & WLR_MODIFIER_ALT) && orbit_gesture_begin(server, server->cursor->x, server->cursor->y)) {
 			server->cursor_mode = ORBIT_CURSOR_GESTURE;
 			return;
+		}
+		if (!view && event->button == BTN_LEFT && !(mods & WLR_MODIFIER_ALT)) {
+			/* o aperto na barra de título do Orbit: um botão, as bordas dela (mudar o tamanho) ou o corpo (arrastar) */
+			enum orbit_deco_zone zone;
+			struct orbit_view *bar = orbit_deco_at(server, server->cursor->x, server->cursor->y, &zone);
+			if (bar) {
+				uint32_t bar_edges = zone == ORBIT_DECO_BAR ? orbit_float_edges_at(bar, server->cursor->x, server->cursor->y) : 0;
+				if (bar_edges) {
+					orbit_resize_begin(server, bar, bar_edges);
+				} else {
+					orbit_deco_press(server, bar, zone, event->time_msec);
+				}
+				return;
+			}
 		}
 		uint32_t edges = event->button == BTN_LEFT ? orbit_float_edges_at(view, server->cursor->x, server->cursor->y) : 0;
 		if (view && edges) {
