@@ -82,4 +82,16 @@ mkdir -p "$T/luz"
 "$T/testa_luz" "$T/luz"
 cc $CF -o "$T/testa_desktopenv" testes/painel/testa_desktopenv.c -Iservicos
 "$T/testa_desktopenv"
+# o instalador: discos, fusos, validações e a execução com o lumna-install de mentira
+chmod +x testes/instalador/instalar-falso.sh
+cc $CF -o "$T/testa_instalador" testes/painel/testa_instalador.c servicos/instalador.c servicos/json.c $LG -lpthread
+"$T/testa_instalador" "$AQUI/testes/instalador/instalar-falso.sh"
+# o agente do polkit: as partes puras e o agente inteiro contra um polkit de mentira (precisa do python3.12 com dbus)
+cc $CF -o "$T/testa_polkitag" testes/painel/testa_polkitag.c servicos/polkitag.c $LG
+"$T/testa_polkitag"
+if /usr/bin/python3.12 -c "import dbus" 2>/dev/null && command -v gdbus >/dev/null; then
+	make polkit >/dev/null && sh testes/polkit/polkit.sh "$AQUI"
+else
+	echo "(sem python3.12 com dbus: o teste do agente do polkit ficou de fora)"
+fi
 echo "(arquivos de teste em $T)"

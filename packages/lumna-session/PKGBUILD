@@ -41,6 +41,8 @@ package() {
   install -Dm755 lumna-modo "$pkgdir/usr/bin/lumna-modo"
   install -Dm755 lumna-botao-ligar "$pkgdir/usr/bin/lumna-botao-ligar"
   install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
+  # a dock de quem acabou de entrar (o useradd copia o /etc/skel para a casa nova)
+  install -Dm644 dock-padrao "$pkgdir/etc/skel/.config/lumna/dock"
   install -Dm644 lumna-tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/lumna.conf"
   # instalador (o app novo vem na fase 2; por ora o script e a política)
   install -Dm755 lumna-install "$pkgdir/usr/lib/lumna/lumna-install"

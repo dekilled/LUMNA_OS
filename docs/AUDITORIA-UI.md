@@ -19,8 +19,8 @@
 | Mídia (Início, serviços, TV) | `lumna-midia` + extensão do Firefox | ✅ (a extensão não está assinada) |
 | Galeria | `lumna-galeria` | ✅ |
 | Papel de parede | `lumna-papel` | ✅ |
-| **Instalador** (`installer.rs`) | — | ❌ **bloqueia a ISO** (fase 2) |
-| **Agente do polkit** (`polkit.rs`, `AuthDialog.vue`) | — | ❌ **bloqueia a ISO**: sem ele o `pkexec` do Painel falha (fase 2) |
+| **Instalador** (`installer.rs`) | `lumna-instalador` (seis passos, em cima do `lumna-install`) | ✅ feito na fase 2 (testado com o `lumna-install` de mentira) |
+| **Agente do polkit** (`polkit.rs`, `AuthDialog.vue`) | `lumna-polkit` + `lumna-polkit-janela` | ✅ feito na fase 2 (testado com um polkit de mentira, nos dois modos do helper) |
 | Arquivos (`files.rs`, `FilesApp.vue`) | — | ❌ temporário: Thunar na ISO (fase 5) |
 | Loja (`store.rs`) | Painel > Aplicativos instala/atualiza; falta a Loja | ❌ fase 5 |
 | Music e Qobuz (`music.rs`, `qobuz.rs`) | — | ❌ fase 5 |

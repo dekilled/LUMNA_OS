@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -151,8 +151,19 @@ bloqueio: exemplos/bloqueio.c servicos/hora.c servicos/hora.h servicos/entrar.c 
 entrada: exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/entrada.c servicos/greetd.c servicos/papelini.c libgravity.a $(LDLIBS)
 
+# o agente do polkit (a senha de administrador): o serviço sem a interface, e a janela de senha em Gravity
+polkit: exemplos/polkit.c servicos/polkitag.c servicos/polkitag.h
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/polkit.c servicos/polkitag.c $(shell pkg-config --libs gio-2.0)
+
+polkit-janela: exemplos/polkit-janela.c libgravity.a
+	$(CC) $(CFLAGS) -o $@ exemplos/polkit-janela.c libgravity.a $(LDLIBS)
+
+# o instalador do LUMNA OS (Instalar LUMNA OS, da sessão live)
+instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h servicos/json.c servicos/json.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
+
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 

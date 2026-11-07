@@ -40,7 +40,7 @@ jobs:
           missing=0
           for f in usr/bin/orbit usr/bin/orbit-msg usr/bin/lumna-painel usr/bin/lumna-barra usr/bin/lumna-dock usr/bin/lumna-lancador \
                    usr/bin/lumna-avisos usr/bin/lumna-bloqueio usr/bin/lumna-entrada usr/bin/lumna-emma usr/bin/lumna-emma-app \
-                   usr/bin/lumna-captura usr/bin/lumna-orbit-session usr/bin/lumna-entrada-greeter \
+                   usr/bin/lumna-captura usr/bin/lumna-polkit usr/bin/lumna-polkit-janela usr/bin/lumna-instalador etc/skel/.config/lumna/dock usr/bin/lumna-orbit-session usr/bin/lumna-entrada-greeter \
                    usr/share/wayland-sessions/lumna-orbit.desktop usr/lib/lumna/lumna-entrada-ajustar; do
             [ -e "/tmp/check/$f" ] || { echo "FALTA: $f"; missing=1; }
           done

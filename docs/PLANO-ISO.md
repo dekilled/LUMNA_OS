@@ -56,7 +56,7 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 4. Portais e dependências novas no `depends` (itens acima).
 5. Teste de pacote no CI: `pacman -Qkk`, `ldd` sem "not found", `desktop-file-validate`, `xmllint` nas políticas.
 
-## Fase 2 — Instalador e polkit (Gravity)
+## Fase 2 — Instalador e polkit (Gravity) ✅ escrita e testada com fakes
 
 1. `lumna-polkit` (agente de autenticação): senha do usuário, mesmo visual do bloqueio, sobe com a sessão.
 2. `lumna-instalador`: idioma e teclado → disco (com aviso de apagar) → usuário → resumo → progresso (as linhas

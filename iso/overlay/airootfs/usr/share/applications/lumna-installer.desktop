@@ -2,7 +2,7 @@
 Type=Application
 Name=Instalar LUMNA OS
 Comment=Instale o LUMNA no seu computador
-Exec=lumna-ctl installer
-Icon=/usr/share/lumna/icons/installer.svg
+Exec=lumna-instalador
+Icon=lumna-instalador
 Categories=System;
 Keywords=instalar;install;sistema;disco;
