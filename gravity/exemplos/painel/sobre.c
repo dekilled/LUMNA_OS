@@ -4,6 +4,7 @@
  */
 #include "painel.h"
 
+#include <glib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -84,6 +85,21 @@ void pn_sobre_pc_desenhar(void) {
 /* ---- Atualizações do sistema ---- */
 
 static struct sistema_atualizacao atu[SISTEMA_MAX_ATUALIZACOES];
+/* quantos snapshots de antes de uma atualização existem (a pasta é legível por todos: só os nomes) */
+static int n_snapshots(void) {
+	const char *pasta = g_getenv("LUMNA_SNAPDIR");
+	GDir *d = g_dir_open(pasta && *pasta ? pasta : "/.snapshots", 0, NULL);
+	int n = 0;
+	const char *nome;
+	while (d && (nome = g_dir_read_name(d))) {
+		n += g_str_has_prefix(nome, "antes-");
+	}
+	if (d) {
+		g_dir_close(d);
+	}
+	return n;
+}
+
 static int natu = -2;       /* -2: ainda não procurou; -1: não deu para saber (sem checkupdates nem pacman) */
 static bool procurando;
 static struct sistema_evento hist[24];
@@ -135,8 +151,15 @@ void pn_sobre_atu_desenhar(void) {
 			procurar();
 		}
 		if (natu > 0 && gv_botao(CLAY_ID("at-instalar"), "download", "Atualizar tudo", GV_BOTAO_CHEIO)) {
-			/* num terminal: a senha e o que o pacman pergunta aparecem ali */
-			pn_terminal("if command -v yay >/dev/null 2>&1; then yay -Syu; else sudo pacman -Syu; fi");
+			/* num terminal, para ver o que o pacman faz. O lumna-pkg tira um snapshot do sistema antes (dá para voltar), e o yay, se
+			 * houver, cuida do que vem do AUR */
+			pn_terminal("pkexec /usr/lib/lumna/lumna-pkg upgrade && { if command -v yay >/dev/null 2>&1; then yay -Sua; fi; echo; "
+				    "echo 'Atualizado. Se o desktop mudou, saia da sessão e entre de novo para usar a versão nova.'; }");
+		}
+		/* se há snapshots de antes das atualizações (o lumna-pkg deixa os 5 últimos), dá para desfazer a última */
+		if (n_snapshots() > 0 && pn_confirmar(CLAY_ID("at-voltar"), "restore", "Desfazer a última atualização",
+			    "Voltar o sistema ao estado de antes da última atualização? (reinicia depois)", true)) {
+			pn_terminal("pkexec /usr/lib/lumna/lumna-pkg voltar");
 		}
 	}
 	if (natu > 0) {

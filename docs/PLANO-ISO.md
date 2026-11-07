@@ -92,6 +92,15 @@ teclado na tela, Connect gerenciando o aparelho, páginas VPN/Ponto de acesso/Re
 - **Emma sem as ações do shell antigo:** auditoria na Fase 0; o que faltar entra antes da ISO se for essencial.
 - **Perder o antigo:** tag `ui-antiga-hyprland` + remoção só com o seu OK.
 
+## Atualizações pelo GitHub (feito depois da Fase 3)
+
+- Todo push na `iso-orbit` publica os pacotes novos no `repo-orbit` (`pacotes.yml` + `scripts/publica-repo.sh`: compila, confere,
+  junta com o que já está publicado, refaz o banco e sobe). O sistema instalado tem esse repositório no pacman.conf.
+- Painel > Sobre > Atualizações: Procurar, **Atualizar tudo** (passa pelo `lumna-pkg upgrade`, que tira um snapshot Btrfs antes e
+  guarda os 5 últimos) e **Desfazer a última atualização** (`lumna-pkg voltar`).
+- Fica para depois: assinar os pacotes (hoje o repositório é `SigLevel = Optional TrustAll`: confia no HTTPS do GitHub e na sua
+  conta), aviso automático de "há atualizações" e um canal estável separado do de teste.
+
 ## Fase 5 — Programas (depois da ISO validada)
 
 Ordem sugerida (a confirmar com você): Arquivos → Loja → Teclado na tela (+ input-method nos apps de fora) →

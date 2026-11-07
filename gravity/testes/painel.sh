@@ -94,4 +94,11 @@ if /usr/bin/python3.12 -c "import dbus" 2>/dev/null && command -v gdbus >/dev/nu
 else
 	echo "(sem python3.12 com dbus: o teste do agente do polkit ficou de fora)"
 fi
+# as atualizações: o snapshot antes de atualizar (e o voltar) e a publicação dos pacotes (poda e conferência)
+bash testes/pkg/snapshot.sh
+if command -v bsdtar >/dev/null && command -v xmllint >/dev/null; then
+	bash testes/publica/limpar.sh
+else
+	echo "(sem bsdtar/xmllint: o teste da publicação dos pacotes ficou de fora)"
+fi
 echo "(arquivos de teste em $T)"

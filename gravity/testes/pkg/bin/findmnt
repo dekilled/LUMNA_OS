@@ -1,0 +1,2 @@
+#!/bin/sh
+case "$*" in *SOURCE*) echo "/dev/vda2[/@]" ;; *FSTYPE*) echo btrfs ;; esac

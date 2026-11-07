@@ -2,13 +2,54 @@
 # Operações de pacotes da Loja do LUMNA. Roda como root pelo pkexec (política os.lumna.pkg):
 #   lumna-pkg install PACOTE...   instala dos repositórios (sincroniza antes, se nunca sincronizou)
 #   lumna-pkg remove PACOTE...    remove com as dependências que ficarem sobrando
-#   lumna-pkg upgrade             atualiza o sistema inteiro
+#   lumna-pkg upgrade             atualiza o sistema inteiro (antes, tira um snapshot Btrfs, para voltar se der errado)
+#   lumna-pkg snapshots           lista os snapshots de antes das atualizações (os 5 últimos ficam)
+#   lumna-pkg voltar [SNAPSHOT]   volta o sistema ao estado de um snapshot (o último, se não disser): reinicie depois
 #   lumna-pkg multilib on|off     liga/desliga o repositório de 32 bits (Steam, Wine)
 #   lumna-pkg pacman ARGS...      o pacman puro, para o makepkg instalar pacotes do AUR
 set -euo pipefail
 export LC_ALL=C
 
 synced() { compgen -G "/var/lib/pacman/sync/*.db" >/dev/null; }
+
+# Os snapshots de antes de cada atualização vivem em /.snapshots (o subvolume @snapshots que o instalador cria). Para os testes:
+# LUMNA_SNAPDIR troca a pasta e dispensa o Btrfs de verdade.
+SNAPDIR="${LUMNA_SNAPDIR:-/.snapshots}"
+MANTER=5
+
+snapshot_antes() {
+  [ -d "$SNAPDIR" ] || return 0
+  if [ -z "${LUMNA_SNAPDIR:-}" ] && [ "$(findmnt -no FSTYPE / 2>/dev/null)" != btrfs ]; then return 0; fi
+  local nome="antes-$(date +%Y%m%d-%H%M%S)"
+  chmod 755 "$SNAPDIR" 2>/dev/null || true # só os nomes aparecem (o Painel conta); o conteúdo segue com as permissões de cada arquivo
+  if btrfs subvolume snapshot -r / "$SNAPDIR/$nome" >/dev/null 2>&1; then
+    echo "Snapshot $nome guardado (para voltar atrás: lumna-pkg voltar)"
+  else
+    echo "Aviso: não consegui tirar o snapshot antes de atualizar; a atualização segue sem ele." >&2
+  fi
+  # guarda só os últimos
+  ls -1d "$SNAPDIR"/antes-* 2>/dev/null | sort | head -n "-$MANTER" | while read -r velho; do
+    btrfs subvolume delete "$velho" >/dev/null 2>&1 || true
+  done
+}
+
+voltar() {
+  local alvo="${1:-}"
+  if [ -z "$alvo" ]; then alvo="$(ls -1d "$SNAPDIR"/antes-* 2>/dev/null | sort | tail -1)"; fi
+  case "$alvo" in */*) ;; *) alvo="$SNAPDIR/$alvo" ;; esac
+  [ -n "$alvo" ] && [ -d "$alvo" ] || { echo "não achei esse snapshot (veja: lumna-pkg snapshots)" >&2; exit 1; }
+  local dev top novo
+  dev="$(findmnt -no SOURCE / | sed 's/\[.*//')"
+  top="$(mktemp -d)"
+  mount -o subvolid=5 "$dev" "$top"
+  novo="@-quebrado-$(date +%Y%m%d-%H%M%S)"
+  # o @ de agora vira @-quebrado (o sistema que está rodando continua nele até reiniciar) e o snapshot vira o novo @
+  mv "$top/@" "$top/$novo"
+  btrfs subvolume snapshot "$alvo" "$top/@"
+  umount "$top"
+  rmdir "$top" 2>/dev/null || true
+  echo "Pronto: o sistema volta a ${alvo##*/} no próximo boot. Reinicie. O estado de antes ficou em $novo (apague com 'btrfs subvolume delete' quando não precisar)."
+}
 
 case "${1:-}" in
   install)
@@ -21,7 +62,14 @@ case "${1:-}" in
     exec pacman -Rns --noconfirm --noprogressbar -- "$@"
     ;;
   upgrade)
+    snapshot_antes
     exec pacman -Syu --noconfirm --noprogressbar
+    ;;
+  snapshots)
+    ls -1d "$SNAPDIR"/antes-* 2>/dev/null | sort | sed 's|.*/||'
+    ;;
+  voltar)
+    voltar "${2:-}"
     ;;
   multilib)
     case "${2:-}" in
@@ -38,7 +86,7 @@ case "${1:-}" in
     exec pacman "$@"
     ;;
   *)
-    echo "uso: lumna-pkg install|remove|upgrade|multilib on|off|pacman ..." >&2
+    echo "uso: lumna-pkg install|remove|upgrade|snapshots|voltar [SNAPSHOT]|multilib on|off|pacman ..." >&2
     exit 2
     ;;
 esac

@@ -77,6 +77,22 @@ Se a instalação **parar com erro**, a mensagem aparece na tela: me mande o tex
 | 4.8 | Painel > Aplicativos > Atualizações | Lista atualizações sem erro de assinatura | ☐ |
 | 4.9 | Reiniciar pelo menu de energia | Reinicia e volta ao login | ☐ |
 
+## 4b. Atualizar o sistema instalado (pelo GitHub)
+
+O repositório de atualizações é a release `repo-orbit`: **todo push na branch `iso-orbit` compila e publica os pacotes novos
+lá** (uns minutos). O sistema instalado já aponta para ela.
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 4b.1 | `grep -A3 '\[lumna\]' /etc/pacman.conf` | Mostra `Server = https://github.com/dekilled/LUMNA_OS/releases/download/repo-orbit` (e não um `file://`) | ☐ |
+| 4b.2 | Painel > Sobre > Atualizações do sistema > **Procurar** | Procura sem erro; se eu publiquei algo depois da ISO, aparecem os `lumna-*` | ☐ |
+| 4b.3 | **Atualizar tudo** | Abre um terminal, pede a senha de administrador (a janela do LUMNA), mostra "Snapshot antes-… guardado" e atualiza | ☐ |
+| 4b.4 | Sair da sessão e entrar de novo | Entra na versão nova | ☐ |
+| 4b.5 | Painel > Sobre > Atualizações: **Desfazer a última atualização** (aparece depois do 4b.3) | Confirma, pede a senha e diz para reiniciar; depois do reboot o sistema está como antes da atualização | ☐ |
+| 4b.6 | `lumna-pkg snapshots` no terminal | Lista os snapshots (ficam os 5 últimos) | ☐ |
+
+O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de mentira, então o 4b.5 é o mais arriscado.
+
 ## 5. Só no PC de verdade (a VM não mostra)
 
 | # | O que fazer | Deve acontecer | |

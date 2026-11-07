@@ -1,0 +1,7 @@
+#!/bin/sh
+# btrfs de mentira: grava o que pediram e cria/apaga a pasta do snapshot
+echo "btrfs $*" >> "$FALSO_LOG"
+case "$2" in
+snapshot) for a; do dest=$a; done; mkdir -p "$dest" ;;
+delete) rm -rf "$3" ;;
+esac

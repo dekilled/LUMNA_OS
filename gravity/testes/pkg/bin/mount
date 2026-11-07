@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "mount $*" >> "$FALSO_LOG"
+mkdir -p "$4/@"   # o ponto de montagem de topo: com o @ dentro
