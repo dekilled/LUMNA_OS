@@ -101,4 +101,6 @@ if command -v bsdtar >/dev/null && command -v xmllint >/dev/null; then
 else
 	echo "(sem bsdtar/xmllint: o teste da publicação dos pacotes ficou de fora)"
 fi
+# o lumna-install em modo seco: o modo de boot (UEFI ou BIOS) e o que cada um exige
+bash testes/instalador/dryrun.sh
 echo "(arquivos de teste em $T)"

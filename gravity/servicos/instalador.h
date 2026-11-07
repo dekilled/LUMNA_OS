@@ -38,6 +38,9 @@ const char *instalador_erro_usuario(const char *usuario);
 const char *instalador_erro_senha(const char *senha, const char *confirma);
 const char *instalador_erro_host(const char *host);
 
+/* o jeito que o computador iniciou o pendrive, e portanto o jeito que o instalado vai dar boot: "UEFI" ou "BIOS" (LUMNA_FIRMWARE troca, para os testes) */
+const char *instalador_boot(void);
+
 /* a linha "@@ 42 Copiando" → 42 e "Copiando"; false se não é uma linha de andamento */
 bool instalador_andamento(const char *linha, int *percentual, const char **texto);
 

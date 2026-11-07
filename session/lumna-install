@@ -6,9 +6,11 @@
 #                 --timezone America/Sao_Paulo --keyboard "br abnt2" --locale pt_BR.UTF-8
 #   (a senha chega pela entrada padrão, numa linha: nunca na linha de comando)
 #
-# O disco é APAGADO INTEIRO: GPT, partição EFI de 1 GiB (FAT32, montada em /boot) e o resto em
-# Btrfs com subvolumes @, @home, @log, @cache e @snapshots (compressão zstd). Boot por
-# systemd-boot (só UEFI). A tela de login é a do LUMNA (greetd + lumna-entrada-greeter).
+# O disco é APAGADO INTEIRO, sempre em GPT, com o resto em Btrfs com subvolumes @, @home, @log, @cache e
+# @snapshots (compressão zstd). O boot segue o modo em que o computador iniciou o pendrive:
+#   UEFI: partição EFI de 1 GiB (FAT32, montada em /boot) e boot por systemd-boot;
+#   BIOS (legado): uma partição "BIOS boot" de 1 MiB e boot por GRUB; o /boot fica dentro do Btrfs (@).
+# LUMNA_FIRMWARE=uefi|bios força o modo (para os testes). A tela de login é a do LUMNA (greetd + lumna-entrada-greeter).
 #
 # Andamento para a tela: linhas "@@ PORCENTAGEM texto".
 set -euo pipefail
@@ -47,7 +49,16 @@ fail() { echo "ERRO: $*" >&2; exit 1; }
 [ -e "/usr/share/zoneinfo/$TIMEZONE" ] || fail "fuso horário desconhecido: $TIMEZONE"
 [[ "$KEYBOARD" =~ ^[a-z]+( [a-z0-9_]+)?$ ]] || fail "teclado inválido: $KEYBOARD"
 [[ "$LOCALE" =~ ^[a-zA-Z_]+\.UTF-8$ ]] || fail "idioma inválido: $LOCALE"
-[ -d /sys/firmware/efi ] || fail "este computador não iniciou em modo UEFI (o LUMNA ainda não instala no modo BIOS antigo)"
+# O modo de boot: o do jeito que o computador iniciou o pendrive (o instalado precisa dar boot do mesmo jeito)
+FW="${LUMNA_FIRMWARE:-}"
+if [ -z "$FW" ]; then
+  if [ -d /sys/firmware/efi ]; then FW=uefi; else FW=bios; fi
+fi
+case "$FW" in
+  uefi) ;;
+  bios) command -v grub-install >/dev/null || fail "falta o grub neste pendrive (ele faz o boot em BIOS)" ;;
+  *) fail "modo de boot desconhecido: $FW (uefi ou bios)" ;;
+esac
 [ -d "$SOURCE/usr" ] || fail "não achei o sistema do pendrive em $SOURCE"
 # O pendrive em que o próprio live está não pode ser o destino.
 if lsblk -nro MOUNTPOINTS "$DISK" | grep -q '^/run/archiso'; then
@@ -58,7 +69,7 @@ IFS= read -r PASSWORD || true
 [ -n "$FULLNAME" ] || FULLNAME="$USERNAME"
 
 if [ "$DRY" = 1 ]; then
-  echo "tudo certo para instalar em $DISK (teste: nada foi feito)"
+  echo "tudo certo para instalar em $DISK (boot $FW; teste: nada foi feito)"
   exit 0
 fi
 
@@ -75,17 +86,22 @@ lsblk -nrpo NAME "$DISK" | tail -n +2 | while read -r part; do umount -q "$part"
 swapoff -a 2>/dev/null || true
 wipefs -af "$DISK" >/dev/null
 sgdisk --zap-all "$DISK" >/dev/null
-sgdisk -n 1:0:+1G -t 1:ef00 -c 1:LUMNA_EFI -n 2:0:0 -t 2:8304 -c 2:LUMNA "$DISK" >/dev/null
+if [ "$FW" = uefi ]; then
+  sgdisk -n 1:0:+1G -t 1:ef00 -c 1:LUMNA_EFI -n 2:0:0 -t 2:8304 -c 2:LUMNA "$DISK" >/dev/null
+else
+  # BIOS: 1 MiB para o GRUB (a "BIOS boot") e o resto para o sistema; o atributo 2 marca a do sistema como inicializável (algumas BIOS exigem)
+  sgdisk -n 1:0:+1M -t 1:ef02 -c 1:LUMNA_BIOSBOOT -n 2:0:0 -t 2:8304 -c 2:LUMNA -A 2:set:2 "$DISK" >/dev/null
+fi
 partprobe "$DISK" 2>/dev/null || true
 udevadm settle
 # nvme0n1 → nvme0n1p1; sda → sda1
 case "$DISK" in *[0-9]) P="${DISK}p" ;; *) P="$DISK" ;; esac
-ESP="${P}1" ROOT="${P}2"
+ESP="${P}1" ROOT="${P}2" # (em BIOS a partição 1 é a do GRUB, sem sistema de arquivos)
 for i in $(seq 1 20); do [ -b "$ROOT" ] && break; sleep 0.5; done
 [ -b "$ROOT" ] || fail "as partições novas não apareceram"
 
 step 6 "Formatando"
-mkfs.fat -F 32 -n LUMNA_EFI "$ESP" >/dev/null
+[ "$FW" = uefi ] && mkfs.fat -F 32 -n LUMNA_EFI "$ESP" >/dev/null
 mkfs.btrfs -f -L LUMNA "$ROOT" >/dev/null
 
 mkdir -p "$TARGET"
@@ -99,7 +115,7 @@ mount -o "$OPTS,subvol=@home" "$ROOT" "$TARGET/home"
 mount -o "$OPTS,subvol=@log" "$ROOT" "$TARGET/var/log"
 mount -o "$OPTS,subvol=@cache" "$ROOT" "$TARGET/var/cache"
 mount -o "$OPTS,subvol=@snapshots" "$ROOT" "$TARGET/.snapshots"
-mount -o umask=0077 "$ESP" "$TARGET/boot"
+[ "$FW" = uefi ] && mount -o umask=0077 "$ESP" "$TARGET/boot"
 
 # ---- 2. sistema ----
 
@@ -225,6 +241,25 @@ fallback_options="-S autodetect"
 PRESET
 arch-chroot "$TARGET" mkinitcpio -P >/dev/null 2>&1 || arch-chroot "$TARGET" mkinitcpio -P
 
+if [ "$FW" = bios ]; then
+  step 94 "Instalando o carregador de boot (GRUB, BIOS)"
+  # O GRUB acha sozinho o Btrfs e o subvolume @ (o /boot está dentro dele): põe rootflags=subvol=@ no kernel.
+  cat > "$TARGET/etc/default/grub" <<GRUBCFG
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=2
+GRUB_DISTRIBUTOR="LUMNA OS"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"
+GRUB_PRELOAD_MODULES="part_gpt part_msdos btrfs"
+GRUB_DISABLE_OS_PROBER=true
+GRUBCFG
+  arch-chroot "$TARGET" grub-install --target=i386-pc --recheck "$DISK" >/dev/null
+  arch-chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+  [ -s "$TARGET/boot/grub/grub.cfg" ] || fail "o GRUB não gerou o menu de boot"
+  step 98 "Terminando"
+  sync
+  step 100 "Pronto"
+  exit 0
+fi
 step 94 "Instalando o carregador de boot"
 arch-chroot "$TARGET" bootctl --esp-path=/boot install >/dev/null 2>&1 || arch-chroot "$TARGET" bootctl --esp-path=/boot --no-variables install
 root_uuid=$(blkid -s UUID -o value "$ROOT")

@@ -201,6 +201,14 @@ const char *instalador_erro_host(const char *h) {
 	return ok ? "" : "Só letras, números e -.";
 }
 
+const char *instalador_boot(void) {
+	const char *forcado = g_getenv("LUMNA_FIRMWARE");
+	if (forcado && *forcado) {
+		return !g_ascii_strcasecmp(forcado, "bios") ? "BIOS" : "UEFI";
+	}
+	return g_file_test("/sys/firmware/efi", G_FILE_TEST_IS_DIR) ? "UEFI" : "BIOS";
+}
+
 bool instalador_andamento(const char *linha, int *percentual, const char **texto) {
 	if (strncmp(linha, "@@ ", 3)) {
 		return false;

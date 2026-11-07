@@ -67,6 +67,20 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 Se a instalação **parar com erro**, a mensagem aparece na tela: me mande o texto. O instalador só instala **em UEFI** e no
 **disco inteiro** (não faz partição manual ainda).
 
+## 3b. Instalar em BIOS (modo legado), como num notebook antigo
+
+O instalador segue o modo em que o computador iniciou o pendrive: em UEFI usa o systemd-boot; em **BIOS** usa o **GRUB** (partição
+"BIOS boot" de 1 MiB + o resto em Btrfs; o `/boot` fica dentro do Btrfs). Na VM: `scripts/run-vm.sh --bios --disco lumna-os-teste.iso`.
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 3b.1 | Dar boot na ISO em modo BIOS (VM com `--bios`, ou o notebook em "Legacy"/CSM) | Aparece o menu do syslinux e o live sobe | ☐ |
+| 3b.2 | Instalar (3.1 a 3.8) | No Resumo aparece "Boot: BIOS (modo legado), com o GRUB"; a instalação chega a 100% | ☐ |
+| 3b.3 | Reiniciar sem o pendrive | Aparece o menu do GRUB ("LUMNA OS") e o sistema sobe até o login | ☐ |
+| 3b.4 | Em notebooks: se não der boot, tente no menu de boot da BIOS escolher o disco (e não "UEFI: ...") | Entra no GRUB | ☐ |
+
+A instalação em BIOS **nunca rodou num disco de verdade** (só os testes de conferência): é a primeira vez.
+
 ## 4. O sistema instalado
 
 | # | O que fazer | Deve acontecer | |

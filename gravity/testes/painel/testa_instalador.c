@@ -84,6 +84,11 @@ int main(int argc, char **argv) {
 	QUER(!*instalador_erro_senha("", "") && *instalador_erro_senha("abc", "") && !*instalador_erro_senha("abcd", "") && *instalador_erro_senha("abcd", "abce")
 		&& !*instalador_erro_senha("abcd", "abcd"), "senha");
 	QUER(!*instalador_erro_host("lumna") && !*instalador_erro_host("pc-1") && *instalador_erro_host("-pc") && *instalador_erro_host("a b") && *instalador_erro_host(""), "nome do computador");
+	g_setenv("LUMNA_FIRMWARE", "bios", TRUE);
+	QUER(!strcmp(instalador_boot(), "BIOS"), "o modo de boot forçado: BIOS");
+	g_setenv("LUMNA_FIRMWARE", "uefi", TRUE);
+	QUER(!strcmp(instalador_boot(), "UEFI"), "o modo de boot forçado: UEFI");
+	g_unsetenv("LUMNA_FIRMWARE");
 	int pct;
 	const char *txt;
 	QUER(instalador_andamento("@@ 42 Copiando o sistema", &pct, &txt) && pct == 42 && !strcmp(txt, "Copiando o sistema"), "andamento");

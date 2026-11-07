@@ -5,18 +5,20 @@
 #   --telas N   número de monitores virtuais (padrão 1, até 3)
 #   --sem-gl    sem aceleração OpenGL (lento; só para máquinas sem virgl)
 #   --disco     liga um disco virtual de 64 GB (out/lumna-vm.qcow2) para testar instalação
+#   --bios      dá boot em BIOS (legado, SeaBIOS) em vez de UEFI: para testar a instalação como num notebook antigo
 #
 # Precisa de: qemu-system-x86_64, firmware OVMF (edk2-ovmf / ovmf) e KVM (/dev/kvm).
 set -euo pipefail
 
 root="$(realpath "$(dirname "$0")/..")"
-screens=1 gl=on disk=""
+screens=1 gl=on disk="" bios=0
 iso=""
 while (($#)); do
   case "$1" in
     --telas) screens="$2"; shift ;;
     --sem-gl) gl=off ;;
     --disco) disk="$root/out/lumna-vm.qcow2" ;;
+    --bios) bios=1 ;;
     *) iso="$1" ;;
   esac
   shift
@@ -33,20 +35,25 @@ for pair in \
   [[ -f "$code" ]] && break
   code=""
 done
-[[ -n "$code" ]] || { echo "Firmware OVMF não encontrado (instale edk2-ovmf ou ovmf)." >&2; exit 1; }
+if [[ "$bios" == 0 ]]; then
+  [[ -n "$code" ]] || { echo "Firmware OVMF não encontrado (instale edk2-ovmf ou ovmf)." >&2; exit 1; }
+  mkdir -p "$root/out"
+  [[ -f "$root/out/lumna-vm-vars.fd" ]] || cp "$vars" "$root/out/lumna-vm-vars.fd"
+fi
 mkdir -p "$root/out"
-[[ -f "$root/out/lumna-vm-vars.fd" ]] || cp "$vars" "$root/out/lumna-vm-vars.fd"
 
 args=(
   -name "LUMNA OS"
   -machine q35,accel=kvm -cpu host -smp 4 -m 6G
-  -drive if=pflash,format=raw,readonly=on,file="$code"
-  -drive if=pflash,format=raw,file="$root/out/lumna-vm-vars.fd"
   -cdrom "$iso" -boot order=d
   -nic user,model=virtio-net-pci
   -audiodev pipewire,id=snd -device intel-hda -device hda-duplex,audiodev=snd
   -usb -device usb-tablet
 )
+if [[ "$bios" == 0 ]]; then
+  # UEFI (o OVMF); sem isto o QEMU usa a BIOS dele (SeaBIOS), que é o modo legado
+  args+=(-drive if=pflash,format=raw,readonly=on,file="$code" -drive if=pflash,format=raw,file="$root/out/lumna-vm-vars.fd")
+fi
 if [[ "$gl" == on ]]; then
   args+=(-device "virtio-vga-gl,max_outputs=$screens" -display gtk,gl=on)
 else
