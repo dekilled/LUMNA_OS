@@ -1,0 +1,115 @@
+# Roteiro de testes da ISO nova (Orbit + Gravity)
+
+Para você ir marcando **passou / falhou** e me mandar o que falhou. Tudo aqui foi testado antes só com programas de
+mentira e com o Orbit sem tela (headless): **na sua máquina é a primeira vez**, então falhar é esperado em algumas coisas.
+
+## 0. Baixar e preparar
+
+- A ISO nova sai pelo GitHub Actions no canal próprio, **sem mexer na ISO da UI antiga**: release **`teste-orbit`**
+  (`lumna-os-teste.iso` + `.sha256`). A antiga continua em `teste`.
+- Confira o SHA256 (`sha256sum -c lumna-os-teste.iso.sha256`).
+- **VM (comece por aqui):** `scripts/run-vm.sh --disco --telas 2 lumna-os-teste.iso` (QEMU/KVM, UEFI, 64 GB de disco virtual).
+  Precisa de `qemu`, `edk2-ovmf` e KVM. `--sem-gl` se a VM ficar preta.
+- **Pendrive:** `sudo dd if=lumna-os-teste.iso of=/dev/sdX bs=4M status=progress oflag=sync` (confira o `sdX`!). Boot em **UEFI**.
+
+## 1. Boot do live (a sessão do Orbit)
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 1.1 | Dar boot na ISO | Aparece o menu de boot "LUMNA OS" e o sistema sobe | ☐ |
+| 1.2 | Esperar | Entra sozinho no **Orbit**: papel de parede, barra em cima, dock embaixo | ☐ |
+| 1.3 | Olhar a barra | Relógio, modo, volume, rede, bateria (se for notebook) | ☐ |
+| 1.4 | `Super` | Abre o menu Iniciar | ☐ |
+| 1.5 | `Super+Tab` | Abre o seletor de modo (um 2º `Super+Tab` troca) | ☐ |
+| 1.6 | `Alt+Enter` | Abre o terminal (foot) | ☐ |
+
+**Se a tela ficar preta ou voltar para o login:** é o risco que a gente já esperava (o Orbit nunca rodou num DRM de verdade).
+No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lumna`), ou `Ctrl+Alt+F2` para um terminal
+(usuário `lumna`, senha `lumna`), e rode `journalctl -b | grep -i -E "orbit|lumna|greetd" > ~/log.txt`.
+
+## 2. Funções no live
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 2.1 | Abrir o **Painel de controle** (dock) | Abre; as páginas carregam | ☐ |
+| 2.2 | Painel > Rede > Wi-Fi (ou Cabo) | Lista redes; conecta (a VM já vem com rede) | ☐ |
+| 2.3 | Painel > Som > Saída | Lista a saída; o tom de teste toca | ☐ |
+| 2.4 | Mexer no volume na barra | O volume muda | ☐ |
+| 2.5 | Painel > Sistema > Idioma, depois **Aplicar** | **Aparece a janela de senha do administrador** (`lumna-polkit`); senha `lumna` aplica | ☐ |
+| 2.6 | Digitar a senha errada | "Senha incorreta"; na 3ª errada o pedido é recusado | ☐ |
+| 2.7 | Abrir a janela de senha e apertar `Esc` | Cancela, nada é aplicado | ☐ |
+| 2.8 | Abrir o **Firefox** (dock) | Abre; abre uma página (precisa de internet) | ☐ |
+| 2.9 | Abrir **Arquivos** (dock, é o Thunar por enquanto) | Abre a sua pasta | ☐ |
+| 2.10 | `Print` | Abre a captura de tela | ☐ |
+| 2.11 | Abrir a **Emma** (`Super+A`) | Abre o chat; (precisa de um provedor de IA configurado em Painel > Emma > Provedores) | ☐ |
+| 2.12 | Notificação: `notify-send Oi "teste"` no terminal | Aparece o aviso no canto | ☐ |
+| 2.13 | Bloquear a tela (Painel > Tela de bloqueio ou o menu de energia) e desbloquear | Bloqueia e desbloqueia | ☐ |
+| 2.14 | Menu de energia (botão da barra) | Mostra desligar, reiniciar, suspender | ☐ |
+
+## 3. Instalar (na VM, com `--disco`)
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 3.1 | Clicar em **Instalar LUMNA OS** (dock) | Abre o instalador | ☐ |
+| 3.2 | Boas-vindas > Instalar > Região > Continuar | Passa os passos | ☐ |
+| 3.3 | Disco | Lista o disco virtual de 64 GB (e **não** o pendrive/ISO); escolher mostra o aviso vermelho | ☐ |
+| 3.4 | Sem marcar "Entendi" | O Continuar fica desligado | ☐ |
+| 3.5 | Marcar "Entendi" > Continuar | Vai para "Você" | ☐ |
+| 3.6 | Seu nome, usuário (sugerido), senha, repetir a senha | Valida; o Continuar liga só quando está certo | ☐ |
+| 3.7 | Resumo > **Instalar agora** | A instalação começa (no live a senha de administrador não é pedida para instalar) | ☐ |
+| 3.8 | Esperar | A barra anda com texto ("Preparando o disco", "Copiando o sistema"...) até 100% | ☐ |
+| 3.9 | **Reiniciar agora** | Reinicia (tire o ISO da VM: `Ctrl+Alt+G`, menu da janela do QEMU) | ☐ |
+
+Se a instalação **parar com erro**, a mensagem aparece na tela: me mande o texto. O instalador só instala **em UEFI** e no
+**disco inteiro** (não faz partição manual ainda).
+
+## 4. O sistema instalado
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 4.1 | Boot do disco | Aparece o systemd-boot e sobe | ☐ |
+| 4.2 | Tela de login | A tela de login do LUMNA (a Gravity); seu usuário já vem escolhido | ☐ |
+| 4.3 | Entrar com a sua senha | Entra no Orbit (sessão "LUMNA · Orbit", a primeira da lista) | ☐ |
+| 4.4 | Olhar a dock | **Sem** o "Instalar LUMNA OS"; com Início, Arquivos, Navegador, Painel, Emma | ☐ |
+| 4.5 | Painel > Sistema > Usuários | Mostra a sua conta | ☐ |
+| 4.6 | Painel > Idioma > Aplicar | Janela de senha do administrador; a **sua** senha aplica | ☐ |
+| 4.7 | `sudo pacman -Sy` num terminal | Funciona (chaves do pacman prontas) | ☐ |
+| 4.8 | Painel > Aplicativos > Atualizações | Lista atualizações sem erro de assinatura | ☐ |
+| 4.9 | Reiniciar pelo menu de energia | Reinicia e volta ao login | ☐ |
+
+## 5. Só no PC de verdade (a VM não mostra)
+
+| # | O que fazer | Deve acontecer | |
+|---|---|---|---|
+| 5.1 | Vários monitores: Painel > Telas e modos > Monitores | Lista todos; ordem e escala funcionam | ☐ |
+| 5.2 | `Super+Tab` com 2+ monitores (Desktop → Mídia) | Só a tela pedida vira Mídia; a outra mantém o Desktop | ☐ |
+| 5.3 | Arrastar uma janela entre monitores | Passa de um para o outro | ☐ |
+| 5.4 | Painel > Luz noturna: ligar "Sempre ligada" | **A tela esquenta** (é a gama de verdade; no headless nunca deu pra ver) | ☐ |
+| 5.5 | Painel > Energia > Tela e suspensão: apagar a tela em 1 minuto | A tela apaga (DPMS) e acende ao mexer | ☐ |
+| 5.6 | Suspender pelo menu de energia | Suspende e volta | ☐ |
+| 5.7 | Botão físico de ligar | Abre a pergunta de energia (padrão) | ☐ |
+| 5.8 | Notebook: bateria na barra; Painel > Energia > Bateria | Mostra a carga; o perfil automático troca ao tirar da tomada | ☐ |
+| 5.9 | Reproduzir um vídeo no Firefox e esperar o bloqueio | Não bloqueia com o vídeo tocando | ☐ |
+| 5.10 | Bluetooth: Painel > Bluetooth, parear um fone | Pareia e o som sai nele | ☐ |
+| 5.11 | Teclas de volume e brilho (notebook) | Mexem o volume e o brilho | ☐ |
+| 5.12 | Placa AMD ou Intel: usar o desktop 10 minutos | Sem travar, sem piscar | ☐ |
+
+## 6. O que me mandar quando falhar
+
+1. **O número do item** e o que aconteceu (e o que você esperava).
+2. Uma foto da tela se for visual.
+3. Os logs (num terminal, `Alt+Enter`, ou `Ctrl+Alt+F2`):
+   ```
+   journalctl -b --no-pager > ~/log-boot.txt
+   ls ~/.local/state/lumna/
+   cat ~/.local/state/lumna/emma.log
+   ```
+   No desktop, **Painel > Sistema > Diagnóstico** junta os relatórios que existirem.
+4. Para a janela de senha: `journalctl -b | grep lumna-polkit`.
+5. Para o instalador: a mensagem de erro que aparece na tela.
+
+## O que **não** está pronto (não é bug)
+
+Teclado na tela, Arquivos e Loja próprios (por ora Thunar e Painel > Aplicativos), Music, Biblioteca Gaming,
+particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, jogos em primeira pessoa (falta
+`pointer-constraints` no Orbit), a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).
