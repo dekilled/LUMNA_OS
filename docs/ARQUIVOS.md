@@ -25,6 +25,13 @@ O explorador de arquivos do LUMNA OS, em Gravity (C/Clay). Fatias prontas: **a n
 - **Compactar** (`.zip`, pelo `bsdtar`) e **Extrair aqui** (qualquer pacote que o `bsdtar` abra; se o pacote já traz uma pasta só, não faz "Projetos/Projetos").
 - Também no menu: Abrir em nova janela, Abrir no terminal (Pulse na pasta), Copiar caminho, Compartilhar > celulares conectados (LUMNA Connect), Propriedades (Ctrl+I), Fixar na barra lateral (Espaços, Coleções, Favoritos; o submenu abre no lugar, não ao lado).
 
+## O menu do espaço vazio
+
+Botão direito (ou o dedo parado) fora dos itens: Nova pasta, Novo arquivo de texto, Colar, **Ordenar por** (nome, data, tamanho, tipo, crescente/decrescente), Selecionar tudo, Atualizar, **Abrir no terminal aqui**, **Git clone...**, **Cor e ícone desta pasta**, Copiar caminho, Propriedades. (Na primeira fatia o pedido estava ligado a um elemento que não existia e o menu nunca abria: corrigido e agora no teste automático.)
+
+- **Git clone**: pede o endereço (https, ssh, um caminho local), clona numa pasta nova com o nome do repositório (se existir, "nome (2)"), com o progresso do git na barra de status e Cancelar. Endereço que começa com `-` é recusado. Repositório que pede senha **ainda não** (falha em vez de travar num prompt escondido).
+- **Cor e ícone da pasta** (também no menu de uma pasta): 9 cores e 16 emblemas, valem na hora, guardados em `~/.config/lumna/arquivos/pastas.ini`.
+
 ## O caminho digitado (Ctrl+L, ou clicar no vazio do caminho)
 
 O caminho vira um campo. Sugere as pastas que começam com o que foi digitado (sem caixa nem acento) e os recentes que combinam; ↑/↓ escolhem, **Tab** completa e entra na pasta, **Enter** abre, **Esc** cancela. `~` é a casa e um nome solto vale a partir da pasta de agora.

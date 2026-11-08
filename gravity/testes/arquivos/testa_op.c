@@ -261,6 +261,35 @@ int main(void) {
 	st = roda(AR_OP_EXTRAIR, ex2, 1, dx, AR_C_PERGUNTAR, false, NULL);
 	CONFERE(st.erros == 0 && existe("extraido/Arquivos", "x2.txt"), "extrair numa pasta com o nome do arquivo");
 
+	/* git clone de um repositório local */
+	{
+		char *repo = P("repo-origem", "");
+		g_mkdir(repo, 0755);
+		escreve("repo-origem", "ola.txt", "oi");
+		char *g1[] = { "git", "-C", repo, "init", "-q", NULL };
+		char *g2[] = { "git", "-C", repo, "-c", "user.email=a@b", "-c", "user.name=t", "add", "-A", NULL };
+		char *g3[] = { "git", "-C", repo, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-q", "-m", "x", NULL };
+		g_spawn_sync(NULL, g1, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL, NULL, NULL);
+		g_spawn_sync(NULL, g2, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL, NULL, NULL);
+		g_spawn_sync(NULL, g3, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL, NULL, NULL);
+		char *dcl = P("clones", "");
+		g_mkdir(dcl, 0755);
+		char *urls[] = { repo };
+		st = roda(AR_OP_CLONAR, urls, 1, dcl, AR_C_PERGUNTAR, false, NULL);
+		c = le("clones/repo-origem", "ola.txt");
+		CONFERE(st.erros == 0 && c && !strcmp(c, "oi") && existe("clones/repo-origem", ".git"), "git clone de um repositório local (%s)", st.erro);
+		g_free(c);
+		st = roda(AR_OP_CLONAR, urls, 1, dcl, AR_C_PERGUNTAR, false, NULL);
+		CONFERE(st.erros == 0 && existe("clones", "repo-origem (2)"), "clonar de novo não atropela: vira (2)");
+		CONFERE(ar_desfazer(&erro) && !existe("clones", "repo-origem (2)"), "desfazer o clone manda a pasta para a lixeira");
+		char *ruim[] = { "--upload-pack=touch /tmp/invadido" };
+		st = roda(AR_OP_CLONAR, ruim, 1, dcl, AR_C_PERGUNTAR, false, NULL);
+		CONFERE(st.erros == 1 && !g_file_test("/tmp/invadido", G_FILE_TEST_EXISTS), "um endereço que parece opção do git é recusado");
+		char *nada[] = { "https://exemplo.invalido.lumna/nao/existe.git" };
+		st = roda(AR_OP_CLONAR, nada, 1, dcl, AR_C_PERGUNTAR, false, NULL);
+		CONFERE(st.erros == 1 && !existe("clones", "existe"), "um endereço que não responde dá erro e não deixa pasta (%s)", st.erro);
+	}
+
 	/* cancelar */
 	escreve("cancela", "grande.bin", "x");
 	{

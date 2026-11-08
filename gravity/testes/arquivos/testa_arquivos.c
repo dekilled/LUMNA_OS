@@ -203,6 +203,24 @@ int main(void) {
 	ar_lugares_liberar(v, 1);
 	CONFERE(!ar_fixado_alternar("espacos", sub) && !ar_fixado_em("espacos", sub) && ar_fixado_em("colecoes", sub), "desafixar de uma seção não mexe na outra");
 
+	/* cor e ícone de uma pasta */
+	uint32_t rgb;
+	char ic[32];
+	ar_pasta_estilo(sub, &rgb, ic, sizeof(ic));
+	CONFERE(rgb == 0 && !ic[0], "uma pasta sem estilo");
+	ar_pasta_estilo_definir(sub, 0x30A46C, "music");
+	ar_pasta_estilo(sub, &rgb, ic, sizeof(ic));
+	CONFERE(rgb == 0x30A46C && !strcmp(ic, "music"), "cor e emblema gravados (%06X %s)", rgb, ic);
+	ar_pasta_estilo_definir(sub, 0xE5484D, "");
+	ar_pasta_estilo(sub, &rgb, ic, sizeof(ic));
+	CONFERE(rgb == 0xE5484D && !ic[0], "só a cor");
+	ar_pasta_estilo_definir(sub, 0, "");
+	ar_pasta_estilo(sub, &rgb, ic, sizeof(ic));
+	CONFERE(rgb == 0 && !ic[0], "voltar ao padrão apaga o estilo");
+	ar_pasta_estilo_definir(raiz, 0, "inexistente");
+	ar_pasta_estilo(raiz, &rgb, ic, sizeof(ic));
+	CONFERE(!ic[0], "um emblema que não existe não é desenhado");
+
 	/* o caminho digitado */
 	char *proj = g_build_filename(raiz, "Projetos", NULL);
 	g_mkdir(g_build_filename(raiz, "Propostas", NULL), 0755);

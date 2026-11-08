@@ -98,6 +98,14 @@ int ar_fixados(const char *secao, ar_lugar *v, int max);
 bool ar_fixado_em(const char *secao, const char *caminho);
 bool ar_fixado_alternar(const char *secao, const char *caminho);   /* devolve o estado de agora */
 
+/* ---- cor e ícone de uma pasta (~/.config/lumna/arquivos/pastas.ini) ---- */
+#define AR_CORES_N 9
+extern const struct ar_cor { const char *nome; uint32_t rgb; } AR_CORES[AR_CORES_N];  /* [0] é a padrão do tema (rgb 0) */
+extern const char *const AR_ICONES[];                                                  /* os emblemas que se pode pôr, NULL no fim */
+/* A cor (0: a do tema) e o emblema ("" : nenhum) de uma pasta. */
+void ar_pasta_estilo(const char *caminho, uint32_t *rgb, char *icone, size_t tam);
+void ar_pasta_estilo_definir(const char *caminho, uint32_t rgb, const char *icone);  /* rgb 0 e icone "" apagam o estilo */
+
 /* ---- o caminho digitado (Ctrl+L): sugestões ---- */
 typedef struct ar_sugestao {
 	char nome[128];

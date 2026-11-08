@@ -289,7 +289,48 @@ confere(lambda: pos("mi-fixar") is not None, "o menu de uma pasta tem Fixar na b
 tecla("Escape")
 time.sleep(0.6)
 
-# 10. propriedades
+# 10. o menu do espaço vazio (botão direito/dedo parado fora dos itens): nova pasta, ordenar, git clone, cor e ícone
+def segura_xy(x, y):
+    ox, oy = origem()
+    msg("toque", "baixo", 1, ox + x, oy + y)
+    time.sleep(0.9)
+    msg("toque", "cima", 1)
+    time.sleep(0.6)
+
+
+tecla("Escape")
+time.sleep(0.8)
+segura_xy(900, 560)
+confere(lambda: pos("mf-git") is not None and pos("mf-ordenar") is not None, "o menu do espaço vazio abre (com Ordenar por e Git clone)")
+toca("mf-ordenar")
+time.sleep(0.5)
+toca("mf-ord/1")
+confere(lambda: estado().get("ordem") == "1+", "Ordenar por data pelo menu do espaço vazio")
+# git clone de um repositório local pelo diálogo
+repo = f"{casa}/repo-origem"
+os.makedirs(repo, exist_ok=True)
+open(f"{repo}/ola.txt", "w").write("oi")
+for cmd in (["init", "-q"], ["add", "-A"], ["-c", "user.email=a@b", "-c", "user.name=t", "commit", "-q", "-m", "x"]):
+    subprocess.run(["git", "-C", repo, *cmd], stdout=subprocess.DEVNULL)
+segura_xy(900, 560)
+toca("mf-git")
+time.sleep(0.6)
+digita(repo)
+tecla("Return")
+confere(lambda: os.path.exists(f"{docs}/repo-origem/.git"), "Git clone cria a pasta do repositório", 8)
+# cor e ícone desta pasta
+segura_xy(900, 560)
+toca("mf-estilo")
+time.sleep(0.6)
+toca("es-cor/3")
+toca("es-ic/1")
+time.sleep(0.4)
+ini = open(f"{casa}/.config/lumna/arquivos/pastas.ini").read()
+if "#30A46C" not in ini or "icone=heart" not in ini:
+    falha(f"cor e ícone não foram gravados: {ini!r}")
+toca("es-fechar")
+
+# 11. propriedades
 tecla("i", mod="ctrl")
 confere(lambda: pos("pr-fechar") is not None, "Ctrl+I abre as propriedades")
 time.sleep(0.4)

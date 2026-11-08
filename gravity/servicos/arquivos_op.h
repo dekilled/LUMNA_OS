@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum ar_op_tipo { AR_OP_COPIAR, AR_OP_MOVER, AR_OP_LIXEIRA, AR_OP_APAGAR, AR_OP_COMPACTAR, AR_OP_EXTRAIR, AR_OP_RESTAURAR };
+enum ar_op_tipo { AR_OP_COPIAR, AR_OP_MOVER, AR_OP_LIXEIRA, AR_OP_APAGAR, AR_OP_COMPACTAR, AR_OP_EXTRAIR, AR_OP_RESTAURAR, AR_OP_CLONAR };
 enum ar_conflito { AR_C_PERGUNTAR, AR_C_SUBSTITUIR, AR_C_MANTER_AMBOS, AR_C_PULAR };
 
 typedef struct ar_op ar_op;
@@ -42,6 +42,9 @@ void ar_op_estado_ler(ar_op *op, ar_op_estado *saida);
 void ar_op_responder(ar_op *op, enum ar_conflito escolha, bool para_todos);
 void ar_op_cancelar(ar_op *op);
 void ar_op_liberar(ar_op *op);   /* depois de terminar */
+
+/* AR_OP_CLONAR: origens[0] é o endereço do repositório (https://..., git@..., um caminho) e destino é a pasta onde nasce a nova pasta com o nome dele.
+ * O progresso (Receiving objects: 45%) vai em atual/feito. Pede senha? Não: falha (nada de prompt escondido). */
 
 /* ---- coisas pequenas, na hora ---- */
 /* Renomeia (só o nome, dentro da mesma pasta). Falso com o motivo em *erro (g_free). O novo caminho em *novo (g_free). */

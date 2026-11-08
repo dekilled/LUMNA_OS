@@ -92,6 +92,12 @@ static int caminho_quadros;
 static ar_sugestao sug[12];
 static int n_sug, sug_sel = -1;
 static bool confirmar_esvaziar;     /* confirmar esvaziar a lixeira */
+static bool clonar_aberto;          /* o diálogo do git clone */
+static char clonar_url[512];
+static bool focar_clonar;
+static bool estilo_aberto;          /* o diálogo de cor e ícone da pasta */
+static char estilo_alvo[4096];
+static int submenu_fundo;           /* 1: Ordenar por, aberto dentro do menu do espaço vazio */
 static bool para_todos;             /* o "aplicar a todos" da pergunta de conflito */
 static int cont_filtros[6];
 
@@ -440,6 +446,7 @@ static void op_rever(void) {
 		case AR_OP_COMPACTAR: avisar("Compactado"); break;
 		case AR_OP_EXTRAIR: avisar("Extraído"); break;
 		case AR_OP_RESTAURAR: avisar("%s restaurado%s", quantos, op_st.itens_total == 1 ? "" : "s"); break;
+		case AR_OP_CLONAR: avisar("Repositório clonado"); break;
 		}
 	}
 	if (!op_st.erros && !op_st.cancelado && ar_desfazer_ha(desfazer_texto, sizeof(desfazer_texto)) && op_tipo != AR_OP_APAGAR && op_tipo != AR_OP_RESTAURAR) {
@@ -693,6 +700,7 @@ typedef struct ic_dados {
 	enum ar_tipo tipo;
 	char selo[8];
 	bool link;
+	uint32_t cor; /* a cor da pasta (0: a do tema) */
 } ic_dados;
 static ic_dados ic_pool[1536];
 static int ic_n;
@@ -726,10 +734,13 @@ static uint32_t cor_do_tipo(enum ar_tipo t) {
 	}
 }
 
-static void desenhar_pasta(cairo_t *cr, double x, double y, double w, double h) {
+static void desenhar_pasta(cairo_t *cr, double x, double y, double w, double h, uint32_t rgb) {
 	double aba = h * 0.16;
 	cairo_pattern_t *g = cairo_pattern_create_linear(0, y, 0, y + h);
 	Clay_Color a = gv_t.acento;
+	if (rgb) {
+		a = (Clay_Color){ (float)((rgb >> 16) & 255), (float)((rgb >> 8) & 255), (float)(rgb & 255), 255 };
+	}
 	cairo_pattern_add_color_stop_rgb(g, 0, fmin(1, a.r / 255.0 + 0.30), fmin(1, a.g / 255.0 + 0.24), fmin(1, a.b / 255.0 + 0.26));
 	cairo_pattern_add_color_stop_rgb(g, 1, fmin(1, a.r / 255.0 + 0.10), fmin(1, a.g / 255.0 + 0.06), fmin(1, a.b / 255.0 + 0.10));
 	/* a aba de trás, mais escura */
@@ -791,7 +802,7 @@ static void desenhar_icone(cairo_t *cr, Clay_BoundingBox c, void *dados) {
 	double s = fmin(c.width, c.height);
 	double x = c.x + (c.width - s) / 2, y = c.y + (c.height - s) / 2;
 	if (d->tipo == AR_PASTA) {
-		desenhar_pasta(cr, x + s * 0.04, y + s * 0.10, s * 0.92, s * 0.80);
+		desenhar_pasta(cr, x + s * 0.04, y + s * 0.10, s * 0.92, s * 0.80, d->cor);
 	} else {
 		desenhar_pagina(cr, x + s * 0.04, y + s * 0.04, s * 0.92, s * 0.92, d);
 	}
@@ -833,8 +844,20 @@ static void icone(Clay_ElementId id, int idx, float tam) {
 	ic_dados *d = &ic_pool[ic_n++ % (int)(sizeof(ic_pool) / sizeof(ic_pool[0]))];
 	d->tipo = e->tipo;
 	d->link = e->link;
+	d->cor = 0;
+	char emblema[32] = "";
+	if (e->pasta && cam[idx]) {
+		ar_pasta_estilo(cam[idx], &d->cor, emblema, sizeof(emblema));
+	}
 	ar_selo(e, d->selo, sizeof(d->selo));
-	CLAY(id, gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(tam), CLAY_SIZING_FIXED(tam) } } })) {}
+	CLAY(id, gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(tam), CLAY_SIZING_FIXED(tam) } } })) {
+		if (emblema[0]) {
+			CLAY_AUTO_ID({ .floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_CENTER, .parent = CLAY_ATTACH_POINT_CENTER_CENTER },
+				.offset = { 0, tam * 0.08f }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {
+				gv_icone(emblema, tam * 0.34f, (Clay_Color){ 255, 255, 255, 235 });
+			}
+		}
+	}
 }
 
 /* ---- barra de ferramentas ---- */
@@ -1458,8 +1481,6 @@ static void conteudo(void) {
 		if (modo_lista && !erro_pasta[0]) {
 			cabecalho_lista();
 		}
-		bool menu_fundo = gv_menu_no_ponteiro(CLAY_ID("rolagem-fundo"), CLAY_ID("menu-fundo"));
-		(void)menu_fundo;
 		CLAY(ID_CONTEUDO, gv_rolagem(ID_CONTEUDO, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM,
 			.sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 16, 16, 6, 16 } } })) {
 			float larg = gv_caixa(ID_CONTEUDO).width - 32 - 12;
@@ -1618,8 +1639,20 @@ static void painel_detalhes(void) {
 					ic_dados *d = &ic_pool[ic_n++ % (int)(sizeof(ic_pool) / sizeof(ic_pool[0]))];
 					d->tipo = e->tipo;
 					d->link = e->link;
+					d->cor = 0;
+					char emblema[32] = "";
+					if (e->pasta && caminho) {
+						ar_pasta_estilo(caminho, &d->cor, emblema, sizeof(emblema));
+					}
 					ar_selo(e, d->selo, sizeof(d->selo));
-					CLAY(CLAY_ID("det-icone"), gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(140), CLAY_SIZING_FIXED(140) } } })) {}
+					CLAY(CLAY_ID("det-icone"), gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(140), CLAY_SIZING_FIXED(140) } } })) {
+						if (emblema[0]) {
+							CLAY_AUTO_ID({ .floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_CENTER, .parent = CLAY_ATTACH_POINT_CENTER_CENTER },
+								.offset = { 0, 11 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {
+								gv_icone(emblema, 48, (Clay_Color){ 255, 255, 255, 235 });
+							}
+						}
+					}
 				}
 			}
 			CLAY(CLAY_ID("det-linhas"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 } }) {
@@ -1763,6 +1796,11 @@ static bool item_sub(Clay_ElementId id, const char *ic, const char *texto) {
 	return r;
 }
 
+static void abrir_estilo_da(const char *caminho) {
+	snprintf(estilo_alvo, sizeof(estilo_alvo), "%s", caminho);
+	estilo_aberto = true;
+}
+
 #define FECHAR_MENU() gv_popup_fechar(CLAY_ID("menu-item"))
 
 static void menu_do_item(void) {
@@ -1835,6 +1873,10 @@ static void menu_do_item(void) {
 		iniciar_renomear(i);
 	}
 	separador("mi-sep", 2);
+	if (pasta1 && gv_menu_item(CLAY_ID("mi-estilo"), "brush", "Cor e ícone da pasta", NULL)) {
+		abrir_estilo_da(cam[i]);
+		FECHAR_MENU();
+	}
 	if (pasta1) {
 		if (gv_menu_item(CLAY_ID("mi-fixar"), "pin", "Fixar na barra lateral", submenu == 1 ? "▾" : "▸")) {
 			submenu = submenu == 1 ? 0 : 1;
@@ -1932,17 +1974,21 @@ static void menu_do_item(void) {
 	}
 }
 
+static void fechar_fundo(void) {
+	gv_popup_fechar(CLAY_ID("menu-fundo"));
+}
+
 static void menu_do_fundo(void) {
 	bool real = vista == V_PASTA && !em_lixeira();
 	if (real && gv_menu_item(CLAY_ID("mf-pasta"), "folder-plus", "Nova pasta", NULL)) {
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+		fechar_fundo();
 		novo_tipo = 1;
 		focar_nome = true;
 		snprintf(novo_nome, sizeof(novo_nome), "Nova pasta");
 		gv_popup_abrir(CLAY_ID("menu-novo"));
 	}
 	if (real && gv_menu_item(CLAY_ID("mf-arquivo"), "file", "Novo arquivo de texto", NULL)) {
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+		fechar_fundo();
 		novo_tipo = 2;
 		focar_nome = true;
 		snprintf(novo_nome, sizeof(novo_nome), "Novo arquivo.txt");
@@ -1950,35 +1996,77 @@ static void menu_do_fundo(void) {
 	}
 	if (real && pode_colar() && gv_menu_item(CLAY_ID("mf-colar"), "paste", "Colar", "Ctrl+V")) {
 		colar();
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+		fechar_fundo();
 	}
 	if (real) {
 		separador("mf-sep", 1);
+	}
+	if (gv_menu_item(CLAY_ID("mf-ordenar"), "sliders", "Ordenar por", submenu_fundo == 1 ? "▾" : "▸")) {
+		submenu_fundo = submenu_fundo == 1 ? 0 : 1;
+	}
+	if (submenu_fundo == 1) {
+		for (int o = 0; o < 4; o++) {
+			if (item_sub(CLAY_IDI("mf-ord", (uint32_t)o), ordem == (enum ar_ordem)o ? "check" : NULL, NOMES_ORDEM[o])) {
+				ordem = (enum ar_ordem)o;
+				carregar(true);
+				fechar_fundo();
+			}
+		}
+		if (item_sub(CLAY_ID("mf-ord-asc"), !decrescente ? "check" : NULL, "Crescente")) {
+			decrescente = false;
+			carregar(true);
+			fechar_fundo();
+		}
+		if (item_sub(CLAY_ID("mf-ord-desc"), decrescente ? "check" : NULL, "Decrescente")) {
+			decrescente = true;
+			carregar(true);
+			fechar_fundo();
+		}
 	}
 	if (gv_menu_item(CLAY_ID("mf-tudo"), "check", "Selecionar tudo", "Ctrl+A")) {
 		for (int j = 0; j < nvis; j++) {
 			sel[vis[j]] = true;
 		}
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+		fechar_fundo();
 	}
 	if (gv_menu_item(CLAY_ID("mf-atualizar"), "refresh", "Atualizar", "Ctrl+R")) {
 		carregar(true);
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+		fechar_fundo();
 	}
-	if (vista == V_PASTA && gv_menu_item(CLAY_ID("mf-caminho"), "link", "Copiar caminho da pasta", NULL)) {
-		gv_copiar(pasta);
-		avisar("Caminho copiado");
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+	if (real) {
+		separador("mf-sep", 2);
+		if (gv_menu_item(CLAY_ID("mf-terminal"), "terminal", "Abrir no terminal aqui", NULL)) {
+			abrir_no_terminal(pasta);
+			fechar_fundo();
+		}
+		if (gv_menu_item(CLAY_ID("mf-git"), "code", "Git clone...", NULL)) {
+			clonar_aberto = true;
+			focar_clonar = true;
+			clonar_url[0] = '\0';
+			fechar_fundo();
+		}
+		if (gv_menu_item(CLAY_ID("mf-estilo"), "brush", "Cor e ícone desta pasta", NULL)) {
+			abrir_estilo_da(pasta);
+			fechar_fundo();
+		}
 	}
-	if (real && gv_menu_item(CLAY_ID("mf-terminal"), "terminal", "Abrir no terminal aqui", NULL)) {
-		abrir_no_terminal(pasta);
-		gv_popup_fechar(CLAY_ID("menu-fundo"));
+	if (vista == V_PASTA) {
+		separador("mf-sep", 3);
+		if (gv_menu_item(CLAY_ID("mf-caminho"), "link", "Copiar caminho da pasta", NULL)) {
+			gv_copiar(pasta);
+			avisar("Caminho copiado");
+			fechar_fundo();
+		}
+		if (gv_menu_item(CLAY_ID("mf-props"), "info", "Propriedades", "Ctrl+I")) {
+			propriedades_abertas = true;
+			fechar_fundo();
+		}
 	}
 	if (em_lixeira() && nvis > 0) {
-		separador("mf-sep", 2);
+		separador("mf-sep", 4);
 		if (gv_menu_item(CLAY_ID("mf-esvaziar"), "trash", "Esvaziar a lixeira", NULL)) {
 			confirmar_esvaziar = true;
-			gv_popup_fechar(CLAY_ID("menu-fundo"));
+			fechar_fundo();
 		}
 	}
 }
@@ -2016,6 +2104,8 @@ static void menus_de_contexto(void) {
 		CLAY(CLAY_ID("mf-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(6), .childGap = 2 } }) {
 			menu_do_fundo();
 		}
+	} else {
+		submenu_fundo = 0;
 	}
 }
 
@@ -2177,6 +2267,109 @@ static void botoes_propriedades(void) {
 	}
 }
 
+/* --- git clone --- */
+static void iniciar_clone(void) {
+	char *u = g_strstrip(g_strdup(clonar_url));
+	if (!*u) {
+		g_free(u);
+		return;
+	}
+	clonar_aberto = false;
+	GPtrArray *v = g_ptr_array_new_with_free_func(g_free);
+	g_ptr_array_add(v, u);
+	iniciar_op(AR_OP_CLONAR, v, pasta);
+	g_ptr_array_free(v, TRUE);
+}
+static void corpo_clone(void) {
+	texto_dialogo(gv_fmt("O repositório vira uma pasta nova em \"%s\".", pasta).chars);
+	int r = gv_campo(CLAY_ID("cl-url"), clonar_url, sizeof(clonar_url), "https://github.com/usuario/projeto.git", GV_CAMPO_URL);
+	if (focar_clonar) {
+		gv_focar(CLAY_ID("cl-url"));
+		focar_clonar = false;
+	}
+	if (r & GV_CAMPO_ENTER) {
+		iniciar_clone();
+	}
+	texto_dialogo("Repositórios que pedem senha ainda não são suportados.");
+}
+static void botoes_clone(void) {
+	if (gv_botao_ext(CLAY_ID("cl-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+		clonar_aberto = false;
+	}
+	if (gv_botao_ext(CLAY_ID("cl-ok"), &(gv_botao_opcoes){ .icone = "code", .texto = "Clonar", .estilo = GV_BOTAO_CHEIO, .desativado = !clonar_url[0] })) {
+		iniciar_clone();
+	}
+}
+
+/* --- cor e ícone da pasta (vale na hora) --- */
+static void corpo_estilo(void) {
+	uint32_t rgb;
+	char emblema[32];
+	ar_pasta_estilo(estilo_alvo, &rgb, emblema, sizeof(emblema));
+	texto_dialogo("Cor");
+	CLAY(CLAY_ID("es-cores"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
+		for (int c = 0; c < AR_CORES_N; c++) {
+			Clay_ElementId id = CLAY_IDI("es-cor", (uint32_t)c);
+			uint32_t v = AR_CORES[c].rgb;
+			Clay_Color cor = v ? (Clay_Color){ (float)((v >> 16) & 255), (float)((v >> 8) & 255), (float)(v & 255), 255 } : gv_t.acento;
+			bool atual = v == rgb;
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(34) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = cor, .cornerRadius = CLAY_CORNER_RADIUS(17), .border = { .color = atual ? gv_t.texto : gv_t.borda, .width = GV_BORDA(atual ? 3 : 1) } }) {
+				if (atual) {
+					gv_icone("check", 16, (Clay_Color){ 255, 255, 255, 255 });
+				}
+			}
+			if (gv_tocado(id)) {
+				ar_pasta_estilo_definir(estilo_alvo, v, emblema);
+			}
+		}
+	}
+	texto_dialogo("Ícone");
+	CLAY(CLAY_ID("es-icones"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+		for (int i = 0; AR_ICONES[i]; i++) {
+			if (i == 8) {
+				break;
+			}
+			Clay_ElementId id = CLAY_IDI("es-ic", (uint32_t)i);
+			bool atual = !strcmp(AR_ICONES[i], emblema);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(44) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = atual ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+				.border = { .color = atual ? gv_t.acento : gv_t.borda, .width = GV_BORDA(atual ? 2 : 1) } }) {
+				gv_icone(AR_ICONES[i], 22, atual ? gv_t.texto : gv_t.texto_secundario);
+			}
+			if (gv_tocado(id)) {
+				ar_pasta_estilo_definir(estilo_alvo, rgb, atual ? "" : AR_ICONES[i]);
+			}
+		}
+	}
+	CLAY(CLAY_ID("es-icones2"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+		int n = 0;
+		while (AR_ICONES[n]) {
+			n++;
+		}
+		for (int i = 8; i < n; i++) {
+			Clay_ElementId id = CLAY_IDI("es-ic", (uint32_t)i);
+			bool atual = !strcmp(AR_ICONES[i], emblema);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(44) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = atual ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+				.border = { .color = atual ? gv_t.acento : gv_t.borda, .width = GV_BORDA(atual ? 2 : 1) } }) {
+				gv_icone(AR_ICONES[i], 22, atual ? gv_t.texto : gv_t.texto_secundario);
+			}
+			if (gv_tocado(id)) {
+				ar_pasta_estilo_definir(estilo_alvo, rgb, atual ? "" : AR_ICONES[i]);
+			}
+		}
+	}
+}
+static void botoes_estilo(void) {
+	if (gv_botao_ext(CLAY_ID("es-padrao"), &(gv_botao_opcoes){ .texto = "Voltar ao padrão", .estilo = GV_BOTAO_ELEVADO })) {
+		ar_pasta_estilo_definir(estilo_alvo, 0, "");
+	}
+	if (gv_botao_ext(CLAY_ID("es-fechar"), &(gv_botao_opcoes){ .texto = "Fechar", .estilo = GV_BOTAO_CHEIO })) {
+		estilo_aberto = false;
+	}
+}
+
 static void dialogos(void) {
 	if (op && op_st.pergunta) {
 		dialogo(CLAY_ID("dlg-conflito"), 460, "Já existe", corpo_conflito, botoes_conflito);
@@ -2184,6 +2377,10 @@ static void dialogos(void) {
 		dialogo(CLAY_ID("dlg-apagar"), 440, "Apagar para sempre?", corpo_apagar, botoes_apagar);
 	} else if (confirmar_esvaziar) {
 		dialogo(CLAY_ID("dlg-esvaziar"), 440, "Esvaziar a lixeira?", corpo_esvaziar, botoes_esvaziar);
+	} else if (clonar_aberto) {
+		dialogo(CLAY_ID("dlg-clone"), 520, "Git clone", corpo_clone, botoes_clone);
+	} else if (estilo_aberto) {
+		dialogo(CLAY_ID("dlg-estilo"), 460, "Cor e ícone da pasta", corpo_estilo, botoes_estilo);
 	} else if (propriedades_abertas) {
 		dialogo(CLAY_ID("dlg-props"), 520, "Propriedades", corpo_propriedades, botoes_propriedades);
 	}
@@ -2277,9 +2474,9 @@ static void mover_foco(int dk) {
 }
 
 static void teclado_atalhos(void) {
-	bool digitando = gv_focado(CLAY_ID("busca")) || gv_focado(CLAY_ID("mn-nome")) || gv_focado(CLAY_ID("renome")) || gv_focado(CLAY_ID("caminho-campo"));
+	bool digitando = gv_focado(CLAY_ID("busca")) || gv_focado(CLAY_ID("mn-nome")) || gv_focado(CLAY_ID("renome")) || gv_focado(CLAY_ID("caminho-campo")) || gv_focado(CLAY_ID("cl-url"));
 	uint32_t mods = gv_modificadores();
-	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas;
+	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || estilo_aberto;
 	for (int i = 0;; i++) {
 		uint32_t k = gv_tecla_n(i);
 		if (!k) {
@@ -2290,7 +2487,7 @@ static void teclado_atalhos(void) {
 				if (op && op_st.pergunta) {
 					ar_op_cancelar(op);
 				}
-				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = false;
+				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = clonar_aberto = estilo_aberto = false;
 			}
 			continue;
 		}
@@ -2423,7 +2620,7 @@ static void debug_posicoes(void) {
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
 		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
-		"mi-terminal", "mi-lixeira", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
+		"mi-terminal", "mi-lixeira", "mi-estilo", "mf-ordenar", "mf-ord/0", "mf-git", "mf-estilo", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "es-fechar", "es-padrao", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
 	for (int i = 0; FIXOS[i]; i++) {
 		g_ptr_array_add(nomes, g_strdup(FIXOS[i]));
 		Clay_String cs = { .chars = FIXOS[i], .length = (int)strlen(FIXOS[i]) };
@@ -2433,6 +2630,14 @@ static void debug_posicoes(void) {
 		g_ptr_array_add(nomes, g_strdup_printf("filtro/%d", i));
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
+	}
+	static const struct { const char *base; int n; } SERIES[] = { { "es-cor", 9 }, { "es-ic", 16 }, { "mf-ord", 4 } };
+	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
+		for (int i = 0; i < SERIES[k].n; i++) {
+			g_ptr_array_add(nomes, g_strdup_printf("%s/%d", SERIES[k].base, i));
+			Clay_String cs = { .chars = SERIES[k].base, .length = (int)strlen(SERIES[k].base) };
+			g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
+		}
 	}
 	for (int i = 0; i < 4; i++) {
 		g_ptr_array_add(nomes, g_strdup_printf("mo-o/%d", i));
@@ -2530,6 +2735,11 @@ static void desenhar(gv_app *a, void *dados) {
 			}
 		}
 		barra_status();
+	}
+	/* o pedido do menu do espaço vazio vem depois dos itens (cada pedido de menu é de quem pede primeiro: o item ganha do fundo) */
+	if (gv_menu_no_ponteiro(ID_CONTEUDO, CLAY_ID("menu-fundo"))) {
+		limpar_selecao();
+		ancora = foco = -1;
 	}
 	menus_de_contexto();
 	sugestoes_do_caminho();

@@ -2,6 +2,8 @@
 #include "arquivos_op.h"
 
 #include <errno.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <gio/gio.h>
 #include <glib.h>
@@ -9,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -906,6 +909,117 @@ static void rodar_extrair(ar_op *op) {
 	}
 }
 
+
+/* o nome que o git daria à pasta: o último pedaço do endereço, sem ".git" */
+static char *nome_do_repositorio(const char *url) {
+	char *copia = g_strdup(url);
+	g_strstrip(copia);
+	size_t n = strlen(copia);
+	while (n && (copia[n - 1] == '/' || copia[n - 1] == '\\')) {
+		copia[--n] = '\0';
+	}
+	if (n > 4 && !strcmp(copia + n - 4, ".git")) {
+		copia[n - 4] = '\0';
+	}
+	char *p = strrchr(copia, '/');
+	char *q = strrchr(copia, ':');
+	const char *base = p ? p + 1 : q ? q + 1 : copia;
+	char *r = g_strdup(*base && strcmp(base, ".") && strcmp(base, "..") ? base : "repositorio");
+	g_free(copia);
+	return r;
+}
+
+static void rodar_clonar(ar_op *op) {
+	const char *url = op->origens->len ? op->origens->pdata[0] : "";
+	char *u = g_strstrip(g_strdup(url));
+	if (!*u || u[0] == '-') {
+		op_erro(op, "Endereço do repositório inválido");
+		g_free(u);
+		op_item_feito(op);
+		return;
+	}
+	char *nome = nome_do_repositorio(u);
+	char *livre = ar_nome_livre(op->destino, nome);
+	char *alvo = g_build_filename(op->destino, livre, NULL);
+	op_atual(op, livre);
+	char *argv[] = { "git", "clone", "--progress", "--", u, alvo, NULL };
+	char **env = g_environ_setenv(g_get_environ(), "GIT_TERMINAL_PROMPT", "0", TRUE);
+	env = g_environ_setenv(env, "LC_ALL", "C", TRUE);
+	GPid pid = 0;
+	gint fd_err = -1;
+	GError *err = NULL;
+	if (!g_spawn_async_with_pipes(NULL, argv, env, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, &pid, NULL, NULL, &fd_err, &err)) {
+		op_erro(op, "Não consegui rodar o git (%s)", err && err->message ? err->message : "?");
+		g_clear_error(&err);
+	} else {
+		GString *linha = g_string_new(NULL);
+		char ultimo[256] = "";
+		char buf[512];
+		bool cancelou = false;
+		for (;;) {
+			if (op_cancelada(op) && !cancelou) {
+				cancelou = true;
+				kill(pid, SIGTERM);
+			}
+			struct pollfd { int fd; short events, revents; } pf = { fd_err, 1 /* POLLIN */, 0 };
+			(void)pf;
+			fd_set conjunto;
+			FD_ZERO(&conjunto);
+			FD_SET(fd_err, &conjunto);
+			struct timeval tv = { 0, 200000 };
+			int r = select(fd_err + 1, &conjunto, NULL, NULL, &tv);
+			if (r > 0) {
+				ssize_t n = read(fd_err, buf, sizeof(buf));
+				if (n <= 0) {
+					break;
+				}
+				for (ssize_t i = 0; i < n; i++) {
+					if (buf[i] == '\r' || buf[i] == '\n') {
+						if (linha->len) {
+							g_strlcpy(ultimo, linha->str, sizeof(ultimo));
+							const char *pct = strstr(linha->str, "%");
+							if (pct) {
+								const char *d = pct;
+								while (d > linha->str && g_ascii_isdigit(d[-1])) {
+									d--;
+								}
+								int p = atoi(d);
+								g_mutex_lock(&op->mx);
+								op->est.total = 1000;
+								op->est.feito = p * 10;
+								g_mutex_unlock(&op->mx);
+							}
+							op_atual(op, linha->str);
+						}
+						g_string_truncate(linha, 0);
+					} else {
+						g_string_append_c(linha, buf[i]);
+					}
+				}
+			}
+		}
+		int status = 0;
+		waitpid(pid, &status, 0);
+		g_spawn_close_pid(pid);
+		close(fd_err);
+		if (cancelou) {
+			remover_arvore(alvo);
+		} else if (!g_spawn_check_wait_status(status, NULL)) {
+			remover_arvore(alvo);
+			op_erro(op, "O git não conseguiu clonar: %s", ultimo[0] ? ultimo : "erro desconhecido");
+		} else {
+			registrar_criado(op, alvo);
+		}
+		g_string_free(linha, TRUE);
+	}
+	g_strfreev(env);
+	g_free(alvo);
+	g_free(livre);
+	g_free(nome);
+	g_free(u);
+	op_item_feito(op);
+}
+
 static gpointer op_thread(gpointer p) {
 	ar_op *op = p;
 	int64_t bytes = 0;
@@ -954,6 +1068,7 @@ static gpointer op_thread(gpointer p) {
 		break;
 	case AR_OP_COMPACTAR: rodar_compactar(op); break;
 	case AR_OP_EXTRAIR: rodar_extrair(op); break;
+	case AR_OP_CLONAR: rodar_clonar(op); break;
 	case AR_OP_RESTAURAR:
 		for (guint i = 0; i < op->origens->len && !op_cancelada(op); i++) {
 			char *destino = NULL, *erro = NULL;
@@ -978,8 +1093,8 @@ static gpointer op_thread(gpointer p) {
 	} else if (op->tipo == AR_OP_LIXEIRA) {
 		g_snprintf(desc, sizeof(desc), "Mover para a lixeira (%d item%s)", n, quando);
 		undo_empilhar(DESF_LIXEIRA, desc, op->pares_a, op->pares_b);
-	} else if (op->tipo == AR_OP_COPIAR || op->tipo == AR_OP_COMPACTAR || op->tipo == AR_OP_EXTRAIR) {
-		g_snprintf(desc, sizeof(desc), "%s (%d item%s)", op->tipo == AR_OP_COPIAR ? "Copiar" : op->tipo == AR_OP_COMPACTAR ? "Compactar" : "Extrair", n, quando);
+	} else if (op->tipo == AR_OP_COPIAR || op->tipo == AR_OP_COMPACTAR || op->tipo == AR_OP_EXTRAIR || op->tipo == AR_OP_CLONAR) {
+		g_snprintf(desc, sizeof(desc), "%s (%d item%s)", op->tipo == AR_OP_COPIAR ? "Copiar" : op->tipo == AR_OP_COMPACTAR ? "Compactar" : op->tipo == AR_OP_CLONAR ? "Clonar" : "Extrair", n, quando);
 		undo_empilhar(DESF_CRIADOS, desc, op->pares_a, op->pares_b);
 	} else {
 		g_ptr_array_free(op->pares_a, TRUE);
@@ -1011,7 +1126,7 @@ ar_op *ar_op_iniciar(enum ar_op_tipo tipo, char *const *origens, int n, const ch
 	op->pares_b = g_ptr_array_new_with_free_func(g_free);
 	g_mutex_init(&op->mx);
 	g_cond_init(&op->cond);
-	static const char *const verbos[] = { "Copiando", "Movendo", "Mandando para a lixeira", "Apagando", "Compactando", "Extraindo", "Restaurando" };
+	static const char *const verbos[] = { "Copiando", "Movendo", "Mandando para a lixeira", "Apagando", "Compactando", "Extraindo", "Restaurando", "Clonando" };
 	g_snprintf(op->est.descricao, sizeof(op->est.descricao), "%s %d %s", verbos[tipo], n, n == 1 ? "item" : "itens");
 	op->thread = g_thread_new("arquivos-op", op_thread, op);
 	return op;

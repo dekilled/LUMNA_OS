@@ -838,3 +838,72 @@ bool ar_fixado_alternar(const char *secao, const char *caminho) {
 	g_free(a);
 	return !tinha;
 }
+
+/* ---- cor e ícone de uma pasta ---- */
+
+const struct ar_cor AR_CORES[AR_CORES_N] = {
+	{ "Padrão", 0 }, { "Azul", 0x3E63DD }, { "Ciano", 0x00A2C7 }, { "Verde", 0x30A46C }, { "Amarelo", 0xE5A100 },
+	{ "Laranja", 0xF76B15 }, { "Vermelho", 0xE5484D }, { "Rosa", 0xD6409F }, { "Cinza", 0x8B8D98 },
+};
+const char *const AR_ICONES[] = { "star", "heart", "music", "image", "video", "camera", "code", "document", "download", "gamepad", "globe", "bag", "mail", "lock", "user", "leaf", NULL };
+
+static GKeyFile *estilos;
+static char *estilos_arq;
+
+static GKeyFile *estilos_ler(void) {
+	char *a = g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", "pastas.ini", NULL);
+	if (estilos && estilos_arq && !strcmp(estilos_arq, a)) {
+		g_free(a);
+		return estilos;
+	}
+	if (estilos) {
+		g_key_file_free(estilos);
+	}
+	g_free(estilos_arq);
+	estilos_arq = a;
+	estilos = g_key_file_new();
+	g_key_file_load_from_file(estilos, a, G_KEY_FILE_NONE, NULL);
+	return estilos;
+}
+
+void ar_pasta_estilo(const char *caminho, uint32_t *rgb, char *icone, size_t tam) {
+	GKeyFile *kf = estilos_ler();
+	*rgb = 0;
+	icone[0] = '\0';
+	if (!g_key_file_has_group(kf, caminho)) {
+		return;
+	}
+	char *cor = g_key_file_get_string(kf, caminho, "cor", NULL), *ic = g_key_file_get_string(kf, caminho, "icone", NULL);
+	if (cor && cor[0] == '#' && strlen(cor) == 7) {
+		*rgb = (uint32_t)strtoul(cor + 1, NULL, 16);
+	}
+	if (ic) {
+		/* só os emblemas conhecidos (um arquivo editado à mão não escolhe o que desenhar) */
+		for (int i = 0; AR_ICONES[i]; i++) {
+			if (!strcmp(ic, AR_ICONES[i])) {
+				snprintf(icone, tam, "%s", ic);
+			}
+		}
+	}
+	g_free(cor);
+	g_free(ic);
+}
+
+void ar_pasta_estilo_definir(const char *caminho, uint32_t rgb, const char *icone) {
+	GKeyFile *kf = estilos_ler();
+	g_key_file_remove_group(kf, caminho, NULL);
+	if (rgb || (icone && *icone)) {
+		char cor[16];
+		snprintf(cor, sizeof(cor), "#%06X", rgb & 0xFFFFFF);
+		if (rgb) {
+			g_key_file_set_string(kf, caminho, "cor", cor);
+		}
+		if (icone && *icone) {
+			g_key_file_set_string(kf, caminho, "icone", icone);
+		}
+	}
+	char *pasta = g_path_get_dirname(estilos_arq);
+	g_mkdir_with_parents(pasta, 0700);
+	g_free(pasta);
+	g_key_file_save_to_file(kf, estilos_arq, NULL);
+}
