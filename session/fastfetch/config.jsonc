@@ -9,7 +9,7 @@
       "2": "1;38;2;216;204;255",
       "3": "38;2;110;84;170"
     },
-    "padding": { "top": 1, "left": 2, "right": 4 }
+    "padding": { "top": 1, "left": 2, "right": 3 }
   },
   "display": {
     "separator": "",
@@ -25,6 +25,6 @@
     { "type": "custom", "key": "Interface", "format": "Gravity" },
     { "type": "command", "key": "Sessão", "text": "printf '%s' \"${XDG_SESSION_TYPE:-wayland}\" | sed 's/./\\U&/'" },
     "break",
-    { "type": "custom", "format": "\u001b[38;2;91;56;140m██████ \u001b[38;2;124;72;200m██████ \u001b[38;2;160;104;236m██████ \u001b[38;2;204;176;250m██████ \u001b[38;2;228;226;236m██████\u001b[0m" }
+    { "type": "custom", "format": "\u001b[38;2;91;56;140m████ \u001b[38;2;124;72;200m████ \u001b[38;2;160;104;236m████ \u001b[38;2;204;176;250m████ \u001b[38;2;228;226;236m████\u001b[0m" }
   ]
 }

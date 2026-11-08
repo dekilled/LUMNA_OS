@@ -1542,7 +1542,7 @@ int main(int argc, char **argv) {
 		}
 	}
 	medir();
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "Pulse Terminal", .app_id = "lumna-pulse", .largura = (int)(82 * cw) + 2 * PAD, .altura = (int)(26 * ch) + 2 * PAD + 54 });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "Pulse Terminal", .app_id = "lumna-pulse", .largura = (int)(100 * cw) + 2 * PAD, .altura = (int)(28 * ch) + 2 * PAD + 54 });
 	if (!app) {
 		return 1;
 	}

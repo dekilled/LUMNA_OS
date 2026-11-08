@@ -101,6 +101,8 @@ if pkg-config --exists vterm; then
 else
 	echo "(sem libvterm: o teste do terminal ficou de fora)"
 fi
+# o desenho do fastfetch cabe numa janela do Pulse
+sh testes/pulse/logo.sh "$AQUI/../session"
 # a memória do Pulse (SQLite) e a Emma no terminal (contra um lumna-emma de mentira)
 if pkg-config --exists sqlite3; then
 	cc $CF $(pkg-config --cflags sqlite3) -o "$T/testa_pulsedb" testes/painel/testa_pulsedb.c servicos/pulsedb.c $(pkg-config --libs sqlite3) $LG
