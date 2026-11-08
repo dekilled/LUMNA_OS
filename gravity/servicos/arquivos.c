@@ -626,3 +626,215 @@ void ar_recente_registrar(const char *caminho) {
 	g_strfreev(linhas);
 	g_free(a);
 }
+
+/* ---- o caminho digitado ---- */
+
+static char *expandir_til(const char *t) {
+	if (t[0] == '~' && (t[1] == '/' || t[1] == '\0')) {
+		return g_strconcat(g_get_home_dir(), t + 1, NULL);
+	}
+	return g_strdup(t);
+}
+
+char *ar_caminho_digitado(const char *texto, const char *pasta_atual) {
+	char *t = g_strstrip(g_strdup(texto));
+	if (!*t) {
+		g_free(t);
+		return NULL;
+	}
+	char *x = expandir_til(t);
+	g_free(t);
+	char *abs = x[0] == '/' ? g_strdup(x) : g_build_filename(pasta_atual ? pasta_atual : g_get_home_dir(), x, NULL);
+	g_free(x);
+	char *limpo = g_canonicalize_filename(abs, NULL);
+	g_free(abs);
+	if (!g_file_test(limpo, G_FILE_TEST_IS_DIR)) {
+		g_free(limpo);
+		return NULL;
+	}
+	return limpo;
+}
+
+static void sugestao_nova(ar_sugestao *v, int *n, int max, const char *nome, const char *caminho, bool recente) {
+	if (*n >= max) {
+		return;
+	}
+	for (int i = 0; i < *n; i++) {
+		if (!strcmp(v[i].caminho, caminho)) {
+			return;
+		}
+	}
+	snprintf(v[*n].nome, sizeof(v[*n].nome), "%s", nome);
+	v[*n].caminho = g_strdup(caminho);
+	v[*n].recente = recente;
+	(*n)++;
+}
+
+static int cmp_sugestao(const void *a, const void *b) {
+	const ar_sugestao *x = a, *y = b;
+	char *kx = chave_nome(x->nome), *ky = chave_nome(y->nome);
+	int r = strcmp(kx, ky);
+	g_free(kx);
+	g_free(ky);
+	return r;
+}
+
+int ar_sugestoes(const char *texto, ar_sugestao *v, int max) {
+	int n = 0;
+	char *t = g_strdup(texto ? texto : "");
+	g_strstrip(t);
+	if (!*t) {
+		g_free(t);
+		return 0;
+	}
+	char *x = expandir_til(t);
+	char *dir, *prefixo;
+	if (g_str_has_suffix(x, "/")) {
+		dir = g_strdup(x);
+		prefixo = g_strdup("");
+	} else if (strchr(x, '/')) {
+		dir = g_path_get_dirname(x);
+		prefixo = g_path_get_basename(x);
+	} else {
+		dir = NULL; /* só um nome: procura nos recentes */
+		prefixo = g_strdup(x);
+	}
+	char *chave = chave_nome(prefixo);
+	if (dir && g_file_test(dir, G_FILE_TEST_IS_DIR)) {
+		/* acha as pastas que combinam (até 512), ordena e fica com as primeiras do que cabe em v */
+		ar_sugestao *achadas = g_new(ar_sugestao, 512);
+		int na = 0;
+		GDir *d = g_dir_open(dir, 0, NULL);
+		const char *nome;
+		/* uma pasta com milhares de itens (/usr/lib, /tmp) não pode travar a digitação: o caminho rápido compara o começo sem alocar nada;
+		 * só nome com acento (que precisa de normalização) pega o caminho lento */
+		size_t lp = strlen(prefixo);
+		bool prefixo_ascii = g_str_is_ascii(prefixo);
+		gint64 limite = g_get_monotonic_time() + 40 * 1000;
+		int lidos = 0;
+		while (d && (nome = g_dir_read_name(d)) && na < 512) {
+			if ((++lidos & 255) == 0 && g_get_monotonic_time() > limite) {
+				break;
+			}
+			if (nome[0] == '.' && prefixo[0] != '.') {
+				continue;
+			}
+			bool combina;
+			if (prefixo_ascii && g_str_is_ascii(nome)) {
+				combina = !g_ascii_strncasecmp(nome, prefixo, lp);
+			} else {
+				char *k = chave_nome(nome);
+				combina = g_str_has_prefix(k, chave);
+				g_free(k);
+			}
+			if (!combina) {
+				continue;
+			}
+			char *c = g_build_filename(dir, nome, NULL);
+			if (g_file_test(c, G_FILE_TEST_IS_DIR)) {
+				int antes = na;
+				sugestao_nova(achadas, &na, 512, nome, c, false);
+				(void)antes;
+			}
+			g_free(c);
+		}
+		if (d) {
+			g_dir_close(d);
+		}
+		qsort(achadas, (size_t)na, sizeof(ar_sugestao), cmp_sugestao);
+		int levar = na < 6 ? na : 6;
+		for (int i = 0; i < na; i++) {
+			if (i < levar && n < max) {
+				v[n++] = achadas[i];
+			} else {
+				g_free(achadas[i].caminho);
+			}
+		}
+		g_free(achadas);
+	}
+	/* os recentes que combinam */
+	ar_lugar rec[50];
+	int nr = ar_recentes(rec, 50);
+	for (int i = 0; i < nr && n < max; i++) {
+		if (g_file_test(rec[i].caminho, G_FILE_TEST_IS_DIR) && ar_busca_combina(rec[i].caminho, x)) {
+			sugestao_nova(v, &n, max, rec[i].caminho, rec[i].caminho, true);
+		}
+	}
+	ar_lugares_liberar(rec, nr);
+	g_free(chave);
+	g_free(prefixo);
+	g_free(dir);
+	g_free(x);
+	g_free(t);
+	return n;
+}
+
+void ar_sugestoes_liberar(ar_sugestao *v, int n) {
+	for (int i = 0; i < n; i++) {
+		g_free(v[i].caminho);
+	}
+}
+
+/* ---- fixados na barra lateral ---- */
+
+static char *arq_fixados(void) { return g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", "fixados", NULL); }
+
+int ar_fixados(const char *secao, ar_lugar *v, int max) {
+	char *a = arq_fixados();
+	char **linhas = ler_linhas(a);
+	int n = 0;
+	for (int i = 0; linhas[i] && n < max; i++) {
+		char *tab = strchr(linhas[i], '\t');
+		if (!tab || strncmp(linhas[i], secao, (size_t)(tab - linhas[i])) || (size_t)(tab - linhas[i]) != strlen(secao)) {
+			continue;
+		}
+		const char *caminho = tab + 1;
+		if (g_file_test(caminho, G_FILE_TEST_IS_DIR)) {
+			char *base = g_path_get_basename(caminho);
+			lugar_novo(v, &n, max, base, caminho, "folder");
+			g_free(base);
+		}
+	}
+	g_strfreev(linhas);
+	g_free(a);
+	return n;
+}
+
+bool ar_fixado_em(const char *secao, const char *caminho) {
+	char *a = arq_fixados();
+	char **linhas = ler_linhas(a);
+	char *alvo = g_strdup_printf("%s\t%s", secao, caminho);
+	bool sim = false;
+	for (int i = 0; linhas[i]; i++) {
+		sim |= !strcmp(linhas[i], alvo);
+	}
+	g_free(alvo);
+	g_strfreev(linhas);
+	g_free(a);
+	return sim;
+}
+
+bool ar_fixado_alternar(const char *secao, const char *caminho) {
+	char *a = arq_fixados();
+	char **linhas = ler_linhas(a);
+	char *alvo = g_strdup_printf("%s\t%s", secao, caminho);
+	GPtrArray *novo = g_ptr_array_new();
+	bool tinha = false;
+	for (int i = 0; linhas[i]; i++) {
+		if (!strcmp(linhas[i], alvo)) {
+			tinha = true;
+		} else if (linhas[i][0]) {
+			g_ptr_array_add(novo, linhas[i]);
+		}
+	}
+	if (!tinha) {
+		g_ptr_array_add(novo, alvo);
+	}
+	g_ptr_array_add(novo, NULL);
+	gravar_linhas(a, (char **)novo->pdata);
+	g_ptr_array_free(novo, TRUE);
+	g_free(alvo);
+	g_strfreev(linhas);
+	g_free(a);
+	return !tinha;
+}

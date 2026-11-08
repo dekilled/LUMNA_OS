@@ -174,8 +174,8 @@ teclado: exemplos/teclado.c servicos/teclado_im.c servicos/teclado_im.h servicos
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 wayland-client xkbcommon) -o $@ exemplos/teclado.c servicos/teclado_im.c servicos/teclado_layout.c servicos/teclado_cfg.c servicos/modos.c $(teclado_im_obj) libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
 
 # o explorador de arquivos (lumna-arquivos)
-arquivos: exemplos/arquivos.c servicos/arquivos.c servicos/arquivos.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0) -o $@ exemplos/arquivos.c servicos/arquivos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
+arquivos: exemplos/arquivos.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/connectc.c servicos/json.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0) -o $@ exemplos/arquivos.c servicos/arquivos.c servicos/arquivos_op.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
 
 # o Pulse Terminal (lumna-pulse): a libvterm e um pty, desenhados à mão
 pulse: exemplos/pulse.c servicos/terminal.c servicos/terminal.h servicos/pulsedb.c servicos/pulsedb.h servicos/emma_terminal.c servicos/emma_terminal.h servicos/emmac.c servicos/json.c libgravity.a

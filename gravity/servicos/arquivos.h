@@ -93,4 +93,21 @@ bool ar_favorito_alternar(const char *caminho);   /* devolve o estado de agora *
 int ar_recentes(ar_lugar *v, int max);
 void ar_recente_registrar(const char *caminho);
 
+/* Pastas fixadas pela pessoa na barra lateral, por seção ("espacos" ou "colecoes"): ~/.config/lumna/arquivos/fixados */
+int ar_fixados(const char *secao, ar_lugar *v, int max);
+bool ar_fixado_em(const char *secao, const char *caminho);
+bool ar_fixado_alternar(const char *secao, const char *caminho);   /* devolve o estado de agora */
+
+/* ---- o caminho digitado (Ctrl+L): sugestões ---- */
+typedef struct ar_sugestao {
+	char nome[128];
+	char *caminho;     /* g_malloc */
+	bool recente;      /* veio dos recentes (senão, é uma pasta que combina com o que foi digitado) */
+} ar_sugestao;
+/* O que digitou ("/home/eric/Documentos/Pro", "~/Doc", "Projetos"): as pastas que começam assim (sem caixa nem acento) e, depois, os recentes que combinam. */
+int ar_sugestoes(const char *texto, ar_sugestao *v, int max);
+void ar_sugestoes_liberar(ar_sugestao *v, int n);
+/* O caminho digitado, com ~ expandido; NULL se não é uma pasta que existe. g_free. */
+char *ar_caminho_digitado(const char *texto, const char *pasta_atual);
+
 #endif

@@ -96,7 +96,7 @@ def duplo(nome):
 
 
 def tecla(*teclas, mod=None):
-    cmd = ["wtype"]
+    cmd = ["wtype", "-s", "250"]  # o -s dá tempo ao app de ver o teclado virtual novo (cada wtype cria um)
     if mod:
         cmd += ["-M", mod]
     for t in teclas:
@@ -108,7 +108,7 @@ def tecla(*teclas, mod=None):
 
 
 def digita(txt):
-    subprocess.run(["wtype", txt], stdout=subprocess.DEVNULL)
+    subprocess.run(["wtype", "-s", "250", txt], stdout=subprocess.DEVNULL)
     time.sleep(0.4)
 
 

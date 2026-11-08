@@ -192,6 +192,76 @@ int main(void) {
 	CONFERE(nc >= 1 && !strcmp(v[0].rotulo, "Home") && !strcmp(v[0].caminho, casa), "coleções começam pela casa");
 	ar_lugares_liberar(v, nc);
 
+	/* fixados na barra lateral */
+	CONFERE(ar_fixados("espacos", v, 16) == 0 && !ar_fixado_em("espacos", sub), "nada fixado");
+	CONFERE(ar_fixado_alternar("espacos", sub) && ar_fixado_em("espacos", sub) && !ar_fixado_em("colecoes", sub), "fixar em Espaços");
+	ar_fixado_alternar("colecoes", sub);
+	int nfx = ar_fixados("espacos", v, 16);
+	CONFERE(nfx == 1 && !strcmp(v[0].rotulo, "Projetos") && !strcmp(v[0].caminho, sub), "cada seção tem os seus (%d)", nfx);
+	ar_lugares_liberar(v, nfx);
+	CONFERE(ar_fixados("colecoes", v, 16) == 1, "e a outra seção também");
+	ar_lugares_liberar(v, 1);
+	CONFERE(!ar_fixado_alternar("espacos", sub) && !ar_fixado_em("espacos", sub) && ar_fixado_em("colecoes", sub), "desafixar de uma seção não mexe na outra");
+
+	/* o caminho digitado */
+	char *proj = g_build_filename(raiz, "Projetos", NULL);
+	g_mkdir(g_build_filename(raiz, "Propostas", NULL), 0755);
+	g_mkdir(g_build_filename(raiz, "Protocolos", NULL), 0755);
+	ar_sugestao sg[64];
+	char *entrada = g_strdup_printf("%s/Pro", raiz);
+	int ns = ar_sugestoes(entrada, sg, 12);
+	CONFERE(ns >= 3 && !sg[0].recente && !strcmp(sg[0].nome, "Projetos") && !strcmp(sg[1].nome, "Propostas") && !strcmp(sg[2].nome, "Protocolos"), "sugestões: as pastas que começam com Pro, em ordem (%d: %s)", ns, ns ? sg[0].nome : "");
+	ar_sugestoes_liberar(sg, ns);
+	g_free(entrada);
+	entrada = g_strdup_printf("%s/pro", raiz);
+	ns = ar_sugestoes(entrada, sg, 12);
+	CONFERE(ns >= 3, "sem distinguir caixa (%d)", ns);
+	ar_sugestoes_liberar(sg, ns);
+	g_free(entrada);
+	entrada = g_strdup_printf("%s/", raiz);
+	ns = ar_sugestoes(entrada, sg, 12);
+	CONFERE(ns >= 3, "uma barra no fim lista as subpastas (%d)", ns);
+	ar_sugestoes_liberar(sg, ns);
+	g_free(entrada);
+	entrada = g_strdup_printf("%s/Pro/", raiz);
+	CONFERE(ar_sugestoes(entrada, sg, 12) == 0, "um caminho que não existe não sugere nada");
+	g_free(entrada);
+	CONFERE(ar_sugestoes("", sg, 12) == 0, "vazio não sugere");
+	/* uma pasta com muita coisa dentro não passa do que cabe em quem chamou (12) nem do teto de 6 pastas + recentes */
+	for (int k = 0; k < 100; k++) {
+		char *nome = g_strdup_printf("%s/Muitas%03d", raiz, k);
+		g_mkdir(nome, 0755);
+		g_free(nome);
+	}
+	entrada = g_strdup_printf("%s/Muitas", raiz);
+	ns = ar_sugestoes(entrada, sg, 12);
+	CONFERE(ns == 6 && !strcmp(sg[0].nome, "Muitas000"), "muitas pastas que combinam: só as 6 primeiras, em ordem (%d)", ns);
+	ar_sugestoes_liberar(sg, ns);
+	g_free(entrada);
+	ar_recente_registrar(proj);
+	entrada = g_strdup_printf("%s/Pro", raiz);
+	ns = ar_sugestoes(entrada, sg, 12);
+	int recentes_n = 0;
+	for (int i = 0; i < ns; i++) {
+		recentes_n += sg[i].recente;
+	}
+	CONFERE(recentes_n == 0, "o recente que já apareceu como pasta não repete (%d)", recentes_n);
+	ar_sugestoes_liberar(sg, ns);
+	g_free(entrada);
+	char *dig = ar_caminho_digitado(proj, raiz);
+	CONFERE(dig && !strcmp(dig, proj), "caminho digitado que existe");
+	g_free(dig);
+	dig = ar_caminho_digitado("Projetos", raiz);
+	CONFERE(dig && !strcmp(dig, proj), "um nome relativo vale a partir da pasta de agora");
+	g_free(dig);
+	dig = ar_caminho_digitado("~", raiz);
+	CONFERE(dig && !strcmp(dig, g_get_home_dir()), "~ é a casa");
+	g_free(dig);
+	CONFERE(ar_caminho_digitado("/nao/existe", raiz) == NULL && ar_caminho_digitado("   ", raiz) == NULL, "o que não existe não vale");
+	dig = ar_caminho_digitado("Projetos/../Propostas/", raiz);
+	CONFERE(dig && g_str_has_suffix(dig, "/Propostas"), "ponto-ponto é resolvido (%s)", dig);
+	g_free(dig);
+
 	if (falhas) {
 		fprintf(stderr, "%d falha(s)\n", falhas);
 		return 1;

@@ -17,6 +17,10 @@ LUMNA_ARQUIVOS_DEBUG=1 "$gravity/arquivos" "$casa/Documentos" > "$run/ar.out" 2>
 sleep 2
 python3 "$aqui/teste_ui.py" "$orbit_dir" "$run" "$casa"
 rc=$?
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_ops.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
 pkill -x orbit; pkill -x arquivos
 [ $rc -eq 0 ] || { echo "(log em $run)"; tail -10 "$run/ar.err"; }
 exit $rc

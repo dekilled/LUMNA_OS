@@ -113,6 +113,21 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.70 | Uma pasta com milhares de arquivos (ex.: `/usr/share/icons`) | Abre sem travar e rola suave | ☐ |
 | 2.71 | Entrar em `/root` | Mostra "Não foi possível abrir esta pasta" e dá para voltar | ☐ |
 
+| 2.72 | Selecionar um arquivo, Ctrl+C, abrir outra pasta, Ctrl+V | Copia (o original continua); Ctrl+Z tira a cópia | ☐ |
+| 2.73 | Ctrl+X num arquivo, colar em outra pasta | Move; o recortado ficava esmaecido até colar | ☐ |
+| 2.74 | Colar um arquivo que já existe no destino | Pergunta (Pular / Manter os dois / Substituir); nada some sem você dizer | ☐ |
+| 2.75 | F2 num arquivo, digitar outro nome, Enter | Renomeia; um nome que já existe é recusado | ☐ |
+| 2.76 | Delete num arquivo | Vai para a lixeira, a barra mostra "Desfazer"; o Thunar também o vê na lixeira | ☐ |
+| 2.77 | Barra lateral > Lixeira: selecionar e Restaurar | Volta ao lugar de origem | ☐ |
+| 2.78 | Shift+Delete | Pede confirmação; confirmado, some para sempre | ☐ |
+| 2.79 | Botão direito num item (ou dedo parado) | O menu com Abrir, Recortar, Copiar, Renomear, Fixar, Compactar, Copiar caminho, Terminal, Propriedades, Lixeira | ☐ |
+| 2.80 | Menu > Compactar, depois Extrair aqui no `.zip` | Cria o `.zip` e devolve o conteúdo numa pasta | ☐ |
+| 2.81 | Menu > Abrir no terminal | O Pulse abre dentro dessa pasta | ☐ |
+| 2.82 | Menu > Compartilhar (com o celular conectado) | Lista o celular; escolher oferece o arquivo a ele | ☐ |
+| 2.83 | Ctrl+L, digitar parte de um caminho, Tab, Enter | Sugere, completa e abre | ☐ |
+| 2.84 | Copiar uma pasta grande (vários GB) e Cancelar no meio | A barra anda; cancelar para e não deixa lixo pela metade além do já copiado | ☐ |
+| 2.85 | Ctrl+I | As propriedades (inclusive o tamanho de uma pasta) | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |
@@ -210,5 +225,5 @@ O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de
 
 ## O que **não** está pronto (não é bug)
 
-Loja própria (por ora o Painel > Aplicativos); o Arquivos novo só navega (copiar, mover, apagar ainda no Thunar), Music, Biblioteca Gaming,
+Loja própria (por ora o Painel > Aplicativos); o Arquivos novo ainda sem cartões de pasta com prévias nem as páginas de configurações, Music, Biblioteca Gaming,
 particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).
