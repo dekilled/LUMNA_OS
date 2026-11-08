@@ -55,5 +55,8 @@ emma=sim             ; nao desliga a Emma no terminal
   comando, o código e o fim da saída; a sugestão aparece num cartão lilás logo abaixo do prompt. **Enter** executa (só depois de 0,6 s: um Enter por hábito logo depois do erro
   não roda nada, só segue para o shell), **Tab** põe no prompt para editar, **Esc** descarta, qualquer outra tecla some com o cartão. Um comando destrutivo (a lista do (d))
   nunca roda com o Enter do cartão: só entra no prompt. A decisão fica em `emma_interactions.decisao` (aplicada, inserida, descartada, ignorada).
-- (c) comando por linguagem natural (`Ctrl+E`)
+- (c) **feita:** comando por linguagem natural. **Ctrl+E** num prompt vazio abre o campo da Emma ("o que você quer fazer?"); Enter pede; a Emma recebe o texto,
+  a pasta onde o shell está, os últimos 3 comandos da sessão e as últimas sessões; o comando volta no mesmo cartão da correção (Enter executa, Tab põe no prompt, Esc descarta; destrutivo só
+  entra no prompt). Nada roda sem a confirmação. Com texto já digitado na linha, o Ctrl+E continua sendo do bash ("fim da linha"). Se a Emma não responde a tempo, um aviso curto
+  some sozinho em 3 s e o terminal segue normal.
 - (d) explicação antes de executar (lista configurável)

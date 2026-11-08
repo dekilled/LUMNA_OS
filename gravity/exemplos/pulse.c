@@ -43,7 +43,18 @@ struct sugestao {
 	bool perigoso;      /* destrutivo: o Enter só põe no prompt, a pessoa confirma de novo */
 };
 
+/* o campo da Emma (Ctrl+E): o que a pessoa quer fazer, em palavras, e a Emma devolve um comando (que vira uma sugestão como as da correção) */
+enum nl_estado { NL_FECHADO, NL_DIGITANDO, NL_PENSANDO, NL_AVISO };
+struct nl {
+	enum nl_estado estado;
+	char texto[512];
+	int cursor;          /* em bytes, sempre no começo de um caractere */
+	char aviso[200];     /* NL_AVISO: o que dizer (some sozinho) */
+	gint64 aviso_ate;
+};
+
 struct aba {
+	struct nl nl;
 	int id;              /* não muda quando as abas andam (a resposta da Emma acha a aba por ele) */
 	int geracao;         /* cada comando novo, ou tecla nova, invalida o pedido que estava no ar */
 	struct sugestao sug;
@@ -186,37 +197,199 @@ static void sug_aceitar(struct aba *a, bool executar) {
 	sug_decidir(a, roda ? "aplicada" : "inserida");
 }
 
-struct correcao_ctx {
+/* a sugestão chegou: o cartão aparece (a explicação sozinha também aparece, sem comando) */
+static void sug_mostrar(struct aba *a, char *cmd, char *expl, int64_t interacao) {
+	a->sug.ativa = true;
+	a->sug.cmd = cmd;
+	a->sug.explicacao = expl;
+	a->sug.interacao = interacao;
+	a->sug.perigoso = cmd && emt_comando_perigoso(cmd, NULL);
+	a->sug.armada_em = g_get_monotonic_time() + ARMAR_US;
+	gv_acordar_em(0.7);
+	gv_app_redesenhar(app);
+}
+
+struct emma_ctx {
 	int aba_id, geracao;
-	char *comando;
+	bool nl;       /* veio do campo da Emma (Ctrl+E), e não de uma correção */
+	char *comando; /* a correção: o comando que falhou */
 };
 
-static void correcao_pronta(const char *resposta, int64_t interacao, void *dados) {
-	struct correcao_ctx *c = dados;
+static void emma_pronta(const char *resposta, int64_t interacao, void *dados) {
+	struct emma_ctx *c = dados;
 	struct aba *a = aba_por_id(c->aba_id);
-	if (a && a->geracao == c->geracao && resposta) {
+	if (a && a->geracao == c->geracao && c->nl) {
+		/* o pedido em palavras: a pessoa esperava, então diz o que houve (sem travar nada: some sozinho) */
+		if (a->nl.estado == NL_PENSANDO) {
+			char *cmd = NULL, *expl = NULL;
+			if (resposta) {
+				emt_separar(resposta, &cmd, &expl);
+			}
+			if (cmd || expl) {
+				a->nl.estado = NL_FECHADO;
+				sug_limpar(a);
+				sug_mostrar(a, cmd, expl, interacao);
+			} else {
+				g_free(cmd);
+				g_free(expl);
+				a->nl.estado = NL_AVISO;
+				g_strlcpy(a->nl.aviso, emma && !emt_ligado(emma) ? "A Emma está desligada no terminal (emma=nao em ~/.config/lumna/pulse.ini)."
+					: "A Emma não respondeu agora. Tente de novo daqui a pouco.", sizeof(a->nl.aviso));
+				a->nl.aviso_ate = g_get_monotonic_time() + 3 * G_USEC_PER_SEC;
+				gv_acordar_em(3.1);
+				gv_app_redesenhar(app);
+			}
+		}
+	} else if (a && a->geracao == c->geracao && resposta) {
 		char *cmd, *expl;
 		emt_separar(resposta, &cmd, &expl);
 		char *digitado = terminal_linha_digitada(a->t); /* se a pessoa já começou a digitar, não atrapalha */
 		bool livre = !digitado || !*digitado;
 		g_free(digitado);
-		bool igual = cmd && !strcmp(cmd, c->comando);
-		if (livre && !igual && (cmd || expl) && !a->sug.ativa) {
-			a->sug.ativa = true;
-			a->sug.cmd = cmd;
-			a->sug.explicacao = expl;
-			a->sug.interacao = interacao;
-			a->sug.perigoso = cmd && emt_comando_perigoso(cmd, NULL);
-			a->sug.armada_em = g_get_monotonic_time() + ARMAR_US;
+		bool igual = cmd && c->comando && !strcmp(cmd, c->comando);
+		if (livre && !igual && (cmd || expl) && !a->sug.ativa && a->nl.estado == NL_FECHADO) {
+			sug_mostrar(a, cmd, expl, interacao);
 			cmd = expl = NULL;
-			gv_acordar_em(0.7);
-			gv_app_redesenhar(app);
 		}
 		g_free(cmd);
 		g_free(expl);
 	}
 	g_free(c->comando);
 	g_free(c);
+}
+
+/* ---- o campo da Emma (Ctrl+E) ---- */
+
+/* Ctrl+E só abre com o prompt vazio: no bash ele é "ir para o fim da linha", e numa linha vazia não faz nada (nada se perde); com texto digitado continua sendo do shell */
+static bool nl_pode_abrir(struct aba *a) {
+	if (!emma || !banco || !terminal_integrado(a->t) || terminal_tela_alternativa(a->t)) {
+		return false;
+	}
+	char *dig = terminal_linha_digitada(a->t);
+	bool vazio = dig && !*g_strstrip(dig);
+	g_free(dig);
+	return vazio;
+}
+
+static void nl_fechar(struct aba *a) {
+	if (a->nl.estado == NL_PENSANDO) {
+		a->geracao++; /* a resposta que ainda vier não vale */
+	}
+	memset(&a->nl, 0, sizeof(a->nl));
+	gv_app_redesenhar(app);
+}
+
+static void nl_abrir(struct aba *a) {
+	sug_limpar(a);
+	memset(&a->nl, 0, sizeof(a->nl));
+	a->nl.estado = NL_DIGITANDO;
+	a->desloc = 0;
+	gv_app_redesenhar(app);
+}
+
+static void nl_enviar(struct aba *a) {
+	char *t = g_strstrip(g_strdup(a->nl.texto));
+	if (!*t) {
+		g_free(t);
+		return;
+	}
+	a->nl.estado = NL_PENSANDO;
+	struct emma_ctx *c = g_new0(struct emma_ctx, 1);
+	c->aba_id = a->id;
+	c->geracao = ++a->geracao;
+	c->nl = true;
+	/* o contexto (a pasta onde o shell está, os últimos 3 comandos e as últimas sessões) é montado pelo emma_terminal */
+	emt_pedir(emma, &(struct emt_pedido){ .tipo = EMT_COMANDO, .cwd = terminal_pasta(a->t), .texto = t }, emma_pronta, c);
+	g_free(t);
+	gv_acordar_em(0.4);
+	gv_app_redesenhar(app);
+}
+
+static void nl_inserir(struct aba *a, const char *txt) {
+	size_t n = strlen(txt), atual = strlen(a->nl.texto);
+	if (atual + n >= sizeof(a->nl.texto)) {
+		return;
+	}
+	memmove(a->nl.texto + a->nl.cursor + n, a->nl.texto + a->nl.cursor, atual - (size_t)a->nl.cursor + 1);
+	memcpy(a->nl.texto + a->nl.cursor, txt, n);
+	a->nl.cursor += (int)n;
+}
+
+static void nl_apagar(struct aba *a, int de, int ate) {
+	if (de < 0 || ate > (int)strlen(a->nl.texto) || de >= ate) {
+		return;
+	}
+	memmove(a->nl.texto + de, a->nl.texto + ate, strlen(a->nl.texto) - (size_t)ate + 1);
+	a->nl.cursor = de;
+}
+
+/* uma tecla no campo: sempre consumida (nada vai ao shell com o campo aberto) */
+static void nl_tecla(struct aba *a, uint32_t s, const char *txt, uint32_t mods) {
+	bool ctrl = mods & GV_MOD_CTRL, shift = mods & GV_MOD_SHIFT, alt = mods & GV_MOD_ALT;
+	if (a->nl.estado == NL_AVISO) {
+		nl_fechar(a); /* qualquer tecla fecha o aviso */
+		return;
+	}
+	if (s == XKB_KEY_Escape) {
+		nl_fechar(a);
+		return;
+	}
+	if (a->nl.estado == NL_PENSANDO) {
+		return; /* esperando a Emma: só o Esc vale */
+	}
+	char *t = a->nl.texto;
+	int len = (int)strlen(t);
+	if ((s == XKB_KEY_Return || s == XKB_KEY_KP_Enter) && !shift) {
+		nl_enviar(a);
+	} else if (s == XKB_KEY_BackSpace) {
+		if (a->nl.cursor > 0) {
+			nl_apagar(a, (int)(g_utf8_prev_char(t + a->nl.cursor) - t), a->nl.cursor);
+		}
+	} else if (s == XKB_KEY_Delete) {
+		if (a->nl.cursor < len) {
+			nl_apagar(a, a->nl.cursor, (int)(g_utf8_next_char(t + a->nl.cursor) - t));
+		}
+	} else if (s == XKB_KEY_Left) {
+		if (a->nl.cursor > 0) {
+			a->nl.cursor = (int)(g_utf8_prev_char(t + a->nl.cursor) - t);
+		}
+	} else if (s == XKB_KEY_Right) {
+		if (a->nl.cursor < len) {
+			a->nl.cursor = (int)(g_utf8_next_char(t + a->nl.cursor) - t);
+		}
+	} else if (s == XKB_KEY_Home || (ctrl && (s == 'a' || s == 'A'))) {
+		a->nl.cursor = 0;
+	} else if (s == XKB_KEY_End || (ctrl && (s == 'e' || s == 'E') && !shift)) {
+		a->nl.cursor = len;
+	} else if (ctrl && (s == 'u' || s == 'U')) {
+		nl_apagar(a, 0, a->nl.cursor);
+	} else if (ctrl && (s == 'k' || s == 'K')) {
+		nl_apagar(a, a->nl.cursor, len);
+	} else if (ctrl && (s == 'w' || s == 'W')) {
+		int i = a->nl.cursor;
+		while (i > 0 && t[i - 1] == ' ') {
+			i--;
+		}
+		while (i > 0 && t[i - 1] != ' ') {
+			i--;
+		}
+		nl_apagar(a, i, a->nl.cursor);
+	} else if ((ctrl && shift && (s == 'v' || s == 'V')) || (shift && !ctrl && s == XKB_KEY_Insert)) {
+		const char *c = gv_colar();
+		if (c && *c) {
+			char *copia = g_strdup(c);
+			for (char *p = copia; *p; p++) {
+				if (*p == '\n' || *p == '\r' || *p == '\t') {
+					*p = ' '; /* uma linha só */
+				}
+			}
+			nl_inserir(a, copia);
+			g_free(copia);
+		}
+	} else if (txt && *txt && !ctrl && !alt) {
+		nl_inserir(a, txt);
+	}
+	gv_app_redesenhar(app);
 }
 
 /* o que o shell avisou (a integração): cada comando que acabou vai para a memória do Pulse; o que falhou vai à Emma pedir a correção */
@@ -232,12 +405,12 @@ static void eventos_da_aba(struct aba *aba) {
 				aba->ultimo_exit = e.exit_code;
 			}
 			if (emma && banco && emt_falha_vale_a_pena(e.comando, e.exit_code, NULL)) {
-				struct correcao_ctx *c = g_new0(struct correcao_ctx, 1);
+				struct emma_ctx *c = g_new0(struct emma_ctx, 1);
 				c->aba_id = aba->id;
 				c->geracao = aba->geracao;
 				c->comando = g_strdup(e.comando);
 				emt_pedir(emma, &(struct emt_pedido){ .tipo = EMT_CORRECAO, .cwd = e.pasta ? e.pasta : "", .comando = e.comando, .saida = e.saida ? e.saida : "",
-					.exit_code = e.exit_code, .comando_id = aba->ultimo_cmd }, correcao_pronta, c);
+					.exit_code = e.exit_code, .comando_id = aba->ultimo_cmd }, emma_pronta, c);
 			}
 		}
 		terminal_evento_limpar(&e);
@@ -389,34 +562,9 @@ static PangoLayout *texto_layout(cairo_t *cr, const char *txt, const char *famil
 	return l;
 }
 
-static void desenhar_sugestao(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a, int cursor_linha) {
+/* o quadro do cartão (fundo, borda, faixa lilás), abaixo do prompt ou acima dele; devolve onde começa o texto */
+static void card_quadro(cairo_t *cr, Clay_BoundingBox caixa, int cursor_linha, double alt, double larg, double *tx, double *ty) {
 	const double pad = 12, faixa = 4;
-	double larg = caixa.width - 2 * PAD;
-	if (larg > 820) {
-		larg = 820;
-	}
-	if (larg < 120) {
-		return;
-	}
-	double inner = larg - 2 * pad - faixa;
-	double tam_ui = tam_fonte * 0.85;
-	const char *ui = gv_t.fonte[0] ? gv_t.fonte : "Inter";
-	const char *dica = !a->sug.cmd ? "Esc fecha" : a->sug.perigoso ? "Enter coloca no prompt (comando destrutivo: você confirma de novo)  ·  Esc descarta"
-		: "Enter executa  ·  Tab coloca no prompt para editar  ·  Esc descarta";
-	PangoLayout *cab = texto_layout(cr, a->sug.cmd ? "Emma sugere" : "Emma", ui, tam_ui, inner, true);
-	PangoLayout *cmd = a->sug.cmd ? texto_layout(cr, a->sug.cmd, FAMILIA, tam_fonte, inner - 16, false) : NULL;
-	PangoLayout *exp = a->sug.explicacao && *a->sug.explicacao ? texto_layout(cr, a->sug.explicacao, ui, tam_ui, inner, false) : NULL;
-	PangoLayout *dic = texto_layout(cr, dica, ui, tam_ui * 0.92, inner, false);
-	int w, hc, hm = 0, he = 0, hd;
-	pango_layout_get_pixel_size(cab, &w, &hc);
-	if (cmd) {
-		pango_layout_get_pixel_size(cmd, &w, &hm);
-	}
-	if (exp) {
-		pango_layout_get_pixel_size(exp, &w, &he);
-	}
-	pango_layout_get_pixel_size(dic, &w, &hd);
-	double alt = pad + hc + 6 + (cmd ? hm + 12 + 6 : 0) + (exp ? he + 6 : 0) + hd + pad;
 	double ox = caixa.x + PAD, oy = caixa.y + PAD;
 	double x = ox, y = oy + (cursor_linha + 1) * ch + 6;
 	if (y + alt > caixa.y + caixa.height - 4) {
@@ -451,8 +599,42 @@ static void desenhar_sugestao(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a
 	cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
 	cairo_close_path(cr);
 	cairo_stroke(cr);
+	cairo_restore(cr);
+	*tx = x + faixa + pad;
+	*ty = y + pad;
+}
+
+static void desenhar_sugestao(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a, int cursor_linha) {
+	const double pad = 12, faixa = 4;
+	double larg = caixa.width - 2 * PAD;
+	if (larg > 820) {
+		larg = 820;
+	}
+	if (larg < 120) {
+		return;
+	}
+	double inner = larg - 2 * pad - faixa;
+	double tam_ui = tam_fonte * 0.85;
+	const char *ui = gv_t.fonte[0] ? gv_t.fonte : "Inter";
+	const char *dica = !a->sug.cmd ? "Esc fecha" : a->sug.perigoso ? "Enter coloca no prompt (comando destrutivo: você confirma de novo)  ·  Esc descarta"
+		: "Enter executa  ·  Tab coloca no prompt para editar  ·  Esc descarta";
+	PangoLayout *cab = texto_layout(cr, a->sug.cmd ? "Emma sugere" : "Emma", ui, tam_ui, inner, true);
+	PangoLayout *cmd = a->sug.cmd ? texto_layout(cr, a->sug.cmd, FAMILIA, tam_fonte, inner - 16, false) : NULL;
+	PangoLayout *exp = a->sug.explicacao && *a->sug.explicacao ? texto_layout(cr, a->sug.explicacao, ui, tam_ui, inner, false) : NULL;
+	PangoLayout *dic = texto_layout(cr, dica, ui, tam_ui * 0.92, inner, false);
+	int w, hc, hm = 0, he = 0, hd;
+	pango_layout_get_pixel_size(cab, &w, &hc);
+	if (cmd) {
+		pango_layout_get_pixel_size(cmd, &w, &hm);
+	}
+	if (exp) {
+		pango_layout_get_pixel_size(exp, &w, &he);
+	}
+	pango_layout_get_pixel_size(dic, &w, &hd);
+	double alt = pad + hc + 6 + (cmd ? hm + 12 + 6 : 0) + (exp ? he + 6 : 0) + hd + pad;
+	double tx, ty;
+	card_quadro(cr, caixa, cursor_linha, alt, larg, &tx, &ty);
 	/* o texto */
-	double tx = x + faixa + pad, ty = y + pad;
 	cairo_set_source_rgba(cr, gv_t.acento.r / 255.0, gv_t.acento.g / 255.0, gv_t.acento.b / 255.0, 1);
 	cairo_move_to(cr, tx, ty);
 	pango_cairo_show_layout(cr, cab);
@@ -475,7 +657,6 @@ static void desenhar_sugestao(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a
 	cairo_set_source_rgba(cr, gv_t.texto_suave.r / 255.0, gv_t.texto_suave.g / 255.0, gv_t.texto_suave.b / 255.0, 1);
 	cairo_move_to(cr, tx, ty);
 	pango_cairo_show_layout(cr, dic);
-	cairo_restore(cr);
 	g_object_unref(cab);
 	if (cmd) {
 		g_object_unref(cmd);
@@ -483,6 +664,76 @@ static void desenhar_sugestao(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a
 	if (exp) {
 		g_object_unref(exp);
 	}
+	g_object_unref(dic);
+}
+
+/* o cartão do campo da Emma: digitando (com o cursor), pensando, ou um aviso curto */
+static void desenhar_nl(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a, int cursor_linha) {
+	const double pad = 12, faixa = 4;
+	double larg = caixa.width - 2 * PAD;
+	if (larg > 820) {
+		larg = 820;
+	}
+	if (larg < 120) {
+		return;
+	}
+	double inner = larg - 2 * pad - faixa;
+	double tam_ui = tam_fonte * 0.85;
+	const char *ui = gv_t.fonte[0] ? gv_t.fonte : "Inter";
+	static const char *pontos[] = { "", ".", "..", "..." };
+	char cab_txt[96];
+	const char *dica;
+	switch (a->nl.estado) {
+	case NL_PENSANDO:
+		snprintf(cab_txt, sizeof(cab_txt), "Emma · pensando%s", pontos[(int)(gv_agora() * 2.5) % 4]);
+		dica = "Esc cancela";
+		break;
+	case NL_AVISO:
+		snprintf(cab_txt, sizeof(cab_txt), "Emma");
+		dica = "Qualquer tecla fecha";
+		break;
+	default:
+		snprintf(cab_txt, sizeof(cab_txt), "Emma · o que você quer fazer?");
+		dica = "Enter pede o comando  ·  Esc cancela  ·  nada roda sem a sua confirmação";
+		break;
+	}
+	bool vazio = a->nl.estado == NL_DIGITANDO && !a->nl.texto[0];
+	const char *corpo = a->nl.estado == NL_AVISO ? a->nl.aviso : vazio ? "ex.: listar os arquivos com mais de 100 MB nesta pasta" : a->nl.texto;
+	PangoLayout *cab = texto_layout(cr, cab_txt, ui, tam_ui, inner, true);
+	PangoLayout *cor = texto_layout(cr, corpo, a->nl.estado == NL_AVISO ? ui : FAMILIA, a->nl.estado == NL_AVISO ? tam_ui : tam_fonte, inner - 16, false);
+	PangoLayout *dic = texto_layout(cr, dica, ui, tam_ui * 0.92, inner, false);
+	int w, hc, hk, hd;
+	pango_layout_get_pixel_size(cab, &w, &hc);
+	pango_layout_get_pixel_size(cor, &w, &hk);
+	pango_layout_get_pixel_size(dic, &w, &hd);
+	double alt = pad + hc + 6 + hk + 12 + 6 + hd + pad;
+	double tx, ty;
+	card_quadro(cr, caixa, cursor_linha, alt, larg, &tx, &ty);
+	cairo_set_source_rgba(cr, gv_t.acento.r / 255.0, gv_t.acento.g / 255.0, gv_t.acento.b / 255.0, 1);
+	cairo_move_to(cr, tx, ty);
+	pango_cairo_show_layout(cr, cab);
+	ty += hc + 6;
+	/* o campo: um fundo escuro com o texto (ou a dica em cinza) e o cursor */
+	cairo_set_source_rgba(cr, 0, 0, 0, 0.30);
+	cairo_rectangle(cr, tx, ty, inner, hk + 12);
+	cairo_fill(cr);
+	Clay_Color c = vazio ? gv_t.texto_suave : a->nl.estado == NL_PENSANDO ? gv_t.texto_secundario : gv_t.texto;
+	cairo_set_source_rgba(cr, c.r / 255.0, c.g / 255.0, c.b / 255.0, 1);
+	cairo_move_to(cr, tx + 8, ty + 6);
+	pango_cairo_show_layout(cr, cor);
+	if (a->nl.estado == NL_DIGITANDO) {
+		PangoRectangle pos;
+		pango_layout_get_cursor_pos(cor, vazio ? 0 : a->nl.cursor, &pos, NULL);
+		cairo_set_source_rgba(cr, gv_t.acento.r / 255.0, gv_t.acento.g / 255.0, gv_t.acento.b / 255.0, 1);
+		cairo_rectangle(cr, tx + 8 + (double)pos.x / PANGO_SCALE, ty + 6 + (double)pos.y / PANGO_SCALE, 2, (double)pos.height / PANGO_SCALE);
+		cairo_fill(cr);
+	}
+	ty += hk + 12 + 6;
+	cairo_set_source_rgba(cr, gv_t.texto_suave.r / 255.0, gv_t.texto_suave.g / 255.0, gv_t.texto_suave.b / 255.0, 1);
+	cairo_move_to(cr, tx, ty);
+	pango_cairo_show_layout(cr, dic);
+	g_object_unref(cab);
+	g_object_unref(cor);
 	g_object_unref(dic);
 }
 
@@ -646,7 +897,9 @@ static void desenhar_grade(cairo_t *cr, Clay_BoundingBox caixa, void *dados) {
 		cairo_rectangle(cr, caixa.x + caixa.width - 6, caixa.y + topo, 4, alt);
 		cairo_fill(cr);
 	}
-	if (a->sug.ativa && a->desloc == 0) {
+	if (a->nl.estado != NL_FECHADO && a->desloc == 0) {
+		desenhar_nl(cr, caixa, a, cl);
+	} else if (a->sug.ativa && a->desloc == 0) {
 		desenhar_sugestao(cr, caixa, a, cl);
 	}
 	cairo_restore(cr);
@@ -700,6 +953,10 @@ static void teclas(struct aba *a) {
 		if (tecla_so_modificador(s)) {
 			continue;
 		}
+		if (a->nl.estado != NL_FECHADO) {
+			nl_tecla(a, s, txt, mods);
+			continue;
+		}
 		if (a->sug.ativa) {
 			bool sem_mods = !(mods & (GV_MOD_CTRL | GV_MOD_ALT | GV_MOD_SHIFT | GV_MOD_LOGO));
 			if (s == XKB_KEY_Escape && sem_mods) {
@@ -719,6 +976,10 @@ static void teclas(struct aba *a) {
 			sug_decidir(a, "ignorada");
 		}
 		uint32_t m = s >= 'a' && s <= 'z' ? s - 32 : s; /* a letra, de qualquer caixa */
+		if (ctrl && !shift && !(mods & GV_MOD_ALT) && m == 'E' && nl_pode_abrir(a)) {
+			nl_abrir(a);
+			continue;
+		}
 		if (ctrl && shift) {
 			if (m == 'C') {
 				copiar(a);
@@ -1035,6 +1296,13 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 	if (terminal_enviar(abas[ativa].t)) {
 		gv_acordar_em(0.02); /* o que ainda não coube no pty (um colar grande) */
+	}
+	for (int i = 0; i < nabas; i++) {
+		if (abas[i].nl.estado == NL_AVISO && g_get_monotonic_time() >= abas[i].nl.aviso_ate) {
+			nl_fechar(&abas[i]);
+		} else if (abas[i].nl.estado == NL_PENSANDO) {
+			gv_acordar_em(0.4); /* os pontinhos andam */
+		}
 	}
 	if (emma && emt_pendentes(emma) > 0) {
 		emt_tick(emma);

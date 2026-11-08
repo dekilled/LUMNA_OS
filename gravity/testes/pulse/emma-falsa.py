@@ -36,6 +36,16 @@ def tratar(c):
         r = {"ok": True, "resposta": resp}
     elif "<saida_do_comando>" in t:
         r = {"ok": True, "resposta": "ls -la\nFaltava o -la para ver os arquivos ocultos."}
+    elif "linguagem natural): pulse-nl-" in t:
+        # os testes do campo da Emma (Ctrl+E): o pedido vem depois de "linguagem natural): "
+        pedido = t.rsplit("linguagem natural): ", 1)[1]
+        n = pedido[len("pulse-nl-"):][0]
+        d = os.environ.get("EMMA_FALSA_DIR", "/tmp")
+        if n == "5":
+            time.sleep(5)  # a Emma que demora (o teste muda o prazo para 1 s)
+        resp = {"1": f"```bash\ntouch {d}/n1\n```\nCria o arquivo n1.", "2": f"rm -f {d}/n2\nApaga o n2.", "3": "NENHUM\nNão entendi: o que você quer criar?",
+                "5": f"touch {d}/n5\ntarde demais"}.get(n, "NENHUM\nNão entendi.")
+        r = {"ok": True, "resposta": resp}
     elif "linguagem natural" in t:
         r = {"ok": True, "resposta": "```bash\nls -S | head\n```\nLista os arquivos pelos maiores."}
     elif "Explique este comando" in t:

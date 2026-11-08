@@ -60,6 +60,8 @@ typedef void (*emt_pronto)(const char *resposta, int64_t interacao, void *dados)
 void emt_pedir(emt *e, const struct emt_pedido *p, emt_pronto pronto, void *dados);
 /* Chame de tempos em tempos (a cada quadro): entrega NULL aos pedidos que passaram do prazo, mesmo que o serviço da Emma tenha travado. */
 void emt_tick(emt *e);
+/* a Emma está ligada no terminal (emma=sim no pulse.ini)? */
+bool emt_ligado(const emt *e);
 /* quantos pedidos estão no ar (o Pulse acorda o relógio enquanto houver) */
 int emt_pendentes(const emt *e);
 

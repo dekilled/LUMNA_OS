@@ -103,6 +103,10 @@ void emt_liberar(emt *e) {
 	g_free(e);
 }
 
+bool emt_ligado(const emt *e) {
+	return e->cfg.ligado;
+}
+
 int emt_pendentes(const emt *e) {
 	return (int)g_list_length(e->no_ar);
 }

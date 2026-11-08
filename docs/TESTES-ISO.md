@@ -68,6 +68,11 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.35 | Dar Enter logo (por hábito) depois de um comando que erra | Não roda a sugestão: o Enter só pula a linha | ☐ |
 | 2.36 | `grep xyz /etc/hostname` (sem resultado) e Ctrl+C num `sleep 100` | Nenhum cartão: não são erros | ☐ |
 | 2.37 | Sem internet ou sem IA configurada: errar um comando | Nada aparece e o terminal segue normal (sem travar) | ☐ |
+| 2.38 | No Pulse, num prompt vazio: `Ctrl+E`, escrever "listar os arquivos maiores que 10 MB aqui" e Enter | Aparece o campo da Emma e depois o cartão com um comando (`find . -size +10M ...`); nada roda ainda | ☐ |
+| 2.39 | No cartão: Enter / Tab / Esc (em três pedidos) | Enter executa; Tab coloca no prompt sem rodar; Esc descarta | ☐ |
+| 2.40 | Pedir "apagar a pasta temp" (um pedido destrutivo) e dar Enter no cartão | Só entra no prompt; roda quando você dá Enter de novo | ☐ |
+| 2.41 | Escrever `echo par` e apertar `Ctrl+E` | O cursor vai ao fim da linha (bash): o campo da Emma não abre | ☐ |
+| 2.42 | `Ctrl+E` e depois `Esc`; `Ctrl+E` com a internet desligada | Esc devolve o teclado ao shell; sem a Emma aparece um aviso de 3 s e some | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
