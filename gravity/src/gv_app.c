@@ -1952,7 +1952,26 @@ Clay_ElementDeclaration gv__popup_declaracao(Clay_ElementId id) {
 	return max > 0 ? gv_rolagem(id, GV_ROLAGEM_VERTICAL, d) : d;
 }
 
+/* o popup de dentro de que este nasce (NULL: o da janela, ou o pai ainda não tem superfície) */
+static gv_app *app_dos_popups;
+static struct gv_popup *popup_pai(struct gv_popup *p) {
+	if (!p->opcoes.pai.id || !app_dos_popups) {
+		return NULL;
+	}
+	struct gv_popup *pai = popup_de(app_dos_popups, p->opcoes.pai.id, false);
+	return pai && pai != p && pai->sup && !pai->opcoes.pai.id ? pai : NULL;
+}
+
 static void popup_destruir(struct gv_popup *p) {
+	/* os submenus saem antes (o xdg-shell manda destruir os popups na ordem inversa da criação) */
+	if (app_dos_popups) {
+		for (int i = 0; i < GV_MAX_POPUPS; i++) {
+			struct gv_popup *f = &app_dos_popups->popups[i];
+			if (f != p && f->sup && p->id && f->opcoes.pai.id == p->id) {
+				popup_destruir(f);
+			}
+		}
+	}
 	if (p->xdg_popup) {
 		xdg_popup_destroy(p->xdg_popup);
 	}
@@ -1980,11 +1999,13 @@ static void popup_xdg_configurar(void *dados, struct xdg_surface *s, uint32_t se
 
 static const struct xdg_surface_listener popup_xdg_ouvinte = { .configure = popup_xdg_configurar };
 
+static struct gv_popup *popup_pai(struct gv_popup *p);
 static void popup_configurar(void *dados, struct xdg_popup *x, int32_t px, int32_t py, int32_t w, int32_t h) {
 	struct gv_popup *p = dados;
-	/* o compositor pode tê-lo virado ou empurrado para caber na tela */
-	p->x = px;
-	p->y = py;
+	/* o compositor pode tê-lo virado ou empurrado para caber na tela. Um submenu vem relativo ao pai: aqui tudo é nas coordenadas da janela */
+	struct gv_popup *pai = popup_pai(p);
+	p->x = px + (pai ? pai->x : 0);
+	p->y = py + (pai ? pai->y : 0);
 }
 
 static void popup_acabou(void *dados, struct xdg_popup *x) {
@@ -2004,6 +2025,11 @@ static const struct xdg_popup_listener popup_ouvinte = {
 static struct xdg_positioner *popup_posicionador(gv_app *app, struct gv_popup *p) {
 	struct xdg_positioner *pos = xdg_wm_base_create_positioner(app->xdg);
 	Clay_BoundingBox a = p->ancora;
+	struct gv_popup *pai = popup_pai(p);
+	if (pai) { /* a âncora de um submenu é relativa à geometria do popup pai */
+		a.x -= (float)pai->x;
+		a.y -= (float)pai->y;
+	}
 	xdg_positioner_set_size(pos, p->w, p->h);
 	xdg_positioner_set_anchor_rect(pos, (int)a.x, (int)a.y, a.width >= 1 ? (int)a.width : 1, a.height >= 1 ? (int)a.height : 1);
 	int d = p->opcoes.distancia > 0 ? (int)p->opcoes.distancia : 6;
@@ -2048,11 +2074,12 @@ static void popup_criar(gv_app *app, struct gv_popup *p) {
 	wl_surface_set_buffer_scale(p->sup, app->escala);
 	p->xdg_sup = xdg_wm_base_get_xdg_surface(app->xdg, p->sup);
 	xdg_surface_add_listener(p->xdg_sup, &popup_xdg_ouvinte, p);
-	p->xdg_popup = xdg_surface_get_popup(p->xdg_sup, app->xdg_superficie, pos);
+	struct gv_popup *pai = popup_pai(p);
+	p->xdg_popup = xdg_surface_get_popup(p->xdg_sup, pai ? pai->xdg_sup : app->xdg_superficie, pos);
 	xdg_popup_add_listener(p->xdg_popup, &popup_ouvinte, p);
 	/* a geometria é o conteúdo; a margem à volta é da sombra (depois do papel de popup) */
 	xdg_surface_set_window_geometry(p->xdg_sup, GV_POPUP_MARGEM, GV_POPUP_MARGEM, p->w, p->h);
-	if (app->camada) {
+	if (app->camada && !pai) {
 		zwlr_layer_surface_v1_get_popup(app->camada, p->xdg_popup);
 	}
 	/* o grab: tocar fora da app fecha (o compositor manda popup_done) */
@@ -2065,6 +2092,7 @@ static void popup_criar(gv_app *app, struct gv_popup *p) {
 
 /* Depois do layout: cria, muda de tamanho ou fecha as superfícies dos popups. */
 static void popups_rever(gv_app *app) {
+	app_dos_popups = app;
 	for (int i = 0; i < GV_MAX_POPUPS; i++) {
 		struct gv_popup *p = &app->popups[i];
 		if (!p->id) {
@@ -2092,6 +2120,10 @@ static void popups_rever(gv_app *app) {
 			continue;
 		}
 		if (!p->sup) {
+			if (p->opcoes.pai.id && !popup_pai(p)) {
+				app->precisa = true; /* o pai ainda não tem superfície: o submenu nasce no quadro seguinte */
+				continue;
+			}
 			p->w = w;
 			p->h = h;
 			popup_criar(app, p);

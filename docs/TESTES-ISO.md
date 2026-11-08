@@ -138,6 +138,11 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.94 | Ctrl+T no Atlas; navegar numa aba e clicar na outra | Surge a faixa de abas; cada aba guarda a sua pasta e o seu voltar/avançar | ☐ |
 | 2.95 | Botão direito numa pasta > Abrir em nova aba; X numa aba; Ctrl+Tab; Ctrl+W até a última | Abre depois da de agora; fecha; troca; a última aba fecha a janela | ☐ |
 | 2.96 | Dock: o ícone **Atlas**; duplo clique numa pasta no Firefox (Mostrar na pasta) ou `xdg-open ~` | Abre o Atlas (não há mais Thunar) | ☐ |
+| 2.97 | Botão direito numa pasta > Cor da pasta; depois Ícone da pasta | O submenu abre ao lado, com as cores (visto na atual) e a grade de emblemas; escolher vale na hora e fecha o menu | ☐ |
+| 2.98 | Selecionar uma pasta e Ctrl+I (ou menu > Propriedades) | A janela de propriedades aparece **na tela** (com o véu escuro atrás); Geral / Permissões / Detalhes; Cancelar e Esc fecham; nada trava | ☐ |
+| 2.99 | Propriedades > Geral: mudar o nome e Aplicar | Renomeia; "Abrir com" troca o aplicativo padrão do tipo | ☐ |
+| 2.100 | Propriedades > Permissões: mudar "Outros" e Aplicar (também com "aplicar aos itens da pasta" numa pasta pequena) | `ls -l` mostra o novo modo | ☐ |
+| 2.101 | Início: duplo clique e clique num cartão de pasta e de unidade; botão direito num cartão | Entra; o menu tem "Remover da página inicial", que tira o cartão (volta em Configurações) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

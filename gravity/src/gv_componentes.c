@@ -507,6 +507,10 @@ void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const ch
 }
 
 bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const char *detalhe) {
+	return gv_menu_item_ext(id, icone, gv_t.texto_secundario, texto, detalhe, false);
+}
+
+bool gv_menu_item_ext(Clay_ElementId id, const char *icone, Clay_Color cor_icone, const char *texto, const char *detalhe, bool marcado) {
 	bool tocado;
 	float e = estado_de(id, &tocado);
 	gv__focavel(id, false);
@@ -519,13 +523,16 @@ bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const
 	}) {
 		gv__foco_anel(id, gv_t.raio_medio);
 		if (icone) {
-			gv_icone(icone, 20, gv_t.texto_secundario);
+			gv_icone(icone, 20, cor_icone);
 		}
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
 			gv_texto(gv_str(texto), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
 		}
 		if (detalhe) {
 			gv_texto(gv_str(detalhe), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		if (marcado) {
+			gv_icone("check", 18, gv_t.texto);
 		}
 	}
 	return tocado;
@@ -636,6 +643,7 @@ struct menu_ponteiro {
 	uint32_t id;
 	Clay_Vector2 onde;
 	bool abrir; /* abre no quadro seguinte, já com a âncora no lugar novo */
+	uint64_t pedido_em; /* o quadro do pedido: vários alvos do mesmo menu no mesmo quadro não o abrem antes da âncora ir para o lugar novo */
 };
 static struct menu_ponteiro menus_ponteiro[GV_MENUS_PONTEIRO];
 
@@ -659,11 +667,12 @@ static struct menu_ponteiro *menu_ponteiro_de(uint32_t id) {
 
 bool gv_menu_no_ponteiro(Clay_ElementId alvo, Clay_ElementId menu) {
 	struct menu_ponteiro *m = menu_ponteiro_de(menu.id);
-	if (m->abrir) {
+	if (m->abrir && gv__quadro_n > m->pedido_em) {
 		m->abrir = false;
 		gv_popup_abrir(menu);
 	}
 	if (gv_menu_contexto(alvo)) {
+		m->pedido_em = gv__quadro_n;
 		m->onde = gv_ponteiro();
 		gv_popup_fechar(menu);
 		m->abrir = true;

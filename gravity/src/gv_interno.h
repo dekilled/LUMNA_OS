@@ -16,6 +16,7 @@
 /* ---- memória do quadro: textos e dados dos elementos, apagada a cada quadro ---- */
 void *gv__quadro_alloc(size_t tamanho);
 void gv__quadro_limpar(void);
+extern uint64_t gv__quadro_n;
 
 /* ---- entrada do quadro (gv_app.c enche, os componentes lêem) ---- */
 struct gv_entrada {

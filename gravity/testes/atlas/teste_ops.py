@@ -318,23 +318,26 @@ time.sleep(0.6)
 digita(repo)
 tecla("Return")
 confere(lambda: os.path.exists(f"{docs}/repo-origem/.git"), "Git clone cria a pasta do repositório", 8)
-# cor e ícone desta pasta
+# cor e ícone desta pasta: submenus que abrem ao lado do menu
 segura_xy(900, 560)
-toca("mf-estilo")
+toca("mf-cor")
+confere(lambda: pos("sub-cor-i/3") is not None, "Cor desta pasta abre o submenu das cores ao lado")
+toca("sub-cor-i/3")
 time.sleep(0.6)
-toca("es-cor/3")
-toca("es-ic/1")
+segura_xy(900, 560)
+toca("mf-icone")
+confere(lambda: pos("sub-ic/1") is not None, "Ícone desta pasta abre a grade de emblemas ao lado")
+toca("sub-ic/1")
 time.sleep(0.4)
 ini = open(f"{casa}/.config/lumna/atlas/pastas.ini").read()
 if "#30A46C" not in ini or "icone=heart" not in ini:
     falha(f"cor e ícone não foram gravados: {ini!r}")
-toca("es-fechar")
 
 # 11. propriedades
 tecla("i", mod="ctrl")
-confere(lambda: pos("pr-fechar") is not None, "Ctrl+I abre as propriedades")
+confere(lambda: pos("pr-aplicar") is not None, "Ctrl+I abre as propriedades")
 time.sleep(0.4)
-toca("pr-fechar")
+toca("pr-cancelar")
 
 if falhas:
     print(f"{len(falhas)} falha(s)")

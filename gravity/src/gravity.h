@@ -348,6 +348,8 @@ typedef struct gv_popup_opcoes {
 	float altura_max;          /* 0: a do conteúdo; senão o popup nunca passa disto e o conteúdo rola */
 	bool sem_grab;             /* de passar o rato (uma prévia, uma dica): não prende o ponteiro
 	                            * nem fecha ao tocar fora da app; quem o abre é que o fecha */
+	Clay_ElementId pai;        /* o popup de dentro de que este nasce (um submenu ao lado de um menu); 0: a janela.
+	                            * Só um nível: o pai tem de ser um popup que não tem pai */
 } gv_popup_opcoes;
 /* Um popup preso a um elemento (a âncora): uma superfície própria, que pode sair da janela (o
  * menu da topbar), com sombra, que chega esmaecendo. Fecha ao tocar fora (na app ou fora dela),
@@ -367,6 +369,8 @@ bool gv_popup_aberto(Clay_ElementId id);
 /* Uma linha de menu: ícone (NULL: sem), texto e, à direita, um atalho ou detalhe (NULL: sem).
  * Devolve verdadeiro no toque. */
 bool gv_menu_item(Clay_ElementId id, const char *icone, const char *texto, const char *detalhe);
+/* O mesmo com a cor do ícone (uma cor de pasta, por exemplo) e, opcionalmente, o visto de "escolhido" à direita. */
+bool gv_menu_item_ext(Clay_ElementId id, const char *icone, Clay_Color cor_icone, const char *texto, const char *detalhe, bool marcado);
 /* Uma lista suspensa (dropdown): mostra a opção escolhida e abre as outras num popup logo abaixo,
  * da largura dela. Devolve verdadeiro quando a escolha mudou. */
 bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int *escolhida);

@@ -17,6 +17,7 @@
 #include <glib/gstdio.h>
 #include <pango/pangocairo.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -30,6 +31,7 @@
 #include "arquivos.h"
 #include "arquivos_cfg.h"
 #include "arquivos_op.h"
+#include "arquivos_prop.h"
 #include "connectc.h"
 #include "gravity.h"
 #include "json.h"
@@ -86,11 +88,11 @@ static bool op_cortada;             /* o que se cola vem de um Recortar */
 static bool confirmar_apagar;       /* a confirmação de apagar para sempre */
 static GPtrArray *apagar_alvos;
 static bool propriedades_abertas;
+static void pr_abrir(void);
 static int renomeando = -1;         /* o item que está sendo renomeado (índice em lista.v) */
 static char renome_nome[256];
 static bool focar_renome;
 static int renome_quadros;
-static int submenu;                 /* 1 fixar na barra lateral, 2 compartilhar: abertos dentro do menu de contexto */
 static bool editando_caminho;       /* Ctrl+L: o caminho vira um campo com sugestões */
 static char caminho_txt[4096];
 static bool focar_caminho;
@@ -101,9 +103,6 @@ static bool confirmar_esvaziar;     /* confirmar esvaziar a lixeira */
 static bool clonar_aberto;          /* o diálogo do git clone */
 static char clonar_url[512];
 static bool focar_clonar;
-static bool estilo_aberto;          /* o diálogo de cor e ícone da pasta */
-static char estilo_alvo[4096];
-static int submenu_fundo;           /* 1: Ordenar por, aberto dentro do menu do espaço vazio */
 static bool para_todos;             /* o "aplicar a todos" da pergunta de conflito */
 static int cont_filtros[6];
 
@@ -1852,6 +1851,9 @@ static void conteudo(void) {
 
 /* os cliques são tratados depois do desenho: o Clay já sabe onde cada um está */
 static void tratar_cliques_conteudo(void) {
+	if (vista == V_INICIO) {
+		return; /* o Início tem os seus cartões; o fundo da rolagem pedir o toque por último tirava o clique deles */
+	}
 	bool fundo = gv_tocado(ID_CONTEUDO); /* primeiro: quem pede o aperto depois ganha, e o item vale mais que o fundo */
 	bool algum = false;
 	for (int k = 0; k < nvis; k++) {
@@ -2090,18 +2092,83 @@ static void separador(const char *nome, uint32_t i) {
 	CLAY(CLAY_SIDI(gv_str(nome), i), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
 }
 
-/* uma linha de dentro de um submenu aberto no lugar (um pouco recuada) */
-static bool item_sub(Clay_ElementId id, const char *ic, const char *texto) {
-	bool r = false;
-	CLAY(CLAY_IDI("sub-recuo", id.id), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 22, 0, 0, 0 } } }) {
-		r = gv_menu_item(id, ic, texto, NULL);
-	}
-	return r;
+/* ---- submenus: abrem num popup ao lado do menu (o parâmetro .pai liga os dois) ---- */
+
+/* os submenus do menu de um item e os do menu do espaço vazio (ids diferentes: um menu fechado não pode fechar o submenu do outro) */
+static const char *const SUBMENUS_ITEM[] = { "sub-cor", "sub-icone", "sub-fixar", "sub-compart", NULL };
+static const char *const SUBMENUS_FUNDO[] = { "sub-cor-f", "sub-icone-f", "sub-ordem", NULL };
+static Clay_ElementId id_de(const char *nome) {
+	Clay_String cs = { .chars = nome, .length = (int)strlen(nome) };
+	return (Clay_ElementId){ .id = Clay__HashString(cs, 0).id };
 }
 
-static void abrir_estilo_da(const char *caminho) {
-	snprintf(estilo_alvo, sizeof(estilo_alvo), "%s", caminho);
-	estilo_aberto = true;
+static void fechar_submenus(const char *const *lista) {
+	for (int k = 0; lista[k]; k++) {
+		gv_popup_fechar(id_de(lista[k]));
+	}
+}
+
+/* a linha que abre (ou fecha) um submenu; abrir um fecha os outros do mesmo menu */
+static void linha_submenu(Clay_ElementId id, const char *ic, const char *texto, const char *sub, const char *const *irmaos) {
+	Clay_ElementId sid = id_de(sub);
+	bool aberto = gv_popup_aberto(sid);
+	if (gv_menu_item(id, ic, texto, aberto ? "‹" : "›")) {
+		fechar_submenus(irmaos);
+		if (!aberto) {
+			gv_popup_abrir(sid);
+		}
+	}
+}
+
+/* as cores de pasta (Padrão, Azul...), com o visto na de agora */
+static void submenu_cor(const char *alvo, Clay_ElementId ancora, Clay_ElementId pai, const char *sub) {
+	GV_POPUP(id_de(sub), ancora, .pai = pai, .lado = GV_POPUP_DIREITA, .largura = 230, .distancia = 4) {
+		uint32_t rgb;
+		char emb[32];
+		ar_pasta_estilo(alvo, &rgb, emb, sizeof(emb));
+		for (int c = 0; c < AR_CORES_N; c++) {
+			uint32_t v = AR_CORES[c].rgb;
+			Clay_Color cor = v ? (Clay_Color){ (float)((v >> 16) & 255), (float)((v >> 8) & 255), (float)(v & 255), 255 } : gv_t.acento;
+			if (gv_menu_item_ext(CLAY_IDI("sub-cor-i", (uint32_t)c), "folder", cor, AR_CORES[c].nome, NULL, v == rgb)) {
+				ar_pasta_estilo_definir(alvo, v, emb);
+				gv_popup_fechar(pai);
+			}
+		}
+	}
+}
+
+/* os emblemas de pasta, numa grade; o de agora fica marcado e tocar nele de novo tira */
+static void submenu_icone(const char *alvo, Clay_ElementId ancora, Clay_ElementId pai, const char *sub) {
+	GV_POPUP(id_de(sub), ancora, .pai = pai, .lado = GV_POPUP_DIREITA, .largura = 4 * 48 + 12 + 8, .distancia = 4) {
+		uint32_t rgb;
+		char emb[32];
+		ar_pasta_estilo(alvo, &rgb, emb, sizeof(emb));
+		int n = 0;
+		while (AR_ICONES[n]) {
+			n++;
+		}
+		for (int linha = 0; linha * 4 < n; linha++) {
+			CLAY(CLAY_IDI("sub-ic-linha", (uint32_t)linha), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4, .padding = { 4, 4, 0, 0 } } }) {
+				for (int i = linha * 4; i < n && i < linha * 4 + 4; i++) {
+					Clay_ElementId id = CLAY_IDI("sub-ic", (uint32_t)i);
+					bool atual = !strcmp(AR_ICONES[i], emb);
+					CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(44) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+						.backgroundColor = atual ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+						.border = { .color = atual ? gv_t.acento : (Clay_Color){ 0, 0, 0, 0 }, .width = GV_BORDA(atual ? 2 : 0) } }) {
+						gv_icone(AR_ICONES[i], 22, atual ? gv_t.texto : gv_t.texto_secundario);
+					}
+					if (gv_tocado(id)) {
+						ar_pasta_estilo_definir(alvo, rgb, atual ? "" : AR_ICONES[i]);
+						gv_popup_fechar(pai);
+					}
+				}
+			}
+		}
+		if (emb[0] && gv_menu_item(CLAY_ID("sub-ic-nenhum"), NULL, "Sem ícone", NULL)) {
+			ar_pasta_estilo_definir(alvo, rgb, "");
+			gv_popup_fechar(pai);
+		}
+	}
 }
 
 #define FECHAR_MENU() gv_popup_fechar(CLAY_ID("menu-item"))
@@ -2127,7 +2194,7 @@ static void menu_do_item(void) {
 		}
 		separador("mi-sep", 9);
 		if (gv_menu_item(CLAY_ID("mi-props"), "info", "Propriedades", "Ctrl+I")) {
-			propriedades_abertas = true;
+			pr_abrir();
 			FECHAR_MENU();
 		}
 		return;
@@ -2182,27 +2249,25 @@ static void menu_do_item(void) {
 		iniciar_renomear(i);
 	}
 	separador("mi-sep", 2);
-	if (pasta1 && gv_menu_item(CLAY_ID("mi-estilo"), "brush", "Cor e ícone da pasta", NULL)) {
-		abrir_estilo_da(cam[i]);
-		FECHAR_MENU();
-	}
 	if (pasta1) {
-		if (gv_menu_item(CLAY_ID("mi-fixar"), "pin", "Fixar na barra lateral", submenu == 1 ? "▾" : "▸")) {
-			submenu = submenu == 1 ? 0 : 1;
-		}
-		if (submenu == 1) {
+		linha_submenu(CLAY_ID("mi-cor"), "folder", "Cor da pasta", "sub-cor", SUBMENUS_ITEM);
+		submenu_cor(cam[i], CLAY_ID("mi-cor"), CLAY_ID("menu-item"), "sub-cor");
+		linha_submenu(CLAY_ID("mi-icone"), "star", "Ícone da pasta", "sub-icone", SUBMENUS_ITEM);
+		submenu_icone(cam[i], CLAY_ID("mi-icone"), CLAY_ID("menu-item"), "sub-icone");
+		linha_submenu(CLAY_ID("mi-fixar"), "pin", "Fixar na barra lateral", "sub-fixar", SUBMENUS_ITEM);
+		GV_POPUP(CLAY_ID("sub-fixar"), CLAY_ID("mi-fixar"), .pai = CLAY_ID("menu-item"), .lado = GV_POPUP_DIREITA, .largura = 240, .distancia = 4) {
 			bool e = ar_barra_tem(cam[i], AR_SECAO_ESPACOS), c = ar_barra_tem(cam[i], AR_SECAO_COLECOES), f = ar_eh_favorito(cam[i]);
-			if (item_sub(CLAY_ID("mi-fix-espacos"), e ? "check" : "home", "Espaços")) {
+			if (gv_menu_item(CLAY_ID("mi-fix-espacos"), e ? "check" : "home", "Espaços", NULL)) {
 				ar_barra_alternar(cam[i], AR_SECAO_ESPACOS);
 				ar_barra_ler(&barra);
 				FECHAR_MENU();
 			}
-			if (item_sub(CLAY_ID("mi-fix-colecoes"), c ? "check" : "folder", "Coleções")) {
+			if (gv_menu_item(CLAY_ID("mi-fix-colecoes"), c ? "check" : "folder", "Coleções", NULL)) {
 				ar_barra_alternar(cam[i], AR_SECAO_COLECOES);
 				ar_barra_ler(&barra);
 				FECHAR_MENU();
 			}
-			if (item_sub(CLAY_ID("mi-fix-favoritos"), f ? "check" : "star", "Favoritos")) {
+			if (gv_menu_item(CLAY_ID("mi-fix-favoritos"), f ? "check" : "star", "Favoritos", NULL)) {
 				ar_favorito_alternar(cam[i]);
 				FECHAR_MENU();
 			}
@@ -2221,18 +2286,17 @@ static void menu_do_item(void) {
 		}
 	}
 	if (so_arquivos) {
-		if (gv_menu_item(CLAY_ID("mi-compart"), "share", "Compartilhar", submenu == 2 ? "▾" : "▸")) {
-			submenu = submenu == 2 ? 0 : 2;
-			if (submenu == 2) {
-				celulares_ler();
-			}
+		bool abrindo = !gv_popup_aberto(CLAY_ID("sub-compart"));
+		linha_submenu(CLAY_ID("mi-compart"), "share", "Compartilhar", "sub-compart", SUBMENUS_ITEM);
+		if (abrindo && gv_popup_aberto(CLAY_ID("sub-compart"))) {
+			celulares_ler();
 		}
-		if (submenu == 2) {
+		GV_POPUP(CLAY_ID("sub-compart"), CLAY_ID("mi-compart"), .pai = CLAY_ID("menu-item"), .lado = GV_POPUP_DIREITA, .largura = 260, .distancia = 4) {
 			if (!n_celulares) {
-				item_sub(CLAY_ID("mi-cel-nenhum"), "phone", "Nenhum celular conectado");
+				gv_menu_item(CLAY_ID("mi-cel-nenhum"), "phone", "Nenhum celular conectado", NULL);
 			}
 			for (int c = 0; c < n_celulares; c++) {
-				if (item_sub(CLAY_IDI("mi-cel", (uint32_t)c), "phone", celulares[c].nome)) {
+				if (gv_menu_item(CLAY_IDI("mi-cel", (uint32_t)c), "phone", celulares[c].nome, NULL)) {
 					enviar_ao_celular(c);
 					FECHAR_MENU();
 				}
@@ -2275,7 +2339,7 @@ static void menu_do_item(void) {
 	}
 	separador("mi-sep", 3);
 	if (gv_menu_item(CLAY_ID("mi-props"), "info", "Propriedades", "Ctrl+I")) {
-		propriedades_abertas = true;
+		pr_abrir();
 		FECHAR_MENU();
 	}
 	separador("mi-sep", 4);
@@ -2312,23 +2376,22 @@ static void menu_do_fundo(void) {
 	if (real) {
 		separador("mf-sep", 1);
 	}
-	if (gv_menu_item(CLAY_ID("mf-ordenar"), "sliders", "Ordenar por", submenu_fundo == 1 ? "▾" : "▸")) {
-		submenu_fundo = submenu_fundo == 1 ? 0 : 1;
-	}
-	if (submenu_fundo == 1) {
+	linha_submenu(CLAY_ID("mf-ordenar"), "sliders", "Ordenar por", "sub-ordem", SUBMENUS_FUNDO);
+	GV_POPUP(CLAY_ID("sub-ordem"), CLAY_ID("mf-ordenar"), .pai = CLAY_ID("menu-fundo"), .lado = GV_POPUP_DIREITA, .largura = 230, .distancia = 4) {
 		for (int o = 0; o < 4; o++) {
-			if (item_sub(CLAY_IDI("mf-ord", (uint32_t)o), cfg.ordem == (int)o ? "check" : NULL, NOMES_ORDEM[o])) {
+			if (gv_menu_item_ext(CLAY_IDI("mf-ord", (uint32_t)o), NULL, gv_t.texto_secundario, NOMES_ORDEM[o], NULL, cfg.ordem == (int)o)) {
 				cfg.ordem = (enum ar_ordem)o;
 				carregar(true);
 				fechar_fundo();
 			}
 		}
-		if (item_sub(CLAY_ID("mf-ord-asc"), !cfg.decrescente ? "check" : NULL, "Crescente")) {
+		separador("mf-ord-sep", 0);
+		if (gv_menu_item_ext(CLAY_ID("mf-ord-asc"), NULL, gv_t.texto_secundario, "Crescente", NULL, !cfg.decrescente)) {
 			cfg.decrescente = false;
 			carregar(true);
 			fechar_fundo();
 		}
-		if (item_sub(CLAY_ID("mf-ord-desc"), cfg.decrescente ? "check" : NULL, "Decrescente")) {
+		if (gv_menu_item_ext(CLAY_ID("mf-ord-desc"), NULL, gv_t.texto_secundario, "Decrescente", NULL, cfg.decrescente)) {
 			cfg.decrescente = true;
 			carregar(true);
 			fechar_fundo();
@@ -2356,10 +2419,10 @@ static void menu_do_fundo(void) {
 			clonar_url[0] = '\0';
 			fechar_fundo();
 		}
-		if (gv_menu_item(CLAY_ID("mf-estilo"), "brush", "Cor e ícone desta pasta", NULL)) {
-			abrir_estilo_da(pasta);
-			fechar_fundo();
-		}
+		linha_submenu(CLAY_ID("mf-cor"), "folder", "Cor desta pasta", "sub-cor-f", SUBMENUS_FUNDO);
+		submenu_cor(pasta, CLAY_ID("mf-cor"), CLAY_ID("menu-fundo"), "sub-cor-f");
+		linha_submenu(CLAY_ID("mf-icone"), "star", "Ícone desta pasta", "sub-icone-f", SUBMENUS_FUNDO);
+		submenu_icone(pasta, CLAY_ID("mf-icone"), CLAY_ID("menu-fundo"), "sub-icone-f");
 	}
 	if (vista == V_PASTA) {
 		separador("mf-sep", 3);
@@ -2369,7 +2432,7 @@ static void menu_do_fundo(void) {
 			fechar_fundo();
 		}
 		if (gv_menu_item(CLAY_ID("mf-props"), "info", "Propriedades", "Ctrl+I")) {
-			propriedades_abertas = true;
+			pr_abrir();
 			fechar_fundo();
 		}
 	}
@@ -2397,6 +2460,8 @@ static void lado_do_menu(Clay_ElementId ancora, enum gv_popup_lado *lado, float 
 	}
 }
 
+static void menu_do_inicio(void);
+
 static void menus_de_contexto(void) {
 	enum gv_popup_lado lado;
 	float altura_max;
@@ -2407,7 +2472,16 @@ static void menus_de_contexto(void) {
 			menu_do_item();
 		}
 	} else {
-		submenu = 0; /* fechado: a próxima abertura começa com os submenus recolhidos */
+		fechar_submenus(SUBMENUS_ITEM); /* fechado: a próxima abertura começa com os submenus recolhidos */
+	}
+	if (vista == V_INICIO) {
+		Clay_ElementId anc_ini = gv_menu_ancora(CLAY_ID("menu-inicio"));
+		lado_do_menu(anc_ini, &lado, &altura_max);
+		GV_POPUP(CLAY_ID("menu-inicio"), anc_ini, .lado = lado, .alinhar = GV_ALINHAR_INICIO, .largura = 280, .distancia = 2, .altura_max = altura_max) {
+			CLAY(CLAY_ID("mn-i-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(6), .childGap = 2 } }) {
+				menu_do_inicio();
+			}
+		}
 	}
 	Clay_ElementId anc_fundo = gv_menu_ancora(CLAY_ID("menu-fundo"));
 	lado_do_menu(anc_fundo, &lado, &altura_max);
@@ -2416,7 +2490,7 @@ static void menus_de_contexto(void) {
 			menu_do_fundo();
 		}
 	} else {
-		submenu_fundo = 0;
+		fechar_submenus(SUBMENUS_FUNDO);
 	}
 }
 
@@ -2424,7 +2498,7 @@ static void menus_de_contexto(void) {
 
 static void dialogo(Clay_ElementId id, float largura, const char *titulo, void (*corpo)(void), void (*botoes)(void)) {
 	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
-		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 120, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE }, .backgroundColor = gv_t.veu }) {
+		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 95, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE }, .backgroundColor = gv_t.veu }) {
 		CLAY(CLAY_IDI("dlg-cartao", id.id), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(largura), CLAY_SIZING_FIT(0) },
 			.padding = CLAY_PADDING_ALL(22), .childGap = 14 }, .backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
 			.border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } }) {
@@ -2514,11 +2588,266 @@ static void pedir_esvaziar(void) {
 	}
 }
 
-/* --- propriedades --- */
+/* --- propriedades ---
+ * Quatro abas (Geral, Permissões, Detalhes e, num atalho .desktop, Aplicativo), como no mockup. Abrir lê tudo uma vez (nada de ler o disco a cada quadro);
+ * o tamanho de uma pasta é somado numa thread e aparece quando fica pronto. Aplicar renomeia, muda as permissões e o programa que abre o arquivo. */
+#define PR_MAX_APPS 24
+static int pr_aba;                    /* 0 Geral, 1 Permissões, 2 Detalhes, 3 Aplicativo */
+static GPtrArray *pr_caminhos;        /* o que se está vendo (um item: o dele; vários: o total) */
+static char pr_nome[256], pr_nome_orig[256];
+static ar_entrada pr_e;
+static struct stat pr_st;
+static char pr_mime[128], pr_tipo_txt[96], pr_destino_link[1024];
+static time_t pr_criado;
+static int pr_nivel[3];               /* dono, grupo, outros: o nível de acesso escolhido */
+static int pr_nivel_orig[3];
+static bool pr_exec, pr_exec_orig;    /* arquivo: "executável" */
+static ar_grupo pr_grupos[16];
+static int pr_ngrupos, pr_grupo_i;
+static bool pr_recursivo;
+static bool pr_eh_app;
+static ar_prop_app pr_app;
+static GAppInfo *pr_apps[PR_MAX_APPS];
+static int pr_napps, pr_app_i, pr_app_orig;
+static bool pr_somente_leitura;       /* na lixeira ou em vários itens: só mostra */
+/* o tamanho (somado numa thread) */
+static uint32_t pr_geracao;
+static bool pr_tam_pronto, pr_tam_completo;
+static int64_t pr_tam_bytes;
+static int pr_tam_itens;
+
+typedef struct pr_tam_req {
+	uint32_t geracao;
+	GPtrArray *caminhos;
+	int64_t bytes;
+	int itens;
+	bool completo;
+} pr_tam_req;
+
+static void pr_tam_fim(void *dados) {
+	pr_tam_req *r = dados;
+	if (r->geracao == pr_geracao && propriedades_abertas) {
+		pr_tam_bytes = r->bytes;
+		pr_tam_itens = r->itens;
+		pr_tam_completo = r->completo;
+		pr_tam_pronto = true;
+		gv_app_redesenhar(app);
+	}
+	g_ptr_array_free(r->caminhos, TRUE);
+	g_free(r);
+}
+
+static gpointer pr_tam_thread(gpointer dados) {
+	pr_tam_req *r = dados;
+	r->completo = true;
+	for (guint i = 0; i < r->caminhos->len; i++) {
+		const char *c = r->caminhos->pdata[i];
+		struct stat st;
+		if (lstat(c, &st) != 0) {
+			continue;
+		}
+		if (S_ISDIR(st.st_mode)) {
+			int64_t b;
+			int it;
+			if (!ar_tamanho_pasta(c, 200000, &b, &it)) {
+				r->completo = false;
+			}
+			r->bytes += b;
+			r->itens += it;
+		} else {
+			r->bytes += st.st_size;
+		}
+	}
+	gv_na_linha_principal(pr_tam_fim, r);
+	return NULL;
+}
+
+static void pr_liberar(void) {
+	if (pr_caminhos) {
+		g_ptr_array_free(pr_caminhos, TRUE);
+		pr_caminhos = NULL;
+	}
+	for (int i = 0; i < pr_napps; i++) {
+		g_clear_object(&pr_apps[i]);
+	}
+	pr_napps = 0;
+}
+
+static void pr_abrir(void) {
+	pr_liberar();
+	propriedades_abertas = true;
+	pr_aba = 0;
+	pr_recursivo = false;
+	pr_eh_app = false;
+	pr_tam_pronto = false;
+	pr_geracao++;
+	pr_caminhos = g_ptr_array_new_with_free_func(g_free);
+	for (int i = 0; i < lista.n; i++) {
+		if (sel[i] && cam[i]) {
+			g_ptr_array_add(pr_caminhos, g_strdup(cam[i]));
+		}
+	}
+	if (!pr_caminhos->len) {
+		g_ptr_array_add(pr_caminhos, g_strdup(pasta));
+	}
+	pr_somente_leitura = pr_caminhos->len > 1 || em_lixeira();
+	/* o tamanho, numa thread (uma pasta grande não trava a janela) */
+	pr_tam_req *r = g_new0(pr_tam_req, 1);
+	r->geracao = pr_geracao;
+	r->caminhos = g_ptr_array_new_with_free_func(g_free);
+	for (guint i = 0; i < pr_caminhos->len; i++) {
+		g_ptr_array_add(r->caminhos, g_strdup(pr_caminhos->pdata[i]));
+	}
+	g_thread_unref(g_thread_new("atlas-tamanho", pr_tam_thread, r));
+	if (pr_caminhos->len > 1) {
+		return;
+	}
+	const char *c = pr_caminhos->pdata[0];
+	memset(&pr_e, 0, sizeof(pr_e));
+	if (!ar_entrada_de(c, &pr_e)) {
+		pr_somente_leitura = true;
+		return;
+	}
+	snprintf(pr_nome, sizeof(pr_nome), "%s", pr_e.nome);
+	snprintf(pr_nome_orig, sizeof(pr_nome_orig), "%s", pr_e.nome);
+	if (stat(c, &pr_st) != 0 && lstat(c, &pr_st) != 0) {
+		memset(&pr_st, 0, sizeof(pr_st));
+	}
+	pr_criado = 0;
+	struct statx sx;
+	if (statx(AT_FDCWD, c, AT_SYMLINK_NOFOLLOW, STATX_BTIME, &sx) == 0 && (sx.stx_mask & STATX_BTIME)) {
+		pr_criado = (time_t)sx.stx_btime.tv_sec;
+	}
+	pr_destino_link[0] = '\0';
+	if (pr_e.link) {
+		ssize_t n = readlink(c, pr_destino_link, sizeof(pr_destino_link) - 1);
+		pr_destino_link[n > 0 ? n : 0] = '\0';
+	}
+	snprintf(pr_tipo_txt, sizeof(pr_tipo_txt), "%s", ar_tipo_nome(&pr_e));
+	/* o tipo MIME e os aplicativos que o abrem */
+	pr_mime[0] = '\0';
+	if (!pr_e.pasta) {
+		char *tipo = g_content_type_guess(c, NULL, 0, NULL);
+		snprintf(pr_mime, sizeof(pr_mime), "%s", tipo ? tipo : "");
+		g_free(tipo);
+		GList *apps = pr_mime[0] ? g_app_info_get_all_for_type(pr_mime) : NULL;
+		GAppInfo *padrao = pr_mime[0] ? g_app_info_get_default_for_type(pr_mime, FALSE) : NULL;
+		pr_app_i = pr_app_orig = 0;
+		for (GList *l = apps; l && pr_napps < PR_MAX_APPS; l = l->next) {
+			pr_apps[pr_napps] = g_object_ref(l->data);
+			if (padrao && g_app_info_equal(padrao, l->data)) {
+				pr_app_i = pr_app_orig = pr_napps;
+			}
+			pr_napps++;
+		}
+		g_list_free_full(apps, g_object_unref);
+		g_clear_object(&padrao);
+	} else {
+		snprintf(pr_mime, sizeof(pr_mime), "inode/directory");
+	}
+	/* permissões */
+	int modo = (int)(pr_st.st_mode & 0777);
+	for (int k = 0; k < 3; k++) {
+		int rwx = (modo >> (6 - 3 * k)) & 7;
+		pr_nivel[k] = pr_nivel_orig[k] = pr_e.pasta ? ar_nivel_pasta_de(rwx) : ar_nivel_arq_de(rwx);
+	}
+	pr_exec = pr_exec_orig = (modo & 0111) != 0;
+	pr_ngrupos = ar_grupos_da_pessoa(pr_grupos, 16, pr_st.st_gid);
+	pr_grupo_i = 0;
+	/* um atalho de aplicativo ganha a aba "Aplicativo" */
+	pr_eh_app = !pr_e.pasta && g_str_has_suffix(pr_e.nome, ".desktop") && ar_prop_desktop(c, &pr_app);
+}
+
+/* o modo (9 bits) que as escolhas dão */
+static mode_t pr_modo_editado(void) {
+	mode_t m = 0;
+	for (int k = 0; k < 3; k++) {
+		int rwx = pr_nivel[k] == (pr_e.pasta ? AR_NP_OUTRO : AR_NA_OUTRO) ? (int)((pr_st.st_mode >> (6 - 3 * k)) & 7)
+			: pr_e.pasta ? ar_rwx_da_pasta(pr_nivel[k]) : ar_rwx_do_arq(pr_nivel[k]);
+		if (!pr_e.pasta) {
+			int x = pr_exec == pr_exec_orig ? (int)((pr_st.st_mode >> (6 - 3 * k)) & 1) : pr_exec ? 1 : 0;
+			rwx = (rwx & 6) | x;
+		}
+		m |= (mode_t)(rwx << (6 - 3 * k));
+	}
+	return m;
+}
+
+typedef struct pr_aplic_req {
+	char *caminho;
+	mode_t modo;
+	bool grupo;
+	gid_t gid;
+	bool recursivo;
+	ar_prop_resultado r;
+} pr_aplic_req;
+
+static void pr_aplic_fim(void *dados) {
+	pr_aplic_req *q = dados;
+	if (q->r.erros) {
+		avisar("Permissões aplicadas a %lld %s, %d com erro", (long long)q->r.alterados, q->r.alterados == 1 ? "item" : "itens", q->r.erros);
+	} else {
+		avisar("Permissões aplicadas a %lld %s", (long long)q->r.alterados, q->r.alterados == 1 ? "item" : "itens");
+	}
+	carregar(true);
+	g_free(q->caminho);
+	g_free(q);
+}
+
+static gpointer pr_aplic_thread(gpointer dados) {
+	pr_aplic_req *q = dados;
+	ar_prop_aplicar(q->caminho, q->modo, q->grupo, q->gid, q->recursivo, &q->r);
+	gv_na_linha_principal(pr_aplic_fim, q);
+	return NULL;
+}
+
+/* Aplicar: renomear, permissões e aplicativo padrão; o que não mudou não é tocado */
+static void pr_aplicar(void) {
+	if (pr_somente_leitura || !pr_caminhos || pr_caminhos->len != 1) {
+		return;
+	}
+	char *c = g_strdup(pr_caminhos->pdata[0]);
+	mode_t novo = pr_modo_editado();
+	gid_t gid = pr_grupos[pr_grupo_i].gid;
+	bool grupo = gid != pr_st.st_gid;
+	if (novo != (pr_st.st_mode & 0777) || grupo || pr_recursivo) {
+		pr_aplic_req *q = g_new0(pr_aplic_req, 1);
+		q->caminho = g_strdup(c);
+		q->modo = (mode_t)((pr_st.st_mode & 07000) | novo);
+		q->grupo = grupo;
+		q->gid = gid;
+		q->recursivo = pr_recursivo && pr_e.pasta;
+		g_thread_unref(g_thread_new("atlas-permissoes", pr_aplic_thread, q));
+	}
+	if (pr_napps && pr_app_i != pr_app_orig && pr_mime[0]) {
+		GError *err = NULL;
+		if (!g_app_info_set_as_default_for_type(pr_apps[pr_app_i], pr_mime, &err)) {
+			avisar("Não consegui trocar o aplicativo: %s", err ? err->message : "?");
+			g_clear_error(&err);
+		}
+	}
+	if (strcmp(pr_nome, pr_nome_orig) && pr_nome[0]) {
+		char *novo_caminho = NULL, *erro = NULL;
+		if (ar_renomear(c, pr_nome, &novo_caminho, &erro)) {
+			desfazer_ate = gv_agora() + 10;
+			snprintf(desfazer_texto, sizeof(desfazer_texto), "Renomear");
+			avisar("Renomeado");
+			carregar(true);
+			selecionar_caminho(novo_caminho);
+		} else {
+			avisar("%s", erro ? erro : "Não consegui renomear");
+		}
+		g_free(novo_caminho);
+		g_free(erro);
+	}
+	g_free(c);
+	propriedades_abertas = false;
+}
+
 static void linha_prop(const char *rotulo, const char *valor) {
 	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12 } }) {
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(110) } } }) {
-			gv_texto(gv_str(rotulo), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+			gv_texto(gv_str(rotulo), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 		}
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
 			gv_texto(gv_str(valor), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
@@ -2526,68 +2855,322 @@ static void linha_prop(const char *rotulo, const char *valor) {
 	}
 }
 
-static void corpo_propriedades(void) {
-	int n = n_selecionados();
-	int i = primeiro_selecionado();
-	if (n > 1) {
-		int64_t total = 0;
-		int pastas = 0;
-		for (int j = 0; j < lista.n; j++) {
-			if (sel[j]) {
-				pastas += lista.v[j].pasta;
-				if (lista.v[j].pasta) {
-					int64_t b;
-					int it;
-					ar_tamanho_pasta(cam[j], 20000, &b, &it);
-					total += b;
+static void titulo_secao(const char *t) {
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 6, 0 } } }) {
+		gv_texto(gv_str(t), gv_t.tamanho_corpo + 2, gv_t.texto, GV_PESO_MEDIO);
+	}
+}
+
+static const char *pr_data(time_t t) {
+	if (!t) {
+		return "—";
+	}
+	struct tm tm;
+	localtime_r(&t, &tm);
+	char b[48];
+	strftime(b, sizeof(b), "%d/%m/%Y, %H:%M", &tm);
+	return gv_str(b).chars;
+}
+
+static void pr_cabecalho(void) {
+	CLAY(CLAY_ID("pr-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		if (pr_caminhos && pr_caminhos->len == 1) {
+			if (pr_eh_app) {
+				gv_icone_app(pr_app.icone, 48);
+			} else {
+				ic_dados *d = &ic_pool[ic_n++ % (int)(sizeof(ic_pool) / sizeof(ic_pool[0]))];
+				d->tipo = pr_e.pasta ? AR_PASTA : pr_e.tipo;
+				d->link = pr_e.link;
+				d->cor = 0;
+				d->nprevia = 0;
+				char emb[32] = "";
+				if (pr_e.pasta) {
+					ar_pasta_estilo(pr_caminhos->pdata[0], &d->cor, emb, sizeof(emb));
+				}
+				ar_selo(&pr_e, d->selo, sizeof(d->selo));
+				CLAY(CLAY_ID("pr-icone"), gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(52) } } })) {}
+			}
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+				gv_texto(gv_str(pr_eh_app && pr_app.nome[0] ? pr_app.nome : pr_e.nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+				gv_texto(gv_str(pr_eh_app && pr_app.comentario[0] ? pr_app.comentario : pr_tipo_txt), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+		} else {
+			gv_icone("folder", 40, gv_t.texto_secundario);
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+				gv_texto(gv_str(pr_caminhos && pr_caminhos->len > 1 ? gv_fmt("%u itens selecionados", pr_caminhos->len).chars : "Propriedades"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+			}
+		}
+	}
+}
+
+static void pr_abas(void) {
+	static const char *const NOMES[] = { "Geral", "Permissões", "Detalhes", "Aplicativo" };
+	CLAY(CLAY_ID("pr-abas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 }, .border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
+		for (int i = 0; i < 4; i++) {
+			if (i == 3 && !pr_eh_app) {
+				continue;
+			}
+			if (i > 0 && pr_caminhos && pr_caminhos->len > 1) {
+				continue; /* vários itens: só o resumo */
+			}
+			Clay_ElementId id = CLAY_IDI("pr-aba", (uint32_t)i);
+			bool atual = pr_aba == i;
+			CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .padding = { 14, 14, 8, 0 }, .childGap = 6, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } } }) {
+				gv_texto(gv_str(NOMES[i]), gv_t.tamanho_corpo, atual || gv_por_cima(id) ? gv_t.texto : gv_t.texto_secundario, atual ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(2) } }, .backgroundColor = atual ? gv_t.acento : (Clay_Color){ 0, 0, 0, 0 } }) {}
+			}
+			if (gv_tocado(id)) {
+				pr_aba = i;
+			}
+		}
+	}
+}
+
+static const char *pr_tamanho_texto(void) {
+	if (!pr_tam_pronto) {
+		return "Calculando…";
+	}
+	char t[32];
+	ar_tamanho_humano(pr_tam_bytes, t, sizeof(t));
+	if (pr_e.pasta || (pr_caminhos && pr_caminhos->len > 1)) {
+		return gv_fmt("%s%s · %d %s dentro", pr_tam_completo ? "" : "mais de ", t, pr_tam_itens, pr_tam_itens == 1 ? "item" : "itens").chars;
+	}
+	return gv_fmt("%s (%lld bytes)", t, (long long)pr_e.tamanho).chars;
+}
+
+static void pr_aba_geral(void) {
+	if (pr_caminhos && pr_caminhos->len > 1) {
+		linha_prop("Selecionados", gv_fmt("%u itens", pr_caminhos->len).chars);
+		linha_prop("Tamanho total", pr_tamanho_texto());
+		return;
+	}
+	const char *c = pr_caminhos->pdata[0];
+	titulo_secao("Identificação");
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+			gv_texto(CLAY_STRING("Nome"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			if (pr_somente_leitura) {
+				gv_texto(gv_str(pr_e.nome), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+			} else if (gv_campo(CLAY_ID("pr-nome"), pr_nome, sizeof(pr_nome), "Nome", GV_CAMPO_TEXTO) & GV_CAMPO_ENTER) {
+				pr_aplicar();
+			}
+		}
+	}
+	char *pai = ar_pai(c);
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(122) } } }) {
+			gv_texto(CLAY_STRING("Local"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		CLAY(CLAY_ID("pr-local"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 12, 12, 0, 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .clip = { .horizontal = true } }) {
+			gv_texto(gv_str(pai ? pai : "/"), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+		}
+		if (gv_botao_ext(CLAY_ID("pr-copiar"), &(gv_botao_opcoes){ .icone = "copy", .estilo = GV_BOTAO_ELEVADO, .altura = 40 })) {
+			gv_copiar(pai ? pai : "/");
+			avisar("Caminho copiado");
+		}
+		if (gv_botao_ext(CLAY_ID("pr-abrir-pasta"), &(gv_botao_opcoes){ .texto = "Abrir pasta", .estilo = GV_BOTAO_ELEVADO, .altura = 40 })) {
+			char *destino = g_strdup(pai ? pai : "/");
+			propriedades_abertas = false;
+			ir_para(destino, true);
+			g_free(destino);
+		}
+	}
+	g_free(pai);
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+	linha_prop("Tipo", pr_tipo_txt);
+	linha_prop("Tamanho", pr_tamanho_texto());
+	linha_prop("Criado em", pr_data(pr_criado));
+	linha_prop("Modificado em", pr_data(pr_e.mtime));
+	if (!pr_e.pasta && pr_napps && !pr_somente_leitura) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+				gv_texto(CLAY_STRING("Abrir com"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			}
+			const char *nomes[PR_MAX_APPS];
+			for (int i = 0; i < pr_napps; i++) {
+				nomes[i] = gv_str(g_app_info_get_display_name(pr_apps[i])).chars;
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_lista_suspensa(CLAY_ID("pr-abrir-com"), nomes, pr_napps, &pr_app_i);
+			}
+		}
+	}
+}
+
+static void pr_aba_permissoes(void) {
+	if (pr_e.pasta) {
+		titulo_secao("Acesso à pasta");
+	} else {
+		titulo_secao("Acesso ao arquivo");
+	}
+	/* dono e grupo */
+	struct passwd *pw = getpwuid(pr_st.st_uid);
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+			gv_texto(CLAY_STRING("Proprietário"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		gv_texto(gv_str(pw ? pw->pw_name : "?"), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+	}
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+			gv_texto(CLAY_STRING("Grupo"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		const char *gn[16];
+		for (int i = 0; i < pr_ngrupos; i++) {
+			gn[i] = gv_str(pr_grupos[i].nome).chars;
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			if (pr_somente_leitura) {
+				gv_texto(gv_str(pr_grupos[0].nome), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+			} else {
+				gv_lista_suspensa(CLAY_ID("pr-grupo"), gn, pr_ngrupos, &pr_grupo_i);
+			}
+		}
+	}
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+	static const char *const QUEM[3] = { "Proprietário", "Grupo", "Outros" };
+	static const char *const ICONES[3] = { "user", "users", "globe" };
+	for (int k = 0; k < 3; k++) {
+		CLAY(CLAY_IDI("pr-linha", (uint32_t)k), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(150) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				gv_icone(ICONES[k], 20, gv_t.texto_secundario);
+				gv_texto(gv_str(QUEM[k]), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+			}
+			const char *op[5];
+			int n;
+			int rwx_atual = (int)((pr_st.st_mode >> (6 - 3 * k)) & 7);
+			char outro[24];
+			if (pr_e.pasta) {
+				for (n = 0; n < 4; n++) {
+					op[n] = AR_NIVEIS_PASTA[n];
+				}
+			} else {
+				for (n = 0; n < 3; n++) {
+					op[n] = AR_NIVEIS_ARQ[n];
+				}
+			}
+			if (pr_nivel_orig[k] == (pr_e.pasta ? AR_NP_OUTRO : AR_NA_OUTRO)) { /* o que já era, sem nome */
+				snprintf(outro, sizeof(outro), "%c%c%c", rwx_atual & 4 ? 'r' : '-', rwx_atual & 2 ? 'w' : '-', rwx_atual & 1 ? 'x' : '-');
+				op[n++] = gv_str(outro).chars;
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				if (pr_somente_leitura) {
+					gv_texto(gv_str(op[pr_nivel[k] < n ? pr_nivel[k] : 0]), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
 				} else {
-					total += lista.v[j].tamanho;
+					gv_lista_suspensa(CLAY_IDI("pr-nivel", (uint32_t)k), op, n, &pr_nivel[k]);
 				}
 			}
 		}
-		char t[32];
-		ar_tamanho_humano(total, t, sizeof(t));
-		linha_prop("Selecionados", gv_fmt("%d itens (%d %s)", n, pastas, pastas == 1 ? "pasta" : "pastas").chars);
-		linha_prop("Tamanho", t);
-		return;
 	}
-	ar_entrada e;
-	const char *caminho = i >= 0 ? cam[i] : pasta;
-	if (!ar_entrada_de(caminho, &e)) {
-		return;
+	if (!pr_e.pasta && !pr_somente_leitura) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_interruptor(CLAY_ID("pr-exec"), &pr_exec);
+			gv_texto(CLAY_STRING("Permitir executar como programa"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
 	}
-	struct stat st;
-	char data[48], t[32];
-	linha_prop("Nome", e.nome);
-	linha_prop("Tipo", ar_tipo_nome(&e));
-	char *pai = ar_pai(caminho);
-	linha_prop("Local", pai ? pai : "/");
-	g_free(pai);
-	if (e.pasta) {
-		int64_t b;
-		int it;
-		bool completo = ar_tamanho_pasta(caminho, 50000, &b, &it);
-		ar_tamanho_humano(b, t, sizeof(t));
-		linha_prop("Tamanho", gv_fmt("%s%s (%d %s dentro)", completo ? "" : "mais de ", t, it, it == 1 ? "item" : "itens").chars);
-	} else {
-		ar_tamanho_humano(e.tamanho, t, sizeof(t));
-		linha_prop("Tamanho", gv_fmt("%s (%lld bytes)", t, (long long)e.tamanho).chars);
-	}
-	ar_data_humana(e.mtime, time(NULL), data, sizeof(data));
-	linha_prop("Modificado", data);
-	if (stat(caminho, &st) == 0) {
-		ar_data_humana(st.st_atime, time(NULL), data, sizeof(data));
-		linha_prop("Acessado", data);
-	}
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+	mode_t m = pr_modo_editado();
 	char perm[16];
-	ar_permissoes_texto(e.modo, perm, sizeof(perm));
-	linha_prop("Permissões", gv_fmt("%s (%04o)", perm, (unsigned)(e.modo & 07777)).chars);
-	struct passwd *pw = getpwuid(e.uid);
-	linha_prop("Dono", e.uid == getuid() ? gv_fmt("Você (%s)", pw ? pw->pw_name : "?").chars : pw ? pw->pw_name : "?");
+	ar_permissoes_texto(m, perm, sizeof(perm));
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12 } }) {
+		gv_texto(CLAY_STRING("Modo atual"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		gv_texto(gv_fmt("%03o  (%s)", (unsigned)(m & 0777), perm), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+	}
+	if (pr_e.pasta && !pr_somente_leitura) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_interruptor(CLAY_ID("pr-recursivo"), &pr_recursivo);
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(CLAY_STRING("Aplicar também aos itens da pasta"), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+				gv_texto(CLAY_STRING("Inclui arquivos e subpastas."), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+		}
+	}
 }
-static void botoes_propriedades(void) {
-	if (gv_botao_ext(CLAY_ID("pr-fechar"), &(gv_botao_opcoes){ .texto = "Fechar", .estilo = GV_BOTAO_CHEIO })) {
+
+static void pr_aba_detalhes(void) {
+	const char *c = pr_caminhos->pdata[0];
+	linha_prop("Caminho completo", c);
+	linha_prop("Tipo MIME", pr_mime[0] ? pr_mime : "—");
+	if (pr_destino_link[0]) {
+		linha_prop("Aponta para", pr_destino_link);
+	}
+	struct passwd *pw = getpwuid(pr_st.st_uid);
+	linha_prop("Dono", pr_st.st_uid == getuid() ? gv_fmt("Você (%s)", pw ? pw->pw_name : "?").chars : pw ? pw->pw_name : "?");
+	linha_prop("Acessado em", pr_data(pr_st.st_atime));
+	linha_prop("Alterado em", pr_data(pr_st.st_ctime));
+	linha_prop("Links", gv_fmt("%lu", (unsigned long)pr_st.st_nlink).chars);
+	linha_prop("Inode", gv_fmt("%lu", (unsigned long)pr_st.st_ino).chars);
+	linha_prop("Ocupa no disco", gv_fmt("%lld bytes", (long long)pr_st.st_blocks * 512).chars);
+}
+
+static void pr_aba_aplicativo(void) {
+	titulo_secao("Informações do aplicativo");
+	linha_prop("Versão", pr_app.versao[0] ? pr_app.versao : "—");
+	linha_prop("Pacote", pr_app.pacote[0] ? pr_app.pacote : "—");
+	linha_prop("Origem", pr_app.origem[0] ? pr_app.origem : "—");
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+	titulo_secao("Instalação");
+	const char *c = pr_caminhos->pdata[0];
+	for (int i = 0; i < 2; i++) {
+		const char *rot = i == 0 ? "Executável" : "Atalho do aplicativo";
+		const char *val = i == 0 ? (pr_app.executavel[0] ? pr_app.executavel : pr_app.exec) : c;
+		CLAY(CLAY_IDI("pr-inst", (uint32_t)i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(150) } } }) {
+				gv_texto(gv_str(rot), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 12, 12, 0, 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .clip = { .horizontal = true } }) {
+				gv_texto(gv_str(val), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+			}
+			if (gv_botao_ext(CLAY_IDI("pr-inst-c", (uint32_t)i), &(gv_botao_opcoes){ .icone = "copy", .estilo = GV_BOTAO_SIMPLES, .altura = 40 })) {
+				gv_copiar(val);
+				avisar("Copiado");
+			}
+		}
+	}
+	if (pr_app.executavel[0] && gv_botao_ext(CLAY_ID("pr-local-exec"), &(gv_botao_opcoes){ .icone = "folder", .texto = "Abrir local do executável", .estilo = GV_BOTAO_ELEVADO, .altura = 40 })) {
+		char *pai = g_path_get_dirname(pr_app.executavel);
 		propriedades_abertas = false;
+		ir_para(pai, true);
+		g_free(pai);
+	}
+}
+
+static void corpo_propriedades(void) {
+	if (!pr_caminhos) {
+		return;
+	}
+	pr_cabecalho();
+	pr_abas();
+	CLAY(CLAY_ID("pr-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 6, 6 }, .childGap = 10 } }) {
+		if (pr_aba == 1 && pr_caminhos->len == 1) {
+			pr_aba_permissoes();
+		} else if (pr_aba == 2 && pr_caminhos->len == 1) {
+			pr_aba_detalhes();
+		} else if (pr_aba == 3 && pr_eh_app) {
+			pr_aba_aplicativo();
+		} else {
+			pr_aba_geral();
+		}
+	}
+}
+
+static void botoes_propriedades(void) {
+	if (pr_somente_leitura) {
+		if (gv_botao_ext(CLAY_ID("pr-fechar"), &(gv_botao_opcoes){ .texto = "Fechar", .estilo = GV_BOTAO_CHEIO })) {
+			propriedades_abertas = false;
+		}
+		return;
+	}
+	if (gv_botao_ext(CLAY_ID("pr-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+		propriedades_abertas = false;
+	}
+	if (gv_botao_ext(CLAY_ID("pr-aplicar"), &(gv_botao_opcoes){ .texto = "Aplicar", .estilo = GV_BOTAO_CHEIO })) {
+		pr_aplicar();
 	}
 }
 
@@ -2625,75 +3208,6 @@ static void botoes_clone(void) {
 	}
 }
 
-/* --- cor e ícone da pasta (vale na hora) --- */
-static void corpo_estilo(void) {
-	uint32_t rgb;
-	char emblema[32];
-	ar_pasta_estilo(estilo_alvo, &rgb, emblema, sizeof(emblema));
-	texto_dialogo("Cor");
-	CLAY(CLAY_ID("es-cores"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
-		for (int c = 0; c < AR_CORES_N; c++) {
-			Clay_ElementId id = CLAY_IDI("es-cor", (uint32_t)c);
-			uint32_t v = AR_CORES[c].rgb;
-			Clay_Color cor = v ? (Clay_Color){ (float)((v >> 16) & 255), (float)((v >> 8) & 255), (float)(v & 255), 255 } : gv_t.acento;
-			bool atual = v == rgb;
-			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(34) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = cor, .cornerRadius = CLAY_CORNER_RADIUS(17), .border = { .color = atual ? gv_t.texto : gv_t.borda, .width = GV_BORDA(atual ? 3 : 1) } }) {
-				if (atual) {
-					gv_icone("check", 16, (Clay_Color){ 255, 255, 255, 255 });
-				}
-			}
-			if (gv_tocado(id)) {
-				ar_pasta_estilo_definir(estilo_alvo, v, emblema);
-			}
-		}
-	}
-	texto_dialogo("Ícone");
-	CLAY(CLAY_ID("es-icones"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
-		for (int i = 0; AR_ICONES[i]; i++) {
-			if (i == 8) {
-				break;
-			}
-			Clay_ElementId id = CLAY_IDI("es-ic", (uint32_t)i);
-			bool atual = !strcmp(AR_ICONES[i], emblema);
-			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(44) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = atual ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
-				.border = { .color = atual ? gv_t.acento : gv_t.borda, .width = GV_BORDA(atual ? 2 : 1) } }) {
-				gv_icone(AR_ICONES[i], 22, atual ? gv_t.texto : gv_t.texto_secundario);
-			}
-			if (gv_tocado(id)) {
-				ar_pasta_estilo_definir(estilo_alvo, rgb, atual ? "" : AR_ICONES[i]);
-			}
-		}
-	}
-	CLAY(CLAY_ID("es-icones2"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
-		int n = 0;
-		while (AR_ICONES[n]) {
-			n++;
-		}
-		for (int i = 8; i < n; i++) {
-			Clay_ElementId id = CLAY_IDI("es-ic", (uint32_t)i);
-			bool atual = !strcmp(AR_ICONES[i], emblema);
-			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(44) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
-				.backgroundColor = atual ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
-				.border = { .color = atual ? gv_t.acento : gv_t.borda, .width = GV_BORDA(atual ? 2 : 1) } }) {
-				gv_icone(AR_ICONES[i], 22, atual ? gv_t.texto : gv_t.texto_secundario);
-			}
-			if (gv_tocado(id)) {
-				ar_pasta_estilo_definir(estilo_alvo, rgb, atual ? "" : AR_ICONES[i]);
-			}
-		}
-	}
-}
-static void botoes_estilo(void) {
-	if (gv_botao_ext(CLAY_ID("es-padrao"), &(gv_botao_opcoes){ .texto = "Voltar ao padrão", .estilo = GV_BOTAO_ELEVADO })) {
-		ar_pasta_estilo_definir(estilo_alvo, 0, "");
-	}
-	if (gv_botao_ext(CLAY_ID("es-fechar"), &(gv_botao_opcoes){ .texto = "Fechar", .estilo = GV_BOTAO_CHEIO })) {
-		estilo_aberto = false;
-	}
-}
-
 static void dialogos(void) {
 	if (op && op_st.pergunta) {
 		dialogo(CLAY_ID("dlg-conflito"), 460, "Já existe", corpo_conflito, botoes_conflito);
@@ -2703,10 +3217,8 @@ static void dialogos(void) {
 		dialogo(CLAY_ID("dlg-esvaziar"), 440, "Esvaziar a lixeira?", corpo_esvaziar, botoes_esvaziar);
 	} else if (clonar_aberto) {
 		dialogo(CLAY_ID("dlg-clone"), 520, "Git clone", corpo_clone, botoes_clone);
-	} else if (estilo_aberto) {
-		dialogo(CLAY_ID("dlg-estilo"), 460, "Cor e ícone da pasta", corpo_estilo, botoes_estilo);
 	} else if (propriedades_abertas) {
-		dialogo(CLAY_ID("dlg-props"), 520, "Propriedades", corpo_propriedades, botoes_propriedades);
+		dialogo(CLAY_ID("dlg-props"), 600, "Propriedades", corpo_propriedades, botoes_propriedades);
 	}
 }
 
@@ -2800,7 +3312,7 @@ static void mover_foco(int dk) {
 static void teclado_atalhos(void) {
 	bool digitando = gv_focado(CLAY_ID("busca")) || gv_focado(CLAY_ID("mn-nome")) || gv_focado(CLAY_ID("renome")) || gv_focado(CLAY_ID("caminho-campo")) || gv_focado(CLAY_ID("cl-url"));
 	uint32_t mods = gv_modificadores();
-	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || estilo_aberto;
+	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto;
 	for (int i = 0;; i++) {
 		uint32_t k = gv_tecla_n(i);
 		if (!k) {
@@ -2811,7 +3323,7 @@ static void teclado_atalhos(void) {
 				if (op && op_st.pergunta) {
 					ar_op_cancelar(op);
 				}
-				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = clonar_aberto = estilo_aberto = false;
+				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = clonar_aberto = false;
 			}
 			continue;
 		}
@@ -2899,7 +3411,7 @@ static void teclado_atalhos(void) {
 				} else if (k == XKB_KEY_v) {
 					colar();
 				} else if (k == XKB_KEY_i && n_selecionados() + (vista == V_PASTA ? 1 : 0) > 0) {
-					propriedades_abertas = true;
+					pr_abrir();
 				}
 			}
 			continue;
@@ -3004,6 +3516,40 @@ static bool cartao_unidade(Clay_ElementId id, const ar_unidade *u, float larg) {
 	return gv_tocado(id);
 }
 
+static int inicio_menu_item = -1;       /* o cartão de pasta do menu de contexto da página inicial (índice na barra lateral) */
+static char inicio_menu_caminho[4096];  /* ou o ponto de montagem do cartão de unidade */
+
+/* o menu de um cartão do Início: abrir (aqui, em aba, em janela) e, nas pastas, tirar da página */
+static void menu_do_inicio(void) {
+	const char *alvo = inicio_menu_item >= 0 && inicio_menu_item < barra.n ? barra.v[inicio_menu_item].caminho : inicio_menu_caminho;
+	if (!alvo[0]) {
+		return;
+	}
+	char *copia = g_strdup(alvo); /* a barra pode mudar embaixo do menu */
+	if (gv_menu_item(CLAY_ID("mn-i-abrir"), "folder", "Abrir", "Enter")) {
+		gv_popup_fechar(CLAY_ID("menu-inicio"));
+		ir_para(copia, true);
+	}
+	if (gv_menu_item(CLAY_ID("mn-i-aba"), "plus", "Abrir em nova aba", NULL)) {
+		gv_popup_fechar(CLAY_ID("menu-inicio"));
+		aba_nova(copia);
+	}
+	if (gv_menu_item(CLAY_ID("mn-i-janela"), "external", "Abrir em nova janela", NULL)) {
+		gv_popup_fechar(CLAY_ID("menu-inicio"));
+		abrir_nova_janela(copia);
+	}
+	if (inicio_menu_item >= 0 && inicio_menu_item < barra.n) {
+		separador("mn-i-sep", 1);
+		if (gv_menu_item(CLAY_ID("mn-i-remover"), "close", "Remover da página inicial", NULL)) {
+			barra.v[inicio_menu_item].no_inicio = false;
+			ar_barra_gravar(&barra);
+			inicio_menu_item = -1;
+			gv_popup_fechar(CLAY_ID("menu-inicio"));
+		}
+	}
+	g_free(copia);
+}
+
 /* o conteúdo da página inicial; preview: a versão pequena da página de configurações (nada clica) */
 static void inicio_conteudo(const ar_barra *b, const ar_cfg *c, bool preview, float largura) {
 	float larg_cartao = preview ? 86 : 150;
@@ -3021,7 +3567,12 @@ static void inicio_conteudo(const ar_barra *b, const ar_cfg *c, bool preview, fl
 		for (int r = 0; r * por_linha < nq; r++) {
 			CLAY(CLAY_SIDI(gv_str(preview ? "ip-linha" : "in-linha"), (uint32_t)r), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
 				for (int k = r * por_linha; k < nq && k < (r + 1) * por_linha; k++) {
-					bool clicou = cartao_pasta(CLAY_SIDI(gv_str(preview ? "ip-cartao" : "in-cartao"), (uint32_t)quais[k]), &b->v[quais[k]], larg_cartao);
+					Clay_ElementId cid = CLAY_SIDI(gv_str(preview ? "ip-cartao" : "in-cartao"), (uint32_t)quais[k]);
+					if (!preview && gv_menu_no_ponteiro(cid, CLAY_ID("menu-inicio"))) { /* o botão direito (ou o dedo parado) num cartão */
+						inicio_menu_item = quais[k];
+						inicio_menu_caminho[0] = '\0';
+					}
+					bool clicou = cartao_pasta(cid, &b->v[quais[k]], larg_cartao);
 					if (clicou && !preview) {
 						ir_para(b->v[quais[k]].caminho, true);
 					}
@@ -3039,7 +3590,12 @@ static void inicio_conteudo(const ar_barra *b, const ar_cfg *c, bool preview, fl
 		for (int r = 0; r * por_linha_u < nu; r++) {
 			CLAY(CLAY_SIDI(gv_str(preview ? "ip-ulinha" : "in-ulinha"), (uint32_t)r), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
 				for (int k = r * por_linha_u; k < nu && k < (r + 1) * por_linha_u; k++) {
-					if (cartao_unidade(CLAY_SIDI(gv_str(preview ? "ip-unid" : "in-unid"), (uint32_t)k), &un[k], lu) && !preview) {
+					Clay_ElementId uid = CLAY_SIDI(gv_str(preview ? "ip-unid" : "in-unid"), (uint32_t)k);
+					if (!preview && gv_menu_no_ponteiro(uid, CLAY_ID("menu-inicio"))) {
+						inicio_menu_item = -1;
+						snprintf(inicio_menu_caminho, sizeof(inicio_menu_caminho), "%s", un[k].ponto);
+					}
+					if (cartao_unidade(uid, &un[k], lu) && !preview) {
 						ir_para(un[k].ponto, true);
 					}
 				}
@@ -3624,9 +4180,9 @@ static void debug_posicoes(void) {
 	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
 		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
-		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
+		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
-		"mi-terminal", "mi-lixeira", "mi-estilo", "mf-ordenar", "mf-ord/0", "mf-git", "mf-estilo", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "es-fechar", "es-padrao", "cfg-aplicar", "cfg-cancelar", "cfg-voltar", "cfg-restaurar", "ex-r1", "ex-r2", "ex-tam-sl", "cfg-corpo", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
+		"mi-terminal", "mi-lixeira", "mi-cor", "mi-icone", "mf-cor", "mf-icone", "sub-ic-nenhum", "mf-ordenar", "mf-ord/0", "mf-git", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "cfg-aplicar", "cfg-cancelar", "cfg-voltar", "cfg-restaurar", "ex-r1", "ex-r2", "ex-tam-sl", "cfg-corpo", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
 	for (int i = 0; FIXOS[i]; i++) {
 		g_ptr_array_add(nomes, g_strdup(FIXOS[i]));
 		Clay_String cs = { .chars = FIXOS[i], .length = (int)strlen(FIXOS[i]) };
@@ -3637,7 +4193,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "es-cor", 9 }, { "es-ic", 16 }, { "mf-ord", 4 }, { "l-it", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {
@@ -3689,8 +4245,8 @@ static void debug_posicoes(void) {
 			g_free(linha);
 		}
 	}
-	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
-		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual);
+	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
+		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas);
 	static char *estado_antes;
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("estado %s\n", estado);

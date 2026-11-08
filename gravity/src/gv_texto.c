@@ -40,7 +40,10 @@ void *gv__quadro_alloc(size_t tamanho) {
 	return p;
 }
 
+uint64_t gv__quadro_n; /* quantos quadros já se desenhou */
+
 void gv__quadro_limpar(void) {
+	gv__quadro_n++;
 	/* fica o bloco mais recente (o tamanho de um quadro normal), os outros saem */
 	if (!blocos) {
 		return;

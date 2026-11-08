@@ -782,7 +782,7 @@ void ar_sugestoes_liberar(ar_sugestao *v, int n) {
 /* ---- cor e ícone de uma pasta ---- */
 
 const struct ar_cor AR_CORES[AR_CORES_N] = {
-	{ "Padrão", 0 }, { "Azul", 0x3E63DD }, { "Ciano", 0x00A2C7 }, { "Verde", 0x30A46C }, { "Amarelo", 0xE5A100 },
+	{ "Padrão", 0 }, { "Azul", 0x3E63DD }, { "Turquesa", 0x00A2C7 }, { "Verde", 0x30A46C }, { "Amarelo", 0xE5A100 },
 	{ "Laranja", 0xF76B15 }, { "Vermelho", 0xE5484D }, { "Rosa", 0xD6409F }, { "Cinza", 0x8B8D98 },
 };
 const char *const AR_ICONES[] = { "star", "heart", "music", "image", "video", "camera", "code", "document", "download", "gamepad", "globe", "bag", "mail", "lock", "user", "leaf", NULL };
