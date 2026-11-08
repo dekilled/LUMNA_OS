@@ -39,6 +39,8 @@ bool ar_listar(const char *pasta, bool ocultos, ar_lista *saida, char **erro);
 void ar_liberar(ar_lista *l);
 /* Uma entrada só, de um caminho completo (os favoritos e os recentes são listas de caminhos soltos). */
 bool ar_entrada_de(const char *caminho, ar_entrada *e);
+/* As pastas vêm antes dos arquivos? (padrão: sim; vale para as próximas ar_ordenar) */
+void ar_ordenar_pastas_primeiro(bool sim);
 /* Pastas primeiro, depois pela ordem pedida (o nome não distingue maiúsculas e acentos, e "arquivo2" vem antes de "arquivo10"). */
 void ar_ordenar(ar_lista *l, enum ar_ordem ordem, bool decrescente);
 /* Os índices (em l->v) do que passa no filtro e na busca (parte do nome, sem distinguir maiúsculas e acentos); devolve quantos. indices tem l->n lugares. */
@@ -93,10 +95,18 @@ bool ar_favorito_alternar(const char *caminho);   /* devolve o estado de agora *
 int ar_recentes(ar_lugar *v, int max);
 void ar_recente_registrar(const char *caminho);
 
-/* Pastas fixadas pela pessoa na barra lateral, por seção ("espacos" ou "colecoes"): ~/.config/lumna/arquivos/fixados */
-int ar_fixados(const char *secao, ar_lugar *v, int max);
-bool ar_fixado_em(const char *secao, const char *caminho);
-bool ar_fixado_alternar(const char *secao, const char *caminho);   /* devolve o estado de agora */
+/* O que há dentro de uma pasta, em miniatura: os tipos dos primeiros itens (até 4, arquivos antes de pastas, por nome); devolve quantos. */
+int ar_previa_pasta(const char *caminho, enum ar_tipo *tipos, int max);
+
+/* ---- unidades e dispositivos (a página inicial) ---- */
+typedef struct ar_unidade {
+	char rotulo[64];
+	char ponto[4096];   /* onde está montada */
+	int64_t total, usado;
+	bool removivel;
+} ar_unidade;
+/* Os discos montados que interessam à pessoa: a raiz, /mnt, /media, /run/media (sem tmpfs, proc, snap...). */
+int ar_unidades(ar_unidade *v, int max);
 
 /* ---- cor e ícone de uma pasta (~/.config/lumna/arquivos/pastas.ini) ---- */
 #define AR_CORES_N 9

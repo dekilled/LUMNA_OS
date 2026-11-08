@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 /* ---- tipos ---- */
@@ -219,13 +220,16 @@ static int comparar_naturais(const char *a, const char *b) {
 	return *a ? 1 : *b ? -1 : 0;
 }
 
+static bool pastas_primeiro = true;
+void ar_ordenar_pastas_primeiro(bool sim) { pastas_primeiro = sim; }
+
 static enum ar_ordem ordem_atual;
 static bool desc_atual;
 
 static int cmp_entrada(const void *pa, const void *pb) {
 	const ar_entrada *a = pa, *b = pb;
-	if (a->pasta != b->pasta) {
-		return a->pasta ? -1 : 1; /* as pastas sempre vêm primeiro */
+	if (pastas_primeiro && a->pasta != b->pasta) {
+		return a->pasta ? -1 : 1; /* as pastas vêm primeiro (a menos que a pessoa tenha desligado) */
 	}
 	int r = 0;
 	switch (ordem_atual) {
@@ -775,70 +779,6 @@ void ar_sugestoes_liberar(ar_sugestao *v, int n) {
 	}
 }
 
-/* ---- fixados na barra lateral ---- */
-
-static char *arq_fixados(void) { return g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", "fixados", NULL); }
-
-int ar_fixados(const char *secao, ar_lugar *v, int max) {
-	char *a = arq_fixados();
-	char **linhas = ler_linhas(a);
-	int n = 0;
-	for (int i = 0; linhas[i] && n < max; i++) {
-		char *tab = strchr(linhas[i], '\t');
-		if (!tab || strncmp(linhas[i], secao, (size_t)(tab - linhas[i])) || (size_t)(tab - linhas[i]) != strlen(secao)) {
-			continue;
-		}
-		const char *caminho = tab + 1;
-		if (g_file_test(caminho, G_FILE_TEST_IS_DIR)) {
-			char *base = g_path_get_basename(caminho);
-			lugar_novo(v, &n, max, base, caminho, "folder");
-			g_free(base);
-		}
-	}
-	g_strfreev(linhas);
-	g_free(a);
-	return n;
-}
-
-bool ar_fixado_em(const char *secao, const char *caminho) {
-	char *a = arq_fixados();
-	char **linhas = ler_linhas(a);
-	char *alvo = g_strdup_printf("%s\t%s", secao, caminho);
-	bool sim = false;
-	for (int i = 0; linhas[i]; i++) {
-		sim |= !strcmp(linhas[i], alvo);
-	}
-	g_free(alvo);
-	g_strfreev(linhas);
-	g_free(a);
-	return sim;
-}
-
-bool ar_fixado_alternar(const char *secao, const char *caminho) {
-	char *a = arq_fixados();
-	char **linhas = ler_linhas(a);
-	char *alvo = g_strdup_printf("%s\t%s", secao, caminho);
-	GPtrArray *novo = g_ptr_array_new();
-	bool tinha = false;
-	for (int i = 0; linhas[i]; i++) {
-		if (!strcmp(linhas[i], alvo)) {
-			tinha = true;
-		} else if (linhas[i][0]) {
-			g_ptr_array_add(novo, linhas[i]);
-		}
-	}
-	if (!tinha) {
-		g_ptr_array_add(novo, alvo);
-	}
-	g_ptr_array_add(novo, NULL);
-	gravar_linhas(a, (char **)novo->pdata);
-	g_ptr_array_free(novo, TRUE);
-	g_free(alvo);
-	g_strfreev(linhas);
-	g_free(a);
-	return !tinha;
-}
-
 /* ---- cor e ícone de uma pasta ---- */
 
 const struct ar_cor AR_CORES[AR_CORES_N] = {
@@ -906,4 +846,96 @@ void ar_pasta_estilo_definir(const char *caminho, uint32_t rgb, const char *icon
 	g_mkdir_with_parents(pasta, 0700);
 	g_free(pasta);
 	g_key_file_save_to_file(kf, estilos_arq, NULL);
+}
+
+/* ---- unidades ---- */
+
+int ar_unidades(ar_unidade *v, int max) {
+	char *txt = NULL;
+	int n = 0;
+	if (!g_file_get_contents("/proc/self/mountinfo", &txt, NULL, NULL)) {
+		return 0;
+	}
+	char **linhas = g_strsplit(txt, "\n", -1);
+	g_free(txt);
+	for (int i = 0; linhas[i] && n < max; i++) {
+		/* id pai maj:min raiz PONTO opções ... - TIPO fonte superopções */
+		char **c = g_strsplit(linhas[i], " ", -1);
+		int nc = (int)g_strv_length(c);
+		int traco = -1;
+		for (int k = 6; k < nc; k++) {
+			if (!strcmp(c[k], "-")) {
+				traco = k;
+				break;
+			}
+		}
+		if (traco < 0 || traco + 2 >= nc) {
+			g_strfreev(c);
+			continue;
+		}
+		char *ponto = g_strcompress(c[4]); /* \040 vira espaço */
+		const char *tipo = c[traco + 1], *fonte = c[traco + 2];
+		bool raiz = !strcmp(ponto, "/");
+		bool removivel = g_str_has_prefix(ponto, "/media/") || g_str_has_prefix(ponto, "/run/media/");
+		bool montagem = raiz || removivel || g_str_has_prefix(ponto, "/mnt/");
+		bool falso = !strcmp(tipo, "tmpfs") || !strcmp(tipo, "proc") || !strcmp(tipo, "sysfs") || !strcmp(tipo, "devtmpfs") || !strcmp(tipo, "overlay") || !strcmp(tipo, "squashfs") ||
+			g_str_has_prefix(tipo, "fuse.") || !strcmp(tipo, "cgroup2") || !strncmp(fonte, "/dev/loop", 9);
+		if (montagem && (!falso || (raiz && strcmp(tipo, "squashfs")))) {
+			bool repetido = false;
+			for (int k = 0; k < n; k++) {
+				repetido |= !strcmp(v[k].ponto, ponto);
+			}
+			struct statvfs sv;
+			if (!repetido && statvfs(ponto, &sv) == 0 && sv.f_blocks > 0) {
+				ar_unidade *u = &v[n++];
+				memset(u, 0, sizeof(*u));
+				g_strlcpy(u->ponto, ponto, sizeof(u->ponto));
+				u->total = (int64_t)sv.f_blocks * (int64_t)sv.f_frsize;
+				u->usado = u->total - (int64_t)sv.f_bfree * (int64_t)sv.f_frsize;
+				u->removivel = removivel;
+				if (raiz) {
+					g_strlcpy(u->rotulo, "Sistema", sizeof(u->rotulo));
+				} else {
+					char *b = g_path_get_basename(ponto);
+					g_strlcpy(u->rotulo, b, sizeof(u->rotulo));
+					g_free(b);
+				}
+			}
+		}
+		g_free(ponto);
+		g_strfreev(c);
+	}
+	g_strfreev(linhas);
+	return n;
+}
+
+/* ---- prévia do conteúdo de uma pasta ---- */
+
+int ar_previa_pasta(const char *caminho, enum ar_tipo *tipos, int max) {
+	GDir *d = g_dir_open(caminho, 0, NULL);
+	if (!d) {
+		return 0;
+	}
+	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
+	const char *n;
+	while ((n = g_dir_read_name(d)) && nomes->len < 300) {
+		if (n[0] != '.') {
+			g_ptr_array_add(nomes, g_strdup(n));
+		}
+	}
+	g_dir_close(d);
+	g_ptr_array_sort(nomes, (GCompareFunc)strcmp);
+	int k = 0;
+	for (int passo = 0; passo < 2 && k < max; passo++) { /* primeiro os arquivos, depois as pastas */
+		for (guint i = 0; i < nomes->len && k < max; i++) {
+			char *c2 = g_build_filename(caminho, g_ptr_array_index(nomes, i), NULL);
+			bool pasta = g_file_test(c2, G_FILE_TEST_IS_DIR);
+			if (pasta == (passo == 1)) {
+				tipos[k++] = pasta ? AR_PASTA : ar_tipo_do_nome(g_ptr_array_index(nomes, i));
+			}
+			g_free(c2);
+		}
+	}
+	g_ptr_array_free(nomes, TRUE);
+	return k;
 }

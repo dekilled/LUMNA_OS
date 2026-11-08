@@ -192,16 +192,27 @@ int main(void) {
 	CONFERE(nc >= 1 && !strcmp(v[0].rotulo, "Home") && !strcmp(v[0].caminho, casa), "coleções começam pela casa");
 	ar_lugares_liberar(v, nc);
 
-	/* fixados na barra lateral */
-	CONFERE(ar_fixados("espacos", v, 16) == 0 && !ar_fixado_em("espacos", sub), "nada fixado");
-	CONFERE(ar_fixado_alternar("espacos", sub) && ar_fixado_em("espacos", sub) && !ar_fixado_em("colecoes", sub), "fixar em Espaços");
-	ar_fixado_alternar("colecoes", sub);
-	int nfx = ar_fixados("espacos", v, 16);
-	CONFERE(nfx == 1 && !strcmp(v[0].rotulo, "Projetos") && !strcmp(v[0].caminho, sub), "cada seção tem os seus (%d)", nfx);
-	ar_lugares_liberar(v, nfx);
-	CONFERE(ar_fixados("colecoes", v, 16) == 1, "e a outra seção também");
-	ar_lugares_liberar(v, 1);
-	CONFERE(!ar_fixado_alternar("espacos", sub) && !ar_fixado_em("espacos", sub) && ar_fixado_em("colecoes", sub), "desafixar de uma seção não mexe na outra");
+	/* prévia do conteúdo da pasta */
+	enum ar_tipo pt[4];
+	int npv = ar_previa_pasta(raiz, pt, 4);
+	CONFERE(npv == 4 && pt[0] != AR_PASTA, "a prévia traz até 4 itens, arquivos antes (%d)", npv);
+	int np2 = ar_previa_pasta(sub, pt, 4);
+	CONFERE(np2 == 2, "uma pasta com 2 itens (a.txt e b.md; o oculto fica de fora): %d", np2);
+	CONFERE(ar_previa_pasta("/nao/existe", pt, 4) == 0, "uma pasta que não abre não tem prévia");
+
+	/* unidades */
+	ar_unidade un[16];
+	int nu = ar_unidades(un, 16);
+	CONFERE(nu >= 1 && !strcmp(un[0].ponto, "/") && un[0].total > 0 && un[0].usado > 0 && un[0].usado <= un[0].total, "a raiz está entre as unidades (%d)", nu);
+	/* pastas depois dos arquivos, se a pessoa quiser */
+	ar_listar(raiz, false, &l, NULL);
+	ar_ordenar_pastas_primeiro(false);
+	ar_ordenar(&l, AR_O_NOME, false);
+	CONFERE(!l.v[0].pasta || l.v[l.n - 1].pasta || acha(&l, "Projetos") > acha(&l, "Ação.txt"), "pastas misturadas aos arquivos pelo nome");
+	ar_ordenar_pastas_primeiro(true);
+	ar_ordenar(&l, AR_O_NOME, false);
+	CONFERE(l.v[0].pasta, "de volta: pastas primeiro");
+	ar_liberar(&l);
 
 	/* cor e ícone de uma pasta */
 	uint32_t rgb;

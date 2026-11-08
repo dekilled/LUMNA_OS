@@ -1,6 +1,6 @@
 # Arquivos (`lumna-arquivos`, "LUMNA Explorer")
 
-O explorador de arquivos do LUMNA OS, em Gravity (C/Clay). Fatias prontas: **a navegação** (a tela do mockup "LUMNA Explorer") e **as operações** (copiar, recortar, colar, renomear, lixeira com desfazer, apagar para sempre, compactar e extrair), o **menu de contexto**, o **caminho digitado com sugestões** e a **Lixeira**. Faltam: cartões de pasta com prévias, as páginas de configurações (Exibição, Barra lateral...), abas, discos e USB, busca em subpastas.
+O explorador de arquivos do LUMNA OS, em Gravity (C/Clay). Fatias prontas: **a navegação** (a tela do mockup "LUMNA Explorer") e **as operações** (copiar, recortar, colar, renomear, lixeira com desfazer, apagar para sempre, compactar e extrair), o **menu de contexto**, o **caminho digitado com sugestões** e a **Lixeira**. Também: o **Início**, a **Lista grande** e as **páginas de configurações** (engrenagem). Faltam: abas, a página Rede e nuvem, busca em subpastas.
 
 ## O que tem
 
@@ -32,6 +32,20 @@ Botão direito (ou o dedo parado) fora dos itens: Nova pasta, Novo arquivo de te
 - **Git clone**: pede o endereço (https, ssh, um caminho local), clona numa pasta nova com o nome do repositório (se existir, "nome (2)"), com o progresso do git na barra de status e Cancelar. Endereço que começa com `-` é recusado. Repositório que pede senha **ainda não** (falha em vez de travar num prompt escondido).
 - **Cor e ícone da pasta** (também no menu de uma pasta): 9 cores e 16 emblemas, valem na hora, guardados em `~/.config/lumna/arquivos/pastas.ini`.
 
+## O Início
+
+A página inicial do Explorer (Barra lateral > Início): **Pastas principais** (cartões das coleções, com o emblema de cada uma) e **Unidades e dispositivos** (o disco do sistema e o que estiver montado em `/mnt`, `/media` ou `/run/media`, com a barra de uso). É onde o Explorer abre, a menos que você escolha outra coisa.
+
+## Configurações (a engrenagem)
+
+A janela troca para as páginas de configurações, com **Aplicar**, **Cancelar** (descarta) e **Restaurar padrão** (da página). Tudo vale na hora ao aplicar. Esc volta aos arquivos. Ficam em `~/.config/lumna/arquivos/` (`config.ini`, `barra.ini`, `visoes.ini`).
+
+- **Prévia nas pastas**: na grade, cada pasta mostra até quatro miniaturas do que há dentro (com "Exibir prévias nas pastas" ligado; pastas com emblema mostram só o emblema).
+- **Exibição**: visualização padrão (**Grade**, **Lista** ou **Lista grande**), tamanho das pastas (64-192 px, o mesmo do controle da barra de status), tamanho do texto, mostrar ocultos, mostrar extensões, pastas antes dos arquivos, ordenar por, e "usar como padrão nas novas pastas" ou "lembrar a visualização de cada pasta"; com a **prévia ao vivo** ao lado.
+- **Página inicial**: o que abre (a página inicial, a última pasta, ou uma pasta que você escolher), as seções do Início e quais pastas principais aparecem.
+- **Barra lateral**: o que aparece (o olho), a ordem (setas), renomear, mudar o caminho e a categoria (Espaços/Coleções), adicionar e remover atalhos, com a prévia. "Fixar na barra lateral" do menu de contexto escreve aqui.
+- **Avançado**: o que fazer quando já existe um arquivo com o nome (perguntar, substituir, manter os dois, pular), confirmar a exclusão permanente e o esvaziar da lixeira, e o registro de erros (`~/.local/state/lumna/arquivos.log`).
+
 ## O caminho digitado (Ctrl+L, ou clicar no vazio do caminho)
 
 O caminho vira um campo. Sugere as pastas que começam com o que foi digitado (sem caixa nem acento) e os recentes que combinam; ↑/↓ escolhem, **Tab** completa e entra na pasta, **Enter** abre, **Esc** cancela. `~` é a casa e um nome solto vale a partir da pasta de agora.
@@ -53,6 +67,6 @@ sh gravity/testes/arquivos.sh PASTA_DO_BUILD_DO_ORBIT   # + o app inteiro num Or
 
 ## Ainda não
 
-Do mockup: cartões de pasta com prévias do conteúdo e a visão "Lista grande", os botões "..." em cada item, as páginas de configurações (Exibição, Página inicial, Barra lateral, Rede e nuvem, Avançado), Etiquetas, as seções Rede (Compartilhadas, Nuvem), "Abrir em nova aba" (não há abas ainda). Também: arrastar e soltar, discos e USB, "Abrir com...", busca dentro das subpastas, selecionar o nome sem a extensão ao renomear. A dock e a pasta padrão (`inode/directory`) **ainda apontam para o Thunar**; trocam com o seu OK.
+Do mockup: a página **Rede e nuvem** (conectar a SMB/SFTP, contas na nuvem) e a seção Rede da barra lateral, os botões "..." em cada item, as opções "Pausar transferências ao fechar", "Transferências simultâneas", "Verificar cópias" e o cache de miniaturas da página Avançado, arrastar para reordenar a barra lateral (por ora, setas), Etiquetas, "Abrir em nova aba" (não há abas ainda). Também: arrastar e soltar, discos e USB, "Abrir com...", busca dentro das subpastas, selecionar o nome sem a extensão ao renomear. A dock e a pasta padrão (`inode/directory`) **ainda apontam para o Thunar**; trocam com o seu OK.
 
 **Só provado** no Orbit headless (wlroots 0.18), com toques e teclas simuladas: o menu de contexto foi aberto e tem as entradas, mas clicar nos submenus (Fixar, Compartilhar) não está no teste automático (a janela de teste é baixa e o menu rola); o enviar ao celular não foi testado (não há celular). Nunca com mouse, teclado e tela de verdade.

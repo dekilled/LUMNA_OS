@@ -18,6 +18,9 @@ enum ar_conflito { AR_C_PERGUNTAR, AR_C_SUBSTITUIR, AR_C_MANTER_AMBOS, AR_C_PULA
 
 typedef struct ar_op ar_op;
 
+/* O que fazer com um item que já existe, quando a pessoa não quer ser perguntada (Ajustes > Avançado). Vale para as operações que começam depois. */
+void ar_op_conflito_padrao(enum ar_conflito escolha);
+
 typedef struct ar_op_estado {
 	bool terminou;
 	bool cancelado;

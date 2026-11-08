@@ -127,6 +127,14 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.83 | Ctrl+L, digitar parte de um caminho, Tab, Enter | Sugere, completa e abre | ☐ |
 | 2.84 | Copiar uma pasta grande (vários GB) e Cancelar no meio | A barra anda; cancelar para e não deixa lixo pela metade além do já copiado | ☐ |
 | 2.85 | Ctrl+I | As propriedades (inclusive o tamanho de uma pasta) | ☐ |
+| 2.86 | Botão direito na área vazia | Novo arquivo/pasta, Abrir no terminal, Git clone, Ordenar por, Colar | ☐ |
+| 2.87 | Git clone de um endereço https (rede ligada) | A barra mostra o progresso e a pasta clonada aparece; endereço inválido dá erro sem travar | ☐ |
+| 2.88 | Botão direito numa pasta > Cor/ícone | A pasta muda de cor ou ganha o emblema, e continua assim depois de fechar e abrir | ☐ |
+| 2.89 | Barra lateral > Início | Cartões de pastas e unidades; "Recentes" lista o que você abriu | ☐ |
+| 2.90 | Engrenagem > Exibição: Lista grande, ocultos, extensões, "lembrar a visualização de cada pasta" | A prévia ao vivo acompanha; Aplicar muda a janela; cada pasta guarda a sua vista | ☐ |
+| 2.91 | Engrenagem > Página inicial e Barra lateral: mudar a ordem, esconder, renomear, adicionar atalho | Reflete na barra; sobrevive a fechar e abrir | ☐ |
+| 2.92 | Engrenagem > Avançado: restaurar o padrão da página | Volta só aquela página ao padrão | ☐ |
+| 2.93 | Grade com "Exibir prévias nas pastas" ligado | As pastas mostram miniaturas do que há dentro; desligado, a pasta fica lisa | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
@@ -225,5 +233,5 @@ O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de
 
 ## O que **não** está pronto (não é bug)
 
-Loja própria (por ora o Painel > Aplicativos); o Arquivos novo ainda sem cartões de pasta com prévias nem as páginas de configurações, Music, Biblioteca Gaming,
+Loja própria (por ora o Painel > Aplicativos); o Arquivos novo ainda sem a página Rede e nuvem nem abas, Music, Biblioteca Gaming,
 particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).

@@ -1108,12 +1108,16 @@ static gpointer op_thread(gpointer p) {
 	return NULL;
 }
 
+static enum ar_conflito conflito_padrao = AR_C_PERGUNTAR;
+void ar_op_conflito_padrao(enum ar_conflito escolha) { conflito_padrao = escolha; }
+
 ar_op *ar_op_iniciar(enum ar_op_tipo tipo, char *const *origens, int n, const char *destino, void (*acordar)(void *), void *dados) {
 	if (n <= 0) {
 		return NULL;
 	}
 	ar_op *op = g_new0(ar_op, 1);
 	op->tipo = tipo;
+	op->politica = conflito_padrao;
 	op->origens = g_ptr_array_new_with_free_func(g_free);
 	for (int i = 0; i < n; i++) {
 		g_ptr_array_add(op->origens, g_strdup(origens[i]));

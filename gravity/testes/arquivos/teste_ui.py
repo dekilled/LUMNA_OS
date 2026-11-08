@@ -154,15 +154,15 @@ toca("parte/0")
 confere(lambda: estado().get("pasta") == casa, "clicar em Home no caminho")
 
 # 4. a barra lateral
-toca("l-recentes")
+toca("l-it/1")
 confere(lambda: estado().get("vista") == "1", "Recentes")
-toca("l-favoritos")
+toca("l-it/2")
 confere(lambda: estado().get("vista") == "2" and estado().get("nvis") == "0", "Favoritos vazio")
-toca("l-inicio")
-confere(lambda: estado().get("vista") == "0" and estado().get("pasta") == casa, "Início")
+toca("l-it/0")
+confere(lambda: estado().get("vista") == "3", "Início (a página inicial)")
 
-# 5. ir para Documentos de novo (pela pasta)
-duplo("item/Documentos")
+# 5. ir para Documentos de novo (pela barra lateral: Coleções)
+toca("l-it/4")
 confere(lambda: estado().get("pasta") == docs, "entrar em Documentos")
 
 # 6. teclado: setas, Enter, Backspace
@@ -218,11 +218,9 @@ toca("det-fav")
 time.sleep(0.4)
 if not os.path.exists(f"{casa}/.config/lumna/arquivos/favoritos") or "Projetos" not in open(f"{casa}/.config/lumna/arquivos/favoritos").read():
     falha("favoritar não gravou o arquivo de favoritos")
-toca("l-favoritos")
+toca("l-it/2")
 confere(lambda: estado().get("vista") == "2" and estado().get("nvis") == "1" and "Projetos" in ordem(), "Favoritos mostra Projetos")
-toca("l-inicio")
-time.sleep(0.5)
-duplo("item/Documentos")
+toca("l-it/4")
 confere(lambda: estado().get("pasta") == docs, "voltar a Documentos")
 
 # 11. nova pasta

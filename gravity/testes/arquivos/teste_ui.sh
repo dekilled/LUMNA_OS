@@ -21,6 +21,10 @@ if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_ops.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_cfg.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
 pkill -x orbit; pkill -x arquivos
 [ $rc -eq 0 ] || { echo "(log em $run)"; tail -10 "$run/ar.err"; }
 exit $rc
