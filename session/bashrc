@@ -7,3 +7,9 @@ alias grep='grep --color=auto'
 
 # o prompt: usuário@máquina no lilás do LUMNA
 PS1='\[\e[38;2;167;139;250m\]\u@\h\[\e[0m\]:\w\$ '
+
+# Ao abrir o Terminal do LUMNA (só a primeira aba de cada janela, e só uma vez por cadeia de shells): o desenho do LUMNA
+if [[ $TERM_PROGRAM == lumna-console && -n $LUMNA_TERMINAL_PRIMEIRA && -z $LUMNA_FETCH_FEITO ]] && command -v fastfetch >/dev/null 2>&1; then
+	export LUMNA_FETCH_FEITO=1
+	fastfetch
+fi

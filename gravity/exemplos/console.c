@@ -800,7 +800,10 @@ int main(int argc, char **argv) {
 	if (!app) {
 		return 1;
 	}
-	if (!nova_aba(cwd_inicial, comando_inicial)) {
+	setenv("LUMNA_TERMINAL_PRIMEIRA", "1", 1); /* o ~/.bashrc mostra o fastfetch só na primeira aba (as outras não herdam isto) */
+	bool abriu = nova_aba(cwd_inicial, comando_inicial);
+	unsetenv("LUMNA_TERMINAL_PRIMEIRA");
+	if (!abriu) {
 		fprintf(stderr, "lumna-console: não deu para abrir o terminal\n");
 		return 1;
 	}
