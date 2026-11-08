@@ -16,6 +16,7 @@
 #include <string.h>
 
 #define GV_MAX_ROLAGENS 32
+extern bool gv__rolagem_travada;
 #define LIMIAR 8.0f       /* px que o dedo anda antes de a área ficar com ele */
 #define TRAVAGEM 2.6f     /* a inércia perde e^-2,6 da velocidade por segundo */
 #define MOLA 14.0f        /* quão depressa o elástico volta */
@@ -156,7 +157,7 @@ Clay_ElementDeclaration gv_rolagem(Clay_ElementId id, enum gv_rolagem_eixo eixos
 	/* ---- arrastar ---- */
 	if (r->apertado && gv__entrada.baixo) {
 		float delta[2] = { p[0] - r->aperto[0], p[1] - r->aperto[1] };
-		if (!r->capturou && gv__entrada.toque) {
+		if (!r->capturou && gv__entrada.toque && !gv__rolagem_travada) {
 			/* fica com o dedo quando ele anda no nosso eixo mais do que no outro: um
 			 * deslizante na horizontal dentro de uma lista vertical continua a ser dele */
 			for (int e = 0; e < 2; e++) {

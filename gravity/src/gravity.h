@@ -207,6 +207,11 @@ bool gv_tocado(Clay_ElementId id);       /* começou e acabou nele: um clique, u
 Clay_BoundingBox gv_caixa(Clay_ElementId id);
 /* Onde está o ponteiro (ou o dedo) na superfície, em pixels lógicos; -1, -1 fora dela. */
 Clay_Vector2 gv_ponteiro(void);
+bool gv_ponteiro_baixo(void);   /* o botão (ou o dedo) está em baixo agora */
+bool gv_ponteiro_e_toque(void); /* o último a mexer foi um dedo (e não o mouse) */
+/* Pede que, no quadro seguinte, as áreas de rolagem não fiquem com o dedo que anda (a app está arrastando um item: reordenar). Chame
+ * em todo quadro em que o arraste continua. */
+void gv_rolagem_travar(void);
 /* Todos os pontos de contato agora: cada dedo (id do toque) e o mouse (id -1) com o botão esquerdo em baixo. `desceu` e `subiu` valem num
  * quadro só (quem subiu aparece uma última vez). As coordenadas são da superfície, em pixels lógicos. Para quem precisa de vários dedos ao
  * mesmo tempo (o teclado na tela); o resto da biblioteca segue com o primeiro. Devolve quantos (até max). */

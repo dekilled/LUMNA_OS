@@ -289,6 +289,35 @@ bool ar_barra_adicionar(ar_barra *b, int secao, const char *rotulo, const char *
 	return true;
 }
 
+int ar_barra_mover_para(ar_barra *b, int indice, int secao, int antes) {
+	if (indice < 0 || indice >= b->n || secao < 0 || secao >= AR_SECOES_N || antes >= b->n || antes == indice) {
+		return indice;
+	}
+	ar_barra_item t = b->v[indice];
+	memmove(&b->v[indice], &b->v[indice + 1], sizeof(ar_barra_item) * (size_t)(b->n - indice - 1));
+	if (antes > indice) {
+		antes--;
+	}
+	int pos;
+	if (antes >= 0) {
+		pos = antes;
+	} else { /* o fim da seção: logo depois do último que ela tem (sem nenhum, o fim da lista) */
+		pos = -1;
+		for (int i = 0; i < b->n - 1; i++) {
+			if (b->v[i].secao == secao) {
+				pos = i + 1;
+			}
+		}
+		if (pos < 0) {
+			pos = b->n - 1;
+		}
+	}
+	memmove(&b->v[pos + 1], &b->v[pos], sizeof(ar_barra_item) * (size_t)(b->n - 1 - pos));
+	t.secao = secao;
+	b->v[pos] = t;
+	return pos;
+}
+
 void ar_barra_mover(ar_barra *b, int indice, int direcao) {
 	if (indice < 0 || indice >= b->n) {
 		return;

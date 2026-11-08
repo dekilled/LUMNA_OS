@@ -38,6 +38,21 @@ Clay_Vector2 gv_ponteiro(void) {
 	return (Clay_Vector2){ gv__entrada.x, gv__entrada.y };
 }
 
+bool gv_ponteiro_baixo(void) {
+	return gv__entrada.baixo;
+}
+
+bool gv_ponteiro_e_toque(void) {
+	return gv__entrada.toque;
+}
+
+bool gv__rolagem_travada;
+static bool rolagem_travar_prox;
+
+void gv_rolagem_travar(void) {
+	rolagem_travar_prox = true;
+}
+
 Clay_BoundingBox gv_caixa(Clay_ElementId id) {
 	Clay_ElementData dados = Clay_GetElementData(id);
 	return dados.found ? dados.boundingBox : (Clay_BoundingBox){ 0 };
@@ -78,6 +93,8 @@ uint32_t gv_modificadores(void) {
 
 void gv__entrada_fim_do_quadro(void) {
 	gv__entrada.cru = false;
+	gv__rolagem_travada = rolagem_travar_prox; /* vale no quadro seguinte (as áreas de rolagem são declaradas antes dos itens que pedem) */
+	rolagem_travar_prox = false;
 	if (gv__entrada.soltou && !gv__entrada.baixo) {
 		gv__entrada.ativo = 0;
 		gv__entrada.travado = false;

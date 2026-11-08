@@ -143,6 +143,8 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.99 | Propriedades > Geral: mudar o nome e Aplicar | Renomeia; "Abrir com" troca o aplicativo padrão do tipo | ☐ |
 | 2.100 | Propriedades > Permissões: mudar "Outros" e Aplicar (também com "aplicar aos itens da pasta" numa pasta pequena) | `ls -l` mostra o novo modo | ☐ |
 | 2.101 | Início: duplo clique e clique num cartão de pasta e de unidade; botão direito num cartão | Entra; o menu tem "Remover da página inicial", que tira o cartão (volta em Configurações) | ☐ |
+| 2.102 | Barra lateral: apertar num item e arrastar para cima ou para baixo (mouse); soltar | Uma linha mostra onde cai; solta, o item muda de lugar e fica assim ao reabrir; Esc no meio cancela; um clique simples ainda navega | ☐ |
+| 2.103 | Barra lateral: arrastar um item de Espaços para Coleções e vice-versa; no celular, segurar meio segundo e arrastar | Muda de seção; no toque a lista não rola enquanto se arrasta | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

@@ -1447,14 +1447,41 @@ static void barra_ferramentas(void) {
 
 /* ---- barra lateral ---- */
 
-static void item_lateral(Clay_ElementId id, const char *ic, const char *rotulo, bool ativo, const char *destino) {
-	bool sobre = gv_por_cima(id);
-	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(38) }, .padding = { 12, 10, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = ativo ? gv_t.selecionado : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
-		gv_icone(ic, 20, ativo ? gv_t.texto : gv_t.texto_secundario);
-		gv_texto(gv_str(rotulo), gv_t.tamanho_corpo - 1, ativo ? gv_t.texto : gv_t.texto_secundario, ativo ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+/* ---- arrastar para reordenar a barra lateral ----
+ * Com o mouse: apertar num item e andar uns pixels. Com o dedo: segurar meio segundo e então andar (andar logo rola a lista). Uma linha mostra onde o item
+ * cai (inclusive em outra seção) e um fantasma acompanha o ponteiro; soltar grava, Esc cancela. */
+static int arr_item = -1;       /* índice na barra do item arrastado (-1: nenhum) */
+static int arr_cand = -1;       /* apertado, ainda sem andar o bastante */
+static float arr_x0, arr_y0;
+static int arr_secao, arr_antes; /* onde cairia: a seção e antes de qual índice (-1: no fim dela) */
+static bool arr_suprimir;       /* este quadro o arraste acabou: o soltar não é um clique */
+
+static void item_lateral(Clay_ElementId id, int idx, const char *ic, const char *rotulo, bool ativo, const char *destino) {
+	bool arrastado = idx >= 0 && arr_item == idx;
+	bool sobre = gv_por_cima(id) && arr_item < 0;
+	if (idx >= 0 && arr_item < 0) {
+		if (gv_premido(id)) {
+			Clay_Vector2 p = gv_ponteiro();
+			if (arr_cand != idx) {
+				arr_cand = idx;
+				arr_x0 = p.x;
+				arr_y0 = p.y;
+			} else if (!gv_ponteiro_e_toque() && (fabsf(p.x - arr_x0) > 6 || fabsf(p.y - arr_y0) > 6)) {
+				arr_item = idx;
+				arr_cand = -1;
+			}
+		}
+		if (gv_ponteiro_e_toque() && gv_segurou(id)) { /* o mouse não precisa segurar: anda e pronto (segurar com o mouse continua sendo um clique devagar) */
+			arr_item = idx;
+			arr_cand = -1;
+		}
 	}
-	if (gv_tocado(id)) {
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(38) }, .padding = { 12, 10, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = arrastado ? gv_t.fundo : ativo ? gv_t.selecionado : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+		gv_icone(ic, 20, arrastado ? gv_t.texto_suave : ativo ? gv_t.texto : gv_t.texto_secundario);
+		gv_texto(gv_str(rotulo), gv_t.tamanho_corpo - 1, arrastado ? gv_t.texto_suave : ativo ? gv_t.texto : gv_t.texto_secundario, ativo ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+	}
+	if (gv_tocado(id) && !arr_suprimir && arr_item < 0) {
 		ir_para(destino, true);
 	}
 }
@@ -1491,7 +1518,102 @@ static bool item_da_barra_ativo(const ar_barra_item *it) {
 	return vista == V_PASTA && !strcmp(pasta, it->caminho);
 }
 
+/* a cada quadro, antes de desenhar: soltar aplica o arraste, Esc cancela, e sem apertar nada não há candidato */
+static void arraste_rever(void) {
+	arr_suprimir = false;
+	if (arr_item < 0) {
+		if (!gv_ponteiro_baixo()) {
+			arr_cand = -1;
+		}
+		return;
+	}
+	if (arr_item >= barra.n || gv_tecla() == 0xff1b) { /* a barra mudou embaixo, ou Esc */
+		arr_item = -1;
+		arr_cand = -1;
+		arr_suprimir = true;
+		return;
+	}
+	if (!gv_ponteiro_baixo()) {
+		int novo = ar_barra_mover_para(&barra, arr_item, arr_secao, arr_antes);
+		(void)novo;
+		ar_barra_gravar(&barra);
+		arr_item = -1;
+		arr_suprimir = true;
+		gv_app_redesenhar(app);
+		return;
+	}
+	gv_rolagem_travar();
+}
+
+/* com o arraste em curso: acha onde o item cairia pela altura do ponteiro e desenha a linha e o fantasma */
+static void arraste_desenhar(void) {
+	if (arr_item < 0 || arr_item >= barra.n) {
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	int ant = -1, sec = barra.v[arr_item].secao;
+	bool achou = false;
+	float linha_y = 0, linha_x = 0;
+	int prev = -1; /* o item visível anterior (sem contar o arrastado) */
+	int ult = -1;
+	for (int s2 = 0; s2 < AR_SECOES_N && !achou; s2++) {
+		int idx[AR_BARRA_MAX];
+		int n = ar_barra_da_secao(&barra, s2, idx);
+		for (int k = 0; k < n && !achou; k++) {
+			int i = idx[k];
+			if (!barra.v[i].visivel || i == arr_item) {
+				continue;
+			}
+			Clay_BoundingBox b = gv_caixa(CLAY_IDI("l-it", (uint32_t)i));
+			if (b.width <= 0) {
+				continue;
+			}
+			if (prev >= 0 && barra.v[prev].secao != s2) {
+				Clay_BoundingBox pb = gv_caixa(CLAY_IDI("l-it", (uint32_t)prev));
+				if (p.y < pb.y + pb.height + 12) { /* na beira de baixo do último da seção de cima: cai no fim dela */
+					ant = -1;
+					sec = barra.v[prev].secao;
+					linha_y = pb.y + pb.height + 1;
+					linha_x = pb.x;
+					achou = true;
+					break;
+				}
+			}
+			if (p.y < b.y + b.height / 2) {
+				ant = i;
+				sec = s2;
+				linha_y = b.y - 1;
+				linha_x = b.x;
+				achou = true;
+			}
+			prev = i;
+			ult = i;
+		}
+	}
+	if (!achou && ult >= 0) {
+		Clay_BoundingBox ub = gv_caixa(CLAY_IDI("l-it", (uint32_t)ult));
+		ant = -1;
+		sec = barra.v[ult].secao;
+		linha_y = ub.y + ub.height + 1;
+		linha_x = ub.x;
+	}
+	arr_antes = ant;
+	arr_secao = sec;
+	if (linha_x > 0 || linha_y > 0) {
+		CLAY(CLAY_ID("l-linha"), { .layout = { .sizing = { CLAY_SIZING_FIXED(216), CLAY_SIZING_FIXED(3) } }, .backgroundColor = gv_t.acento, .cornerRadius = CLAY_CORNER_RADIUS(2),
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 80, .offset = { linha_x, linha_y }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+	}
+	const ar_barra_item *it = &barra.v[arr_item];
+	CLAY(CLAY_ID("l-fantasma"), { .layout = { .sizing = { CLAY_SIZING_FIXED(216), CLAY_SIZING_FIXED(40) }, .padding = { 12, 10, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.acento, .width = GV_BORDA(1) },
+		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 81, .offset = { p.x - 100, p.y - 20 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {
+		gv_icone(it->icone, 20, gv_t.texto);
+		gv_texto(gv_str(it->rotulo), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_MEDIO);
+	}
+}
+
 static void barra_lateral(void) {
+	arraste_rever();
 	Clay_ElementId rol = CLAY_ID("lateral-rolagem");
 	CLAY(CLAY_ID("lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(236), CLAY_SIZING_GROW(0) } },
 		.border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
@@ -1515,13 +1637,14 @@ static void barra_lateral(void) {
 				for (int k = 0; k < n; k++) {
 					const ar_barra_item *it = &barra.v[idx[k]];
 					if (it->visivel) {
-						item_lateral(CLAY_IDI("l-it", (uint32_t)idx[k]), it->icone, it->rotulo, item_da_barra_ativo(it), destino_do_item(it));
+						item_lateral(CLAY_IDI("l-it", (uint32_t)idx[k]), idx[k], it->icone, it->rotulo, item_da_barra_ativo(it), destino_do_item(it));
 					}
 				}
 			}
+			arraste_desenhar();
 			CLAY(CLAY_ID("l-d3"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
 			char *lix = ar_lixeira_pasta();
-			item_lateral(CLAY_ID("l-lixeira"), "trash", "Lixeira", em_lixeira(), lix);
+			item_lateral(CLAY_ID("l-lixeira"), -1, "trash", "Lixeira", em_lixeira(), lix);
 			g_free(lix);
 		}
 	}
@@ -3974,7 +4097,7 @@ static void pagina_barra(void) {
 					}
 				}
 			}
-			gv_texto(CLAY_STRING("O olho esconde sem apagar; remover um atalho não apaga a pasta. Use as setas para reordenar."), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			gv_texto(CLAY_STRING("O olho esconde sem apagar; remover um atalho não apaga a pasta. Reordene arrastando na barra lateral, ou com as setas."), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
 		}
 		CLAY(CLAY_ID("bl-dir"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(300) }, .childGap = 16 } }) {
 			CLAY(CLAY_ID("bl-previa"), CARTAO) {

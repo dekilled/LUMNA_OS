@@ -30,6 +30,10 @@ if [ $rc -eq 0 ]; then
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_arraste.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_abas.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi

@@ -71,6 +71,8 @@ int ar_barra_da_secao(const ar_barra *b, int secao, int *indices);
 bool ar_barra_tem(const char *caminho, int secao);
 bool ar_barra_alternar(const char *caminho, int secao);
 void ar_barra_mover(ar_barra *b, int indice, int direcao);   /* -1 sobe, +1 desce, dentro da própria seção */
+/* Arrastar: leva o item `indice` para a seção `secao`, logo antes do item `antes` (índice em b->v; -1: no fim da seção). Devolve o índice novo do item. */
+int ar_barra_mover_para(ar_barra *b, int indice, int secao, int antes);
 bool ar_barra_remover(ar_barra *b, int indice);
 bool ar_barra_adicionar(ar_barra *b, int secao, const char *rotulo, const char *caminho);
 
