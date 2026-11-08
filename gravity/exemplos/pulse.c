@@ -33,7 +33,20 @@
 #define PAD 10
 #define FAMILIA "JetBrains Mono,DejaVu Sans Mono,Noto Sans Mono,monospace"
 
+/* a sugestão da Emma que está à espera de uma decisão (um cartão sobre a grade) */
+struct sugestao {
+	bool ativa;
+	char *cmd;          /* o comando sugerido (NULL: a Emma só explicou o erro) */
+	char *explicacao;
+	int64_t interacao;  /* a linha em emma_interactions (para gravar o que a pessoa decidiu) */
+	gint64 armada_em;   /* o Enter só vale daqui para frente: quem dá Enter por hábito logo depois do erro não roda a sugestão sem querer */
+	bool perigoso;      /* destrutivo: o Enter só põe no prompt, a pessoa confirma de novo */
+};
+
 struct aba {
+	int id;              /* não muda quando as abas andam (a resposta da Emma acha a aba por ele) */
+	int geracao;         /* cada comando novo, ou tecla nova, invalida o pedido que estava no ar */
+	struct sugestao sug;
 	terminal *t;
 	int desloc;          /* quantas linhas acima do fim se está olhando (0: no fim) */
 	int hist_antes;      /* o histórico no quadro anterior: para segurar o que se lê quando entra texto novo */
@@ -50,6 +63,8 @@ static gv_app *app;
 static pulsedb *banco;
 static int64_t sessao_db;
 static emt *emma;
+static int proximo_id_aba;
+#define ARMAR_US 600000 /* 0,6 s */
 static struct aba abas[MAX_ABAS];
 static int nabas, ativa;
 static float tam_fonte = 15, tam_padrao = 15;
@@ -128,13 +143,102 @@ static void medir(void) {
 
 /* ---- as abas ---- */
 
-/* o que o shell avisou (a integração): cada comando que acabou vai para a memória do Pulse */
+/* ---- a correção de erro com a Emma ---- */
+
+static struct aba *aba_por_id(int id) {
+	for (int i = 0; i < nabas; i++) {
+		if (abas[i].id == id) {
+			return &abas[i];
+		}
+	}
+	return NULL;
+}
+
+static void sug_limpar(struct aba *a) {
+	g_free(a->sug.cmd);
+	g_free(a->sug.explicacao);
+	memset(&a->sug, 0, sizeof(a->sug));
+}
+
+/* a pessoa decidiu (ou seguiu em frente): o cartão some e a decisão vai para o banco */
+static void sug_decidir(struct aba *a, const char *decisao) {
+	if (!a->sug.ativa) {
+		return;
+	}
+	if (banco && a->sug.interacao) {
+		pulsedb_interacao_decisao(banco, a->sug.interacao, decisao);
+	}
+	sug_limpar(a);
+	gv_app_redesenhar(app);
+}
+
+/* Enter (executar) ou Tab (só pôr no prompt para editar). O comando entra como colar (nada de Tab ou Enter escondido nele) e só roda com o Enter de verdade. */
+static void sug_aceitar(struct aba *a, bool executar) {
+	if (!a->sug.ativa || !a->sug.cmd) {
+		return;
+	}
+	bool roda = executar && !a->sug.perigoso && !strchr(a->sug.cmd, '\n');
+	terminal_colar(a->t, a->sug.cmd);
+	if (roda) {
+		terminal_tecla(a->t, XKB_KEY_Return, "", 0);
+	}
+	a->desloc = 0;
+	sug_decidir(a, roda ? "aplicada" : "inserida");
+}
+
+struct correcao_ctx {
+	int aba_id, geracao;
+	char *comando;
+};
+
+static void correcao_pronta(const char *resposta, int64_t interacao, void *dados) {
+	struct correcao_ctx *c = dados;
+	struct aba *a = aba_por_id(c->aba_id);
+	if (a && a->geracao == c->geracao && resposta) {
+		char *cmd, *expl;
+		emt_separar(resposta, &cmd, &expl);
+		char *digitado = terminal_linha_digitada(a->t); /* se a pessoa já começou a digitar, não atrapalha */
+		bool livre = !digitado || !*digitado;
+		g_free(digitado);
+		bool igual = cmd && !strcmp(cmd, c->comando);
+		if (livre && !igual && (cmd || expl) && !a->sug.ativa) {
+			a->sug.ativa = true;
+			a->sug.cmd = cmd;
+			a->sug.explicacao = expl;
+			a->sug.interacao = interacao;
+			a->sug.perigoso = cmd && emt_comando_perigoso(cmd, NULL);
+			a->sug.armada_em = g_get_monotonic_time() + ARMAR_US;
+			cmd = expl = NULL;
+			gv_acordar_em(0.7);
+			gv_app_redesenhar(app);
+		}
+		g_free(cmd);
+		g_free(expl);
+	}
+	g_free(c->comando);
+	g_free(c);
+}
+
+/* o que o shell avisou (a integração): cada comando que acabou vai para a memória do Pulse; o que falhou vai à Emma pedir a correção */
 static void eventos_da_aba(struct aba *aba) {
 	struct term_evento e;
 	while (terminal_evento(aba->t, &e)) {
-		if (e.tipo == TERM_EV_COMANDO_FIM && e.comando && banco) {
-			aba->ultimo_cmd = pulsedb_comando_gravar(banco, sessao_db, e.pasta ? e.pasta : "", e.comando, e.exit_code, e.saida ? e.saida : "");
-			aba->ultimo_exit = e.exit_code;
+		if (e.tipo == TERM_EV_COMANDO_INICIO) {
+			aba->geracao++; /* um comando novo: o pedido de antes não vale mais */
+			sug_limpar(aba);
+		} else if (e.tipo == TERM_EV_COMANDO_FIM && e.comando) {
+			if (banco) {
+				aba->ultimo_cmd = pulsedb_comando_gravar(banco, sessao_db, e.pasta ? e.pasta : "", e.comando, e.exit_code, e.saida ? e.saida : "");
+				aba->ultimo_exit = e.exit_code;
+			}
+			if (emma && banco && emt_falha_vale_a_pena(e.comando, e.exit_code, NULL)) {
+				struct correcao_ctx *c = g_new0(struct correcao_ctx, 1);
+				c->aba_id = aba->id;
+				c->geracao = aba->geracao;
+				c->comando = g_strdup(e.comando);
+				emt_pedir(emma, &(struct emt_pedido){ .tipo = EMT_CORRECAO, .cwd = e.pasta ? e.pasta : "", .comando = e.comando, .saida = e.saida ? e.saida : "",
+					.exit_code = e.exit_code, .comando_id = aba->ultimo_cmd }, correcao_pronta, c);
+			}
 		}
 		terminal_evento_limpar(&e);
 	}
@@ -159,6 +263,7 @@ static bool nova_aba(const char *cwd, const char *comando) {
 	}
 	struct aba *a = &abas[nabas];
 	memset(a, 0, sizeof(*a));
+	a->id = ++proximo_id_aba;
 	a->t = t;
 	aplicar_cores(a);
 	gv_app_vigiar(app, terminal_fd(t), ler_pronto, a);
@@ -168,6 +273,7 @@ static bool nova_aba(const char *cwd, const char *comando) {
 
 static void fechar_aba(int i) {
 	struct aba *a = &abas[i];
+	sug_limpar(a);
 	gv_app_desvigiar(app, terminal_fd(a->t));
 	terminal_fechar(a->t);
 	memmove(a, a + 1, sizeof(*a) * (size_t)(nabas - i - 1));
@@ -266,6 +372,118 @@ struct grade_dados {
 
 static void cor_rgb(cairo_t *cr, uint32_t c, double alfa) {
 	cairo_set_source_rgba(cr, ((c >> 16) & 0xff) / 255.0, ((c >> 8) & 0xff) / 255.0, (c & 0xff) / 255.0, alfa);
+}
+
+/* o cartão da Emma: sobre a grade, logo abaixo do prompt (ou acima, quando embaixo não cabe), no acento do LUMNA para não se confundir com a saída dos programas */
+static PangoLayout *texto_layout(cairo_t *cr, const char *txt, const char *familia, double tamanho, double largura, bool negrito) {
+	PangoLayout *l = pango_cairo_create_layout(cr);
+	PangoFontDescription *d = pango_font_description_new();
+	pango_font_description_set_family(d, familia);
+	pango_font_description_set_absolute_size(d, tamanho * PANGO_SCALE);
+	pango_font_description_set_weight(d, negrito ? PANGO_WEIGHT_BOLD : PANGO_WEIGHT_NORMAL);
+	pango_layout_set_font_description(l, d);
+	pango_font_description_free(d);
+	pango_layout_set_width(l, (int)(largura * PANGO_SCALE));
+	pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR);
+	pango_layout_set_text(l, txt, -1);
+	return l;
+}
+
+static void desenhar_sugestao(cairo_t *cr, Clay_BoundingBox caixa, struct aba *a, int cursor_linha) {
+	const double pad = 12, faixa = 4;
+	double larg = caixa.width - 2 * PAD;
+	if (larg > 820) {
+		larg = 820;
+	}
+	if (larg < 120) {
+		return;
+	}
+	double inner = larg - 2 * pad - faixa;
+	double tam_ui = tam_fonte * 0.85;
+	const char *ui = gv_t.fonte[0] ? gv_t.fonte : "Inter";
+	const char *dica = !a->sug.cmd ? "Esc fecha" : a->sug.perigoso ? "Enter coloca no prompt (comando destrutivo: você confirma de novo)  ·  Esc descarta"
+		: "Enter executa  ·  Tab coloca no prompt para editar  ·  Esc descarta";
+	PangoLayout *cab = texto_layout(cr, a->sug.cmd ? "Emma sugere" : "Emma", ui, tam_ui, inner, true);
+	PangoLayout *cmd = a->sug.cmd ? texto_layout(cr, a->sug.cmd, FAMILIA, tam_fonte, inner - 16, false) : NULL;
+	PangoLayout *exp = a->sug.explicacao && *a->sug.explicacao ? texto_layout(cr, a->sug.explicacao, ui, tam_ui, inner, false) : NULL;
+	PangoLayout *dic = texto_layout(cr, dica, ui, tam_ui * 0.92, inner, false);
+	int w, hc, hm = 0, he = 0, hd;
+	pango_layout_get_pixel_size(cab, &w, &hc);
+	if (cmd) {
+		pango_layout_get_pixel_size(cmd, &w, &hm);
+	}
+	if (exp) {
+		pango_layout_get_pixel_size(exp, &w, &he);
+	}
+	pango_layout_get_pixel_size(dic, &w, &hd);
+	double alt = pad + hc + 6 + (cmd ? hm + 12 + 6 : 0) + (exp ? he + 6 : 0) + hd + pad;
+	double ox = caixa.x + PAD, oy = caixa.y + PAD;
+	double x = ox, y = oy + (cursor_linha + 1) * ch + 6;
+	if (y + alt > caixa.y + caixa.height - 4) {
+		y = oy + cursor_linha * ch - alt - 6; /* embaixo não cabe: acima do prompt */
+	}
+	if (y < caixa.y + 4) {
+		y = caixa.y + 4;
+	}
+	/* o fundo, a borda e a faixa lilás */
+	cairo_save(cr);
+	double r = 10;
+	cairo_new_sub_path(cr);
+	cairo_arc(cr, x + larg - r, y + r, r, -M_PI / 2, 0);
+	cairo_arc(cr, x + larg - r, y + alt - r, r, 0, M_PI / 2);
+	cairo_arc(cr, x + r, y + alt - r, r, M_PI / 2, M_PI);
+	cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
+	cairo_close_path(cr);
+	cairo_set_source_rgba(cr, gv_t.elevada.r / 255.0, gv_t.elevada.g / 255.0, gv_t.elevada.b / 255.0, 0.98);
+	cairo_fill_preserve(cr);
+	cairo_clip(cr);
+	cairo_new_path(cr);
+	cairo_set_source_rgba(cr, gv_t.acento.r / 255.0, gv_t.acento.g / 255.0, gv_t.acento.b / 255.0, 1);
+	cairo_rectangle(cr, x, y, faixa, alt);
+	cairo_fill(cr);
+	cairo_reset_clip(cr);
+	cairo_set_source_rgba(cr, gv_t.acento.r / 255.0, gv_t.acento.g / 255.0, gv_t.acento.b / 255.0, 0.55);
+	cairo_set_line_width(cr, 1);
+	cairo_new_sub_path(cr);
+	cairo_arc(cr, x + larg - r, y + r, r, -M_PI / 2, 0);
+	cairo_arc(cr, x + larg - r, y + alt - r, r, 0, M_PI / 2);
+	cairo_arc(cr, x + r, y + alt - r, r, M_PI / 2, M_PI);
+	cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
+	cairo_close_path(cr);
+	cairo_stroke(cr);
+	/* o texto */
+	double tx = x + faixa + pad, ty = y + pad;
+	cairo_set_source_rgba(cr, gv_t.acento.r / 255.0, gv_t.acento.g / 255.0, gv_t.acento.b / 255.0, 1);
+	cairo_move_to(cr, tx, ty);
+	pango_cairo_show_layout(cr, cab);
+	ty += hc + 6;
+	if (cmd) {
+		cairo_set_source_rgba(cr, 0, 0, 0, 0.30);
+		cairo_rectangle(cr, tx, ty, inner, hm + 12);
+		cairo_fill(cr);
+		cairo_set_source_rgba(cr, gv_t.texto.r / 255.0, gv_t.texto.g / 255.0, gv_t.texto.b / 255.0, 1);
+		cairo_move_to(cr, tx + 8, ty + 6);
+		pango_cairo_show_layout(cr, cmd);
+		ty += hm + 12 + 6;
+	}
+	if (exp) {
+		cairo_set_source_rgba(cr, gv_t.texto_secundario.r / 255.0, gv_t.texto_secundario.g / 255.0, gv_t.texto_secundario.b / 255.0, 1);
+		cairo_move_to(cr, tx, ty);
+		pango_cairo_show_layout(cr, exp);
+		ty += he + 6;
+	}
+	cairo_set_source_rgba(cr, gv_t.texto_suave.r / 255.0, gv_t.texto_suave.g / 255.0, gv_t.texto_suave.b / 255.0, 1);
+	cairo_move_to(cr, tx, ty);
+	pango_cairo_show_layout(cr, dic);
+	cairo_restore(cr);
+	g_object_unref(cab);
+	if (cmd) {
+		g_object_unref(cmd);
+	}
+	if (exp) {
+		g_object_unref(exp);
+	}
+	g_object_unref(dic);
 }
 
 static void desenhar_grade(cairo_t *cr, Clay_BoundingBox caixa, void *dados) {
@@ -428,6 +646,9 @@ static void desenhar_grade(cairo_t *cr, Clay_BoundingBox caixa, void *dados) {
 		cairo_rectangle(cr, caixa.x + caixa.width - 6, caixa.y + topo, 4, alt);
 		cairo_fill(cr);
 	}
+	if (a->sug.ativa && a->desloc == 0) {
+		desenhar_sugestao(cr, caixa, a, cl);
+	}
 	cairo_restore(cr);
 }
 
@@ -478,6 +699,24 @@ static void teclas(struct aba *a) {
 		const char *txt = gv_tecla_texto_n(i);
 		if (tecla_so_modificador(s)) {
 			continue;
+		}
+		if (a->sug.ativa) {
+			bool sem_mods = !(mods & (GV_MOD_CTRL | GV_MOD_ALT | GV_MOD_SHIFT | GV_MOD_LOGO));
+			if (s == XKB_KEY_Escape && sem_mods) {
+				sug_decidir(a, "descartada");
+				continue;
+			}
+			if ((s == XKB_KEY_Return || s == XKB_KEY_KP_Enter) && sem_mods && a->sug.cmd && g_get_monotonic_time() >= a->sug.armada_em) {
+				sug_aceitar(a, true);
+				continue;
+			}
+			if (s == XKB_KEY_Tab && sem_mods && a->sug.cmd) {
+				sug_aceitar(a, false);
+				continue;
+			}
+			/* qualquer outra tecla (ou um Enter cedo demais, ou com só uma explicação): a sugestão fica para trás e a tecla segue para o shell */
+			a->geracao++;
+			sug_decidir(a, "ignorada");
 		}
 		uint32_t m = s >= 'a' && s <= 'z' ? s - 32 : s; /* a letra, de qualquer caixa */
 		if (ctrl && shift) {

@@ -58,6 +58,32 @@ static void teste_pecas(void) {
 	CHECA(emt_comando_perigoso("ls", "ls") && !emt_comando_perigoso("rm a", "ls"), "a lista é configurável: só o que está nela dispara");
 }
 
+static void falha(const char *cmd, int codigo, bool esperado) {
+	CHECA(emt_falha_vale_a_pena(cmd, codigo, NULL) == esperado, "falha('%s', %d) devia ser %s", cmd, codigo, esperado ? "sim" : "não");
+}
+
+static void teste_vale_a_pena(void) {
+	falha("make", 2, true);
+	falha("sl", 127, true);
+	falha("ls /nada", 2, true);
+	falha("make", 0, false);
+	falha("sleep 100", 130, false);   /* Ctrl+C */
+	falha("vim", 148, false);          /* Ctrl+Z */
+	falha("cat x | head -1", 141, false);
+	falha("tail -f log", 143, false);
+	falha("grep abc arquivo", 1, false); /* não achou: resposta normal */
+	falha("grep abc arquivo", 2, true);  /* erro de verdade (arquivo que não existe) */
+	falha("cat a | grep b", 1, false);   /* o código é o do grep, o último */
+	falha("sudo diff a b", 1, false);
+	falha("git status && grep x y", 1, false);
+	falha("false", 1, false);
+	falha("test -f /nao", 1, false);
+	falha("ls /nada", 1, true);          /* código 1 de quem não usa o 1 como "normal" */
+	falha("/usr/bin/grep x y", 1, false);
+	CHECA(emt_falha_vale_a_pena("meuprog", 1, "meuprog") == false, "a lista de programas é configurável");
+	CHECA(emt_falha_vale_a_pena("grep a b", 1, "meuprog") == true, "e quando se troca a lista, o grep volta a valer");
+}
+
 static void teste_listagem_e_prompt(void) {
 	char *casa = g_dir_make_tmp("emt-casa-XXXXXX", NULL);
 	setenv("HOME", casa, 1);
@@ -242,6 +268,7 @@ static void teste_config(void) {
 int main(int argc, char **argv) {
 	teste_pecas();
 	teste_config();
+	teste_vale_a_pena();
 	teste_listagem_e_prompt();
 	if (argc > 1) {
 		teste_pedidos(argv[1]);

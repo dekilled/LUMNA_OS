@@ -37,6 +37,8 @@ int64_t pulsedb_comando_gravar(pulsedb *db, int64_t sessao, const char *cwd, con
 /* uma resposta (ou tentativa) da Emma: tipo "correcao" | "comando" | "explicacao". command_id 0: não ligada a um comando. Devolve o id */
 int64_t pulsedb_interacao_gravar(pulsedb *db, int64_t sessao, int64_t command_id, const char *tipo, const char *prompt, const char *resposta);
 void pulsedb_interacao_resposta(pulsedb *db, int64_t interacao, const char *resposta);
+/* o que a pessoa fez com a sugestão: "aplicada" | "inserida" | "descartada" | "ignorada" */
+void pulsedb_interacao_decisao(pulsedb *db, int64_t interacao, const char *decisao);
 
 /* os últimos n comandos da sessão (do mais antigo ao mais novo), uma linha cada: "comando  (código N)" (g_free) */
 char *pulsedb_ultimos_comandos(pulsedb *db, int64_t sessao, int n);

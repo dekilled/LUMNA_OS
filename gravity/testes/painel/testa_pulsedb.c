@@ -132,8 +132,34 @@ static void teste_banco(void) {
 	g_free(erro);
 
 	char *sqltxt = pulsedb_esquema_sql();
-	CHECA(strstr(sqltxt, "CREATE TABLE emma_interactions") && strstr(sqltxt, "user_version = 1"), "o esquema em SQL");
+	CHECA(strstr(sqltxt, "CREATE TABLE emma_interactions") && strstr(sqltxt, "ADD COLUMN decisao") && strstr(sqltxt, "user_version = 2"), "o esquema em SQL");
 	g_free(sqltxt);
+	/* um banco da versão 1 (como o do primeiro Pulse) sobe para a 2 sem perder nada */
+	g_unlink(arq);
+	sqlite3_open(arq, &s);
+	sqlite3_exec(s, "CREATE TABLE sessions (id INTEGER PRIMARY KEY, started_at INTEGER NOT NULL, ended_at INTEGER, cwd_inicial TEXT NOT NULL DEFAULT '');"
+		"CREATE TABLE commands (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, timestamp INTEGER NOT NULL, cwd TEXT NOT NULL DEFAULT '',"
+		" command TEXT NOT NULL, exit_code INTEGER, saida_snippet TEXT NOT NULL DEFAULT '');"
+		"CREATE TABLE emma_interactions (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, command_id INTEGER REFERENCES commands(id) ON DELETE SET NULL,"
+		" tipo TEXT NOT NULL, prompt_enviado TEXT NOT NULL, resposta TEXT NOT NULL DEFAULT '', timestamp INTEGER NOT NULL);"
+		"INSERT INTO sessions(started_at) VALUES(1); INSERT INTO commands(session_id, timestamp, command, exit_code) VALUES(1, 1, 'antigo', 0);"
+		"INSERT INTO emma_interactions(session_id, tipo, prompt_enviado, timestamp) VALUES(1, 'correcao', 'p', 1);"
+		"PRAGMA user_version = 1;", NULL, NULL, NULL);
+	sqlite3_close(s);
+	erro = NULL;
+	db = pulsedb_abrir(arq, &erro);
+	CHECA(db && pulsedb_versao(db) == 2 && pulsedb_total_comandos(db) == 1, "um banco v1 sobe para a v2 sem perder dados: %s", erro ? erro : "ok");
+	if (db) {
+		pulsedb_interacao_decisao(db, 1, "aplicada");
+		pulsedb_fechar(db);
+		sqlite3_open(arq, &s);
+		sqlite3_stmt *st = NULL;
+		sqlite3_prepare_v2(s, "SELECT decisao FROM emma_interactions WHERE id = 1", -1, &st, NULL);
+		CHECA(sqlite3_step(st) == SQLITE_ROW && !strcmp((const char *)sqlite3_column_text(st, 0), "aplicada"), "a decisão ficou gravada");
+		sqlite3_finalize(st);
+		sqlite3_close(s);
+	}
+	g_free(erro);
 	g_free(arq);
 	g_free(dir);
 }

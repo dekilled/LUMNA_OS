@@ -46,6 +46,8 @@ static const struct {
 		"  timestamp INTEGER NOT NULL\n"
 		");\n"
 		"CREATE INDEX emma_interactions_session ON emma_interactions(session_id, id);\n" },
+	/* o que a pessoa fez com a sugestão da Emma: aplicada (Enter), inserida (Tab, ou um comando destrutivo), descartada (Esc) ou ignorada (seguiu digitando) */
+	{ 2, "ALTER TABLE emma_interactions ADD COLUMN decisao TEXT NOT NULL DEFAULT '';\n" },
 };
 #define N_MIGRACOES ((int)(sizeof(migracoes) / sizeof(migracoes[0])))
 
@@ -220,6 +222,15 @@ int64_t pulsedb_interacao_gravar(pulsedb *db, int64_t sessao, int64_t command_id
 	g_free(p);
 	g_free(r);
 	return id;
+}
+
+void pulsedb_interacao_decisao(pulsedb *db, int64_t interacao, const char *decisao) {
+	sqlite3_stmt *st = NULL;
+	sqlite3_prepare_v2(db->s, "UPDATE emma_interactions SET decisao = ? WHERE id = ?", -1, &st, NULL);
+	sqlite3_bind_text(st, 1, decisao ? decisao : "", -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int64(st, 2, interacao);
+	sqlite3_step(st);
+	sqlite3_finalize(st);
 }
 
 void pulsedb_interacao_resposta(pulsedb *db, int64_t interacao, const char *resposta) {

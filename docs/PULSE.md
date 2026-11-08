@@ -51,6 +51,9 @@ emma=sim             ; nao desliga a Emma no terminal
 ## Entregas
 
 - (a) **feita:** o renome, a integração com o bash, o banco com migração, o comando `pergunta` e o módulo `emma_terminal`; cada comando que acaba vai para a memória.
-- (b) correção de erro com a Emma (sugestão inline, Enter confirma, Esc descarta)
+- (b) **feita:** correção de erro com a Emma. Todo comando que acaba com código diferente de 0 (menos Ctrl+C/Ctrl+Z e o código 1 de `grep`, `diff`, `test`...) vai à Emma com o
+  comando, o código e o fim da saída; a sugestão aparece num cartão lilás logo abaixo do prompt. **Enter** executa (só depois de 0,6 s: um Enter por hábito logo depois do erro
+  não roda nada, só segue para o shell), **Tab** põe no prompt para editar, **Esc** descarta, qualquer outra tecla some com o cartão. Um comando destrutivo (a lista do (d))
+  nunca roda com o Enter do cartão: só entra no prompt. A decisão fica em `emma_interactions.decisao` (aplicada, inserida, descartada, ignorada).
 - (c) comando por linguagem natural (`Ctrl+E`)
 - (d) explicação antes de executar (lista configurável)

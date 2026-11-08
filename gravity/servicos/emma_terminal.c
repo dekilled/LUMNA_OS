@@ -337,6 +337,60 @@ void emt_separar(const char *resposta, char **cmd, char **explicacao) {
 	g_free(copia);
 }
 
+/* o programa do último trecho do comando (é o dele o código de saída): sem sudo, env e atribuições na frente, sem o caminho (g_free) */
+static char *programa_final(const char *comando) {
+	char **trechos = g_regex_split_simple("&&|\\|\\||;|\\|", comando, 0, 0);
+	int n = 0;
+	while (trechos && trechos[n]) {
+		n++;
+	}
+	char *prog = NULL;
+	for (int t = n - 1; t >= 0 && !prog; t--) {
+		char **palavras = g_strsplit_set(g_strstrip(trechos[t]), " \t", -1);
+		int k = 0;
+		while (palavras[k] && (!*palavras[k] || !strcmp(palavras[k], "sudo") || !strcmp(palavras[k], "doas") || !strcmp(palavras[k], "env") || strchr(palavras[k], '='))) {
+			k++;
+		}
+		if (palavras[k]) {
+			const char *base = strrchr(palavras[k], '/');
+			prog = g_strdup(base ? base + 1 : palavras[k]);
+		}
+		g_strfreev(palavras);
+	}
+	g_strfreev(trechos);
+	return prog;
+}
+
+bool emt_falha_vale_a_pena(const char *comando, int exit_code, const char *programas) {
+	if (exit_code == 0 || !comando || !*comando) {
+		return false;
+	}
+	switch (exit_code) {
+	case 130: /* Ctrl+C */
+	case 131: /* Ctrl+\ */
+	case 141: /* SIGPIPE: o `head` fechou o cano */
+	case 143: /* SIGTERM */
+	case 146:
+	case 148: /* Ctrl+Z */
+		return false;
+	default:
+		break;
+	}
+	if (exit_code == 1) {
+		const char *padrao = "grep,egrep,fgrep,rg,ag,ack,diff,cmp,test,[,[[,false,pgrep,which,command,type,git-diff,comm,cmp,expr,tput";
+		char *prog = programa_final(comando);
+		char **itens = g_strsplit(programas && *programas ? programas : padrao, ",", -1);
+		bool normal = false;
+		for (int i = 0; prog && itens[i] && !normal; i++) {
+			normal = !strcmp(g_strstrip(itens[i]), prog);
+		}
+		g_strfreev(itens);
+		g_free(prog);
+		return !normal;
+	}
+	return true;
+}
+
 bool emt_comando_perigoso(const char *comando, const char *lista) {
 	if (!comando || !*comando) {
 		return false;

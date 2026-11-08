@@ -36,7 +36,7 @@ for _ in $(seq 1 20); do kill -0 $pid 2>/dev/null || break; sleep 0.3; done
 kill $pid 2>/dev/null; wait $pid 2>/dev/null
 [ "$(q "select count(*) from sessions where ended_at is not null")" = 1 ] || fail "ao sair, a sessão devia ficar encerrada no banco"
 # os comandos da linha de comando
-"$g/pulse" --migrar-banco | grep -q "versão 1" || fail "--migrar-banco devia dizer a versão"
+"$g/pulse" --migrar-banco | grep -q "versão 2" || fail "--migrar-banco devia dizer a versão"
 "$g/pulse" --esquema | grep -q "CREATE TABLE commands" || fail "--esquema devia mostrar o SQL"
 "$g/pulse" --limpar-historico | grep -q apagado || fail "--limpar-historico devia avisar"
 [ "$(q "select count(*) from commands")" = 0 ] || fail "depois de limpar não sobra comando"

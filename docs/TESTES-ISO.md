@@ -61,6 +61,13 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.28 | No Pulse, rodar `echo oi`, `ls /nao-existe` e ` echo escondido` (com espaço na frente); depois, num terminal qualquer: `sqlite3 ~/.local/share/lumna/pulse/pulse.db "select command, exit_code from commands"` | Os dois primeiros aparecem (códigos 0 e 2); o terceiro não | ☐ |
 | 2.29 | `curl --password=abc123 http://localhost` no Pulse e olhar o banco | O comando guardado tem `--password=***` | ☐ |
 | 2.30 | `lumna-pulse --migrar-banco`, `lumna-pulse --esquema`, `lumna-pulse --limpar-historico` | Mostra a versão, o SQL, e apaga tudo (o banco fica vazio) | ☐ |
+| 2.31 | No Pulse (com uma IA configurada em Painel > Emma > Provedores), rodar um comando que erra: `gti status` | Em 1 a 3 s aparece um cartão lilás abaixo do prompt: "Emma sugere", o comando corrigido (`git status`), a explicação e as teclas | ☐ |
+| 2.32 | Com o cartão aberto: **Enter** (espere meio segundo) | O comando corrigido roda | ☐ |
+| 2.33 | Outro erro, e **Tab** | O comando entra no prompt, sem rodar; dá para editar e dar Enter | ☐ |
+| 2.34 | Outro erro, e **Esc** | O cartão some e nada roda | ☐ |
+| 2.35 | Dar Enter logo (por hábito) depois de um comando que erra | Não roda a sugestão: o Enter só pula a linha | ☐ |
+| 2.36 | `grep xyz /etc/hostname` (sem resultado) e Ctrl+C num `sleep 100` | Nenhum cartão: não são erros | ☐ |
+| 2.37 | Sem internet ou sem IA configurada: errar um comando | Nada aparece e o terminal segue normal (sem travar) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

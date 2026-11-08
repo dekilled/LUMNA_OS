@@ -74,6 +74,9 @@ char *emt_pediu_historico(const char *resposta);
 void emt_separar(const char *resposta, char **cmd, char **explicacao);
 /* a listagem curta de uma pasta, só dentro da home e sem nomes de segredos; "" fora dela (g_free) */
 char *emt_listagem(const char *cwd);
+/* Uma falha que vale pedir a correção à Emma? Não valem: a pessoa interrompeu (Ctrl+C, Ctrl+\\, Ctrl+Z, SIGTERM, SIGPIPE) ou o programa usa o código 1 para uma resposta normal
+ * (grep sem achar, diff com diferença, test, false...). programas: lista separada por vírgulas desses "código 1 é normal" (NULL: a padrão) */
+bool emt_falha_vale_a_pena(const char *comando, int exit_code, const char *programas);
 /* o comando dispara a explicação antes de rodar? lista: "rm,dd,mkfs,chmod -R,kill..." (NULL: a padrão) */
 bool emt_comando_perigoso(const char *comando, const char *lista);
 

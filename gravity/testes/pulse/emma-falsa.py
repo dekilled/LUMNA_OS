@@ -27,6 +27,13 @@ def tratar(c):
         r = {"ok": True, "resposta": "docker ps\nSegundo o histórico, você usou o docker ontem."}
     elif "docker" in t.lower() and "HISTORICO-PEDE" in t:
         r = {"ok": True, "resposta": "[[HISTORICO: docker]]"}
+    elif "<saida_do_comando>" in t and "<comando>pulse-erro-" in t:
+        # os testes do cartão de correção: cada comando que falha ganha uma sugestão que deixa uma marca no EMMA_FALSA_DIR (ou nenhuma)
+        n = t.split("<comando>pulse-erro-")[1][0]  # (o histórico também cita os comandos de antes: vale o da marca <comando>)
+        d = os.environ.get("EMMA_FALSA_DIR", "/tmp")
+        resp = {"1": f"touch {d}/m1\nA sugestão um.", "2": f"touch {d}/m2\nA sugestão dois.", "3": f"touch {d}/m3\nA sugestão três.",
+                "4": f"rm -f {d}/m4\nApaga o arquivo m4.", "5": f"touch {d}/m5\nA sugestão cinco.", "6": "NENHUM\nSó uma explicação: o comando não existe."}.get(n, "NENHUM")
+        r = {"ok": True, "resposta": resp}
     elif "<saida_do_comando>" in t:
         r = {"ok": True, "resposta": "ls -la\nFaltava o -la para ver os arquivos ocultos."}
     elif "linguagem natural" in t:
