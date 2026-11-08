@@ -6,6 +6,9 @@
 #include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/util/log.h>
 
+#include <wlr/version.h>
+#if WLR_VERSION_NUM < ((0 << 16) | (19 << 8))
+/* wlroots 0.18: a gama vai direto à tela (só as que têm tabela de gama; a luz noturna falha nas outras) */
 static void gamma_set(struct wl_listener *listener, void *data) {
 	struct wlr_gamma_control_v1 *control = data;
 	struct wlr_output *output = control->output;
@@ -22,6 +25,7 @@ static void gamma_set(struct wl_listener *listener, void *data) {
 	wlr_output_state_finish(&state);
 	(void)listener;
 }
+#endif
 
 /* wlr-output-power-management: apagar e acender o monitor sem tirá-lo do desktop (as janelas ficam onde estão) */
 static void power_set_mode(struct wl_listener *listener, void *data) {
@@ -154,8 +158,17 @@ bool orbit_manage_bind(struct orbit_server *server) {
 		wlr_log(WLR_ERROR, "falha ao criar o gamma");
 		return false;
 	}
+#if WLR_VERSION_NUM >= ((0 << 16) | (19 << 8))
+	/* a cena aplica a gama sozinha: na tabela da tela quando ela tem uma e, no wlroots 0.20, pelo renderizador quando não tem
+	 * (máquina virtual, algumas telas e GPUs): sem isso a luz noturna só funcionava em hardware com tabela de gama */
+	wlr_scene_set_gamma_control_manager_v1(server->scene, server->gamma_manager);
+#else
 	server->gamma_set.notify = gamma_set;
 	wl_signal_add(&server->gamma_manager->events.set_gamma, &server->gamma_set);
+#endif
+#if WLR_VERSION_NUM >= ((0 << 16) | (20 << 8))
+	server->gamma_manager->fallback_gamma_size = 1024;
+#endif
 	server->output_manager = wlr_output_manager_v1_create(server->display);
 	if (!server->output_manager) {
 		wlr_log(WLR_ERROR, "falha ao criar o output management");
