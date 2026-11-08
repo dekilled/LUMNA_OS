@@ -1,7 +1,7 @@
 #!/bin/sh
-# O lumna-console num Orbit headless, com teclado e mouse de verdade (wtype e o mouse virtual): digitar (com acentos), Ctrl+C, abas, selecionar
+# O Pulse Terminal num Orbit headless, com teclado e mouse de verdade (wtype e o mouse virtual): digitar (com acentos), Ctrl+C, abas, selecionar
 # e copiar, fechar com exit. O que o shell recebe se confere por arquivos que ele mesmo escreve.
-# sh console_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY ARRASTO2
+# sh pulse_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY ARRASTO2
 orbit_dir=${1:?}; g=${2:?}; M=${3:?}
 run=$(mktemp -d); chmod 700 "$run"
 export XDG_RUNTIME_DIR=$run HOME=$run LANG=C.UTF-8 LC_ALL=C.UTF-8 SHELL=/bin/bash PS1='$ '
@@ -11,7 +11,7 @@ orbit=$!
 sleep 4
 export WAYLAND_DISPLAY=$(ls "$run"/orbit.*.sock | head -1 | xargs basename | sed 's/^orbit\.//; s/\.sock$//')
 H="env ORBIT_SOCK=$run/orbit.$WAYLAND_DISPLAY.sock $orbit_dir/orbit-msg"
-"$g/console" >"$run/c.log" 2>&1 &
+"$g/pulse" >"$run/c.log" 2>&1 &
 pid=$!
 sleep 4
 digita() { wtype "$1"; wtype -k Return; sleep 0.7; }
@@ -60,4 +60,4 @@ sleep 1.5
 [ "$($H janelas | python3 -c "import json,sys; print(len(json.load(sys.stdin)['janelas']))")" = 0 ] || fail "exit na última aba devia fechar a janela"
 kill $pid 2>/dev/null; wait $pid 2>/dev/null
 kill $orbit 2>/dev/null
-[ "$falhas" -eq 0 ] && echo "console (teclado e mouse): ok" || { echo "$falhas falha(s) (log em $run)"; exit 1; }
+[ "$falhas" -eq 0 ] && echo "pulse (teclado e mouse): ok" || { echo "$falhas falha(s) (log em $run)"; exit 1; }

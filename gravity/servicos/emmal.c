@@ -186,8 +186,8 @@ static void acumular_chamada(struct resposta *r, const struct json *tc) {
 }
 
 /* uma fala do provedor: delta com o texto que chega; r junta o texto e as chamadas de ferramenta. messages_json é o ARRAY completo */
-static bool pedir(const struct emmal_prov *p, const char *messages_json, const char *tools_json, const char *extra, void (*delta)(const char *, void *),
-	void *dados, struct resposta *r, char **erro) {
+static bool pedir_c(const struct emmal_prov *p, const char *messages_json, const char *tools_json, const char *extra, void (*delta)(const char *, void *),
+	void *dados, struct resposta *r, char **erro, GCancellable *propria) {
 	sessao_iniciar();
 	GString *c = g_string_new("{\"model\":");
 	json_escrever_texto(c, p->modelo);
@@ -219,10 +219,13 @@ static bool pedir(const struct emmal_prov *p, const char *messages_json, const c
 	g_bytes_unref(corpo);
 	g_string_free(c, TRUE);
 
-	GCancellable *cancel = g_cancellable_new();
-	g_mutex_lock(&trinco);
-	atual = cancel;
-	g_mutex_unlock(&trinco);
+	/* uma pergunta avulsa (emmal_perguntar) tem o seu cancelável: cortá-la não corta a conversa, e a conversa não a corta */
+	GCancellable *cancel = propria ? g_object_ref(propria) : g_cancellable_new();
+	if (!propria) {
+		g_mutex_lock(&trinco);
+		atual = cancel;
+		g_mutex_unlock(&trinco);
+	}
 	GError *e = NULL;
 	GInputStream *in = soup_session_send(sessao, m, cancel, &e);
 	bool ok = false;
@@ -315,13 +318,20 @@ static bool pedir(const struct emmal_prov *p, const char *messages_json, const c
 		goto fim;
 	}
 fim:
-	g_mutex_lock(&trinco);
-	atual = NULL;
-	g_mutex_unlock(&trinco);
+	if (!propria) {
+		g_mutex_lock(&trinco);
+		atual = NULL;
+		g_mutex_unlock(&trinco);
+	}
 	g_object_unref(cancel);
 	g_clear_error(&e);
 	g_object_unref(m);
 	return ok;
+}
+
+static bool pedir(const struct emmal_prov *p, const char *messages_json, const char *tools_json, const char *extra, void (*delta)(const char *, void *),
+	void *dados, struct resposta *r, char **erro) {
+	return pedir_c(p, messages_json, tools_json, extra, delta, dados, r, erro, NULL);
 }
 
 void emmal_parar(void) {
@@ -330,6 +340,108 @@ void emmal_parar(void) {
 		g_cancellable_cancel(atual);
 	}
 	g_mutex_unlock(&trinco);
+}
+
+/* ---- a pergunta avulsa (o Pulse Terminal) ---- */
+
+struct pergunta {
+	gint refs; /* a linha da pergunta e os dois relógios: o último a largar libera */
+	GCancellable *cancel;
+	gint primeiro; /* chegou o primeiro pedaço do texto */
+	gint acabou;
+	gint motivo;   /* 1: a resposta não começou a tempo, 2: passou do teto */
+};
+
+static void pergunta_largar(gpointer dados) {
+	struct pergunta *q = dados;
+	if (g_atomic_int_dec_and_test(&q->refs)) {
+		g_object_unref(q->cancel);
+		g_free(q);
+	}
+}
+
+static void pergunta_delta(const char *txt, void *dados) {
+	g_atomic_int_set(&((struct pergunta *)dados)->primeiro, 1);
+}
+
+static gboolean pergunta_vigia(gpointer dados) {
+	struct pergunta *q = dados;
+	if (g_atomic_int_get(&q->acabou)) {
+		return G_SOURCE_REMOVE;
+	}
+	if (!g_atomic_int_get(&q->primeiro)) {
+		g_atomic_int_set(&q->motivo, 1);
+	} else {
+		return G_SOURCE_CONTINUE; /* já começou: só o teto corta */
+	}
+	g_cancellable_cancel(q->cancel);
+	return G_SOURCE_REMOVE;
+}
+
+static gboolean pergunta_teto(gpointer dados) {
+	struct pergunta *q = dados;
+	if (!g_atomic_int_get(&q->acabou)) {
+		if (!g_atomic_int_get(&q->motivo)) {
+			g_atomic_int_set(&q->motivo, 2);
+		}
+		g_cancellable_cancel(q->cancel);
+	}
+	return G_SOURCE_REMOVE;
+}
+
+/* Uma pergunta só, sem conversa, sem histórico e SEM ferramentas: a Emma só responde texto, nunca age. A resposta tem de começar em "primeiro" segundos e
+ * acabar em "teto"; passando disso, desiste (false, erro vazio: quem chama falha em silêncio). Bloqueia: chame de uma linha à parte. */
+bool emmal_perguntar(const char *sistema, const char *texto, int primeiro, int teto, char **resposta, char **erro) {
+	struct emmal_prov prov;
+	char *e0 = NULL;
+	if (!emmal_provedor("chat", &prov, &e0)) {
+		*erro = e0;
+		return false;
+	}
+	GString *msgs = g_string_new("[{\"role\":\"system\",\"content\":");
+	json_escrever_texto(msgs, sistema ? sistema : "");
+	g_string_append(msgs, "},{\"role\":\"user\",\"content\":");
+	json_escrever_texto(msgs, texto ? texto : "");
+	g_string_append(msgs, "}]");
+	struct pergunta *q = g_new0(struct pergunta, 1);
+	q->cancel = g_cancellable_new();
+	q->refs = 3;
+	if (primeiro < 1) {
+		primeiro = 3;
+	}
+	if (teto < primeiro) {
+		teto = primeiro;
+	}
+	/* os dois relógios correm no laço principal do serviço */
+	guint v1 = g_timeout_add_seconds_full(G_PRIORITY_DEFAULT, (guint)primeiro, pergunta_vigia, q, pergunta_largar);
+	guint v2 = g_timeout_add_seconds_full(G_PRIORITY_DEFAULT, (guint)teto, pergunta_teto, q, pergunta_largar);
+	struct resposta r;
+	resposta_iniciar(&r);
+	char *erro_pedido = NULL;
+	bool ok = pedir_c(&prov, msgs->str, NULL, "\"temperature\":0.2", pergunta_delta, q, &r, &erro_pedido, q->cancel);
+	g_atomic_int_set(&q->acabou, 1);
+	/* os relógios que ainda não dispararam saem agora (o que já disparou já se foi: find devolve NULL) */
+	GSource *s1 = g_main_context_find_source_by_id(NULL, v1), *s2 = g_main_context_find_source_by_id(NULL, v2);
+	if (s1) {
+		g_source_destroy(s1);
+	}
+	if (s2) {
+		g_source_destroy(s2);
+	}
+	int motivo = g_atomic_int_get(&q->motivo);
+	if (ok && !motivo && r.texto->len) {
+		*resposta = g_strdup(g_strstrip(r.texto->str));
+		ok = true;
+	} else {
+		ok = false;
+		*erro = motivo == 1 ? g_strdup("sem resposta a tempo") : motivo == 2 ? g_strdup("a resposta passou do tempo") : erro_pedido ? erro_pedido : g_strdup("resposta vazia");
+		erro_pedido = NULL;
+	}
+	g_free(erro_pedido);
+	resposta_liberar(&r);
+	g_string_free(msgs, TRUE);
+	pergunta_largar(q);
+	return ok;
 }
 
 /* ---- a conversa ---- */

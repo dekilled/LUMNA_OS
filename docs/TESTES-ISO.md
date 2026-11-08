@@ -21,7 +21,7 @@ mentira e com o Orbit sem tela (headless): **na sua máquina é a primeira vez**
 | 1.3 | Olhar a barra | Relógio, modo, volume, rede, bateria (se for notebook) | ☐ |
 | 1.4 | `Super` | Abre o menu Iniciar | ☐ |
 | 1.5 | `Super+Tab` | Abre o seletor de modo (um 2º `Super+Tab` troca) | ☐ |
-| 1.6 | `Alt+Enter` | Abre o terminal do LUMNA (`lumna-console`) | ☐ |
+| 1.6 | `Alt+Enter` | Abre o terminal do LUMNA (`lumna-pulse`) | ☐ |
 
 **Se a tela ficar preta ou voltar para o login:** é o risco que a gente já esperava (o Orbit nunca rodou num DRM de verdade).
 No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lumna`), ou `Ctrl+Alt+F2` para um terminal
@@ -58,6 +58,9 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.25 | Abrir o terminal (a conta nova, do `/etc/skel`): o `fastfetch` aparece sozinho na primeira aba (nas abas seguintes não); depois, `fastfetch` à mão | Aparece o desenho do LUMNA (o losango com o **LL** e a órbita) ao lado de Sistema, Base, Compositor, Interface e Sessão, e os blocos lilás embaixo | ☐ |
 | 2.26 | Abrir o terminal e olhar o prompt | `usuário@máquina` em lilás; `ls` com cores | ☐ |
 | 2.27 | Logo ao entrar na sessão, abrir um app (Apps ao iniciar, ou rápido na dock) enquanto a barra de cima ainda sobe | A janela não fica com o título escondido atrás da barra: ela se ajusta para a área útil assim que a barra aparece | ☐ |
+| 2.28 | No Pulse, rodar `echo oi`, `ls /nao-existe` e ` echo escondido` (com espaço na frente); depois, num terminal qualquer: `sqlite3 ~/.local/share/lumna/pulse/pulse.db "select command, exit_code from commands"` | Os dois primeiros aparecem (códigos 0 e 2); o terceiro não | ☐ |
+| 2.29 | `curl --password=abc123 http://localhost` no Pulse e olhar o banco | O comando guardado tem `--password=***` | ☐ |
+| 2.30 | `lumna-pulse --migrar-banco`, `lumna-pulse --esquema`, `lumna-pulse --limpar-historico` | Mostra a versão, o SQL, e apaga tudo (o banco fica vazio) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

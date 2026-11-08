@@ -235,7 +235,7 @@ const char *pn_suas_popup(Clay_ElementId popup, Clay_ElementId ancora, const cha
 void pn_terminal(const char *comando) {
 	/* cada terminal pede o comando de um jeito; o primeiro que existir leva */
 	static const struct { const char *programa, *formato; } terminais[] = {
-		{ "lumna-console", "lumna-console -e sh -c %s" },
+		{ "lumna-pulse", "lumna-pulse -e sh -c %s" },
 		{ "foot", "foot sh -c %s" },
 		{ "kitty", "kitty sh -c %s" },
 		{ "alacritty", "alacritty -e sh -c %s" },

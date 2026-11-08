@@ -1,5 +1,5 @@
 #!/bin/sh
-# O fastfetch roda sozinho na primeira aba do Terminal do LUMNA (via ~/.bashrc do skel), e não nas abas seguintes. Usa um fastfetch de mentira.
+# O fastfetch roda sozinho na primeira aba do Pulse Terminal (via ~/.bashrc do skel), e não nas abas seguintes. Usa um fastfetch de mentira.
 # sh fastfetch_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY PASTA_DA_SESSAO
 orbit_dir=${1:?}; g=${2:?}; sessao=${3:?}
 run=$(mktemp -d); chmod 700 "$run"; mkdir -p "$run/casa" "$run/bin"
@@ -11,12 +11,12 @@ WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=pixman WLR_LIBINPUT_NO
 orbit=$!
 sleep 3
 export WAYLAND_DISPLAY=$(ls "$run"/orbit.*.sock | head -1 | xargs basename | sed 's/^orbit\.//; s/\.sock$//')
-"$g/console" >"$run/c.log" 2>&1 &
+"$g/pulse" >"$run/c.log" 2>&1 &
 sleep 3
 falhas=0
 [ -e "$run/marca" ] || { echo "FALHOU: o fastfetch devia rodar sozinho na primeira aba"; falhas=1; }
 rm -f "$run/marca"
 wtype -M ctrl -M shift t -m shift -m ctrl; sleep 2
 [ ! -e "$run/marca" ] || { echo "FALHOU: o fastfetch não devia rodar numa aba nova"; falhas=1; }
-pkill -x console; kill $orbit 2>/dev/null
+pkill -x pulse; kill $orbit 2>/dev/null
 [ "$falhas" -eq 0 ] && echo "fastfetch automático (primeira aba): ok" || exit 1

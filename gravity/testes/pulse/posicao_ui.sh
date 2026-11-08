@@ -10,12 +10,12 @@ sleep 3
 export WAYLAND_DISPLAY=$(ls "$run"/orbit.*.sock | head -1 | xargs basename | sed 's/^orbit\.//; s/\.sock$//')
 H="env ORBIT_SOCK=$run/orbit.$WAYLAND_DISPLAY.sock $orbit_dir/orbit-msg"
 y_de() { $H janelas | python3 -c "import json,sys; print(json.load(sys.stdin)['janelas'][0]['y'])"; }
-"$g/console" >"$run/c.log" 2>&1 &
+"$g/pulse" >"$run/c.log" 2>&1 &
 sleep 3
 "$M" casa; sleep 0.3; "$M" mover 640 100; sleep 0.3; "$M" arrastar 0 -90 300; sleep 1
 antes=$(y_de)
 for a in papel barra dock; do "$g/$a" >"$run/$a.log" 2>&1 & done
 sleep 4
 depois=$(y_de)
-pkill -x console; pkill -x barra; pkill -x dock; pkill -x papel; kill $orbit 2>/dev/null
+pkill -x pulse; pkill -x barra; pkill -x dock; pkill -x papel; kill $orbit 2>/dev/null
 if [ "$antes" -lt 40 ] && [ "$depois" -ge 40 ]; then echo "janela livre sob a barra de cima: ok"; else echo "FALHOU: y antes $antes, depois $depois (devia sair de menos de 40 e ficar em 40 ou mais)"; exit 1; fi

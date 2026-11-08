@@ -477,6 +477,24 @@ try:
         r = asyncio.run(celular())
         confere(r.get("type") == "voice_reply" and r.get("ok") and "Volume" in r.get("text", ""), f"a voz do celular não voltou: {r}")
         confere("50%" in log(), "o volume do celular não foi ajustado")
+    # pergunta: uma resposta avulsa do Pulse Terminal, sem conversa, sem histórico e SEM ferramentas
+    n_antes = log().count("POST /v1/chat/completions")
+    r = pede("pergunta", json.dumps({"sistema": "Responda só com o comando.", "texto": "pulse-ok liste os arquivos", "primeiro": 3, "teto": 10}))
+    confere(r.get("ok") and r.get("resposta") == "ls -la", f"pergunta devia devolver o texto inteiro: {r}")
+    corpo = [l for l in log().splitlines() if l.startswith("POST /v1/chat/completions")][n_antes]
+    confere('"tools"' not in corpo, "a pergunta avulsa não pode oferecer ferramentas à Emma (ela só responde texto)")
+    confere("Responda só com o comando." in corpo and "pulse-ok liste" in corpo, "o sistema e o texto da pergunta chegam ao provedor")
+    t0 = time.time()
+    r = pede("pergunta", json.dumps({"sistema": "x", "texto": "pulse-lento", "primeiro": 1, "teto": 10}))
+    confere(r.get("ok") is False and "tempo" in r.get("erro", "") and time.time() - t0 < 5, f"sem o primeiro pedaço a tempo, desiste logo: {r} em {time.time() - t0:.1f}s")
+    t0 = time.time()
+    r = pede("pergunta", json.dumps({"sistema": "x", "texto": "pulse-teto", "primeiro": 1, "teto": 3}))
+    confere(r.get("ok") is False and "tempo" in r.get("erro", "") and time.time() - t0 < 6, f"começar e não acabar passa do teto: {r} em {time.time() - t0:.1f}s")
+    r = pede("pergunta", json.dumps({"sistema": "x", "texto": "pulse-ok de novo", "primeiro": 3, "teto": 10}))
+    confere(r.get("ok") and r.get("resposta") == "ls -la", f"depois de uma desistência a seguinte funciona: {r}")
+    confere(pede("historico").get("ok") is not False, "o histórico da conversa continua respondendo")
+    confere("pulse-ok" not in json.dumps(pede("historico")), "a pergunta avulsa não entra no histórico da conversa")
+
     pede("encerrar")
     confere(espera(lambda: not os.path.exists(os.path.join(run, "lumna-emma.sock")), 5), "o serviço não fechou com 'encerrar'")
 finally:

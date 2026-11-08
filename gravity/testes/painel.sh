@@ -94,12 +94,22 @@ if /usr/bin/python3.12 -c "import dbus" 2>/dev/null && command -v gdbus >/dev/nu
 else
 	echo "(sem python3.12 com dbus: o teste do agente do polkit ficou de fora)"
 fi
-# o terminal (lumna-console): a grade, as cores, o histórico, o tamanho, as teclas e o colar, contra processos de verdade num pty
+# o terminal (Pulse Terminal): a grade, as cores, o histórico, o tamanho, as teclas e o colar, contra processos de verdade num pty
 if pkg-config --exists vterm; then
-	cc $CF $(pkg-config --cflags vterm xkbcommon) -o "$T/testa_terminal" testes/painel/testa_terminal.c servicos/terminal.c $(pkg-config --libs vterm xkbcommon) -lutil
-	"$T/testa_terminal"
+	cc $CF $(pkg-config --cflags vterm xkbcommon) -o "$T/testa_terminal" testes/painel/testa_terminal.c servicos/terminal.c $(pkg-config --libs vterm xkbcommon) $LG -lutil
+	"$T/testa_terminal" "$AQUI/pulse-shell/integracao.bash"
 else
 	echo "(sem libvterm: o teste do terminal ficou de fora)"
+fi
+# a memória do Pulse (SQLite) e a Emma no terminal (contra um lumna-emma de mentira)
+if pkg-config --exists sqlite3; then
+	cc $CF $(pkg-config --cflags sqlite3) -o "$T/testa_pulsedb" testes/painel/testa_pulsedb.c servicos/pulsedb.c $(pkg-config --libs sqlite3) $LG
+	"$T/testa_pulsedb"
+	cc $CF $(pkg-config --cflags gio-2.0 sqlite3) -o "$T/testa_emma_terminal" testes/painel/testa_emma_terminal.c servicos/emma_terminal.c servicos/pulsedb.c servicos/emmac.c servicos/json.c \
+		$(pkg-config --libs gio-2.0 sqlite3) $LG
+	sh testes/pulse/emma_terminal.sh "$AQUI" "$T/testa_emma_terminal"
+else
+	echo "(sem sqlite: os testes da memória do Pulse ficaram de fora)"
 fi
 # as atualizações: o snapshot antes de atualizar (e o voltar) e a publicação dos pacotes (poda e conferência)
 bash testes/pkg/snapshot.sh

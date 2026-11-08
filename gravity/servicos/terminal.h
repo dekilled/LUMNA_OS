@@ -1,6 +1,6 @@
 /*
  * terminal: um terminal (a libvterm) ligado a um processo (um shell) por um pseudo-terminal. É só a parte do terminal, sem Gravity: o app
- * (exemplos/console.c) lê a grade daqui, desenha, e manda as teclas e o mouse para cá. Dá para testar sem tela (testes/painel/testa_terminal.c).
+ * (exemplos/pulse.c) lê a grade daqui, desenha, e manda as teclas e o mouse para cá. Dá para testar sem tela (testes/painel/testa_terminal.c).
  *
  * As linhas são contadas assim: 0 .. linhas-1 é a tela de agora; -1, -2... é o histórico que rolou para cima (-1 é a linha logo acima da tela).
  */
@@ -78,5 +78,34 @@ void terminal_mouse_mover(terminal *t, int linha, int coluna, uint32_t mods);
 char *terminal_texto(terminal *t, int linha1, int coluna1, int linha2, int coluna2);
 /* Os limites da palavra em (linha, coluna): para o clique duplo. */
 void terminal_palavra(terminal *t, int linha, int coluna, int *ini, int *fim);
+
+/* ---- a integração com o shell (o Pulse) ----
+ * O bash (o integracao.bash que o Pulse põe a rodar no primeiro prompt) manda marcas no fluxo: OSC 133 (A: o prompt começa, B: onde se digita, C: o
+ * comando começou a rodar, D;N: acabou com o código N) e o OSC 7770 com o comando e a pasta (em base64). Com elas o terminal sabe, sem adivinhar,
+ * quando um comando acaba, com que código, o que ele escreveu e o que está sendo digitado. Sem a integração (outro shell), nada disto aparece. */
+
+enum term_evento_tipo {
+	TERM_EV_PROMPT,         /* o prompt apareceu (A) */
+	TERM_EV_COMANDO_INICIO, /* a pessoa deu Enter e o comando começou (C) */
+	TERM_EV_COMANDO_FIM,    /* o comando acabou (D): comando, pasta, exit_code e saida */
+};
+
+struct term_evento {
+	enum term_evento_tipo tipo;
+	int exit_code;
+	char *comando; /* g_free; só no FIM, e NULL quando a linha não entrou no histórico do shell (começou com espaço, repetida, vazia) */
+	char *pasta;   /* a pasta onde o shell estava ao acabar (g_free) */
+	char *saida;   /* as últimas linhas que o comando escreveu, sem as cores (g_free), no FIM */
+};
+
+/* o próximo evento da fila (false se não há); libere com terminal_evento_limpar */
+bool terminal_evento(terminal *t, struct term_evento *e);
+void terminal_evento_limpar(struct term_evento *e);
+/* o shell mandou marcas (a integração está ligada nesta aba) */
+bool terminal_integrado(const terminal *t);
+/* o que está digitado agora na linha do prompt (do ponto B até o fim do que se escreveu), como o shell o vê; NULL se não há prompt a esperar ou sem integração (g_free) */
+char *terminal_linha_digitada(terminal *t);
+/* quantas linhas finais da saída de um comando vão no evento (o padrão é 40) */
+void terminal_saida_linhas(terminal *t, int linhas);
 
 #endif

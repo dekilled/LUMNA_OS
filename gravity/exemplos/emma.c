@@ -1271,6 +1271,25 @@ static gpointer llm_linha(gpointer d) {
 	return NULL;
 }
 
+/* pergunta {"sistema":"...","texto":"...","primeiro":3,"teto":15}: uma resposta avulsa (o Pulse Terminal): sem conversa, sem histórico e sem ferramentas, então a Emma
+ * só devolve texto e nunca age. Tem de começar a responder em "primeiro" segundos e acabar em "teto"; senão volta {"ok":false,"erro":...} */
+static gpointer pergunta_linha(gpointer d) {
+	struct llm_ctx *l = d;
+	struct json *j = json_ler(l->corpo);
+	char *resposta = NULL, *erro = NULL;
+	bool ok = j && emmal_perguntar(json_chave_texto(j, "sistema"), json_chave_texto(j, "texto"), (int)json_numero(json_chave(j, "primeiro"), 3),
+		(int)json_numero(json_chave(j, "teto"), 15), &resposta, &erro);
+	GString *r = g_string_new(ok ? "{\"ok\":true,\"resposta\":" : "{\"ok\":false,\"erro\":");
+	json_escrever_texto(r, ok ? resposta : (erro ? erro : "pergunta {sistema, texto}"));
+	g_string_append_c(r, '}');
+	l->json = g_string_free(r, FALSE);
+	g_free(resposta);
+	g_free(erro);
+	json_liberar(j);
+	g_main_context_invoke(NULL, llm_pronto, l);
+	return NULL;
+}
+
 /* conversar {"sid":"...","texto":"...","skill":"...","contexto":true}: uma mensagem numa sessão do app */
 static void conversar_app(struct cliente *c, const char *corpo) {
 	struct json *j = json_ler(corpo);
@@ -1452,6 +1471,11 @@ static void tratar(struct cliente *c, char *linha) {
 		l->c = c;
 		l->corpo = g_strdup(resto ? resto : "{}");
 		g_thread_unref(g_thread_new("emma-llm", llm_linha, l));
+	} else if (!strcmp(cmd, "pergunta")) {
+		struct llm_ctx *l = g_new0(struct llm_ctx, 1);
+		l->c = c;
+		l->corpo = g_strdup(resto ? resto : "{}");
+		g_thread_unref(g_thread_new("emma-pergunta", pergunta_linha, l));
 	} else if (!strcmp(cmd, "conversar")) {
 		conversar_app(c, resto ? resto : "");
 	} else if (!strcmp(cmd, "contexto")) {

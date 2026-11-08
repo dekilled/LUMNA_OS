@@ -25,6 +25,10 @@ bool emmal_conversar(const char *sid, const char *texto, bool voz, const char *l
 	char **resposta, char **erro);
 void emmal_parar(void); /* corta a resposta que está chegando */
 
+/* Uma pergunta avulsa: sem conversa, sem histórico e SEM ferramentas (só texto: nunca age). Tem de começar a responder em "primeiro" s e acabar em "teto" s,
+ * senão desiste (false, com o motivo em *erro). A resposta (g_free) é o texto inteiro. Bloqueia: chame de uma linha à parte. */
+bool emmal_perguntar(const char *sistema, const char *texto, int primeiro, int teto, char **resposta, char **erro);
+
 /* guarda a personalidade e as diretrizes do servidor (o JSON de GET /api/settings) para a reserva falar igual */
 void emmal_guardar_persona(const char *settings_json);
 

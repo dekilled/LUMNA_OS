@@ -15,6 +15,7 @@
  *   historico                    as mensagens da conversa do painel: [{papel, texto, hora, ferramentas}]
  *   contexto [sim|nao]           a janela em foco (o chip "Contexto: ..." do painel) e se a Emma pode usá-la
  *   acoes                        o catálogo de ações e a permissão de cada uma
+ *   pergunta {sistema,texto,primeiro,teto}  uma resposta avulsa, sem conversa e sem ferramentas (nunca age): {"ok","resposta"} ou {"ok":false,"erro"}
  *
  * Eventos (assinar): estado, nivel (volume do microfone), ouvido (o que se falou), delta (a resposta chegando),
  * resposta (a final), ferramenta (uma ação rodou, com os argumentos), confirmar (uma ação pede licença), nova, erro.

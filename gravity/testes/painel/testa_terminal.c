@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <glib.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "terminal.h"
@@ -253,7 +254,111 @@ static void teste_mouse(void) {
 	terminal_fechar(t);
 }
 
-int main(void) {
+
+/* ---- a integração com o shell (bash de verdade + pulse-shell/integracao.bash) ---- */
+
+static void digita(terminal *t, const char *txt) {
+	for (const char *p = txt; *p; p++) {
+		char u[2] = { *p, 0 };
+		terminal_tecla(t, (uint32_t)*p, u, 0);
+		bombear(t, 20);
+	}
+}
+
+static void enter(terminal *t) {
+	terminal_tecla(t, XKB_KEY_Return, "", 0);
+}
+
+/* lê até chegar um evento do tipo (ou 5 s); false se não veio */
+static bool espera_evento(terminal *t, enum term_evento_tipo tipo, struct term_evento *e) {
+	for (int i = 0; i < 250; i++) {
+		struct term_evento x;
+		while (terminal_evento(t, &x)) {
+			if (x.tipo == tipo) {
+				*e = x;
+				return true;
+			}
+			terminal_evento_limpar(&x);
+		}
+		bombear(t, 20);
+	}
+	return false;
+}
+
+static void teste_integracao(const char *integracao) {
+	char *casa = g_dir_make_tmp("pulse-teste-XXXXXX", NULL);
+	setenv("HOME", casa, 1);
+	setenv("SHELL", "/bin/bash", 1);
+	setenv("LUMNA_PULSE_INTEGRACAO", integracao, 1);
+	setenv("HISTCONTROL", "ignorespace", 1);
+	setenv("PS1", "$ ", 1);
+	setenv("HISTFILE", "/dev/null", 1);
+	terminal *t = terminal_abrir(80, 12, casa, NULL);
+	assert(t);
+	terminal_cores(t, FG, BG, ANSI);
+	struct term_evento e;
+	CHECA(espera_evento(t, TERM_EV_PROMPT, &e), "o primeiro prompt devia vir com a marca A");
+	terminal_evento_limpar(&e);
+	CHECA(terminal_integrado(t), "a integração devia estar ligada");
+
+	/* um comando que dá certo */
+	digita(t, "echo oi");
+	char *dig = terminal_linha_digitada(t);
+	CHECA(dig && !strcmp(dig, "echo oi"), "a linha digitada: '%s'", dig ? dig : "(nulo)");
+	g_free(dig);
+	enter(t);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_INICIO, &e), "o comando devia começar (C)");
+	terminal_evento_limpar(&e);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_FIM, &e), "o comando devia acabar (D)");
+	CHECA(e.exit_code == 0 && e.comando && !strcmp(e.comando, "echo oi"), "fim: código %d comando '%s'", e.exit_code, e.comando ? e.comando : "(nulo)");
+	CHECA(e.saida && !strcmp(e.saida, "oi"), "a saída do comando: '%s'", e.saida ? e.saida : "(nulo)");
+	CHECA(e.pasta && !strcmp(e.pasta, casa), "a pasta do shell: '%s'", e.pasta ? e.pasta : "(nulo)");
+	terminal_evento_limpar(&e);
+
+	/* um que falha: o código e a mensagem de erro vêm juntos */
+	digita(t, "ls /nao-existe-pulse");
+	enter(t);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_FIM, &e), "o ls que falha devia acabar");
+	CHECA(e.exit_code == 2 && e.comando && !strcmp(e.comando, "ls /nao-existe-pulse"), "fim do ls: código %d comando '%s'", e.exit_code, e.comando ? e.comando : "(nulo)");
+	CHECA(e.saida && strstr(e.saida, "nao-existe-pulse"), "a mensagem de erro entra na saída: '%s'", e.saida ? e.saida : "(nulo)");
+	terminal_evento_limpar(&e);
+
+	/* saída de várias linhas e só as últimas */
+	terminal_saida_linhas(t, 3);
+	digita(t, "seq 1 9");
+	enter(t);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_FIM, &e), "o seq devia acabar");
+	CHECA(e.saida && !strcmp(e.saida, "7\n8\n9"), "só as últimas 3 linhas: '%s'", e.saida ? e.saida : "(nulo)");
+	terminal_evento_limpar(&e);
+	terminal_saida_linhas(t, 40);
+
+	/* começar com espaço: o shell não guarda no histórico e o Pulse não vê (nem registra, nem manda para a Emma) */
+	digita(t, " echo segredo");
+	enter(t);
+	digita(t, "pwd");
+	enter(t);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_FIM, &e), "o pwd devia acabar");
+	CHECA(e.comando && !strcmp(e.comando, "pwd"), "o comando com espaço na frente não pode aparecer: veio '%s'", e.comando ? e.comando : "(nulo)");
+	terminal_evento_limpar(&e);
+
+	/* cd muda a pasta do evento seguinte */
+	digita(t, "cd /tmp");
+	enter(t);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_FIM, &e), "o cd devia acabar");
+	CHECA(e.pasta && !strcmp(e.pasta, "/tmp"), "depois do cd a pasta é /tmp: '%s'", e.pasta ? e.pasta : "(nulo)");
+	terminal_evento_limpar(&e);
+
+	/* um comando com segredo e aspas: o texto chega inteiro (o base64 não perde nada) */
+	digita(t, "echo \"a b\" 'c;d' $HOME");
+	enter(t);
+	CHECA(espera_evento(t, TERM_EV_COMANDO_FIM, &e), "o echo com aspas devia acabar");
+	CHECA(e.comando && !strcmp(e.comando, "echo \"a b\" 'c;d' $HOME"), "o comando com aspas e $: '%s'", e.comando ? e.comando : "(nulo)");
+	terminal_evento_limpar(&e);
+	terminal_fechar(t);
+	g_free(casa);
+}
+
+int main(int argc, char **argv) {
 	teste_grade();
 	teste_saida_e_titulo();
 	teste_historico();
@@ -263,6 +368,7 @@ int main(void) {
 	teste_colar_grande();
 	teste_cursor_e_palavra();
 	teste_mouse();
+	teste_integracao(argc > 1 ? argv[1] : "pulse-shell/integracao.bash");
 	if (falhas) {
 		fprintf(stderr, "%d falha(s) no terminal\n", falhas);
 		return 1;

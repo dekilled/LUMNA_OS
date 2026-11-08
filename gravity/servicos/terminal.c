@@ -3,6 +3,7 @@
 #include "terminal.h"
 
 #include <errno.h>
+#include <glib.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <pty.h>
@@ -51,6 +52,16 @@ struct terminal {
 	int cursor_l, cursor_c;
 	uint32_t fg, bg;
 	char pasta[4096];
+	/* a integração com o shell */
+	bool integrado;
+	GString *osc;          /* o OSC que chega em pedaços */
+	int osc_cmd;
+	bool prompt_aberto;    /* depois de A e antes de C: a pessoa está digitando */
+	int entrada_l, entrada_c; /* B: onde começa o que se digita (linha absoluta: histórico + linha da tela) */
+	int saida_l;           /* C: a primeira linha da saída do comando (absoluta) */
+	char *pend_cmd, *pend_pasta;
+	GQueue eventos;
+	int saida_linhas;
 };
 
 /* ---- libvterm: os retornos ---- */
@@ -151,6 +162,120 @@ static int cb_popline(int colunas, VTermScreenCell *celulas, void *u) {
 	return 1;
 }
 
+/* ---- a integração com o shell ---- */
+
+#define EVENTOS_MAX 64
+
+
+static void evento_empurrar(struct terminal *t, struct term_evento *e) {
+	if (g_queue_get_length(&t->eventos) >= EVENTOS_MAX) {
+		struct term_evento *velho = g_queue_pop_head(&t->eventos);
+		terminal_evento_limpar(velho);
+		g_free(velho);
+	}
+	struct term_evento *c = g_memdup2(e, sizeof(*e));
+	g_queue_push_tail(&t->eventos, c);
+}
+
+static char *base64_de(const char *b64) {
+	gsize n = 0;
+	guchar *d = g_base64_decode(b64, &n);
+	char *s = g_strndup((char *)d, n);
+	g_free(d);
+	return s;
+}
+
+/* a saída do comando: as linhas de saida_l até a linha do cursor (o prompt novo), sem as últimas em branco, no máximo as últimas t->saida_linhas */
+static char *saida_do_comando(struct terminal *t) {
+	VTermPos p;
+	vterm_state_get_cursorpos(t->estado, &p);
+	int ate = t->nhist + p.row; /* a linha do prompt novo (ou onde o cursor parou) */
+	int ini = t->saida_l;
+	if (p.col == 0) {
+		ate--; /* o cursor está no começo da linha do prompt: a saída acabou na linha de cima */
+	}
+	if (ini < 0 || ate < ini) {
+		return g_strdup("");
+	}
+	if (ate - ini + 1 > t->saida_linhas) {
+		ini = ate - t->saida_linhas + 1;
+	}
+	char *txt = terminal_texto(t, ini - t->nhist, 0, ate - t->nhist, t->colunas - 1);
+	if (!txt) {
+		return g_strdup("");
+	}
+	g_strchomp(txt);
+	return txt;
+}
+
+static void osc_tratar(struct terminal *t, int cmd, const char *dado) {
+	if (cmd == 133 && dado[0]) {
+		t->integrado = true;
+		switch (dado[0]) {
+		case 'A':
+			t->prompt_aberto = false;
+			evento_empurrar(t, &(struct term_evento){ .tipo = TERM_EV_PROMPT });
+			break;
+		case 'B': {
+			VTermPos p;
+			vterm_state_get_cursorpos(t->estado, &p);
+			t->entrada_l = t->nhist + p.row;
+			t->entrada_c = p.col;
+			t->prompt_aberto = true;
+			break;
+		}
+		case 'C': {
+			t->prompt_aberto = false;
+			VTermPos p;
+			vterm_state_get_cursorpos(t->estado, &p);
+			t->saida_l = t->nhist + p.row + (p.col > 0 ? 1 : 0); /* a saída começa depois da linha que a pessoa digitou */
+			evento_empurrar(t, &(struct term_evento){ .tipo = TERM_EV_COMANDO_INICIO });
+			break;
+		}
+		case 'D': {
+			int code = dado[1] == ';' ? atoi(dado + 2) : 0;
+			struct term_evento e = { .tipo = TERM_EV_COMANDO_FIM, .exit_code = code, .comando = t->pend_cmd, .pasta = t->pend_pasta };
+			t->pend_cmd = t->pend_pasta = NULL;
+			e.saida = e.comando ? saida_do_comando(t) : g_strdup("");
+			evento_empurrar(t, &e);
+			break;
+		}
+		default:
+			break;
+		}
+	} else if (cmd == 7770) {
+		/* cmd=<base64> | cwd=<base64>: o que o shell sabe e a tela não mostra */
+		t->integrado = true;
+		if (g_str_has_prefix(dado, "cmd=")) {
+			g_free(t->pend_cmd);
+			t->pend_cmd = base64_de(dado + 4);
+		} else if (g_str_has_prefix(dado, "cwd=")) {
+			g_free(t->pend_pasta);
+			t->pend_pasta = base64_de(dado + 4);
+		}
+	}
+}
+
+static int cb_osc(int command, VTermStringFragment frag, void *u) {
+	struct terminal *t = u;
+	if (command != 133 && command != 7770) {
+		return 0;
+	}
+	if (frag.initial) {
+		g_string_truncate(t->osc, 0);
+		t->osc_cmd = command;
+	}
+	if (t->osc->len + frag.len < 8192) {
+		g_string_append_len(t->osc, frag.str, (gssize)frag.len);
+	}
+	if (frag.final) {
+		osc_tratar(t, t->osc_cmd, t->osc->str);
+	}
+	return 1;
+}
+
+static const VTermStateFallbacks fallbacks = { .osc = cb_osc };
+
 static const VTermScreenCallbacks callbacks = {
 	.damage = cb_damage,
 	.moverect = cb_moverect,
@@ -234,6 +359,11 @@ terminal *terminal_abrir(int colunas, int linhas, const char *cwd, const char *c
 	t->estado = vterm_obtain_state(t->vt);
 	vterm_screen_enable_altscreen(t->tela, 1);
 	vterm_screen_set_callbacks(t->tela, &callbacks, t);
+	t->osc = g_string_new(NULL);
+	t->saida_linhas = 40;
+	t->saida_l = -1;
+	g_queue_init(&t->eventos);
+	vterm_state_set_unrecognised_fallbacks(t->estado, &fallbacks, t);
 	vterm_screen_set_damage_merge(t->tela, VTERM_DAMAGE_SCROLL);
 	vterm_screen_reset(t->tela, 1);
 
@@ -251,7 +381,7 @@ terminal *terminal_abrir(int colunas, int linhas, const char *cwd, const char *c
 		}
 		setenv("TERM", "xterm-256color", 1);
 		setenv("COLORTERM", "truecolor", 1);
-		setenv("TERM_PROGRAM", "lumna-console", 1);
+		setenv("TERM_PROGRAM", "pulse", 1);
 		unsetenv("COLUMNS");
 		unsetenv("LINES");
 		/* os sinais voltam ao normal: quem abriu o terminal pode tê-los ignorado (um app aberto em segundo plano por um sh ignora o SIGINT, e o Ctrl+C
@@ -271,6 +401,17 @@ terminal *terminal_abrir(int colunas, int linhas, const char *cwd, const char *c
 				shell = "/bin/bash";
 			}
 			const char *nome = strrchr(shell, '/');
+			/* o bash carrega a integração (as marcas do prompt) no primeiro prompt: o PROMPT_COMMAND que vem do ambiente roda antes de qualquer outro */
+			const char *integracao = getenv("LUMNA_PULSE_INTEGRACAO");
+			if (!integracao || !*integracao) {
+				integracao = "/usr/share/lumna/pulse/integracao.bash";
+			}
+			if (!strcmp(nome ? nome + 1 : shell, "bash") && access(integracao, R_OK) == 0 && !strchr(integracao, '\'')) {
+				char pc[4200];
+				snprintf(pc, sizeof(pc), ". '%s'", integracao);
+				setenv("PROMPT_COMMAND", pc, 1);
+				setenv("PULSE_TERMINAL", "1", 1);
+			}
 			char arg0[128];
 			snprintf(arg0, sizeof(arg0), "-%s", nome ? nome + 1 : shell); /* o traço: um shell de login, como o foot/gnome-terminal */
 			execl(shell, arg0, (char *)NULL);
@@ -306,6 +447,16 @@ void terminal_fechar(terminal *t) {
 	}
 	free(t->hist);
 	free(t->saida);
+	if (t->osc) {
+		g_string_free(t->osc, TRUE);
+	}
+	g_free(t->pend_cmd);
+	g_free(t->pend_pasta);
+	struct term_evento *ev;
+	while ((ev = g_queue_pop_head(&t->eventos))) {
+		terminal_evento_limpar(ev);
+		g_free(ev);
+	}
 	if (t->vt) {
 		vterm_free(t->vt);
 	}
@@ -819,4 +970,57 @@ void terminal_palavra(terminal *t, int linha, int coluna, int *ini, int *fim) {
 	}
 	*ini = a;
 	*fim = b;
+}
+
+/* ---- a integração com o shell: o que o app lê ---- */
+
+bool terminal_evento(terminal *t, struct term_evento *e) {
+	struct term_evento *p = g_queue_pop_head(&t->eventos);
+	if (!p) {
+		return false;
+	}
+	*e = *p;
+	g_free(p);
+	return true;
+}
+
+void terminal_evento_limpar(struct term_evento *e) {
+	g_free(e->comando);
+	g_free(e->pasta);
+	g_free(e->saida);
+	e->comando = e->pasta = e->saida = NULL;
+}
+
+bool terminal_integrado(const terminal *t) {
+	return t->integrado;
+}
+
+void terminal_saida_linhas(terminal *t, int linhas) {
+	t->saida_linhas = linhas < 1 ? 1 : linhas;
+}
+
+char *terminal_linha_digitada(terminal *t) {
+	if (!t->integrado || !t->prompt_aberto || t->alt) {
+		return NULL;
+	}
+	VTermPos cur;
+	vterm_state_get_cursorpos(t->estado, &cur);
+	int fim_l = t->nhist + cur.row;
+	if (fim_l < t->entrada_l) {
+		return NULL;
+	}
+	/* uma linha digitada que passou da largura continua na de baixo: segue enquanto a linha estiver cheia até a última coluna */
+	for (int guarda = 0; guarda < 20 && fim_l - t->nhist + 1 < t->linhas; guarda++) {
+		struct term_celula c;
+		terminal_celula(t, fim_l - t->nhist, t->colunas - 1, &c);
+		if (!c.texto[0] || c.texto[0] == ' ') {
+			break;
+		}
+		fim_l++;
+	}
+	char *txt = terminal_texto(t, t->entrada_l - t->nhist, t->entrada_c, fim_l - t->nhist, t->colunas - 1);
+	if (txt) {
+		g_strchomp(txt);
+	}
+	return txt;
 }

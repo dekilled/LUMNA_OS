@@ -9,8 +9,8 @@ url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
 depends=(
   # bibliotecas
-  wayland libxkbcommon cairo pango glib2 gdk-pixbuf2 libpulse libsoup3 dbus libvterm
-  # a fonte do terminal (lumna-console)
+  wayland libxkbcommon cairo pango glib2 gdk-pixbuf2 libpulse libsoup3 dbus libvterm sqlite
+  # a fonte do terminal (Pulse Terminal)
   ttf-jetbrains-mono ttf-dejavu
   # o que as peças chamam: teclado virtual do controle (wtype), área de transferência, captura e gravação
   wtype wl-clipboard grim wf-recorder
@@ -28,7 +28,7 @@ options=(!strip !debug)
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador console)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse)
 
 build() {
   cd "$_root/gravity"
@@ -45,6 +45,8 @@ package() {
   # o que as peças leem de /usr/share/lumna: a arte da Emma e a extensão do Firefox da Mídia
   install -d "$pkgdir/usr/share/lumna/emma"
   cp -a assets/emma/. "$pkgdir/usr/share/lumna/emma/"
+  # a integração do Pulse Terminal com o bash (as marcas do prompt e o aviso de cada comando)
+  install -Dm644 pulse-shell/integracao.bash "$pkgdir/usr/share/lumna/pulse/integracao.bash"
   install -Dm644 extensao-firefox/lumna-midia.xpi "$pkgdir/usr/share/lumna/midia/lumna-midia.xpi"
   # os atalhos dos apps e os ícones deles (tema hicolor)
   cd "$_root/packages/lumna-gravity"

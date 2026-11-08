@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Pulse Terminal
+Comment=Linha de comando, com abas
+Exec=lumna-pulse
+Icon=lumna-pulse
+StartupWMClass=lumna-pulse
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=pulse;terminal;console;shell;bash;comando;linha de comando;prompt;

@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador console
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -158,16 +158,16 @@ polkit: exemplos/polkit.c servicos/polkitag.c servicos/polkitag.h
 polkit-janela: exemplos/polkit-janela.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ exemplos/polkit-janela.c libgravity.a $(LDLIBS)
 
-# o terminal (lumna-console): a libvterm e um pty, desenhados à mão
-console: exemplos/console.c servicos/terminal.c servicos/terminal.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags vterm pangocairo) -o $@ exemplos/console.c servicos/terminal.c libgravity.a $(LDLIBS) $(shell pkg-config --libs vterm) -lutil
+# o Pulse Terminal (lumna-pulse): a libvterm e um pty, desenhados à mão
+pulse: exemplos/pulse.c servicos/terminal.c servicos/terminal.h servicos/pulsedb.c servicos/pulsedb.h servicos/emma_terminal.c servicos/emma_terminal.h servicos/emmac.c servicos/json.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags vterm pangocairo sqlite3 gio-2.0) -o $@ exemplos/pulse.c servicos/terminal.c servicos/pulsedb.c servicos/emma_terminal.c servicos/emmac.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs vterm sqlite3 gio-2.0) -lutil
 
 # o instalador do LUMNA OS (Instalar LUMNA OS, da sessão live)
 instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h servicos/json.c servicos/json.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador console ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 

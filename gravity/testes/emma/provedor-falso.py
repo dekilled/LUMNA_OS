@@ -91,6 +91,15 @@ class H(BaseHTTPRequestHandler):
         elif "conto" in ultimo_user:
             # como o Gemma: a chamada escrita em TEXTO (bloco tool_code), com quebras de linha de verdade e aspas dentro do conteúdo
             falar(["Claro! Vou guardar o conto.\n\n```tool_code\n", "lumna_arquivos_escrever(caminho='~/Emma/Histórias/conto-e2e.txt', conteudo='Era uma vez um servidor.\n\n\"Oi\", disse ele, d\'água fria.\nFim.', motivo='guardar o conto')\n", "```"])
+        elif "pulse-lento" in ultimo_user:
+            time.sleep(6)  # o provedor que não começa a responder (a pergunta avulsa desiste em 'primeiro' s)
+            falar(["tarde demais"])
+        elif "pulse-teto" in ultimo_user:
+            falar(["comecou "])
+            time.sleep(8)  # começa, mas não acaba (a pergunta avulsa desiste em 'teto' s)
+            falar(["fim"])
+        elif "pulse-ok" in ultimo_user:
+            falar(["ls ", "-la"])
         elif "netflix" in ultimo_user:
             chamar("lumna_midia_abrir", {"servico": "netflix"})
         elif "layout" in ultimo_user:

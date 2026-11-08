@@ -1,10 +1,10 @@
 /*
- * lumna-console: o terminal do LUMNA, em Gravity. O terminal em si (a libvterm e o pty) é servicos/terminal.c; aqui fica a janela: a grade
+ * lumna-pulse: o Pulse Terminal, o terminal do LUMNA, em Gravity. O terminal em si (a libvterm e o pty) é servicos/terminal.c; aqui fica a janela: a grade
  * desenhada com o cairo, as abas, a seleção com o mouse, o histórico, o colar e as teclas.
  *
- *   lumna-console                    um shell na pasta pessoal
- *   lumna-console --pasta DIR        o shell nessa pasta
- *   lumna-console -e comando args... roda o comando (a aba fecha quando ele acaba)
+ *   lumna-pulse                    um shell na pasta pessoal
+ *   lumna-pulse --pasta DIR        o shell nessa pasta
+ *   lumna-pulse -e comando args... roda o comando (a aba fecha quando ele acaba)
  *
  * Atalhos (os que não colidem com programas de terminal):
  *   Ctrl+Shift+C / V     copiar / colar          Shift+Insert  colar
@@ -23,7 +23,10 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "emma_terminal.h"
+#include "emmac.h"
 #include "gravity.h"
+#include "pulsedb.h"
 #include "terminal.h"
 
 #define MAX_ABAS 16
@@ -34,6 +37,8 @@ struct aba {
 	terminal *t;
 	int desloc;          /* quantas linhas acima do fim se está olhando (0: no fim) */
 	int hist_antes;      /* o histórico no quadro anterior: para segurar o que se lê quando entra texto novo */
+	int64_t ultimo_cmd;  /* o último comando que acabou nesta aba (o id no banco; 0: nenhum) */
+	int ultimo_exit;
 	bool morreu;
 	/* a seleção, em linhas absolutas (0 é a primeira do histórico): fica no lugar quando entra texto novo */
 	bool sel_tem, sel_arrasta;
@@ -41,6 +46,10 @@ struct aba {
 };
 
 static gv_app *app;
+/* a memória e a Emma do Pulse (só em terminal de shell: com -e não há o que lembrar). NULL quando o banco não abriu: o terminal funciona igual, sem a Emma */
+static pulsedb *banco;
+static int64_t sessao_db;
+static emt *emma;
 static struct aba abas[MAX_ABAS];
 static int nabas, ativa;
 static float tam_fonte = 15, tam_padrao = 15;
@@ -119,11 +128,24 @@ static void medir(void) {
 
 /* ---- as abas ---- */
 
+/* o que o shell avisou (a integração): cada comando que acabou vai para a memória do Pulse */
+static void eventos_da_aba(struct aba *aba) {
+	struct term_evento e;
+	while (terminal_evento(aba->t, &e)) {
+		if (e.tipo == TERM_EV_COMANDO_FIM && e.comando && banco) {
+			aba->ultimo_cmd = pulsedb_comando_gravar(banco, sessao_db, e.pasta ? e.pasta : "", e.comando, e.exit_code, e.saida ? e.saida : "");
+			aba->ultimo_exit = e.exit_code;
+		}
+		terminal_evento_limpar(&e);
+	}
+}
+
 static void ler_pronto(gv_app *a, int fd, void *dados) {
 	struct aba *aba = dados;
 	if (!terminal_ler(aba->t)) {
 		aba->morreu = true;
 	}
+	eventos_da_aba(aba);
 	gv_app_redesenhar(a);
 }
 
@@ -733,7 +755,7 @@ static void desenhar(gv_app *a, void *dados) {
 	(void)menu;
 	CLAY(CLAY_ID("co-janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_t.superficie,
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-		gv_barra_janela(a, CLAY_ID("co-barra"), "terminal", "LUMNA Terminal");
+		gv_barra_janela(a, CLAY_ID("co-barra"), "terminal", "Pulse Terminal");
 		/* a faixa de abas só aparece com duas ou mais (uma aba nova: Ctrl+Shift+T, o botão direito ou o + da faixa depois) */
 		if (nabas > 1) {
 			CLAY(CLAY_ID("co-abas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 10, 10, 4, 4 }, .childGap = 4, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
@@ -775,6 +797,10 @@ static void desenhar(gv_app *a, void *dados) {
 	if (terminal_enviar(abas[ativa].t)) {
 		gv_acordar_em(0.02); /* o que ainda não coube no pty (um colar grande) */
 	}
+	if (emma && emt_pendentes(emma) > 0) {
+		emt_tick(emma);
+		gv_acordar_em(0.5); /* os prazos dos pedidos à Emma */
+	}
 }
 
 int main(int argc, char **argv) {
@@ -791,12 +817,36 @@ int main(int argc, char **argv) {
 			comando_inicial = g_string_free(c, FALSE);
 			break;
 		} else if (!strcmp(argv[i], "--ajuda") || !strcmp(argv[i], "--help")) {
-			puts("lumna-console [--pasta DIR] [-e comando args...]");
+			puts("lumna-pulse [--pasta DIR] [-e comando args...]\n"
+				"  --esquema            mostra o SQL do banco do Pulse (a memória: sessões, comandos, conversas com a Emma)\n"
+				"  --migrar-banco       cria ou atualiza o banco do Pulse e diz a versão\n"
+				"  --limpar-historico   apaga tudo o que o Pulse lembra");
+			return 0;
+		} else if (!strcmp(argv[i], "--esquema")) {
+			char *sql = pulsedb_esquema_sql();
+			fputs(sql, stdout);
+			g_free(sql);
+			return 0;
+		} else if (!strcmp(argv[i], "--migrar-banco") || !strcmp(argv[i], "--limpar-historico")) {
+			char *erro = NULL;
+			pulsedb *db = pulsedb_abrir(NULL, &erro);
+			if (!db) {
+				fprintf(stderr, "lumna-pulse: %s\n", erro ? erro : "o banco não abriu");
+				g_free(erro);
+				return 1;
+			}
+			if (!strcmp(argv[i], "--limpar-historico")) {
+				pulsedb_apagar_tudo(db);
+				puts("O histórico do Pulse foi apagado.");
+			} else {
+				printf("Banco do Pulse na versão %d (a mais nova é %d).\n", pulsedb_versao(db), pulsedb_versao_atual());
+			}
+			pulsedb_fechar(db);
 			return 0;
 		}
 	}
 	medir();
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "LUMNA Terminal", .app_id = "lumna-console", .largura = (int)(82 * cw) + 2 * PAD, .altura = (int)(26 * ch) + 2 * PAD + 54 });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "Pulse Terminal", .app_id = "lumna-pulse", .largura = (int)(82 * cw) + 2 * PAD, .altura = (int)(26 * ch) + 2 * PAD + 54 });
 	if (!app) {
 		return 1;
 	}
@@ -804,8 +854,30 @@ int main(int argc, char **argv) {
 	bool abriu = nova_aba(cwd_inicial, comando_inicial);
 	unsetenv("LUMNA_TERMINAL_PRIMEIRA");
 	if (!abriu) {
-		fprintf(stderr, "lumna-console: não deu para abrir o terminal\n");
+		fprintf(stderr, "lumna-pulse: não deu para abrir o terminal\n");
 		return 1;
 	}
-	return gv_app_correr(app, desenhar, NULL);
+	if (!comando_inicial) {
+		char *erro = NULL;
+		banco = pulsedb_abrir(NULL, &erro);
+		if (banco) {
+			pulsedb_podar(banco, 365);
+			sessao_db = pulsedb_sessao_iniciar(banco, cwd_inicial ? cwd_inicial : g_get_home_dir());
+			struct emt_config cfg;
+			emt_config_padrao(&cfg);
+			emt_config_ler(&cfg, NULL);
+			emmac_entregar = gv_na_linha_principal; /* a resposta da Emma volta na linha principal do Gravity */
+			emma = emt_novo(banco, sessao_db, &cfg);
+		} else {
+			fprintf(stderr, "lumna-pulse: sem memória (%s); o terminal funciona igual, sem a Emma\n", erro ? erro : "?");
+			g_free(erro);
+		}
+	}
+	int saida = gv_app_correr(app, desenhar, NULL);
+	if (banco) {
+		pulsedb_sessao_encerrar(banco, sessao_db);
+		emt_liberar(emma);
+		pulsedb_fechar(banco);
+	}
+	return saida;
 }
