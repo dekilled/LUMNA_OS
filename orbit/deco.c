@@ -265,7 +265,7 @@ void orbit_deco_update(struct orbit_view *view) {
 		if (!view->bar) {
 			return;
 		}
-		view->bar->node.data = view; /* o orbit_deco_at reconhece a barra pelo buffer (bar_buffer_impl) e por este ponteiro */
+		view->bar->node.data = view; /* o orbit_deco_at reconhece a barra pelo nó (view->bar) */
 	}
 	struct bar_buffer *bb = desenha_barra(w, top, scale, foco, maxim, view->bar_hover, titulo);
 	if (!bb) {
@@ -336,12 +336,15 @@ struct orbit_view *orbit_deco_at(struct orbit_server *server, double lx, double 
 	if (!node || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
 	}
-	struct wlr_scene_buffer *sb = wlr_scene_buffer_from_node(node);
-	if (!sb->buffer || sb->buffer->impl != &bar_buffer_impl) {
-		return NULL;
+	/* o wlroots 0.19+ larga o buffer da cena assim que sobe a textura (sb->buffer fica NULL): a barra se reconhece pelo nó, nunca pelo buffer */
+	struct orbit_view *view = NULL, *candidate;
+	wl_list_for_each(candidate, &server->views, link) {
+		if (candidate->bar && &candidate->bar->node == node) {
+			view = candidate;
+			break;
+		}
 	}
-	struct orbit_view *view = node->data;
-	if (!view || view->kind != ORBIT_NODE_VIEW || view->bar != sb) {
+	if (!view || !view->mapped) {
 		return NULL;
 	}
 	*zone = zona_em(view, (int)nx, (int)ny, orbit_deco_top(view));
