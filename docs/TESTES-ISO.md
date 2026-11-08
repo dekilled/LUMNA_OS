@@ -21,7 +21,7 @@ mentira e com o Orbit sem tela (headless): **na sua máquina é a primeira vez**
 | 1.3 | Olhar a barra | Relógio, modo, volume, rede, bateria (se for notebook) | ☐ |
 | 1.4 | `Super` | Abre o menu Iniciar | ☐ |
 | 1.5 | `Super+Tab` | Abre o seletor de modo (um 2º `Super+Tab` troca) | ☐ |
-| 1.6 | `Alt+Enter` | Abre o terminal (foot) | ☐ |
+| 1.6 | `Alt+Enter` | Abre o terminal do LUMNA (`lumna-console`) | ☐ |
 
 **Se a tela ficar preta ou voltar para o login:** é o risco que a gente já esperava (o Orbit nunca rodou num DRM de verdade).
 No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lumna`), ou `Ctrl+Alt+F2` para um terminal
@@ -45,10 +45,16 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.12 | Notificação: `notify-send Oi "teste"` no terminal | Aparece o aviso no canto | ☐ |
 | 2.13 | Bloquear a tela (Painel > Tela de bloqueio ou o menu de energia) e desbloquear | Bloqueia e desbloqueia | ☐ |
 | 2.14 | Menu de energia (botão da barra) | Mostra desligar, reiniciar, suspender | ☐ |
-| 2.15 | Abrir o terminal (`Alt+Enter`) | A janela tem a **barra de título do Orbit** (título, minimizar, maximizar, fechar), igual à dos apps do LUMNA | ☐ |
-| 2.16 | Arrastar o terminal pela barra; duplo clique na barra | Move a janela; o duplo clique maximiza e restaura | ☐ |
+| 2.15 | Abrir uma janela de fora que usa a barra do Orbit: no terminal do LUMNA, `foot &` | A janela tem a **barra de título do Orbit** (título, minimizar, maximizar, fechar), igual à dos apps do LUMNA | ☐ |
+| 2.16 | Arrastar o `foot` pela barra; duplo clique na barra | Move a janela; o duplo clique maximiza e restaura | ☐ |
 | 2.17 | Botões da barra: minimizar (volta pela dock), maximizar, fechar | Cada um faz o que diz | ☐ |
 | 2.18 | Abrir o **Firefox**, o Thunar e o **Blender** (se tiver) | Cada um tem barra: a do Orbit (Blender) ou a deles com botões (Firefox/Thunar). Se o Firefox não tiver barra: botão direito na barra de abas > "Barra de título" | ☐ |
+| 2.19 | Abrir o **Terminal** do LUMNA (`Alt+Enter`, ou na lista de apps) e digitar `ls`, `echo çãé`, `htop` (se tiver) | Texto, cores e acentos certos; o cursor é um bloco lilás; `q` sai do htop | ☐ |
+| 2.20 | No terminal: `seq 1 300` e rolar com a roda do mouse e com `Shift+PgUp` / `Shift+PgDn` | O histórico sobe e desce; aparece uma barrinha à direita; digitar volta ao fim | ☐ |
+| 2.21 | Selecionar com o mouse (arrastar), duplo clique numa palavra, triplo clique numa linha; `Ctrl+Shift+C` e `Ctrl+Shift+V` (também botão direito > Copiar/Colar) | Seleciona em lilás; copia e cola no mesmo terminal e em outro app | ☐ |
+| 2.22 | `Ctrl+Shift+T` (aba nova na mesma pasta), `Ctrl+PgUp/PgDn` (trocar de aba), `Ctrl+Shift+W` ou o × da aba (fechar), `exit` na última | Abas funcionam; `exit` na última fecha a janela | ☐ |
+| 2.23 | `Ctrl+=`, `Ctrl+-`, `Ctrl+0` | A letra aumenta, diminui e volta; o terminal reajusta as colunas (`tput cols`) | ☐ |
+| 2.24 | `Ctrl+C` num `sleep 100`; `vim` (setas, `Esc`, `:q`) e a roda dentro do vim | Ctrl+C interrompe; o vim responde às teclas | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

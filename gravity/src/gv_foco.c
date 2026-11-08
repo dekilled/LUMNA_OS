@@ -186,7 +186,7 @@ void gv__foco_fim_do_quadro(void) {
 
 	/* uma tecla de cada vez (várias podem chegar no mesmo quadro) */
 	bool shift = gv__entrada.mods & GV_MOD_SHIFT;
-	for (int k = 0; k < gv__entrada.nteclas; k++) {
+	for (int k = 0; k < gv__entrada.nteclas && !gv__entrada.cru; k++) {
 		uint32_t s = gv__entrada.teclas[k];
 		if (s == XKB_KEY_ISO_Left_Tab || (s == XKB_KEY_Tab && shift)) {
 			andar(topo, -1);

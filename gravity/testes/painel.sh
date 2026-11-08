@@ -94,6 +94,13 @@ if /usr/bin/python3.12 -c "import dbus" 2>/dev/null && command -v gdbus >/dev/nu
 else
 	echo "(sem python3.12 com dbus: o teste do agente do polkit ficou de fora)"
 fi
+# o terminal (lumna-console): a grade, as cores, o histórico, o tamanho, as teclas e o colar, contra processos de verdade num pty
+if pkg-config --exists vterm; then
+	cc $CF $(pkg-config --cflags vterm xkbcommon) -o "$T/testa_terminal" testes/painel/testa_terminal.c servicos/terminal.c $(pkg-config --libs vterm xkbcommon) -lutil
+	"$T/testa_terminal"
+else
+	echo "(sem libvterm: o teste do terminal ficou de fora)"
+fi
 # as atualizações: o snapshot antes de atualizar (e o voltar) e a publicação dos pacotes (poda e conferência)
 bash testes/pkg/snapshot.sh
 if command -v bsdtar >/dev/null && command -v xmllint >/dev/null; then

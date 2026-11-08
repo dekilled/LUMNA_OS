@@ -1057,6 +1057,7 @@ static void entregar(gv_app *app, uint32_t sym, const char *utf8, uint32_t mods)
 		gv__entrada.mods = mods; /* o quadro vê os modificadores da sua primeira tecla */
 	}
 	if (gv__entrada.nteclas < GV_MAX_TECLAS) {
+		snprintf(gv__entrada.teclas_txt[gv__entrada.nteclas], sizeof(gv__entrada.teclas_txt[0]), "%s", utf8);
 		gv__entrada.teclas[gv__entrada.nteclas++] = sym;
 	}
 	if (escreve) {

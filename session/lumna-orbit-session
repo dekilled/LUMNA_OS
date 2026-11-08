@@ -5,6 +5,7 @@ export XDG_CURRENT_DESKTOP=LUMNA
 export XDG_SESSION_TYPE=wayland
 export XDG_SESSION_DESKTOP=lumna
 export ORBIT_BORDA=0
+export ORBIT_TERMINAL=lumna-console
 [ -f /usr/lib/lumna/gpu-env ] && . /usr/lib/lumna/gpu-env
 # Os portais (escolher arquivo, compartilhar tela) são ativados pelo D-Bus: precisam saber qual é a tela e o desktop.
 # O Orbit só cria o WAYLAND_DISPLAY depois de subir, então o -s empurra o ambiente para o D-Bus antes das peças.

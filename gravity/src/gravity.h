@@ -212,6 +212,12 @@ uint32_t gv_tecla(void);
 /* A i-ésima tecla deste quadro, pela ordem (0 quando acabam): quem digita depressa manda várias
  * por quadro, até a mesma repetida ("1111"). */
 uint32_t gv_tecla_n(int i);
+/* O texto que a i-ésima tecla escreve ("" nas que não escrevem: Enter, setas, Ctrl+letra), já com os acentos compostos (´ + a = á). */
+const char *gv_tecla_texto_n(int i);
+/* A roda do mouse neste quadro: positivo gira para baixo (cerca de 15 por "clique"). Quem usa decide se o ponteiro está por cima. */
+float gv_roda(void);
+/* Teclado cru, só neste quadro (chame a cada quadro): o Tab e as setas não andam o foco, ficam com a app (um terminal). */
+void gv_teclado_cru(void);
 /* Se esta tecla foi carregada neste quadro (com repetição, pode vir mais de uma). */
 bool gv_tecla_carregada(uint32_t keysym);
 
@@ -415,6 +421,11 @@ Clay_ElementDeclaration gv_rolagem(Clay_ElementId id, enum gv_rolagem_eixo eixos
 void gv_rolar_para(Clay_ElementId id, float x, float y, bool animado);
 /* Quanto a área já rolou. */
 Clay_Vector2 gv_rolagem_posicao(Clay_ElementId id);
+
+/* Um elemento desenhado à mão: o cairo, a caixa em pixels lógicos e os dados dados. Os filhos de d vão por cima (um terminal desenha a
+ * grade aqui). */
+typedef struct _cairo cairo_t; /* o mesmo typedef do cairo.h (repetir é válido em C11) */
+Clay_ElementDeclaration gv_livre(void (*desenhar)(cairo_t *cr, Clay_BoundingBox caixa, void *dados), void *dados, Clay_ElementDeclaration d);
 
 /* Um separador de 1 px na cor da borda. */
 void gv_separador(bool vertical, float comprimento);

@@ -32,6 +32,8 @@ struct gv_entrada {
 	double aperto_em;   /* quando e onde o último aperto desceu */
 	float aperto_x, aperto_y;
 	uint32_t teclas[GV_MAX_TECLAS]; /* keysyms carregados neste quadro (com as repetições) */
+	char teclas_txt[GV_MAX_TECLAS][8]; /* o texto que cada uma escreve (já composto; vazio em Enter, setas, Ctrl+...) */
+	bool cru;           /* a app pediu o teclado cru neste quadro (um terminal): Tab e setas não andam o foco */
 	int nteclas;
 	char texto[128];    /* o texto escrito neste quadro (UTF-8, já com os acentos compostos) */
 	uint32_t mods;      /* GV_MOD_* */
@@ -121,6 +123,7 @@ enum gv_extra_tipo {
 	GV_EXTRA_ROLAGEM,
 	GV_EXTRA_IMAGEM,
 	GV_EXTRA_RICO,
+	GV_EXTRA_LIVRE,
 };
 
 struct gv_extra {
@@ -171,6 +174,11 @@ struct gv_extra {
 			uint32_t id; /* quando selecionável: o id do bloco (gv_selecao.c) */
 			bool sel;
 		} rico;
+		struct {
+			void (*desenhar)(cairo_t *cr, Clay_BoundingBox caixa, void *dados);
+			void *dados;
+			Clay_Color fundo; /* o fundo do elemento: o Clay o pintaria por cima do desenho, então ele sai do elemento e é pintado antes */
+		} livre;
 		struct {
 			cairo_surface_t *sup; /* NULL: ainda não chegou (desenha só o fundo) */
 			enum gv_ajuste ajuste;

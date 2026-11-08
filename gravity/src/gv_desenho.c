@@ -266,6 +266,18 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, i
 			case GV_EXTRA_RICO:
 				gv__rico_desenhar(cr, b, extra);
 				break;
+			case GV_EXTRA_LIVRE:
+				if (extra->livre.fundo.a > 0) {
+					redondo(cr, b.x, b.y, b.width, b.height, c->cornerRadius);
+					cor(cr, extra->livre.fundo);
+					cairo_fill(cr);
+				}
+				if (extra->livre.desenhar) {
+					cairo_save(cr);
+					extra->livre.desenhar(cr, b, extra->livre.dados);
+					cairo_restore(cr);
+				}
+				break;
 			default:
 				break;
 			}

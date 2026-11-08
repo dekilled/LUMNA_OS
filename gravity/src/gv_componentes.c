@@ -47,6 +47,18 @@ uint32_t gv_tecla_n(int i) {
 	return i >= 0 && i < gv__entrada.nteclas ? gv__entrada.teclas[i] : 0;
 }
 
+const char *gv_tecla_texto_n(int i) {
+	return i >= 0 && i < gv__entrada.nteclas ? gv__entrada.teclas_txt[i] : "";
+}
+
+float gv_roda(void) {
+	return gv__entrada.roda_y;
+}
+
+void gv_teclado_cru(void) {
+	gv__entrada.cru = true;
+}
+
 uint32_t gv_tecla(void) {
 	return gv__entrada.nteclas ? gv__entrada.teclas[0] : 0;
 }
@@ -65,6 +77,7 @@ uint32_t gv_modificadores(void) {
 }
 
 void gv__entrada_fim_do_quadro(void) {
+	gv__entrada.cru = false;
 	if (gv__entrada.soltou && !gv__entrada.baixo) {
 		gv__entrada.ativo = 0;
 		gv__entrada.travado = false;
@@ -97,6 +110,18 @@ static struct gv_extra *extra(enum gv_extra_tipo tipo) {
 		e->tipo = tipo;
 	}
 	return e;
+}
+
+Clay_ElementDeclaration gv_livre(void (*desenhar)(cairo_t *cr, Clay_BoundingBox caixa, void *dados), void *dados, Clay_ElementDeclaration d) {
+	struct gv_extra *e = extra(GV_EXTRA_LIVRE);
+	if (e) {
+		e->livre.desenhar = desenhar;
+		e->livre.dados = dados;
+		e->livre.fundo = d.backgroundColor;
+	}
+	d.backgroundColor = (Clay_Color){ 0 };
+	d.custom.customData = e;
+	return d;
 }
 
 void *gv_sombra(float desfoque, float desloca_y, float alfa) {

@@ -9,14 +9,16 @@ url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
 depends=(
   # bibliotecas
-  wayland libxkbcommon cairo pango glib2 gdk-pixbuf2 libpulse libsoup3 dbus
+  wayland libxkbcommon cairo pango glib2 gdk-pixbuf2 libpulse libsoup3 dbus libvterm
+  # a fonte do terminal (lumna-console)
+  ttf-jetbrains-mono ttf-dejavu
   # o que as peças chamam: teclado virtual do controle (wtype), área de transferência, captura e gravação
   wtype wl-clipboard grim wf-recorder
   # som, energia, discos, rede, Bluetooth, bateria e senha de administrador (pkexec)
   wireplumber pipewire-pulse power-profiles-daemon udisks2 networkmanager bluez upower polkit
   # sessão: systemd (localectl, timedatectl), abrir arquivos e links, avisos, rotas, discos
   systemd xdg-utils libnotify iproute2 util-linux ffmpeg
-  # a Mídia e os links abrem no Firefox; o terminal é o foot
+  # a Mídia e os links abrem no Firefox; o foot fica de reserva (a sessão de emergência com o Hyprland o usa)
   firefox foot
   # o que o instalador de apps do Painel usa (pacman, checkupdates)
   pacman-contrib)
@@ -26,7 +28,7 @@ options=(!strip !debug)
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador console)
 
 build() {
   cd "$_root/gravity"
