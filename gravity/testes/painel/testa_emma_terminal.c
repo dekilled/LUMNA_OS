@@ -84,6 +84,64 @@ static void teste_vale_a_pena(void) {
 	CHECA(emt_falha_vale_a_pena("grep a b", 1, "meuprog") == true, "e quando se troca a lista, o grep volta a valer");
 }
 
+static void teste_explicar(void) {
+	struct emt_config c;
+	emt_config_padrao(&c);
+	CHECA(c.explicar_antes && !c.explicar_comandos[0], "o padrão explica antes, com a lista padrão");
+	emt *e = emt_novo(NULL, 0, &c);
+	CHECA(emt_precisa_explicar(e, "rm -rf x") && emt_precisa_explicar(e, "sudo dd if=a of=b") && !emt_precisa_explicar(e, "ls -la"), "a lista padrão");
+	CHECA(emt_destrutivo(e, "rm a") && !emt_destrutivo(e, "echo oi"), "destrutivo pela lista padrão");
+	emt_liberar(e);
+	/* a lista do pulse.ini troca a padrão */
+	char *dir = g_dir_make_tmp("emt-lista-XXXXXX", NULL);
+	char *arq = g_build_filename(dir, "pulse.ini", NULL);
+	g_file_set_contents(arq, "[pulse]\nexplicar_comandos=touch, git push\n", -1, NULL);
+	emt_config_padrao(&c);
+	emt_config_ler(&c, arq);
+	e = emt_novo(NULL, 0, &c);
+	CHECA(!strcmp(emt_lista_explicar(e), "touch, git push"), "a lista do ini: '%s'", emt_lista_explicar(e));
+	CHECA(emt_precisa_explicar(e, "touch a") && !emt_precisa_explicar(e, "rm a") && !emt_precisa_explicar(e, "chmod -R 777 /"), "só o que está na lista do ini explica");
+	emt_liberar(e);
+	/* explicar_antes=nao desliga a explicação, mas "destrutivo só entra no prompt" segue pela lista padrão */
+	g_file_set_contents(arq, "[pulse]\nexplicar_antes=nao\nexplicar_comandos=touch\n", -1, NULL);
+	emt_config_padrao(&c);
+	emt_config_ler(&c, arq);
+	e = emt_novo(NULL, 0, &c);
+	CHECA(!emt_precisa_explicar(e, "touch a") && !emt_precisa_explicar(e, "rm a"), "explicar_antes=nao não explica nada");
+	CHECA(emt_destrutivo(e, "rm a"), "mas o rm segue destrutivo para os cartões");
+	emt_liberar(e);
+	g_free(arq);
+	g_free(dir);
+
+	char *av = emt_aviso_local("rm -rf pasta", NULL);
+	CHECA(av && strstr(av, "sem passar pela lixeira"), "aviso do rm: '%s'", av ? av : "(nulo)");
+	g_free(av);
+	av = emt_aviso_local("sudo chmod -R 777 /srv", NULL);
+	CHECA(av && strstr(av, "permissões"), "aviso do chmod -R: '%s'", av ? av : "(nulo)");
+	g_free(av);
+	av = emt_aviso_local("a | b | c | d | e", NULL);
+	CHECA(av && strstr(av, "cadeia longa"), "aviso do pipe longo: '%s'", av ? av : "(nulo)");
+	g_free(av);
+	av = emt_aviso_local("touch a", "touch");
+	CHECA(av && strstr(av, "lista"), "um item seu, sem frase própria: aviso genérico: '%s'", av ? av : "(nulo)");
+	g_free(av);
+	CHECA(emt_aviso_local("ls", NULL) == NULL, "o que não pede explicação não tem aviso");
+
+	char *txt;
+	int r = emt_risco("Apaga tudo na pasta.\nNão tem volta.\nRISCO: alto", &txt);
+	CHECA(r == 2 && !strstr(txt, "RISCO") && strstr(txt, "Não tem volta."), "risco alto: %d '%s'", r, txt);
+	g_free(txt);
+	r = emt_risco("Só lista.\nrisco: Médio", &txt);
+	CHECA(r == 1, "risco médio: %d", r);
+	g_free(txt);
+	r = emt_risco("Só lê.\nRISCO: baixo", &txt);
+	CHECA(r == 0, "risco baixo: %d", r);
+	g_free(txt);
+	r = emt_risco("Sem a linha do risco.", &txt);
+	CHECA(r == -1 && !strcmp(txt, "Sem a linha do risco."), "sem risco: %d '%s'", r, txt);
+	g_free(txt);
+}
+
 static void teste_listagem_e_prompt(void) {
 	char *casa = g_dir_make_tmp("emt-casa-XXXXXX", NULL);
 	setenv("HOME", casa, 1);
@@ -269,6 +327,7 @@ int main(int argc, char **argv) {
 	teste_pecas();
 	teste_config();
 	teste_vale_a_pena();
+	teste_explicar();
 	teste_listagem_e_prompt();
 	if (argc > 1) {
 		teste_pedidos(argv[1]);

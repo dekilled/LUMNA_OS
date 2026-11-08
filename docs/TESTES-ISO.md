@@ -73,6 +73,12 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.40 | Pedir "apagar a pasta temp" (um pedido destrutivo) e dar Enter no cartão | Só entra no prompt; roda quando você dá Enter de novo | ☐ |
 | 2.41 | Escrever `echo par` e apertar `Ctrl+E` | O cursor vai ao fim da linha (bash): o campo da Emma não abre | ☐ |
 | 2.42 | `Ctrl+E` e depois `Esc`; `Ctrl+E` com a internet desligada | Esc devolve o teclado ao shell; sem a Emma aparece um aviso de 3 s e some | ☐ |
+| 2.43 | No Pulse, criar `touch /tmp/teste-pulse` e rodar `rm /tmp/teste-pulse` | O Enter não roda: aparece o cartão "Cuidado" com a frase do rm e, em 1 a 3 s, a explicação da Emma e o risco; o arquivo segue existindo | ☐ |
+| 2.44 | No cartão: Enter (espere meio segundo) | O comando roda e o arquivo some | ☐ |
+| 2.45 | Repetir o `rm` e apertar Esc | O cartão some, nada roda e o comando continua no prompt para editar | ☐ |
+| 2.46 | Rodar `ls -la`, `echo oi` e `grep x /etc/hostname` | Rodam direto, sem cartão | ☐ |
+| 2.47 | Em `~/.config/lumna/pulse.ini`: `[pulse]` e `explicar_comandos=touch` (abrir um Pulse novo) | Só `touch` pede explicação; `rm` passa a rodar direto | ☐ |
+| 2.48 | Com a internet desligada, repetir o `rm` | O cartão aparece com a frase fixa e "A Emma não respondeu a tempo": a decisão é sua | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

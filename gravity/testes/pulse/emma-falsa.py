@@ -21,6 +21,9 @@ def tratar(c):
     if "LENTO" in t:
         time.sleep(6)
         r = {"ok": True, "resposta": "tarde demais"}
+    elif "Explique este comando" in t and "pulse-lento" in t:
+        time.sleep(5)
+        r = {"ok": True, "resposta": "tarde demais\nRISCO: alto"}
     elif "SEM-EMMA" in t:
         r = {"ok": False, "erro": "sem resposta a tempo"}
     elif "<historico_encontrado>" in t:

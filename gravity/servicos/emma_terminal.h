@@ -27,6 +27,8 @@ struct emt_config {
 	int sessoes_contexto; /* quantas sessões anteriores vão por padrão */
 	int espera_inicio;    /* segundos para a resposta começar */
 	int teto;             /* segundos para a resposta acabar */
+	bool explicar_antes;  /* explicar antes de executar (explicar_antes=sim|nao) */
+	char explicar_comandos[512]; /* "rm,dd,mkfs,chmod -R,...": os comandos que pedem explicação; vazio: a lista padrão (explicar_comandos=...) */
 };
 
 void emt_config_padrao(struct emt_config *c);
@@ -57,7 +59,8 @@ struct emt_pedido {
 /* A resposta chegou (resposta != NULL, o texto da Emma) ou não deu (NULL: sem Emma, sem tempo, sem provedor...: o Pulse não mostra nada). interacao: o id no banco. */
 typedef void (*emt_pronto)(const char *resposta, int64_t interacao, void *dados);
 
-void emt_pedir(emt *e, const struct emt_pedido *p, emt_pronto pronto, void *dados);
+/* Devolve na hora o id da interação no banco (0 se não há banco ou a Emma está desligada), para gravar a decisão mesmo antes de a resposta chegar. */
+int64_t emt_pedir(emt *e, const struct emt_pedido *p, emt_pronto pronto, void *dados);
 /* Chame de tempos em tempos (a cada quadro): entrega NULL aos pedidos que passaram do prazo, mesmo que o serviço da Emma tenha travado. */
 void emt_tick(emt *e);
 /* a Emma está ligada no terminal (emma=sim no pulse.ini)? */
@@ -79,6 +82,16 @@ char *emt_listagem(const char *cwd);
 /* Uma falha que vale pedir a correção à Emma? Não valem: a pessoa interrompeu (Ctrl+C, Ctrl+\\, Ctrl+Z, SIGTERM, SIGPIPE) ou o programa usa o código 1 para uma resposta normal
  * (grep sem achar, diff com diferença, test, false...). programas: lista separada por vírgulas desses "código 1 é normal" (NULL: a padrão) */
 bool emt_falha_vale_a_pena(const char *comando, int exit_code, const char *programas);
+/* O comando pede explicação antes de rodar, segundo a configuração (a lista do pulse.ini, ou a padrão; falso se explicar_antes=nao)? */
+bool emt_precisa_explicar(const emt *e, const char *comando);
+/* O comando é destrutivo, pela mesma lista (mesmo com a explicação desligada vale a lista padrão)? Os cartões usam para só pôr no prompt, nunca rodar */
+bool emt_destrutivo(const emt *e, const char *comando);
+/* A lista que está valendo, para mostrar (a do pulse.ini ou a padrão) */
+const char *emt_lista_explicar(const emt *e);
+/* Uma frase curta e fixa sobre por que o comando pede cuidado (aparece na hora, antes da Emma responder, e vale se ela não responder). g_free; NULL se o comando não pede */
+char *emt_aviso_local(const char *comando, const char *lista);
+/* A resposta da explicação traz uma última linha "RISCO: baixo|médio|alto": devolve o risco (0 baixo, 1 médio, 2 alto, -1 se não veio) e o texto sem essa linha (g_free) */
+int emt_risco(const char *resposta, char **texto);
 /* o comando dispara a explicação antes de rodar? lista: "rm,dd,mkfs,chmod -R,kill..." (NULL: a padrão) */
 bool emt_comando_perigoso(const char *comando, const char *lista);
 

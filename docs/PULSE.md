@@ -46,6 +46,8 @@ sessoes_contexto=5   ; quantas sessões anteriores a Emma recebe por padrão
 espera_inicio=3      ; segundos para a resposta começar
 teto=15              ; segundos para a resposta acabar
 emma=sim             ; nao desliga a Emma no terminal
+explicar_antes=sim   ; nao desliga a explicação antes de executar (a trava "destrutivo só entra no prompt" dos cartões continua)
+explicar_comandos=rm,dd,mkfs,chmod -R,kill   ; a sua lista (vazio: a padrão). "programa" ou "programa -X"; "> /dev/sd" vale como trecho
 ```
 
 ## Entregas
@@ -59,4 +61,7 @@ emma=sim             ; nao desliga a Emma no terminal
   a pasta onde o shell está, os últimos 3 comandos da sessão e as últimas sessões; o comando volta no mesmo cartão da correção (Enter executa, Tab põe no prompt, Esc descarta; destrutivo só
   entra no prompt). Nada roda sem a confirmação. Com texto já digitado na linha, o Ctrl+E continua sendo do bash ("fim da linha"). Se a Emma não responde a tempo, um aviso curto
   some sozinho em 3 s e o terminal segue normal.
-- (d) explicação antes de executar (lista configurável)
+- (d) **feita:** explicação antes de executar. O Enter de um comando da lista (padrão: `rm, dd, mkfs, shred, fdisk, parted, wipefs, chmod -R, chown -R, kill, killall, pkill, truncate,
+  > /dev/sd`, e uma cadeia de 4 ou mais comandos num pipe) fica seguro: o Pulse lê a linha digitada, mostra na hora uma frase fixa sobre o comando e pede a explicação à Emma. O
+  cartão sai na cor do risco (vermelho, âmbar ou verde). **Enter** confirma (depois de 0,6 s) e **Esc** cancela, deixando o comando no prompt para editar; qualquer outra tecla dispensa o cartão.
+  Sem a Emma (fora do ar, lenta, desligada) o aviso fixo fica e a decisão é da pessoa; nada trava, nada roda sozinho. A lista e o liga/desliga ficam no `pulse.ini`.

@@ -12,8 +12,12 @@
 
 /* ---- a configuração ---- */
 
+static bool nao_e(const char *v) {
+	return !g_ascii_strcasecmp(v, "nao") || !g_ascii_strcasecmp(v, "não") || !g_ascii_strcasecmp(v, "no") || !g_ascii_strcasecmp(v, "false") || !strcmp(v, "0");
+}
+
 void emt_config_padrao(struct emt_config *c) {
-	*c = (struct emt_config){ .ligado = true, .sessoes_contexto = 5, .espera_inicio = 3, .teto = 15 };
+	*c = (struct emt_config){ .ligado = true, .sessoes_contexto = 5, .espera_inicio = 3, .teto = 15, .explicar_antes = true };
 }
 
 void emt_config_ler(struct emt_config *c, const char *caminho) {
@@ -39,8 +43,18 @@ void emt_config_ler(struct emt_config *c, const char *caminho) {
 		g_clear_error(&e);
 		char *emma = g_key_file_get_string(kf, "pulse", "emma", NULL);
 		if (emma) {
-			c->ligado = !(!g_ascii_strcasecmp(emma, "nao") || !g_ascii_strcasecmp(emma, "não") || !g_ascii_strcasecmp(emma, "no") || !g_ascii_strcasecmp(emma, "false") || !strcmp(emma, "0"));
+			c->ligado = !nao_e(emma);
 			g_free(emma);
+		}
+		char *antes = g_key_file_get_string(kf, "pulse", "explicar_antes", NULL);
+		if (antes) {
+			c->explicar_antes = !nao_e(antes);
+			g_free(antes);
+		}
+		char *lista = g_key_file_get_string(kf, "pulse", "explicar_comandos", NULL);
+		if (lista) {
+			g_strlcpy(c->explicar_comandos, g_strstrip(lista), sizeof(c->explicar_comandos));
+			g_free(lista);
 		}
 	}
 	if (c->teto < c->espera_inicio) {
@@ -395,7 +409,7 @@ bool emt_falha_vale_a_pena(const char *comando, int exit_code, const char *progr
 	return true;
 }
 
-bool emt_comando_perigoso(const char *comando, const char *lista) {
+static bool perigoso_(const char *comando, const char *lista, bool considera_pipes) {
 	if (!comando || !*comando) {
 		return false;
 	}
@@ -453,7 +467,7 @@ bool emt_comando_perigoso(const char *comando, const char *lista) {
 	}
 	g_strfreev(trechos);
 	/* um pipe longo (4 ou mais comandos encadeados) também merece explicação */
-	if (!achou) {
+	if (!achou && considera_pipes) {
 		int pipes = 0;
 		for (const char *c = comando; *c; c++) {
 			if (*c == '|') {
@@ -468,6 +482,10 @@ bool emt_comando_perigoso(const char *comando, const char *lista) {
 	}
 	g_strfreev(itens);
 	return achou;
+}
+
+bool emt_comando_perigoso(const char *comando, const char *lista) {
+	return perigoso_(comando, lista, true);
 }
 
 /* ---- pedir ---- */
@@ -546,12 +564,12 @@ static void enviar(struct pedido *p, const char *historico_extra) {
 	g_string_free(g, TRUE);
 }
 
-void emt_pedir(emt *e, const struct emt_pedido *o, emt_pronto pronto, void *dados) {
+int64_t emt_pedir(emt *e, const struct emt_pedido *o, emt_pronto pronto, void *dados) {
 	if (!e->cfg.ligado) {
 		if (pronto) {
 			pronto(NULL, 0, dados);
 		}
-		return;
+		return 0;
 	}
 	struct pedido *p = g_new0(struct pedido, 1);
 	p->e = e;
@@ -568,6 +586,7 @@ void emt_pedir(emt *e, const struct emt_pedido *o, emt_pronto pronto, void *dado
 	p->dados = dados;
 	e->no_ar = g_list_prepend(e->no_ar, p);
 	enviar(p, NULL);
+	return p->interacao;
 }
 
 void emt_tick(emt *e) {
@@ -580,4 +599,86 @@ void emt_tick(emt *e) {
 			entregar(p, NULL);
 		}
 	}
+}
+
+/* ---- a explicação antes de executar ---- */
+
+#define LISTA_PADRAO "rm,dd,mkfs,shred,fdisk,parted,wipefs,chmod -R,chown -R,kill,killall,pkill,truncate,> /dev/sd"
+
+const char *emt_lista_explicar(const emt *e) {
+	return e->cfg.explicar_comandos[0] ? e->cfg.explicar_comandos : LISTA_PADRAO;
+}
+
+bool emt_precisa_explicar(const emt *e, const char *comando) {
+	return e->cfg.explicar_antes && emt_comando_perigoso(comando, e->cfg.explicar_comandos[0] ? e->cfg.explicar_comandos : NULL);
+}
+
+bool emt_destrutivo(const emt *e, const char *comando) {
+	/* quem desliga a explicação não desliga a trava de "destrutivo só entra no prompt": vale a lista padrão */
+	return emt_comando_perigoso(comando, e->cfg.explicar_antes && e->cfg.explicar_comandos[0] ? e->cfg.explicar_comandos : NULL);
+}
+
+char *emt_aviso_local(const char *comando, const char *lista) {
+	static const struct {
+		const char *item, *texto;
+	} frases[] = {
+		{ "rm", "rm apaga de vez, sem passar pela lixeira." },
+		{ "dd", "dd copia bytes crus: se o destino estiver errado, ele sobrescreve um disco inteiro." },
+		{ "mkfs", "mkfs formata: tudo o que estava no destino se perde." },
+		{ "shred", "shred apaga o arquivo sem volta, regravando por cima." },
+		{ "wipefs", "wipefs apaga as assinaturas do disco: o sistema deixa de reconhecer o que havia nele." },
+		{ "fdisk", "fdisk mexe na tabela de partições do disco." },
+		{ "parted", "parted mexe na tabela de partições do disco." },
+		{ "chmod -R", "chmod -R muda as permissões de tudo dentro da pasta, de uma vez." },
+		{ "chown -R", "chown -R muda o dono de tudo dentro da pasta, de uma vez." },
+		{ "kill", "kill encerra processos à força: o que não foi salvo neles se perde." },
+		{ "killall", "killall encerra à força todos os processos com esse nome." },
+		{ "pkill", "pkill encerra à força todos os processos que casam com o nome." },
+		{ "truncate", "truncate corta o arquivo no tamanho dado: o que passar disso se perde." },
+		{ "> /dev/sd", "escrever direto num /dev/sd... apaga o que está no disco." },
+	};
+	if (!emt_comando_perigoso(comando, lista)) {
+		return NULL;
+	}
+	for (size_t i = 0; i < sizeof(frases) / sizeof(frases[0]); i++) {
+		if (perigoso_(comando, frases[i].item, false)) {
+			return g_strdup(frases[i].texto);
+		}
+	}
+	int pipes = 0;
+	for (const char *c = comando; *c; c++) {
+		if (*c == '|') {
+			if (c[1] == '|') {
+				c++;
+			} else {
+				pipes++;
+			}
+		}
+	}
+	if (pipes >= 3) {
+		return g_strdup("É uma cadeia longa de comandos encadeados: confira cada etapa antes de rodar.");
+	}
+	return g_strdup("Este comando está na sua lista de comandos que pedem confirmação.");
+}
+
+int emt_risco(const char *resposta, char **texto) {
+	char *copia = g_strdup(resposta ? resposta : "");
+	g_strchomp(copia);
+	char *ult = strrchr(copia, '\n');
+	char *linha = ult ? ult + 1 : copia;
+	int risco = -1;
+	if (g_ascii_strncasecmp(g_strstrip(linha), "RISCO:", 6) == 0) {
+		const char *v = g_strstrip(linha + 6);
+		if (!g_ascii_strncasecmp(v, "alto", 4)) {
+			risco = 2;
+		} else if (!g_ascii_strncasecmp(v, "médio", 6) || !g_ascii_strncasecmp(v, "medio", 5)) {
+			risco = 1;
+		} else if (!g_ascii_strncasecmp(v, "baixo", 5)) {
+			risco = 0;
+		}
+		*linha = '\0'; /* o texto fica sem a linha do risco */
+		g_strchomp(copia);
+	}
+	*texto = copia;
+	return risco;
 }
