@@ -45,8 +45,7 @@ package() {
   install -Dm644 gpu-env "$pkgdir/usr/lib/lumna/gpu-env"
   # a dock de quem acabou de entrar (o useradd copia o /etc/skel para a casa nova)
   install -Dm644 dock-padrao "$pkgdir/etc/skel/.config/lumna/dock"
-  # o terminal de quem acabou de entrar: o prompt lilás, e o fastfetch com o desenho do LUMNA para todos
-  install -Dm644 bashrc "$pkgdir/etc/skel/.bashrc"
+  # o fastfetch com o desenho do LUMNA (o /etc/skel/.bashrc é do pacote bash: o prompt lilás e o fastfetch na abertura vêm da integração do Pulse)
   install -Dm644 fastfetch/config.jsonc "$pkgdir/etc/xdg/fastfetch/config.jsonc"
   install -Dm644 fastfetch/logo.txt "$pkgdir/usr/share/lumna/fastfetch/logo.txt"
   install -Dm644 lumna-tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/lumna.conf"

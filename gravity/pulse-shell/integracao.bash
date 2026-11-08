@@ -40,6 +40,17 @@ if [[ $PS0 != *'133;C'* ]]; then
 	PS0=${PS0}'\e]133;C\a'
 fi
 
+# o prompt de fábrica do Arch ([usuário@máquina pasta]$) ganha o lilás do LUMNA; quem tem o próprio prompt fica com o dele
+if [[ $PS1 == '[\u@\h \W]\$ ' ]]; then
+	PS1='\[\e[38;2;167;139;250m\]\u@\h\[\e[0m\]:\w\$ '
+fi
+
+# o desenho do LUMNA (fastfetch) ao abrir o Pulse: só na primeira aba de cada janela e uma vez por cadeia de shells
+if [[ -n ${LUMNA_TERMINAL_PRIMEIRA-} && -z ${LUMNA_FETCH_FEITO-} ]] && command -v fastfetch >/dev/null 2>&1; then
+	export LUMNA_FETCH_FEITO=1
+	fastfetch
+fi
+
 # a nossa linha sai do PROMPT_COMMAND e entra o __pulse_precmd, na frente do que mais houver
 PROMPT_COMMAND=${PROMPT_COMMAND/". '$__pulse_arq'"/}
 PROMPT_COMMAND=${PROMPT_COMMAND#;}
