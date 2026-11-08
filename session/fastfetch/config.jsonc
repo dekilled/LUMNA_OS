@@ -1,0 +1,30 @@
+// O fastfetch do LUMNA OS: o desenho do LUMNA e o resumo do sistema. Cada pessoa pode ter o seu em ~/.config/fastfetch/config.jsonc.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "file",
+    "source": "/usr/share/lumna/fastfetch/logo.txt",
+    "color": {
+      "1": "38;2;167;139;250",
+      "2": "1;38;2;216;204;255",
+      "3": "38;2;110;84;170"
+    },
+    "padding": { "top": 1, "left": 2, "right": 4 }
+  },
+  "display": {
+    "separator": "",
+    "key": { "width": 13 },
+    "color": { "keys": "38;2;167;139;250", "output": "38;2;244;241;250" }
+  },
+  "modules": [
+    { "type": "custom", "format": "\u001b[1;38;2;167;139;250mL U M N A   O S" },
+    "break",
+    { "type": "custom", "key": "Sistema", "format": "LUMNA OS" },
+    { "type": "custom", "key": "Base", "format": "Arch Linux" },
+    { "type": "custom", "key": "Compositor", "format": "Orbit" },
+    { "type": "custom", "key": "Interface", "format": "Gravity" },
+    { "type": "command", "key": "Sessão", "text": "printf '%s' \"${XDG_SESSION_TYPE:-wayland}\" | sed 's/./\\U&/'" },
+    "break",
+    { "type": "custom", "format": "\u001b[38;2;91;56;140m██████ \u001b[38;2;124;72;200m██████ \u001b[38;2;160;104;236m██████ \u001b[38;2;204;176;250m██████ \u001b[38;2;228;226;236m██████\u001b[0m" }
+  ]
+}

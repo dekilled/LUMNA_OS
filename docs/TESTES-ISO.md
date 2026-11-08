@@ -55,6 +55,9 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.22 | `Ctrl+Shift+T` (aba nova na mesma pasta), `Ctrl+PgUp/PgDn` (trocar de aba), `Ctrl+Shift+W` ou o × da aba (fechar), `exit` na última | Abas funcionam; `exit` na última fecha a janela | ☐ |
 | 2.23 | `Ctrl+=`, `Ctrl+-`, `Ctrl+0` | A letra aumenta, diminui e volta; o terminal reajusta as colunas (`tput cols`) | ☐ |
 | 2.24 | `Ctrl+C` num `sleep 100`; `vim` (setas, `Esc`, `:q`) e a roda dentro do vim | Ctrl+C interrompe; o vim responde às teclas | ☐ |
+| 2.25 | No terminal: `fastfetch` | Aparece o desenho do LUMNA (o losango com o **LL** e a órbita) ao lado de Sistema, Base, Compositor, Interface e Sessão, e os blocos lilás embaixo | ☐ |
+| 2.26 | Abrir o terminal e olhar o prompt | `usuário@máquina` em lilás; `ls` com cores | ☐ |
+| 2.27 | Logo ao entrar na sessão, abrir um app (Apps ao iniciar, ou rápido na dock) enquanto a barra de cima ainda sobe | A janela não fica com o título escondido atrás da barra: ela se ajusta para a área útil assim que a barra aparece | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

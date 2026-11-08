@@ -1,0 +1,9 @@
+# ~/.bashrc do LUMNA OS (o useradd copia este arquivo do /etc/skel para a casa nova)
+[[ $- != *i* ]] && return
+
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias grep='grep --color=auto'
+
+# o prompt: usuário@máquina no lilás do LUMNA
+PS1='\[\e[38;2;167;139;250m\]\u@\h\[\e[0m\]:\w\$ '

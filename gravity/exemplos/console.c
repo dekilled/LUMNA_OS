@@ -729,22 +729,21 @@ static void desenhar(gv_app *a, void *dados) {
 
 	static struct grade_dados gd;
 	gd.aba = aba;
-	char buf[256];
-	char titulo[300];
-	snprintf(titulo, sizeof(titulo), "Terminal — %s", nome_aba(aba, buf, sizeof(buf)));
-
 	bool menu = gv_menu_no_ponteiro(ID_GRADE, CLAY_ID("co-menu"));
 	(void)menu;
 	CLAY(CLAY_ID("co-janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_t.superficie,
 		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-		gv_barra_janela(a, CLAY_ID("co-barra"), "terminal", titulo);
-		CLAY(CLAY_ID("co-abas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 10, 10, 4, 4 }, .childGap = 4, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-			.backgroundColor = gv_t.elevada }) {
-			for (int i = 0; i < nabas; i++) {
-				aba_chip(i);
-			}
-			if (gv_botao_ext(CLAY_ID("co-nova"), &(gv_botao_opcoes){ .icone = "plus", .estilo = GV_BOTAO_SIMPLES, .altura = 32 })) {
-				nova_aba(terminal_pasta(aba->t), NULL);
+		gv_barra_janela(a, CLAY_ID("co-barra"), "terminal", "LUMNA Terminal");
+		/* a faixa de abas só aparece com duas ou mais (uma aba nova: Ctrl+Shift+T, o botão direito ou o + da faixa depois) */
+		if (nabas > 1) {
+			CLAY(CLAY_ID("co-abas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 10, 10, 4, 4 }, .childGap = 4, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = gv_t.elevada }) {
+				for (int i = 0; i < nabas; i++) {
+					aba_chip(i);
+				}
+				if (gv_botao_ext(CLAY_ID("co-nova"), &(gv_botao_opcoes){ .icone = "plus", .estilo = GV_BOTAO_SIMPLES, .altura = 32 })) {
+					nova_aba(terminal_pasta(aba->t), NULL);
+				}
 			}
 		}
 		CLAY(ID_GRADE, gv_livre(desenhar_grade, &gd, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
@@ -797,7 +796,7 @@ int main(int argc, char **argv) {
 		}
 	}
 	medir();
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "Terminal", .app_id = "lumna-console", .largura = (int)(82 * cw) + 2 * PAD, .altura = (int)(26 * ch) + 2 * PAD + 54 + 40 });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "LUMNA Terminal", .app_id = "lumna-console", .largura = (int)(82 * cw) + 2 * PAD, .altura = (int)(26 * ch) + 2 * PAD + 54 });
 	if (!app) {
 		return 1;
 	}

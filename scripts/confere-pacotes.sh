@@ -14,7 +14,7 @@ done
 faltou=0
 for f in usr/bin/orbit usr/bin/orbit-msg usr/bin/lumna-painel usr/bin/lumna-barra usr/bin/lumna-dock usr/bin/lumna-lancador usr/bin/lumna-avisos \
          usr/bin/lumna-bloqueio usr/bin/lumna-entrada usr/bin/lumna-emma usr/bin/lumna-emma-app usr/bin/lumna-captura \
-         usr/bin/lumna-polkit usr/bin/lumna-polkit-janela usr/bin/lumna-instalador usr/bin/lumna-console etc/skel/.config/lumna/dock \
+         usr/bin/lumna-polkit usr/bin/lumna-polkit-janela usr/bin/lumna-instalador usr/bin/lumna-console etc/skel/.config/lumna/dock etc/skel/.bashrc etc/xdg/fastfetch/config.jsonc usr/share/lumna/fastfetch/logo.txt \
          usr/bin/lumna-orbit-session usr/bin/lumna-entrada-greeter usr/share/wayland-sessions/lumna-orbit.desktop \
          usr/share/polkit-1/actions/os.lumna.entrada.policy usr/lib/lumna/lumna-entrada-ajustar usr/lib/lumna/lumna-pkg; do
   [ -e "$check/$f" ] || { echo "FALTA no pacote: $f"; faltou=1; }

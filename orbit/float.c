@@ -152,6 +152,40 @@ void orbit_float_place_new(struct orbit_view *view) {
 	}
 }
 
+/* Uma barra ou dock que aparece (ou muda a zona dela) depois de uma janela livre já ter aberto: a janela que ficou por baixo dela volta para a área
+ * útil (no início da sessão os apps e as barras sobem juntos, e quem abre primeiro vê a tela inteira). Só mexe em janela livre solta, nunca numa que
+ * se arrasta ou que a pessoa encaixou/maximizou, e só quando a barra de título ou o fundo da janela ficariam fora da área útil. */
+void orbit_float_fit(struct orbit_server *server) {
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (!view->mapped || !view->floating || view->minimized || view->maximized || view->fullscreen || view->snap || !view->output ||
+			view == server->grabbed) {
+			continue;
+		}
+		struct wlr_box full;
+		wlr_output_layout_get_box(server->layout, view->output->wlr, &full);
+		struct wlr_box usable = orbit_layer_usable(view->output, &full);
+		struct wlr_box g = geometry(view);
+		int top = orbit_deco_top(view);
+		int h = g.height > 0 ? g.height : view->h;
+		int y = view->y;
+		if (y - top < usable.y) {
+			y = usable.y + top;
+		}
+		if (y + h > usable.y + usable.height && h + top <= usable.height) {
+			y = usable.y + usable.height - h;
+		}
+		if (y == view->y) {
+			continue;
+		}
+		int dy = y - view->y;
+		view->y = y;
+		view->fy += dy;
+		view->slide_y = view->y;
+		view->sliding = false;
+	}
+}
+
 /* mostra uma janela livre onde ela está; só manda configure quando sai de maximizada/encaixada */
 void orbit_float_show(struct orbit_view *view) {
 	view->sliding = false;

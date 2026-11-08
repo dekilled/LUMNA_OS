@@ -59,6 +59,7 @@ static void layer_map(struct wl_listener *listener, void *data) {
 	const char *output = layer->surface->output ? layer->surface->output->name : "?";
 	wlr_log(WLR_INFO, "camada %s na saída %s", ns, output);
 	layer_sync_keyboard(layer);
+	orbit_float_fit(layer->server);
 	orbit_arrange(layer->server);
 }
 
@@ -84,6 +85,7 @@ static void layer_commit(struct wl_listener *listener, void *data) {
 	/* só quando muda o que conta para a arrumação (tamanho, âncoras, zona, margens, nível): um
 	 * quadro novo da barra ou da dock não mexe nas janelas */
 	if (layer->surface->initial_commit || layer->surface->current.committed) {
+		orbit_float_fit(layer->server);
 		orbit_arrange(layer->server);
 	}
 }
