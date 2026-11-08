@@ -97,6 +97,22 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.59 | No Pulse (terminal), abrir o teclado por `lumna-teclado alternar` e digitar `ls` + Enter | As letras chegam (o terminal não fala text-input; vão como teclas) | ☐ |
 | 2.60 | Com teclado físico e mouse (modo Sozinho): clicar num campo | NÃO sobe (só sobe ao tocar na tela, se tiver) | ☐ |
 
+### 2c. Arquivos (`lumna-arquivos`, só a navegação)
+
+| # | O que fazer | O que deve acontecer | OK? |
+|---|---|---|---|
+| 2.61 | Abrir "Arquivos" no lançador | Abre em Home, com a barra lateral, a grade e o painel de detalhes | ☐ |
+| 2.62 | Duplo clique numa pasta; voltar/avançar/subir; clicar num pedaço do caminho | Navega; o botão de voltar acende só quando há para onde voltar | ☐ |
+| 2.63 | Clicar numa imagem | Miniatura na grade e prévia grande no painel | ☐ |
+| 2.64 | Duplo clique num PDF e num `.txt` | Abre no aplicativo padrão; aparece em Recentes | ☐ |
+| 2.65 | Grade ↔ lista; ordenar por tamanho e por data; o controle de zoom na grade | Muda; a lista mostra as colunas | ☐ |
+| 2.66 | Buscar um nome com acento sem digitar o acento | Acha | ☐ |
+| 2.67 | Favoritar uma pasta (painel ou botão direito) | Entra em Favoritos e em Fixados | ☐ |
+| 2.68 | `+` > Nova pasta, digitar o nome, Enter | A pasta é criada e fica selecionada | ☐ |
+| 2.69 | Num terminal criar um arquivo na pasta aberta | Aparece sozinho, sem atualizar | ☐ |
+| 2.70 | Uma pasta com milhares de arquivos (ex.: `/usr/share/icons`) | Abre sem travar e rola suave | ☐ |
+| 2.71 | Entrar em `/root` | Mostra "Não foi possível abrir esta pasta" e dá para voltar | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |
@@ -194,5 +210,5 @@ O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de
 
 ## O que **não** está pronto (não é bug)
 
-Arquivos e Loja próprios (por ora Thunar e Painel > Aplicativos), Music, Biblioteca Gaming,
+Loja própria (por ora o Painel > Aplicativos); o Arquivos novo só navega (copiar, mover, apagar ainda no Thunar), Music, Biblioteca Gaming,
 particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).

@@ -1,0 +1,201 @@
+/* O serviço do explorador (arquivos.c): listar, ordenar, filtrar, tipos, tamanhos e datas, histórico, caminhos, favoritos e recentes, numa árvore de teste. */
+#include <glib.h>
+#include <glib/gstdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <utime.h>
+
+#include "arquivos.h"
+
+static int falhas;
+#define CONFERE(cond, ...) do { if (!(cond)) { fprintf(stderr, "FALHOU (linha %d): ", __LINE__); fprintf(stderr, __VA_ARGS__); fputc('\n', stderr); falhas++; } } while (0)
+
+static void escreve(const char *pasta, const char *nome, const char *conteudo) {
+	char *p = g_build_filename(pasta, nome, NULL);
+	g_file_set_contents(p, conteudo, -1, NULL);
+	g_free(p);
+}
+
+static int acha(const ar_lista *l, const char *nome) {
+	for (int i = 0; i < l->n; i++) {
+		if (!strcmp(l->v[i].nome, nome)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+int main(void) {
+	char *raiz = g_dir_make_tmp("arquivos-XXXXXX", NULL);
+	char *sub = g_build_filename(raiz, "Projetos", NULL);
+	char *sub2 = g_build_filename(raiz, "Estudos", NULL);
+	g_mkdir(sub, 0755);
+	g_mkdir(sub2, 0755);
+	escreve(sub, "a.txt", "um");
+	escreve(sub, ".escondido", "x");
+	escreve(sub, "b.md", "# oi");
+	escreve(raiz, "planejamento.pdf", "%PDF");
+	escreve(raiz, "notas.MD", "# notas");
+	escreve(raiz, "orçamento.ods", "tabela");
+	escreve(raiz, "Ação.txt", "acento");
+	escreve(raiz, "arquivo2.txt", "2");
+	escreve(raiz, "arquivo10.txt", "10");
+	escreve(raiz, "foto.PNG", "png");
+	escreve(raiz, ".oculto", "x");
+	char *grande = g_build_filename(raiz, "grande.bin", NULL);
+	FILE *f = fopen(grande, "wb");
+	fseek(f, 1500000, SEEK_SET);
+	fputc(0, f);
+	fclose(f);
+	char *antigo = g_build_filename(raiz, "arquivo2.txt", NULL);
+	struct utimbuf tb = { 1000000000, 1000000000 };
+	utime(antigo, &tb);
+	symlink(raiz, g_build_filename(raiz, "atalho", NULL));
+
+	/* tipos */
+	CONFERE(ar_tipo_do_nome("a.PDF") == AR_PDF && ar_tipo_do_nome("x.jpeg") == AR_IMAGEM && ar_tipo_do_nome("x.ods") == AR_PLANILHA && ar_tipo_do_nome("x.odp") == AR_APRESENTACAO &&
+		ar_tipo_do_nome("Makefile") == AR_OUTRO && ar_tipo_do_nome(".bashrc") == AR_OUTRO && ar_tipo_do_nome("x.tar") == AR_COMPACTADO && ar_tipo_do_nome("x.rs") == AR_CODIGO, "tipos pela extensão");
+
+	/* listar: sem ocultos / com ocultos */
+	ar_lista l;
+	char *erro = NULL;
+	CONFERE(ar_listar(raiz, false, &l, &erro), "listar");
+	CONFERE(acha(&l, ".oculto") < 0 && acha(&l, "Projetos") >= 0, "sem ocultos");
+	int n_sem = l.n;
+	ar_liberar(&l);
+	ar_listar(raiz, true, &l, &erro);
+	CONFERE(l.n == n_sem + 1 && acha(&l, ".oculto") >= 0 && l.v[acha(&l, ".oculto")].oculto, "com ocultos entra o .oculto");
+	ar_liberar(&l);
+	CONFERE(!ar_listar("/nao/existe/mesmo", false, &l, &erro) && erro, "pasta que não existe dá erro");
+	g_free(erro);
+
+	/* ordenar */
+	ar_listar(raiz, false, &l, NULL);
+	ar_ordenar(&l, AR_O_NOME, false);
+	CONFERE(l.v[0].pasta && l.v[1].pasta, "as pastas primeiro");
+	CONFERE(!strcmp(l.v[0].nome, "atalho") || !strcmp(l.v[0].nome, "Estudos") || !strcmp(l.v[1].nome, "Estudos"), "ordem de pastas");
+	CONFERE(acha(&l, "arquivo2.txt") < acha(&l, "arquivo10.txt"), "arquivo2 vem antes de arquivo10");
+	CONFERE(acha(&l, "Ação.txt") < acha(&l, "arquivo2.txt"), "Ação (com acento e maiúscula) ordena como 'acao'");
+	CONFERE(acha(&l, "foto.PNG") > acha(&l, "arquivo10.txt") && acha(&l, "planejamento.pdf") > acha(&l, "orçamento.ods"), "ordem pelo nome sem caixa nem acento");
+	ar_ordenar(&l, AR_O_NOME, true);
+	CONFERE(l.v[0].pasta && acha(&l, "planejamento.pdf") < acha(&l, "Ação.txt"), "do Z ao A, as pastas continuam primeiro");
+	ar_ordenar(&l, AR_O_TAMANHO, true);
+	CONFERE(!strcmp(l.v[acha(&l, "grande.bin")].nome, "grande.bin") && acha(&l, "grande.bin") < acha(&l, "notas.MD"), "o maior primeiro (depois das pastas)");
+	ar_ordenar(&l, AR_O_DATA, false);
+	CONFERE(acha(&l, "arquivo2.txt") < acha(&l, "notas.MD"), "o mais antigo primeiro");
+
+	/* filtros e busca */
+	int idx[64];
+	int n = ar_filtrar(&l, "", AR_F_PASTAS, idx);
+	CONFERE(n == 3, "3 pastas (Projetos, Estudos e o atalho): %d", n);
+	n = ar_filtrar(&l, "", AR_F_DOCUMENTOS, idx);
+	CONFERE(n >= 5, "documentos: pdf, md, ods, txts (%d)", n);
+	n = ar_filtrar(&l, "", AR_F_IMAGENS, idx);
+	CONFERE(n == 1 && !strcmp(l.v[idx[0]].nome, "foto.PNG"), "uma imagem");
+	n = ar_filtrar(&l, "acao", AR_F_TUDO, idx);
+	CONFERE(n == 1 && !strcmp(l.v[idx[0]].nome, "Ação.txt"), "a busca ignora acento e caixa (%d)", n);
+	n = ar_filtrar(&l, "ORCAMENTO", AR_F_TUDO, idx);
+	CONFERE(n == 1, "orçamento por ORCAMENTO");
+	CONFERE(ar_busca_combina("Relatório Final.pdf", "relatorio fin") && !ar_busca_combina("abc", "abd") && ar_busca_combina("qualquer", ""), "busca por parte do nome");
+	n = ar_filtrar(&l, "", AR_F_OUTROS, idx);
+	CONFERE(n >= 1, "outros: grande.bin");
+	ar_liberar(&l);
+
+	/* contar e tamanho */
+	CONFERE(ar_contar_itens(sub, false) == 2 && ar_contar_itens(sub, true) == 3, "contar itens: 2 sem ocultos, 3 com");
+	CONFERE(ar_contar_itens("/nao/existe", false) == -1, "contar numa pasta que não abre");
+	int64_t bytes;
+	int itens;
+	CONFERE(ar_tamanho_pasta(sub, 1000, &bytes, &itens) && itens == 3 && bytes == 2 + 1 + 4, "tamanho da pasta (%d itens, %lld bytes)", itens, (long long)bytes);
+	CONFERE(!ar_tamanho_pasta(sub, 1, &bytes, &itens), "o teto corta a conta");
+
+	/* tamanhos e datas */
+	char s[64];
+	ar_tamanho_humano(0, s, sizeof(s));
+	CONFERE(!strcmp(s, "0 B"), "0 B (%s)", s);
+	ar_tamanho_humano(999, s, sizeof(s));
+	CONFERE(!strcmp(s, "999 B"), "999 B (%s)", s);
+	ar_tamanho_humano(1800000000LL, s, sizeof(s));
+	CONFERE(!strcmp(s, "1,8 GB"), "1,8 GB (%s)", s);
+	ar_tamanho_humano(2000000, s, sizeof(s));
+	CONFERE(!strcmp(s, "2 MB"), "2 MB (%s)", s);
+	ar_tamanho_humano(320000, s, sizeof(s));
+	CONFERE(!strcmp(s, "320 KB"), "320 KB (%s)", s);
+	setenv("TZ", "UTC", 1);
+	tzset();
+	time_t agora = 1760000000; /* 2025-10-09 08:53 UTC */
+	ar_data_humana(agora - 3600, agora, s, sizeof(s));
+	CONFERE(!strcmp(s, "Hoje, 07:53"), "hoje (%s)", s);
+	ar_data_humana(agora - 86400, agora, s, sizeof(s));
+	CONFERE(!strncmp(s, "Ontem, ", 7), "ontem (%s)", s);
+	ar_data_humana(agora - 5 * 86400, agora, s, sizeof(s));
+	CONFERE(!strcmp(s, "4 out, 08:53"), "neste ano (%s)", s);
+	ar_data_humana(agora - 400 * 86400LL, agora, s, sizeof(s));
+	CONFERE(strstr(s, "2024") != NULL && !strchr(s, ':'), "outro ano (%s)", s);
+	ar_permissoes_texto(0755, s, sizeof(s));
+	CONFERE(!strcmp(s, "rwxr-xr-x"), "permissões (%s)", s);
+	ar_permissoes_texto(0600, s, sizeof(s));
+	CONFERE(!strcmp(s, "rw-------"), "permissões 600 (%s)", s);
+
+	/* histórico */
+	ar_hist h = { 0 };
+	ar_hist_ir(&h, "/a");
+	ar_hist_ir(&h, "/a/b");
+	ar_hist_ir(&h, "/a/b/c");
+	CONFERE(!strcmp(ar_hist_atual(&h), "/a/b/c") && ar_hist_pode_voltar(&h) && !ar_hist_pode_avancar(&h), "histórico: três lugares");
+	CONFERE(!strcmp(ar_hist_voltar(&h), "/a/b") && !strcmp(ar_hist_voltar(&h), "/a") && ar_hist_voltar(&h) == NULL, "voltar duas vezes e parar");
+	CONFERE(!strcmp(ar_hist_avancar(&h), "/a/b") && ar_hist_pode_avancar(&h), "avançar");
+	ar_hist_ir(&h, "/x");
+	CONFERE(!ar_hist_pode_avancar(&h) && !strcmp(ar_hist_atual(&h), "/x"), "ir a um lugar novo corta o que havia à frente");
+	ar_hist_ir(&h, "/x");
+	CONFERE(h.n == 3, "ir ao mesmo lugar não repete (%d)", h.n);
+	ar_hist_liberar(&h);
+
+	/* caminhos */
+	const char *casa = g_get_home_dir();
+	char *docs = g_build_filename(casa, "Documentos", "Projetos", NULL);
+	ar_parte p[16];
+	int np = ar_partes(docs, p, 16);
+	CONFERE(np == 3 && !strcmp(p[0].rotulo, "Home") && !strcmp(p[0].caminho, casa) && !strcmp(p[2].rotulo, "Projetos") && !strcmp(p[2].caminho, docs), "partes na casa (%d: %s/%s)", np, p[0].rotulo,
+		np > 1 ? p[1].rotulo : "");
+	ar_partes_liberar(p, np);
+	np = ar_partes("/usr/share", p, 16);
+	CONFERE(np == 3 && !strcmp(p[0].rotulo, "Computador") && !strcmp(p[1].rotulo, "usr") && !strcmp(p[2].caminho, "/usr/share"), "partes fora da casa (%d)", np);
+	ar_partes_liberar(p, np);
+	np = ar_partes(casa, p, 16);
+	CONFERE(np == 1 && !strcmp(p[0].rotulo, "Home"), "a própria casa é uma parte só");
+	ar_partes_liberar(p, np);
+	char *pai = ar_pai("/usr/share");
+	CONFERE(!strcmp(pai, "/usr") && ar_pai("/") == NULL, "o pai");
+	g_free(pai);
+	g_free(docs);
+
+	/* favoritos e recentes */
+	ar_lugar v[16];
+	CONFERE(ar_favoritos(v, 16) == 0 && !ar_eh_favorito(sub), "sem favoritos");
+	CONFERE(ar_favorito_alternar(sub) && ar_eh_favorito(sub), "favoritar");
+	ar_favorito_alternar(raiz);
+	int nf = ar_favoritos(v, 16);
+	CONFERE(nf == 2 && !strcmp(v[0].rotulo, "Projetos") && !strcmp(v[0].icone, "folder"), "dois favoritos, na ordem em que entraram (%d)", nf);
+	ar_lugares_liberar(v, nf);
+	CONFERE(!ar_favorito_alternar(sub) && !ar_eh_favorito(sub) && ar_eh_favorito(raiz), "desfavoritar");
+	ar_recente_registrar(sub);
+	ar_recente_registrar(raiz);
+	ar_recente_registrar(sub);
+	int nr = ar_recentes(v, 16);
+	CONFERE(nr == 2 && !strcmp(v[0].caminho, sub) && !strcmp(v[1].caminho, raiz), "recentes: o último primeiro, sem repetir (%d)", nr);
+	ar_lugares_liberar(v, nr);
+	int nc = ar_colecoes(v, 16);
+	CONFERE(nc >= 1 && !strcmp(v[0].rotulo, "Home") && !strcmp(v[0].caminho, casa), "coleções começam pela casa");
+	ar_lugares_liberar(v, nc);
+
+	if (falhas) {
+		fprintf(stderr, "%d falha(s)\n", falhas);
+		return 1;
+	}
+	puts("explorador (serviço de arquivos): ok");
+	return 0;
+}
