@@ -1,8 +1,8 @@
 /*
  * Os ajustes do explorador (Arquivos > engrenagem): como as pastas aparecem, a página inicial, a barra lateral e o que fazer em conflitos.
- *   ~/.config/lumna/arquivos/config.ini    os ajustes
- *   ~/.config/lumna/arquivos/barra.ini     a barra lateral (as seções, a ordem, o que aparece e os atalhos da pessoa)
- *   ~/.config/lumna/arquivos/visoes.ini    a visualização lembrada de cada pasta (quando "lembrar de cada pasta" está ligado)
+ *   ~/.config/lumna/atlas/config.ini    os ajustes
+ *   ~/.config/lumna/atlas/barra.ini     a barra lateral (as seções, a ordem, o que aparece e os atalhos da pessoa)
+ *   ~/.config/lumna/atlas/visoes.ini    a visualização lembrada de cada pasta (quando "lembrar de cada pasta" está ligado)
  */
 #ifndef LUMNA_ARQUIVOS_CFG_H
 #define LUMNA_ARQUIVOS_CFG_H

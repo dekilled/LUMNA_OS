@@ -95,7 +95,7 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
       processo, não o aparelho). Ver se acontece só com o shell atual ou também parado no TTY.
 - [ ] Orbit e Gravity em aarch64 no CI (o workflow Celular)
 - [ ] Orbit no backend DRM do aparelho, com libseat
-- [x] Arquivos (`lumna-arquivos`): navegação, operações (copiar, mover, renomear, lixeira com desfazer, compactar), menu de contexto, caminho digitado; faltam cartões com prévias e as páginas de configurações (docs/ARQUIVOS.md)
+- [x] Atlas (`lumna-atlas`, o explorador de arquivos): navegação, operações (copiar, mover, renomear, lixeira com desfazer, compactar), menu de contexto, caminho digitado, Início, páginas de configurações, abas; falta a página Rede e nuvem (docs/ATLAS.md)
 - [x] Teclado na tela (`lumna-teclado`: input-method-v2, layouts pt-BR/US, acentos, símbolos, emojis, vários dedos; docs/TECLADO.md)
 - [ ] Gestos de borda (o Orbit já tem), rotação
 - [ ] Medir memória e CPU lá (cada app Gravity usa uns 16 MB aqui no PC)

@@ -11,7 +11,7 @@
  * As janelas vêm do compositor (wlr-foreign-toplevel, o Orbit tem). Os fixos vêm de
  * ~/.config/lumna/dock, uma linha por app (# comenta, "-" é um separador):
  *   ícone ; nome ; app_id ; comando
- *   folder ; Arquivos ; lumna-arquivos ; lumna-arquivos
+ *   folder ; Atlas ; lumna-atlas ; lumna-atlas
  *   -
  *   mic ; Emma ; lumna-emma-chat ; pkill -x lumna-emma-chat || lumna-emma-chat
  * O ícone é um do LUMNA (o desenho de linha) ou, se não houver, o do tema de ícones. Um app_id
@@ -59,7 +59,7 @@ static double abriu_em[MAX_FIXOS]; /* o salto de "abrindo" até a janela aparece
 
 static const struct fixo padrao[] = {
 	{ "lumna", "Início", "@lancador", "lumna-lancador" },
-	{ "folder", "Arquivos", "lumna-arquivos", "lumna-arquivos" },
+	{ "folder", "Atlas", "lumna-atlas", "lumna-atlas" },
 	{ "globe", "Navegador", "firefox", "firefox" },
 	{ "bag", "Loja", "lumna-loja", "lumna-loja" },
 	{ "sliders", "Painel de controle", "lumna-painel", "lumna-painel" },

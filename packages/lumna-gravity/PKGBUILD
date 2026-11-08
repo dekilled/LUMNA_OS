@@ -28,7 +28,7 @@ options=(!strip !debug)
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado arquivos)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas)
 
 build() {
   cd "$_root/gravity"

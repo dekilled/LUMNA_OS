@@ -1,7 +1,7 @@
 # A dock de quem acabou de entrar no LUMNA (vai para ~/.config/lumna/dock pelo /etc/skel; depois é de cada pessoa):
 #   ícone ; nome ; app_id ; comando
 lumna ; Início ; @lancador ; lumna-lancador
-folder ; Arquivos ; thunar ; thunar
+folder ; Atlas ; lumna-atlas ; lumna-atlas
 globe ; Navegador ; firefox ; firefox
 sliders ; Painel de controle ; lumna-painel ; lumna-painel
 -

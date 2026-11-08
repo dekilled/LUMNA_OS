@@ -1,5 +1,5 @@
 #!/bin/sh
-# O explorador inteiro num Orbit headless. sh teste_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY (com o `make arquivos` feito)
+# O explorador inteiro num Orbit headless. sh teste_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY (com o `make atlas` feito)
 orbit_dir=${1:?}; gravity=${2:?}
 aqui=$(cd "$(dirname "$0")" && pwd)
 run=$(mktemp -d); chmod 700 "$run"
@@ -13,7 +13,7 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_DOCUMENTS_DIR XDG_DOWNLOAD_DIR XDG_PICTU
 (cd "$orbit_dir" && ./orbit > "$run/orbit.log" 2>&1 &)
 sleep 3
 export WAYLAND_DISPLAY=wayland-0
-LUMNA_ARQUIVOS_DEBUG=1 "$gravity/arquivos" "$casa/Documentos" > "$run/ar.out" 2> "$run/ar.err" &
+LUMNA_ATLAS_DEBUG=1 "$gravity/atlas" "$casa/Documentos" > "$run/ar.out" 2> "$run/ar.err" &
 sleep 2
 python3 "$aqui/teste_ui.py" "$orbit_dir" "$run" "$casa"
 rc=$?
@@ -25,6 +25,10 @@ if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_cfg.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
-pkill -x orbit; pkill -x arquivos
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_abas.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+pkill -x orbit; pkill -x atlas
 [ $rc -eq 0 ] || { echo "(log em $run)"; tail -10 "$run/ar.err"; }
 exit $rc

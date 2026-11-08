@@ -1,3 +1,3 @@
 # Programas padrão do LUMNA (cada pessoa pode trocar no ~/.config/mimeapps.list).
 [Default Applications]
-inode/directory=lumna-files.desktop
+inode/directory=lumna-atlas.desktop;lumna-files.desktop;

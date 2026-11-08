@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""O explorador (lumna-arquivos) inteiro num Orbit headless, com toques de verdade (orbit-msg toque) e teclas (wtype): abrir pastas, voltar, avançar, subir,
+"""O explorador (lumna-atlas) inteiro num Orbit headless, com toques de verdade (orbit-msg toque) e teclas (wtype): abrir pastas, voltar, avançar, subir,
 breadcrumb, buscar, selecionar (Ctrl e Shift), teclas, lista e ordem, favoritar, nova pasta, ocultos, filtros.
 python3 teste_ui.py PASTA_DO_ORBIT PASTA_RUN CASA"""
 import os, re, subprocess, sys, time
@@ -216,7 +216,7 @@ toca("item/Projetos")
 time.sleep(0.4)
 toca("det-fav")
 time.sleep(0.4)
-if not os.path.exists(f"{casa}/.config/lumna/arquivos/favoritos") or "Projetos" not in open(f"{casa}/.config/lumna/arquivos/favoritos").read():
+if not os.path.exists(f"{casa}/.config/lumna/atlas/favoritos") or "Projetos" not in open(f"{casa}/.config/lumna/atlas/favoritos").read():
     falha("favoritar não gravou o arquivo de favoritos")
 toca("l-it/2")
 confere(lambda: estado().get("vista") == "2" and estado().get("nvis") == "1" and "Projetos" in ordem(), "Favoritos mostra Projetos")

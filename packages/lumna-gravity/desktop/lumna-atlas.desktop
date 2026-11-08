@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas
+GenericName=Explorador de arquivos
+Comment=Navegar pelas suas pastas e arquivos
+Exec=lumna-atlas %U
+Icon=lumna-atlas
+StartupWMClass=lumna-atlas
+Terminal=false
+Categories=System;FileManager;
+MimeType=inode/directory;
+Keywords=atlas;arquivos;files;pastas;explorador;explorer;documentos;downloads;

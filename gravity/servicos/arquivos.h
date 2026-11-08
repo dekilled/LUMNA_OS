@@ -1,5 +1,5 @@
 /*
- * Arquivos (lumna-arquivos): o que o explorador sabe do disco, sem desenho nenhum: listar uma pasta, ordenar, filtrar e buscar, o tipo de cada
+ * Arquivos (lumna-atlas): o que o explorador sabe do disco, sem desenho nenhum: listar uma pasta, ordenar, filtrar e buscar, o tipo de cada
  * arquivo, tamanhos e datas em português, o histórico de navegação (voltar/avançar), os lugares da barra lateral, favoritos e recentes.
  */
 #ifndef LUMNA_ARQUIVOS_H
@@ -88,7 +88,7 @@ typedef struct ar_lugar {
 /* As coleções: a casa, Documentos, Imagens, Músicas, Downloads, Vídeos, Modelos e a pasta da Emma (só as que existem). */
 int ar_colecoes(ar_lugar *v, int max);
 void ar_lugares_liberar(ar_lugar *v, int n);
-/* Favoritos (~/.config/lumna/arquivos/favoritos) e recentes (~/.local/share/lumna/arquivos/recentes, os últimos 50). */
+/* Favoritos (~/.config/lumna/atlas/favoritos) e recentes (~/.local/share/lumna/atlas/recentes, os últimos 50). */
 int ar_favoritos(ar_lugar *v, int max);
 bool ar_eh_favorito(const char *caminho);
 bool ar_favorito_alternar(const char *caminho);   /* devolve o estado de agora */
@@ -108,7 +108,7 @@ typedef struct ar_unidade {
 /* Os discos montados que interessam à pessoa: a raiz, /mnt, /media, /run/media (sem tmpfs, proc, snap...). */
 int ar_unidades(ar_unidade *v, int max);
 
-/* ---- cor e ícone de uma pasta (~/.config/lumna/arquivos/pastas.ini) ---- */
+/* ---- cor e ícone de uma pasta (~/.config/lumna/atlas/pastas.ini) ---- */
 #define AR_CORES_N 9
 extern const struct ar_cor { const char *nome; uint32_t rgb; } AR_CORES[AR_CORES_N];  /* [0] é a padrão do tema (rgb 0) */
 extern const char *const AR_ICONES[];                                                  /* os emblemas que se pode pôr, NULL no fim */

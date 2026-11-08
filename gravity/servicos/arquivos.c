@@ -523,8 +523,8 @@ void ar_lugares_liberar(ar_lugar *v, int n) {
 	}
 }
 
-static char *arq_favoritos(void) { return g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", "favoritos", NULL); }
-static char *arq_recentes(void) { return g_build_filename(g_get_user_data_dir(), "lumna", "arquivos", "recentes", NULL); }
+static char *arq_favoritos(void) { return g_build_filename(g_get_user_config_dir(), "lumna", "atlas", "favoritos", NULL); }
+static char *arq_recentes(void) { return g_build_filename(g_get_user_data_dir(), "lumna", "atlas", "recentes", NULL); }
 
 static char **ler_linhas(const char *arquivo) {
 	char *txt = NULL;
@@ -791,7 +791,7 @@ static GKeyFile *estilos;
 static char *estilos_arq;
 
 static GKeyFile *estilos_ler(void) {
-	char *a = g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", "pastas.ini", NULL);
+	char *a = g_build_filename(g_get_user_config_dir(), "lumna", "atlas", "pastas.ini", NULL);
 	if (estilos && estilos_arq && !strcmp(estilos_arq, a)) {
 		g_free(a);
 		return estilos;

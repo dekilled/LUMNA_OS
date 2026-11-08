@@ -39,7 +39,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.6 | Digitar a senha errada | "Senha incorreta"; na 3ª errada o pedido é recusado | ☐ |
 | 2.7 | Abrir a janela de senha e apertar `Esc` | Cancela, nada é aplicado | ☐ |
 | 2.8 | Abrir o **Firefox** (dock) | Abre; abre uma página (precisa de internet) | ☐ |
-| 2.9 | Abrir **Arquivos** (dock, é o Thunar por enquanto) | Abre a sua pasta | ☐ |
+| 2.9 | Abrir **Arquivos** (dock, é o Atlas) | Abre a sua pasta | ☐ |
 | 2.10 | `Print` | Abre a captura de tela | ☐ |
 | 2.11 | Abrir a **Emma** (`Super+A`) | Abre o chat; (precisa de um provedor de IA configurado em Painel > Emma > Provedores) | ☐ |
 | 2.12 | Notificação: `notify-send Oi "teste"` no terminal | Aparece o aviso no canto | ☐ |
@@ -48,7 +48,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.15 | Abrir uma janela de fora que usa a barra do Orbit: no terminal do LUMNA, `foot &` | A janela tem a **barra de título do Orbit** (título, minimizar, maximizar, fechar), igual à dos apps do LUMNA | ☐ |
 | 2.16 | Arrastar o `foot` pela barra; duplo clique na barra | Move a janela; o duplo clique maximiza e restaura | ☐ |
 | 2.17 | Botões da barra: minimizar (volta pela dock), maximizar, fechar | Cada um faz o que diz | ☐ |
-| 2.18 | Abrir o **Firefox**, o Thunar e o **Blender** (se tiver) | Cada um tem barra: a do Orbit (Blender) ou a deles com botões (Firefox/Thunar). Se o Firefox não tiver barra: botão direito na barra de abas > "Barra de título" | ☐ |
+| 2.18 | Abrir o **Firefox**, o **Blender** (se tiver) | Cada um tem barra: a do Orbit (Blender) ou a deles com botões (Firefox). Se o Firefox não tiver barra: botão direito na barra de abas > "Barra de título" | ☐ |
 | 2.19 | Abrir o **Terminal** do LUMNA (`Alt+Enter`, ou na lista de apps) e digitar `ls`, `echo çãé`, `htop` (se tiver) | Texto, cores e acentos certos; o cursor é um bloco lilás; `q` sai do htop | ☐ |
 | 2.20 | No terminal: `seq 1 300` e rolar com a roda do mouse e com `Shift+PgUp` / `Shift+PgDn` | O histórico sobe e desce; aparece uma barrinha à direita; digitar volta ao fim | ☐ |
 | 2.21 | Selecionar com o mouse (arrastar), duplo clique numa palavra, triplo clique numa linha; `Ctrl+Shift+C` e `Ctrl+Shift+V` (também botão direito > Copiar/Colar) | Seleciona em lilás; copia e cola no mesmo terminal e em outro app | ☐ |
@@ -97,7 +97,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.59 | No Pulse (terminal), abrir o teclado por `lumna-teclado alternar` e digitar `ls` + Enter | As letras chegam (o terminal não fala text-input; vão como teclas) | ☐ |
 | 2.60 | Com teclado físico e mouse (modo Sozinho): clicar num campo | NÃO sobe (só sobe ao tocar na tela, se tiver) | ☐ |
 
-### 2c. Arquivos (`lumna-arquivos`, só a navegação)
+### 2c. Arquivos (`lumna-atlas`, só a navegação)
 
 | # | O que fazer | O que deve acontecer | OK? |
 |---|---|---|---|
@@ -117,7 +117,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.73 | Ctrl+X num arquivo, colar em outra pasta | Move; o recortado ficava esmaecido até colar | ☐ |
 | 2.74 | Colar um arquivo que já existe no destino | Pergunta (Pular / Manter os dois / Substituir); nada some sem você dizer | ☐ |
 | 2.75 | F2 num arquivo, digitar outro nome, Enter | Renomeia; um nome que já existe é recusado | ☐ |
-| 2.76 | Delete num arquivo | Vai para a lixeira, a barra mostra "Desfazer"; o Thunar também o vê na lixeira | ☐ |
+| 2.76 | Delete num arquivo | Vai para a lixeira, a barra mostra "Desfazer"; os outros programas também o veem na lixeira | ☐ |
 | 2.77 | Barra lateral > Lixeira: selecionar e Restaurar | Volta ao lugar de origem | ☐ |
 | 2.78 | Shift+Delete | Pede confirmação; confirmado, some para sempre | ☐ |
 | 2.79 | Botão direito num item (ou dedo parado) | O menu com Abrir, Recortar, Copiar, Renomear, Fixar, Compactar, Copiar caminho, Terminal, Propriedades, Lixeira | ☐ |
@@ -135,6 +135,9 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.91 | Engrenagem > Página inicial e Barra lateral: mudar a ordem, esconder, renomear, adicionar atalho | Reflete na barra; sobrevive a fechar e abrir | ☐ |
 | 2.92 | Engrenagem > Avançado: restaurar o padrão da página | Volta só aquela página ao padrão | ☐ |
 | 2.93 | Grade com "Exibir prévias nas pastas" ligado | As pastas mostram miniaturas do que há dentro; desligado, a pasta fica lisa | ☐ |
+| 2.94 | Ctrl+T no Atlas; navegar numa aba e clicar na outra | Surge a faixa de abas; cada aba guarda a sua pasta e o seu voltar/avançar | ☐ |
+| 2.95 | Botão direito numa pasta > Abrir em nova aba; X numa aba; Ctrl+Tab; Ctrl+W até a última | Abre depois da de agora; fecha; troca; a última aba fecha a janela | ☐ |
+| 2.96 | Dock: o ícone **Atlas**; duplo clique numa pasta no Firefox (Mostrar na pasta) ou `xdg-open ~` | Abre o Atlas (não há mais Thunar) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

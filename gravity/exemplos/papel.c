@@ -166,8 +166,8 @@ static void menu(void) {
 			executar("${TERMINAL:-foot}");
 			gv_popup_fechar(m);
 		}
-		if (gv_menu_item(CLAY_ID("arquivos"), "folder", "Arquivos", NULL)) {
-			executar("lumna-arquivos");
+		if (gv_menu_item(CLAY_ID("atlas"), "folder", "Atlas", NULL)) {
+			executar("lumna-atlas");
 			gv_popup_fechar(m);
 		}
 		if (gv_menu_item(CLAY_ID("apps"), "grid", "Todos os apps", NULL)) {

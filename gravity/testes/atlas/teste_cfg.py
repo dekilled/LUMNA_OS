@@ -7,8 +7,8 @@ import os, re, subprocess, sys, time, json
 orbit_dir, run, casa = sys.argv[1], sys.argv[2], sys.argv[3]
 exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "teste_ops.py")).read().split("# o app já está aberto")[0].split('orbit_dir, run, casa = sys.argv[1], sys.argv[2], sys.argv[3]')[1])
 
-cfg_ini = f"{casa}/.config/lumna/arquivos/config.ini"
-barra_ini = f"{casa}/.config/lumna/arquivos/barra.ini"
+cfg_ini = f"{casa}/.config/lumna/atlas/config.ini"
+barra_ini = f"{casa}/.config/lumna/atlas/barra.ini"
 
 
 def le(p):
@@ -64,7 +64,7 @@ toca("cfg-voltar")
 time.sleep(0.5)
 toca("t-lista")
 time.sleep(0.5)
-if docs not in le(f"{casa}/.config/lumna/arquivos/visoes.ini"):
+if docs not in le(f"{casa}/.config/lumna/atlas/visoes.ini"):
     falha("a visualização da pasta não foi lembrada")
 vai_para(f"{docs}/Contratos")
 confere(lambda: estado().get("lista") == "0", "outra pasta usa a visualização padrão (grade)")

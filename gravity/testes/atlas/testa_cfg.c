@@ -31,7 +31,7 @@ int main(void) {
 	CONFERE(d.vista == AR_VISTA_LISTA_GRANDE && d.tam_pasta == 160 && d.texto == 2 && d.ocultos && !d.extensoes && d.ordem == 2 && d.decrescente && d.abrir_em == AR_ABRIR_PERSONALIZADA &&
 		!strcmp(d.pasta_inicial, "/usr/share") && d.conflito == 3 && !d.confirmar_apagar && d.confirmar_esvaziar, "ler o que gravou");
 	/* valores absurdos são limitados */
-	char *a = g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", "config.ini", NULL);
+	char *a = g_build_filename(g_get_user_config_dir(), "lumna", "atlas", "config.ini", NULL);
 	g_file_set_contents(a, "[explorador]\nvista=9\ntam_pasta=10000\nconflito=-4\n", -1, NULL);
 	ar_cfg_ler(&d);
 	CONFERE(d.vista == 2 && d.tam_pasta == 192 && d.conflito == 0, "valores fora do limite (%d %d %d)", d.vista, d.tam_pasta, d.conflito);

@@ -325,7 +325,7 @@ time.sleep(0.6)
 toca("es-cor/3")
 toca("es-ic/1")
 time.sleep(0.4)
-ini = open(f"{casa}/.config/lumna/arquivos/pastas.ini").read()
+ini = open(f"{casa}/.config/lumna/atlas/pastas.ini").read()
 if "#30A46C" not in ini or "icone=heart" not in ini:
     falha(f"cor e ícone não foram gravados: {ini!r}")
 toca("es-fechar")

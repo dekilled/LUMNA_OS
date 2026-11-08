@@ -255,7 +255,7 @@ static const char *icone_lumna(const struct app *a) {
 	static const struct {
 		const char *id, *icone;
 	} lumna[] = {
-		{ "lumna-arquivos", "folder" }, { "lumna-navegador", "globe" }, { "lumna-editor", "document" },
+		{ "lumna-atlas", "folder" }, { "lumna-navegador", "globe" }, { "lumna-editor", "document" },
 		{ "lumna-loja", "bag" }, { "lumna-painel", "sliders" }, { "lumna-emma", "mic" }, { "lumna-apps", "grid" },
 		{ "lumna-rede", "wifi" }, { "lumna-transferencia", "clipboard" }, { "lumna-mixer", "volume" },
 	};
@@ -285,7 +285,7 @@ static void carregar_favoritos(void) {
 	FILE *f = fopen(caminho, "r");
 	if (!f) {
 		/* os de fábrica: os do LUMNA que houver */
-		static const char *const padrao[] = { "lumna-arquivos", "lumna-navegador", "firefox", "lumna-editor",
+		static const char *const padrao[] = { "lumna-atlas", "lumna-navegador", "firefox", "lumna-editor",
 			"lumna-loja", "lumna-painel" };
 		for (size_t i = 0; i < sizeof(padrao) / sizeof(padrao[0]) && nfavoritos < MAX_FAVORITOS; i++) {
 			snprintf(favoritos[nfavoritos++], sizeof(favoritos[0]), "%s", padrao[i]);
@@ -378,7 +378,7 @@ static void fixar_na_dock(const struct app *a) {
 			return;
 		}
 		fprintf(f, "# A dock do LUMNA: ícone ; nome ; app_id ; comando (\"-\" separa)\n"
-			"lumna ; Início ; @lancador ; lumna-lancador\nfolder ; Arquivos ; lumna-arquivos ; lumna-arquivos\n"
+			"lumna ; Início ; @lancador ; lumna-lancador\nfolder ; Atlas ; lumna-atlas ; lumna-atlas\n"
 			"globe ; Navegador ; firefox ; firefox\nbag ; Loja ; lumna-loja ; lumna-loja\n"
 			"sliders ; Painel de controle ; lumna-painel ; lumna-painel\n");
 		const char *l = icone_lumna(a);

@@ -6,7 +6,7 @@
 #include <string.h>
 
 static char *arq(const char *nome) {
-	return g_build_filename(g_get_user_config_dir(), "lumna", "arquivos", nome, NULL);
+	return g_build_filename(g_get_user_config_dir(), "lumna", "atlas", nome, NULL);
 }
 
 static bool gravar_kf(GKeyFile *kf, const char *nome) {

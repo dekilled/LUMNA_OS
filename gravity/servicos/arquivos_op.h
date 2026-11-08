@@ -5,7 +5,7 @@
  * parou numa pergunta (já existe um arquivo com esse nome). Nada é sobrescrito sem a pessoa dizer. Cada operação que termina deixa o que precisa para
  * desfazer (ar_desfazer): mover volta, lixeira restaura, cópia vai para a lixeira, criar/compactar/extrair também.
  *
- * A lixeira é a do freedesktop (~/.local/share/Trash/files e info): o que apagamos aqui o Thunar e os outros também enxergam, e vice-versa.
+ * A lixeira é a do freedesktop (~/.local/share/Trash/files e info): o que apagamos aqui o resto do sistema também enxerga, e vice-versa.
  */
 #ifndef LUMNA_ARQUIVOS_OP_H
 #define LUMNA_ARQUIVOS_OP_H

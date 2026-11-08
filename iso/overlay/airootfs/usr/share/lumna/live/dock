@@ -1,6 +1,6 @@
 # A dock da sessão live: a de sempre e o instalador (só do pendrive; o instalador apaga este arquivo).
 lumna ; Início ; @lancador ; lumna-lancador
-folder ; Arquivos ; thunar ; thunar
+folder ; Atlas ; lumna-atlas ; lumna-atlas
 globe ; Navegador ; firefox ; firefox
 sliders ; Painel de controle ; lumna-painel ; lumna-painel
 download ; Instalar LUMNA OS ; lumna-instalador ; lumna-instalador

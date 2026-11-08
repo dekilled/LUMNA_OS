@@ -1,5 +1,5 @@
 /*
- * lumna-arquivos (LUMNA Explorer): o explorador de arquivos do LUMNA OS.
+ * lumna-atlas (Atlas): o explorador de arquivos do LUMNA OS.
  *
  *   barra de título · barra de ferramentas (voltar, avançar, subir, caminho, busca, novo, ordenar, grade/lista, ajustes)
  *   barra lateral (Espaços, Coleções, Fixados) · a pasta em grade ou lista (só desenha o que está à vista) · painel de detalhes
@@ -8,7 +8,7 @@
  * O que sabe do disco está em servicos/arquivos.c (testado sem tela). Abrir um arquivo usa o aplicativo padrão do tipo (Painel > Aplicativos padrão).
  * A pasta de agora é vigiada (inotify): o que muda por fora aparece aqui.
  *
- *   lumna-arquivos [pasta]
+ *   lumna-atlas [pasta]
  */
 #define _GNU_SOURCE
 #include <cairo.h>
@@ -300,6 +300,72 @@ static void avancar(void) {
 	}
 }
 
+/* ---- abas ----
+ * Cada aba tem o seu histórico (o lugar de agora é o fim dele) e onde a lista estava rolada. A aba de agora usa o `hist` global, como sempre;
+ * as outras ficam guardadas em abas[]. Trocar de aba guarda a de agora e relê o lugar da outra. */
+#define MAX_ABAS 12
+typedef struct aba {
+	ar_hist hist;
+	double rolagem;
+} aba;
+static aba abas[MAX_ABAS];
+static int n_abas = 1;
+static int aba_atual;
+
+static void aba_guardar(void) {
+	abas[aba_atual].hist = hist;
+	abas[aba_atual].rolagem = gv_rolagem_posicao(ID_CONTEUDO).y;
+}
+
+/* mostra a aba aba_atual (o `hist` já é dela) */
+static void aba_carregar(void) {
+	ir_para(ar_hist_atual(&hist), false);
+	gv_rolar_para(ID_CONTEUDO, 0, abas[aba_atual].rolagem, false);
+}
+
+static void aba_mostrar(int i) {
+	if (i < 0 || i >= n_abas || i == aba_atual) {
+		return;
+	}
+	aba_guardar();
+	aba_atual = i;
+	hist = abas[i].hist;
+	aba_carregar();
+}
+
+/* uma aba nova logo depois da de agora, já nela. destino NULL: o Início */
+static void aba_nova(const char *destino) {
+	if (n_abas >= MAX_ABAS) {
+		avisar("Já são %d abas abertas", MAX_ABAS);
+		return;
+	}
+	aba_guardar();
+	int novo = aba_atual + 1;
+	memmove(&abas[novo + 1], &abas[novo], sizeof(aba) * (size_t)(n_abas - novo));
+	n_abas++;
+	memset(&abas[novo], 0, sizeof(aba));
+	ar_hist_ir(&abas[novo].hist, destino ? destino : ESPECIAL_INICIO);
+	aba_atual = novo;
+	hist = abas[novo].hist;
+	aba_carregar();
+}
+
+static void aba_fechar(int i) {
+	if (n_abas <= 1 || i < 0 || i >= n_abas) {
+		return;
+	}
+	ar_hist_liberar(i == aba_atual ? &hist : &abas[i].hist);
+	memmove(&abas[i], &abas[i + 1], sizeof(aba) * (size_t)(n_abas - i - 1));
+	n_abas--;
+	if (i == aba_atual) {
+		aba_atual = i >= n_abas ? n_abas - 1 : i;
+		hist = abas[aba_atual].hist;
+		aba_carregar();
+	} else if (i < aba_atual) {
+		aba_atual--;
+	}
+}
+
 static void abrir_arquivo(const char *caminho) {
 	char *uri = g_filename_to_uri(caminho, NULL, NULL);
 	GError *err = NULL;
@@ -507,6 +573,27 @@ static void iniciar_op(enum ar_op_tipo tipo, GPtrArray *alvos, const char *desti
 	gv_app_redesenhar(app);
 }
 
+/* Em Configurações > Avançado > Registrar erros: uma linha por operação que deu erro, em ~/.local/state/lumna/atlas.log */
+static void registrar_erro(const char *texto, int quantos) {
+	if (!cfg.registrar_erros) {
+		return;
+	}
+	char *dir = g_build_filename(g_get_user_state_dir(), "lumna", NULL);
+	g_mkdir_with_parents(dir, 0700);
+	char *arq = g_build_filename(dir, "atlas.log", NULL);
+	FILE *f = fopen(arq, "a");
+	if (f) {
+		GDateTime *agora = g_date_time_new_now_local();
+		char *quando = g_date_time_format(agora, "%Y-%m-%d %H:%M:%S");
+		fprintf(f, "%s  %s (%d erro%s)\n", quando, texto ? texto : "erro", quantos, quantos == 1 ? "" : "s");
+		g_free(quando);
+		g_date_time_unref(agora);
+		fclose(f);
+	}
+	g_free(arq);
+	g_free(dir);
+}
+
 /* a cada quadro: a operação anda; quando termina, a tela se atualiza e diz o que houve */
 static void op_rever(void) {
 	if (!op) {
@@ -523,6 +610,7 @@ static void op_rever(void) {
 	if (op_st.cancelado) {
 		avisar("Cancelado");
 	} else if (op_st.erros) {
+		registrar_erro(op_st.erro, op_st.erros);
 		avisar("%s%s", op_st.erro, op_st.erros > 1 ? gv_fmt(" (e mais %d erro%s)", op_st.erros - 1, op_st.erros > 2 ? "s" : "").chars : "");
 	} else {
 		switch (op_tipo) {
@@ -701,7 +789,7 @@ static void abrir_no_terminal(const char *pasta_alvo) {
 }
 
 static void abrir_nova_janela(const char *caminho) {
-	char *argv[] = { "lumna-arquivos", (char *)caminho, NULL };
+	char *argv[] = { "lumna-atlas", (char *)caminho, NULL };
 	GError *err = NULL;
 	if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, &err)) {
 		avisar("Não consegui abrir outra janela: %s", err && err->message ? err->message : "?");
@@ -1180,6 +1268,81 @@ static void criar_novo(void) {
 	novo_tipo = 0;
 	novo_nome[0] = '\0';
 	gv_popup_fechar(CLAY_ID("menu-novo"));
+}
+
+/* o nome de um lugar, para o título de uma aba */
+static const char *rotulo_do_destino(const char *d) {
+	if (!d) {
+		return "";
+	}
+	if (!strcmp(d, ESPECIAL_INICIO)) {
+		return "Início";
+	}
+	if (!strcmp(d, ESPECIAL_RECENTES)) {
+		return "Recentes";
+	}
+	if (!strcmp(d, ESPECIAL_FAVORITOS)) {
+		return "Favoritos";
+	}
+	char *lix = ar_lixeira_pasta();
+	bool eh_lixeira = !strcmp(d, lix);
+	g_free(lix);
+	if (eh_lixeira) {
+		return "Lixeira";
+	}
+	ar_parte p[32];
+	int n = ar_partes(d, p, 32);
+	const char *r = n > 0 ? gv_str(p[n - 1].rotulo).chars : d;
+	ar_partes_liberar(p, n);
+	return r;
+}
+
+/* a faixa das abas: só aparece com duas ou mais. Cada aba tem o ícone do lugar, o nome e o X; o + abre outra */
+static void faixa_de_abas(void) {
+	if (n_abas < 2) {
+		return;
+	}
+	CLAY(CLAY_ID("abas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 12, 12, 0, 0 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
+		int fechar = -1, mostrar = -1;
+		for (int i = 0; i < n_abas; i++) {
+			bool ativa = i == aba_atual;
+			const char *dest = ar_hist_atual(i == aba_atual ? &hist : &abas[i].hist);
+			const char *ic = !dest ? "folder" : !strcmp(dest, ESPECIAL_INICIO) ? "home" : !strcmp(dest, ESPECIAL_RECENTES) ? "clock" : !strcmp(dest, ESPECIAL_FAVORITOS) ? "star" : "folder";
+			char nome[96];
+			snprintf(nome, sizeof(nome), "%s", rotulo_do_destino(dest));
+			if (g_utf8_strlen(nome, -1) > 22) { /* nome comprido: corta com reticências */
+				*g_utf8_offset_to_pointer(nome, 21) = '\0';
+				g_strlcat(nome, "…", sizeof(nome));
+			}
+			Clay_ElementId id = CLAY_IDI("aba", (uint32_t)i);
+			bool tocou = gv_tocado(id); /* antes do X: o X, chamado depois, ganha o toque que é dele */
+			bool sobre = gv_por_cima(id);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0, 230), CLAY_SIZING_FIXED(36) }, .padding = { 12, 4, 0, 0 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = ativa ? gv_t.selecionado : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+				gv_icone(ic, 18, ativa ? gv_t.texto : gv_t.texto_secundario);
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(gv_str(nome), gv_t.tamanho_corpo - 1, ativa ? gv_t.texto : gv_t.texto_secundario, ativa ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				}
+				if (gv_botao_ext(CLAY_IDI("aba-x", (uint32_t)i), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 28 })) {
+					fechar = i;
+				}
+			}
+			if (tocou && fechar < 0) {
+				mostrar = i;
+			}
+		}
+		bool c;
+		botao_barra(CLAY_ID("aba-nova"), "plus", false, n_abas >= MAX_ABAS, &c);
+		if (c) {
+			aba_nova(NULL);
+		}
+		if (fechar >= 0) {
+			aba_fechar(fechar);
+		} else if (mostrar >= 0) {
+			aba_mostrar(mostrar);
+		}
+	}
 }
 
 static void barra_ferramentas(void) {
@@ -1980,6 +2143,12 @@ static void menu_do_item(void) {
 		}
 		FECHAR_MENU();
 	}
+	if (pasta1 && gv_menu_item(CLAY_ID("mi-aba"), "plus", "Abrir em nova aba", NULL)) {
+		char *alvo = g_strdup(cam[i]); /* a aba nova relê a lista: o caminho tem de ser uma cópia */
+		FECHAR_MENU();
+		aba_nova(alvo);
+		g_free(alvo);
+	}
 	if (pasta1 && gv_menu_item(CLAY_ID("mi-janela"), "external", "Abrir em nova janela", NULL)) {
 		abrir_nova_janela(cam[i]);
 		FECHAR_MENU();
@@ -2678,6 +2847,30 @@ static void teclado_atalhos(void) {
 			continue;
 		}
 		if (mods & GV_MOD_CTRL) {
+			if (k == XKB_KEY_t || k == XKB_KEY_T) {
+				aba_nova(NULL);
+				continue;
+			}
+			if (k == XKB_KEY_w || k == XKB_KEY_W) {
+				if (n_abas > 1) {
+					aba_fechar(aba_atual);
+				} else {
+					gv_app_sair(app);
+				}
+				continue;
+			}
+			if (k >= XKB_KEY_1 && k <= XKB_KEY_9) { /* o Alt+número é das áreas de trabalho do Orbit; aqui é Ctrl+número, e o 9 é a última aba */
+				aba_mostrar(k == XKB_KEY_9 ? n_abas - 1 : (int)(k - XKB_KEY_1));
+				continue;
+			}
+			if (k == XKB_KEY_Tab || k == XKB_KEY_ISO_Left_Tab || k == XKB_KEY_Page_Down || k == XKB_KEY_Page_Up) {
+				bool volta = k == XKB_KEY_ISO_Left_Tab || k == XKB_KEY_Page_Up || (k == XKB_KEY_Tab && (mods & GV_MOD_SHIFT));
+				if (k == XKB_KEY_Tab || k == XKB_KEY_ISO_Left_Tab) {
+					gv_teclado_cru(); /* o Ctrl+Tab é das abas e não anda o foco */
+				}
+				aba_mostrar((aba_atual + (volta ? n_abas - 1 : 1)) % n_abas);
+				continue;
+			}
 			if (k == XKB_KEY_f) {
 				gv_focar(CLAY_ID("busca"));
 			} else if (k == XKB_KEY_l) {
@@ -3084,7 +3277,7 @@ static void pagina_avancado(void) {
 		}
 		CLAY(CLAY_ID("av-diag"), CARTAO) {
 			titulo_cartao("Diagnóstico");
-			linha_interruptor(CLAY_ID("av-log"), "Registrar erros do Explorer", "Os erros das operações vão para ~/.local/state/lumna/arquivos.log", &cfg_edit.registrar_erros);
+			linha_interruptor(CLAY_ID("av-log"), "Registrar erros do Atlas", "Os erros das operações vão para ~/.local/state/lumna/atlas.log", &cfg_edit.registrar_erros);
 			CLAY(CLAY_ID("av-log-botoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10 } }) {
 				if (gv_botao_ext(CLAY_ID("av-abrir-log"), &(gv_botao_opcoes){ .texto = "Abrir a pasta dos registros", .estilo = GV_BOTAO_ELEVADO })) {
 					char *pasta_log = g_build_filename(g_get_user_state_dir(), "lumna", NULL);
@@ -3102,7 +3295,7 @@ static void pagina_inicial(void) {
 	CLAY(CLAY_ID("pi-colunas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 18 } }) {
 		CLAY(CLAY_ID("pi-esq"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(480) }, .childGap = 16 } }) {
 			CLAY(CLAY_ID("pi-abrir"), CARTAO) {
-				titulo_cartao("Ao abrir o Explorer");
+				titulo_cartao("Ao abrir o Atlas");
 				linha_escolha(CLAY_ID("pi-abrir-e"), "Abrir", "Abra o início, a última pasta ou uma pasta personalizada.", OPCOES_ABRIR, 3, &cfg_edit.abrir_em, 250);
 				if (cfg_edit.abrir_em == AR_ABRIR_PERSONALIZADA) {
 					gv_campo(CLAY_ID("pi-pasta"), cfg_edit.pasta_inicial, sizeof(cfg_edit.pasta_inicial), "/home/voce/Projetos", GV_CAMPO_TEXTO);
@@ -3341,7 +3534,7 @@ static void restaurar_padrao_da_pagina(void) {
 static void tela_configuracoes(void) {
 	static const struct { const char *rotulo, *icone, *titulo, *sub; } PAGINAS[] = {
 		{ "Exibição", "desktop", "Exibição", "Defina como suas pastas e arquivos aparecem." },
-		{ "Página inicial", "home", "Página inicial", "Escolha o que aparece quando você abre o Explorer." },
+		{ "Página inicial", "home", "Página inicial", "Escolha o que aparece quando você abre o Atlas." },
 		{ "Barra lateral", "menu", "Barra lateral", "Escolha o que aparece e organize suas categorias." },
 		{ "Rede e nuvem", "globe", "Rede e nuvem", "Acesse pastas compartilhadas e gerencie suas conexões." },
 		{ "Avançado", "settings", "Avançado", "Ajuste operações de arquivo e diagnóstico." },
@@ -3413,11 +3606,11 @@ static void tela_configuracoes(void) {
 	}
 }
 
-/* Em teste (LUMNA_ARQUIVOS_DEBUG=1): onde está cada coisa (em pixels da janela), para os testes clicarem no lugar certo. Só escreve o que mudou. */
+/* Em teste (LUMNA_ATLAS_DEBUG=1): onde está cada coisa (em pixels da janela), para os testes clicarem no lugar certo. Só escreve o que mudou. */
 static void debug_posicoes(void) {
 	static int ligado = -1;
 	if (ligado < 0) {
-		ligado = getenv("LUMNA_ARQUIVOS_DEBUG") != NULL;
+		ligado = getenv("LUMNA_ATLAS_DEBUG") != NULL;
 	}
 	if (!ligado) {
 		return;
@@ -3431,7 +3624,7 @@ static void debug_posicoes(void) {
 	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
 		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
-		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-local", "mi-recortar", "mi-colar",
+		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
 		"mi-terminal", "mi-lixeira", "mi-estilo", "mf-ordenar", "mf-ord/0", "mf-git", "mf-estilo", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "es-fechar", "es-padrao", "cfg-aplicar", "cfg-cancelar", "cfg-voltar", "cfg-restaurar", "ex-r1", "ex-r2", "ex-tam-sl", "cfg-corpo", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
 	for (int i = 0; FIXOS[i]; i++) {
@@ -3444,7 +3637,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "es-cor", 9 }, { "es-ic", 16 }, { "mf-ord", 4 }, { "l-it", 16 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "es-cor", 9 }, { "es-ic", 16 }, { "mf-ord", 4 }, { "l-it", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {
@@ -3496,8 +3689,8 @@ static void debug_posicoes(void) {
 			g_free(linha);
 		}
 	}
-	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
-		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg);
+	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
+		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual);
 	static char *estado_antes;
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("estado %s\n", estado);
@@ -3549,7 +3742,7 @@ static void desenhar(gv_app *a, void *dados) {
 		/* as páginas de configurações no lugar dos arquivos: a mesma janela, com a barra de título */
 		CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
 			.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-			gv_barra_janela(a, CLAY_ID("barra"), "folder", "LUMNA Explorer");
+			gv_barra_janela(a, CLAY_ID("barra"), "folder", "Atlas");
 			tela_configuracoes();
 		}
 		if (gv_tecla() == 0xff1b && !gv_focado(CLAY_ID("bl-ed-nc")) && !gv_focado(CLAY_ID("pi-pasta"))) {
@@ -3562,7 +3755,8 @@ static void desenhar(gv_app *a, void *dados) {
 	teclado_atalhos();
 	CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
 		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-		gv_barra_janela(a, CLAY_ID("barra"), "folder", "LUMNA Explorer");
+		gv_barra_janela(a, CLAY_ID("barra"), "folder", "Atlas");
+		faixa_de_abas();
 		barra_ferramentas();
 		CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 			barra_lateral();
@@ -3592,6 +3786,13 @@ static void desenhar(gv_app *a, void *dados) {
 }
 
 int main(int argc, char **argv) {
+	/* quem abre uma pasta pelo sistema (xdg-open, "Mostrar na pasta") manda file:///caminho: vira o caminho */
+	if (argc > 1 && g_str_has_prefix(argv[1], "file://")) {
+		char *c = g_filename_from_uri(argv[1], NULL, NULL);
+		if (c) {
+			argv[1] = c;
+		}
+	}
 	char inicio[4096];
 	snprintf(inicio, sizeof(inicio), "%s", argc > 1 && g_file_test(argv[1], G_FILE_TEST_IS_DIR) ? argv[1] : g_get_home_dir());
 	char *real = realpath(inicio, NULL);
@@ -3612,7 +3813,7 @@ int main(int argc, char **argv) {
 			destino = cfg.pasta_inicial;
 		}
 	}
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "Arquivos", .app_id = "lumna-arquivos", .largura = 1240, .altura = 760 });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "Arquivos", .app_id = "lumna-atlas", .largura = 1240, .altura = 760 });
 	if (!app) {
 		return 1;
 	}

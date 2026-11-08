@@ -1159,7 +1159,7 @@ void ar_op_liberar(ar_op *op) {
 
 static char *arq_area(void) {
 	const char *rt = g_get_user_runtime_dir();
-	return g_build_filename(rt && *rt ? rt : g_get_tmp_dir(), "lumna-arquivos-area", NULL);
+	return g_build_filename(rt && *rt ? rt : g_get_tmp_dir(), "lumna-atlas-area", NULL);
 }
 
 char *ar_area_gravar(bool recortar, char *const *caminhos, int n) {
