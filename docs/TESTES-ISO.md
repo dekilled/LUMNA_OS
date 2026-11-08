@@ -80,6 +80,23 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.47 | Em `~/.config/lumna/pulse.ini`: `[pulse]` e `explicar_comandos=touch` (abrir um Pulse novo) | Só `touch` pede explicação; `rm` passa a rodar direto | ☐ |
 | 2.48 | Com a internet desligada, repetir o `rm` | O cartão aparece com a frase fixa e "A Emma não respondeu a tempo": a decisão é sua | ☐ |
 
+### 2b. Teclado na tela (`lumna-teclado`)
+
+| # | O que fazer | O que deve acontecer | OK? |
+|---|---|---|---|
+| 2.49 | Na VM sem teclado físico "de verdade" (ou tocando na tela): clicar numa caixa de texto do Firefox ou do Painel | O teclado sobe de baixo e a janela encolhe/sobe, sem ficar por cima do campo | ☐ |
+| 2.50 | Digitar `olá, mundo` clicando nas teclas | A primeira letra sai maiúscula sozinha; o texto aparece no campo | ☐ |
+| 2.51 | Segurar o `a` meio segundo | Abre á à â ã ä; escorregar até o `ã` e soltar escreve `ã`; soltar sem escolher escreve `a` | ☐ |
+| 2.52 | `?123` e `=\<` e `ABC`; o `😀`, escolher uma categoria e um emoji | Trocam de página; o emoji entra no campo e fica nos "recentes" | ☐ |
+| 2.53 | `⇧` uma vez, duas vezes, três | Uma maiúscula; trava (traço embaixo); solta | ☐ |
+| 2.54 | Tecla `⌫` segurada; `↵` num campo de uma linha | Apaga repetindo; o Enter envia/confirma | ☐ |
+| 2.55 | `⌄` (a setinha) | O teclado desce; ao clicar noutro campo ele volta | ☐ |
+| 2.56 | Num monitor de PC: ver as teclas Esc, Tab e as setas | Aparecem na linha de baixo (só em tela larga) | ☐ |
+| 2.57 | Painel > Teclado e mouse > Teclado na tela: "Só quando eu pedir", Aplicar, abrir um campo | Não sobe sozinho; num terminal: `lumna-teclado alternar` abre e fecha | ☐ |
+| 2.58 | No mesmo painel: "Sempre que um campo abrir" com teclado físico ligado | Sobe mesmo digitando no teclado de verdade | ☐ |
+| 2.59 | No Pulse (terminal), abrir o teclado por `lumna-teclado alternar` e digitar `ls` + Enter | As letras chegam (o terminal não fala text-input; vão como teclas) | ☐ |
+| 2.60 | Com teclado físico e mouse (modo Sozinho): clicar num campo | NÃO sobe (só sobe ao tocar na tela, se tiver) | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |
@@ -177,5 +194,5 @@ O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de
 
 ## O que **não** está pronto (não é bug)
 
-Teclado na tela, Arquivos e Loja próprios (por ora Thunar e Painel > Aplicativos), Music, Biblioteca Gaming,
+Arquivos e Loja próprios (por ora Thunar e Painel > Aplicativos), Music, Biblioteca Gaming,
 particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).

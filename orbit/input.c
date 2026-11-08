@@ -31,6 +31,9 @@ bool orbit_gesture_begin(struct orbit_server *server, double lx, double ly) {
 	if (!phone || !output_is_phone(phone->wlr)) {
 		return false;
 	}
+	if (orbit_layer_is_keyboard_at(server, lx, ly)) {
+		return false; /* o teclado na tela fica por cima dos gestos: a primeira coluna e a linha de baixo são teclas */
+	}
 	struct wlr_box box;
 	wlr_output_layout_get_box(server->layout, phone->wlr, &box);
 	double x = lx - box.x;
@@ -152,6 +155,7 @@ static void on_cursor_motion(struct wl_listener *listener, void *data) {
 	 * segurava o movimento relativo dentro dela: durante um arrasto o relativo puxava o cursor de volta para a borda do monitor, em cabo
 	 * de guerra com o absoluto. Sem dispositivo, o movimento vale no layout todo. */
 	struct wlr_input_device *dev = event->pointer->output_name ? NULL : &event->pointer->base;
+	server->last_input = ORBIT_INPUT_MOUSE;
 	if (orbit_pointer_motion(server, event)) {
 		/* o ponteiro está travado numa janela (um jogo, o Blender): o cursor não anda, o app só recebe o movimento relativo */
 		orbit_idle_activity(server);
@@ -193,6 +197,7 @@ static void on_cursor_motion_absolute(struct wl_listener *listener, void *data) 
 static void on_cursor_button(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
+	server->last_input = ORBIT_INPUT_MOUSE;
 	orbit_idle_activity(server);
 	server->super_tap = false; /* Super+clique não é o Super sozinho */
 	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
@@ -294,6 +299,7 @@ static void on_cursor_button(struct wl_listener *listener, void *data) {
 static void on_cursor_axis(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
+	server->last_input = ORBIT_INPUT_MOUSE;
 	orbit_idle_activity(server);
 	wlr_seat_pointer_notify_axis(server->seat, event->time_msec, event->orientation,
 		event->delta, event->delta_discrete, event->source, event->relative_direction);
@@ -316,6 +322,9 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 	}
 	bool handled = false;
 	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
+	if (keyboard->shared) {
+		server->last_input = ORBIT_INPUT_TECLADO; /* o teclado virtual (shared=false) não conta: pode ser o teclado na tela */
+	}
 	orbit_idle_activity(server);
 	for (int i = 0; i < count; i++) {
 		handled = orbit_keybinding_tap(server, syms[i], event->state == WL_KEYBOARD_KEY_STATE_PRESSED, mods) || handled;

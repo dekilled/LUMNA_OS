@@ -142,6 +142,12 @@ void pn_suspensao_desenhar(void);
 void pn_botao_desenhar(void);
 
 /* Telas e modos → Luz noturna (luz.c) */
+void pn_ktela_desenhar(void);
+void pn_ktela_abrir(void);
+bool pn_ktela_pendente(void);
+void pn_ktela_aplicar(void);
+void pn_ktela_descartar(void);
+void pn_ktela_restaurar(void);
 void pn_luz_desenhar(void);
 void pn_luz_abrir(void);
 bool pn_luz_pendente(void);
@@ -301,7 +307,8 @@ static const pn_secao teclado[] = {
 		pn_atalhos_aplicar, pn_atalhos_descartar, pn_atalhos_restaurar, pn_atalhos_abrir },
 	{ "mouse", "mouse", "Mouse e touchpad", "Botões, velocidade e rolagem.", pn_mouse_desenhar, NULL, pn_teclado_pendente, pn_teclado_aplicar,
 		pn_teclado_descartar, pn_mouse_restaurar, pn_teclado_abrir },
-	{ "tela", "keyboard", "Teclado na tela", "Escrever sem teclado.", NULL, "Ligar;O tamanho" },
+	{ "tela", "keyboard", "Teclado na tela", "Escrever sem teclado.", pn_ktela_desenhar, NULL, pn_ktela_pendente, pn_ktela_aplicar,
+		pn_ktela_descartar, pn_ktela_restaurar, pn_ktela_abrir },
 };
 const pn_categoria pn_teclado = { "teclado", "keyboard", "Teclado e mouse", "Layout, atalhos e ponteiro", PN_SISTEMA, teclado,
 	N(teclado) };

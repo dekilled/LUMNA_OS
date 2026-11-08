@@ -1,6 +1,7 @@
 #include "orbit.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
@@ -347,4 +348,19 @@ bool orbit_layers_bind(struct orbit_server *server) {
 	server->new_layer_surface.notify = server_new_layer_surface;
 	wl_signal_add(&server->layer_shell->events.new_surface, &server->new_layer_surface);
 	return true;
+}
+
+/* O ponto (lx, ly) está sobre o teclado na tela (a camada lumna-teclado)? Ali as teclas valem mais que os gestos da borda do celular. */
+bool orbit_layer_is_keyboard_at(struct orbit_server *server, double lx, double ly) {
+	double nx, ny;
+	struct wlr_scene_node *node = wlr_scene_node_at(&server->scene->tree.node, lx, ly, &nx, &ny);
+	if (!node || node->type != WLR_SCENE_NODE_BUFFER) {
+		return false;
+	}
+	struct wlr_scene_surface *scene_surface = wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node));
+	if (!scene_surface) {
+		return false;
+	}
+	struct orbit_layer *layer = orbit_layer_for_surface(scene_surface->surface);
+	return layer && layer->surface->namespace && !strcmp(layer->surface->namespace, "lumna-teclado");
 }

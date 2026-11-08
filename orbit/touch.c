@@ -64,6 +64,7 @@ static bool emulating(void) {
 }
 
 void orbit_touch_down(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly) {
+	server->last_input = ORBIT_INPUT_TOQUE;
 	orbit_idle_activity(server);
 	struct touch_point *point = point_new(id);
 	if (!point) {
@@ -110,6 +111,7 @@ void orbit_touch_down(struct orbit_server *server, uint32_t time, int32_t id, do
 }
 
 void orbit_touch_motion(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly) {
+	server->last_input = ORBIT_INPUT_TOQUE;
 	orbit_idle_activity(server);
 	struct touch_point *point = point_find(id);
 	if (!point) {

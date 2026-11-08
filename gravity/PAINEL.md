@@ -3,7 +3,7 @@
 O Painel do LUMNA em Gravity (`exemplos/painel/`, `lumna-painel`). Os esboços estão em
 `docs/visual/04-painel-de-controle.jpg` (o início) e nas telas de Tema, Cores e Papel de parede.
 
-**Em números (6 de novembro de 2026, contado no código):** todas as páginas que existem estão prontas, menos o Teclado na tela (ainda só o esqueleto); VPN, Ponto de acesso e Receber arquivos estão no plano, mas ainda nem têm página
+**Em números (6 de novembro de 2026, contado no código):** todas as páginas que existem estão prontas (o Teclado na tela entrou em 8 de novembro); VPN, Ponto de acesso e Receber arquivos estão no plano, mas ainda nem têm página
 (a página aparece como "em breve", com a lista do que vai ter). Os ✅ abaixo valem para uma página que existe e
 funciona; ✅ não quer dizer que já foi testado na máquina de verdade.
 
@@ -230,7 +230,7 @@ antigo, porta 47800, o mesmo do app LUMNA Connect do Android). Testado só com u
   - ✅ mouse e touchpad: botão primário (trocar para canhotos), velocidade e aceleração do ponteiro, rolagem
     natural, tocar para clicar e ignorar o touchpad ao digitar. Valem em aparelhos de verdade (libinput); o
     desenho do ponteiro e os ícones ficam para Temas;
-  - ⏳ teclado na tela.
+  - ✅ teclado na tela (modo e tamanho; `lumna-teclado`, ver docs/TECLADO.md).
 - **Data e hora:**
   - ✅ acertar o relógio: automático pela internet ou à mão (o `timedatectl`, com a senha pelo polkit);
   - ✅ fuso horário;
@@ -316,7 +316,7 @@ como se fosse uma tela.
    - Barra superior;
    - Tela de bloqueio.
 3. ✅ Inicialização (as 4 páginas: Ao entrar, Apps ao iniciar, Entrada e Em segundo plano; falta testar na máquina de verdade).
-4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade, Usuários, Sons. Falta só o Teclado na tela (o Gravity ainda não tem teclado virtual).
+4. ✅ As seções do Sistema: Atalhos, Data e hora, Energia, Idioma, Privacidade, Usuários, Sons. O Teclado na tela também (`lumna-teclado`).
 5. Trazer para dentro as telas soltas: ✅ Rede, ✅ Bluetooth e ✅ a área de transferência do LUMNA Connect; falta o
    Som (o mixer), e o "Mais configurações" nos menus da topbar (a conferir).
 6. As ⏳, à medida que os serviços entram: o NetworkManager e o BlueZ já entraram; falta o UPower (Energia).

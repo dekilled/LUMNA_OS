@@ -184,6 +184,9 @@ struct orbit_pointer {
 	bool touchpad;
 };
 
+/* De onde veio a última entrada de uma pessoa (não conta o teclado virtual, que pode ser o teclado na tela). */
+enum { ORBIT_INPUT_TECLADO, ORBIT_INPUT_MOUSE, ORBIT_INPUT_TOQUE };
+
 struct orbit_server {
 	struct wl_display *display;
 	struct wlr_backend *backend;
@@ -221,6 +224,7 @@ struct orbit_server {
 	struct wl_listener new_lock;
 	void *session_lock;
 	bool session_locked;
+	int last_input; /* ORBIT_INPUT_*: de onde veio a última entrada real (o teclado na tela decide se abre por aí) */
 	struct wlr_idle_inhibit_manager_v1 *idle_inhibit;
 	struct wlr_idle_notifier_v1 *idle_notifier;
 	struct wl_listener new_inhibitor;
@@ -532,6 +536,7 @@ void orbit_xkb_finish(void);
 bool orbit_layers_bind(struct orbit_server *server);
 struct wlr_box orbit_layer_usable(struct orbit_output *output, const struct wlr_box *full);
 void orbit_layers_close_output(struct orbit_output *output);
+bool orbit_layer_is_keyboard_at(struct orbit_server *server, double lx, double ly);
 void orbit_layer_offer_keyboard(struct wlr_surface *surface);
 
 bool orbit_foreign_bind(struct orbit_server *server);

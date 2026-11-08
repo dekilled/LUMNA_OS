@@ -801,6 +801,63 @@ static void ponteiro_saiu(void *dados, struct wl_pointer *p, uint32_t serial, st
 	app->precisa = true;
 }
 
+/* ---- todos os pontos de contato (dedos e o mouse), para quem precisa de vários ao mesmo tempo (o teclado na tela) ---- */
+
+#define GV_MAX_PONTOS 10
+static struct { gv_ponto p; bool usado; } pontos[GV_MAX_PONTOS];
+
+static void ponto_baixo(int id, float x, float y) {
+	for (int i = 0; i < GV_MAX_PONTOS; i++) {
+		if (pontos[i].usado && pontos[i].p.id == id) {
+			pontos[i].p = (gv_ponto){ id, x, y, true, false };
+			return;
+		}
+	}
+	for (int i = 0; i < GV_MAX_PONTOS; i++) {
+		if (!pontos[i].usado) {
+			pontos[i].usado = true;
+			pontos[i].p = (gv_ponto){ id, x, y, true, false };
+			return;
+		}
+	}
+}
+static void ponto_move(int id, float x, float y) {
+	for (int i = 0; i < GV_MAX_PONTOS; i++) {
+		if (pontos[i].usado && pontos[i].p.id == id) {
+			pontos[i].p.x = x;
+			pontos[i].p.y = y;
+		}
+	}
+}
+static void ponto_cima(int id) {
+	for (int i = 0; i < GV_MAX_PONTOS; i++) {
+		if (pontos[i].usado && pontos[i].p.id == id) {
+			pontos[i].p.subiu = true;
+		}
+	}
+}
+int gv_pontos(gv_ponto *saida, int max) {
+	int n = 0;
+	for (int i = 0; i < GV_MAX_PONTOS && n < max; i++) {
+		if (pontos[i].usado) {
+			saida[n++] = pontos[i].p;
+		}
+	}
+	return n;
+}
+/* no fim do quadro: o "desceu" e o "subiu" valeram uma vez; quem subiu sai */
+void gv__pontos_fim_do_quadro(void) {
+	for (int i = 0; i < GV_MAX_PONTOS; i++) {
+		if (!pontos[i].usado) {
+			continue;
+		}
+		if (pontos[i].p.subiu) {
+			pontos[i].usado = false;
+		}
+		pontos[i].p.desceu = false;
+	}
+}
+
 static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
 	if (app->bloqueio && app->ponteiro_sup != app->superficie && !bloqueio_seguir(app)) {
@@ -809,6 +866,7 @@ static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fix
 	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
 	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
 	gv__entrada.toque = false;
+	ponto_move(-1, gv__entrada.x, gv__entrada.y);
 	if (gv__entrada.baixo && fabsf(gv__entrada.x - gv__entrada.aperto_x) + fabsf(gv__entrada.y - gv__entrada.aperto_y) > 10) {
 		gv__entrada.segurar_cancelado = true; /* arrastou: não é segurar */
 	}
@@ -836,6 +894,7 @@ static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, u
 		return;
 	}
 	if (estado == WL_POINTER_BUTTON_STATE_PRESSED) {
+		ponto_baixo(-1, gv__entrada.x, gv__entrada.y);
 		app->aperto_serial = serial;
 		gv__entrada.baixo = true;
 		gv__entrada.apertou = true;
@@ -848,6 +907,7 @@ static void ponteiro_botao(void *dados, struct wl_pointer *p, uint32_t serial, u
 			popups_fechar_fora(app);
 		}
 	} else {
+		ponto_cima(-1);
 		gv__entrada.baixo = false;
 		gv__entrada.soltou = true;
 	}
@@ -890,6 +950,8 @@ static const struct wl_pointer_listener ponteiro_ouvinte = {
 static void toque_baixo(void *dados, struct wl_touch *t, uint32_t serial, uint32_t tempo, struct wl_surface *s,
 		int32_t id, wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
+	ponto_baixo(id, (float)wl_fixed_to_double(x), (float)wl_fixed_to_double(y));
+	app->precisa = true;
 	if (app->dedo >= 0) {
 		return;
 	}
@@ -915,6 +977,8 @@ static void toque_baixo(void *dados, struct wl_touch *t, uint32_t serial, uint32
 
 static void toque_cima(void *dados, struct wl_touch *t, uint32_t serial, uint32_t tempo, int32_t id) {
 	gv_app *app = dados;
+	ponto_cima(id);
+	app->precisa = true;
 	if (id != app->dedo) {
 		return;
 	}
@@ -926,6 +990,8 @@ static void toque_cima(void *dados, struct wl_touch *t, uint32_t serial, uint32_
 
 static void toque_moveu(void *dados, struct wl_touch *t, uint32_t tempo, int32_t id, wl_fixed_t x, wl_fixed_t y) {
 	gv_app *app = dados;
+	ponto_move(id, (float)wl_fixed_to_double(x), (float)wl_fixed_to_double(y));
+	app->precisa = true;
 	if (id != app->dedo) {
 		return;
 	}
@@ -941,6 +1007,11 @@ static void toque_quadro(void *d, struct wl_touch *t) {}
 
 static void toque_cancelado(void *dados, struct wl_touch *t) {
 	gv_app *app = dados;
+	for (int i = 0; i < GV_MAX_PONTOS; i++) {
+		if (pontos[i].usado && pontos[i].p.id >= 0) {
+			pontos[i].p.subiu = true;
+		}
+	}
 	app->dedo = -1;
 	gv__entrada.baixo = false;
 	gv__entrada.ativo = 0;
@@ -2129,6 +2200,7 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 
 	gv__escrita_fim_do_quadro();
 	gv__entrada_fim_do_quadro();
+	gv__pontos_fim_do_quadro();
 	gv__quadro_limpar();
 
 	wl_surface_attach(app->superficie, buffer->wl, 0, 0);

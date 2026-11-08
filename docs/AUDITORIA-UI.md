@@ -12,7 +12,7 @@
 | Modos (Desktop/Gaming/Mídia), seletor, animações | Orbit + `lumna-modos` | ✅ (Gaming ainda sem biblioteca) |
 | Bloqueio e ocioso | `lumna-bloqueio`, `lumna-ocioso` | ✅ |
 | Tela de login | `lumna-entrada` (dentro de um Orbit: `lumna-entrada-greeter`) | ✅ |
-| Configurações | `lumna-painel` | ✅ (falta Teclado na tela; VPN, Ponto de acesso e Receber arquivos nem têm página) |
+| Configurações | `lumna-painel` | ✅ (VPN, Ponto de acesso e Receber arquivos nem têm página) |
 | Captura e gravação, editor de anotações | `lumna-captura` | ✅ |
 | Connect (celular), transferência | `lumna-connect`, `lumna-transferencia` | ✅ |
 | Emma: painel, chat, app, voz, Oi Emma | `lumna-emma`, `-chat`, `-app` | ✅ (ver "Ações da Emma") |
@@ -25,7 +25,8 @@
 | Loja (`store.rs`) | Painel > Aplicativos instala/atualiza; falta a Loja | ❌ fase 5 |
 | Music e Qobuz (`music.rs`, `qobuz.rs`) | — | ❌ fase 5 |
 | Biblioteca Gaming (`games.rs`, `vdf.rs`, `pad.rs`) | — | ❌ fase 5 |
-| Teclado na tela e gestos (`touchkeys.rs`, `keyboard.rs`, `haptics.rs`) | — | ❌ fase 5 |
+| Teclado na tela (`touchkeys.rs`, `keyboard.rs`) | `lumna-teclado` | ✅ (ver [TECLADO.md](TECLADO.md)); falta a vibração (`haptics.rs`) |
+| Gestos de borda e rotação | — | ❌ fase 5 |
 | Impressoras (`printers.rs`) | — | ❌ (o CUPS roda; falta a página) |
 | Celular (`mobile.rs`, `mobilelock.rs`, `phone.rs`) | — | adiado: UI mobile é a fase 6 |
 | Barra de título das janelas (`lumna-hyprbars`, `WindowBar.vue`) | `orbit/deco.c`: o Orbit desenha a barra (xdg-decoration), no visual dos apps nativos | ✅ feito (testado com o foot e o mouse virtual; Firefox e Blender só no PC de verdade) |

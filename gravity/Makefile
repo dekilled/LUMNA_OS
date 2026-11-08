@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse
+all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -72,7 +72,7 @@ wifi: exemplos/wifi.c libgravity.a
 # o Painel: a moldura e uma categoria por arquivo em exemplos/painel/
 PAINEL = exemplos/painel.c exemplos/painel/comum.c exemplos/painel/aparencia.c exemplos/painel/categorias.c \
 	exemplos/painel/papel.c exemplos/painel/estilo.c exemplos/painel/barra.c exemplos/painel/bloqueio.c \
-	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/emma.c exemplos/painel/persona.c exemplos/painel/importar.c exemplos/painel/ativacao.c exemplos/painel/mcp.c exemplos/painel/recursos.c exemplos/painel/voz.c exemplos/painel/som.c servicos/som.c exemplos/painel/inicializacao.c servicos/autostart.c servicos/segundoplano.c servicos/greetd.c exemplos/painel/privacidade_pg.c servicos/appspadrao.c servicos/permissoes.c servicos/privacidade.c exemplos/painel/idioma.c servicos/idioma.c exemplos/painel/energia.c servicos/bateria.c servicos/perfil.c exemplos/painel/usuarios.c servicos/contas.c exemplos/painel/sons.c servicos/sons.c exemplos/painel/luz.c servicos/luz.c exemplos/painel/emma_dados.c exemplos/painel/connect.c servicos/connectc.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
+	exemplos/painel/desenvolvedor.c exemplos/painel/atalhos.c exemplos/painel/rede.c exemplos/painel/mesclar.c exemplos/painel/bluetooth.c exemplos/painel/modos.c exemplos/painel/areas.c exemplos/painel/sobre.c exemplos/painel/datahora.c exemplos/painel/apps.c exemplos/painel/monitores.c exemplos/painel/teclado.c exemplos/painel/teclado_tela.c servicos/teclado_cfg.c servicos/teclado_layout.c exemplos/painel/emma.c exemplos/painel/persona.c exemplos/painel/importar.c exemplos/painel/ativacao.c exemplos/painel/mcp.c exemplos/painel/recursos.c exemplos/painel/voz.c exemplos/painel/som.c servicos/som.c exemplos/painel/inicializacao.c servicos/autostart.c servicos/segundoplano.c servicos/greetd.c exemplos/painel/privacidade_pg.c servicos/appspadrao.c servicos/permissoes.c servicos/privacidade.c exemplos/painel/idioma.c servicos/idioma.c exemplos/painel/energia.c servicos/bateria.c servicos/perfil.c exemplos/painel/usuarios.c servicos/contas.c exemplos/painel/sons.c servicos/sons.c exemplos/painel/luz.c servicos/luz.c exemplos/painel/emma_dados.c exemplos/painel/connect.c servicos/connectc.c servicos/emmac.c servicos/emmar.c servicos/telas.c servicos/entrada.c exemplos/painel/armazenamento.c servicos/armazenamento.c servicos/pacotes.c servicos/sistema.c servicos/hora.c \
 	servicos/papelini.c servicos/entrar.c servicos/desenvolvedor.c servicos/rede.c servicos/bluetooth.c servicos/modos.c servicos/json.c
 painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h servicos/desenvolvedor.h servicos/rede.h servicos/bluetooth.h libgravity.a
 	$(CC) $(CFLAGS) -Iexemplos/painel -Iservicos $(shell pkg-config --cflags gio-unix-2.0 libpulse) -o $@ $(PAINEL) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-unix-2.0 libpulse) -lpthread
@@ -157,6 +157,21 @@ polkit: exemplos/polkit.c servicos/polkitag.c servicos/polkitag.h
 
 polkit-janela: exemplos/polkit-janela.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ exemplos/polkit-janela.c libgravity.a $(LDLIBS)
+
+# o teclado na tela (lumna-teclado): uma camada, o input-method-v2 e um teclado virtual
+input-method-unstable-v2-client-protocol.h: protocolos/input-method-unstable-v2.xml
+	$(WAYLAND_SCANNER) client-header $< $@
+input-method-unstable-v2-protocol.c: protocolos/input-method-unstable-v2.xml
+	$(WAYLAND_SCANNER) private-code $< $@
+virtual-keyboard-unstable-v1-client-protocol.h: protocolos/virtual-keyboard-unstable-v1.xml
+	$(WAYLAND_SCANNER) client-header $< $@
+virtual-keyboard-unstable-v1-protocol.c: protocolos/virtual-keyboard-unstable-v1.xml
+	$(WAYLAND_SCANNER) private-code $< $@
+servicos/teclado_im.o: input-method-unstable-v2-client-protocol.h virtual-keyboard-unstable-v1-client-protocol.h
+teclado_im_obj = input-method-unstable-v2-protocol.c virtual-keyboard-unstable-v1-protocol.c
+
+teclado: exemplos/teclado.c servicos/teclado_im.c servicos/teclado_im.h servicos/teclado_layout.c servicos/teclado_layout.h servicos/teclado_cfg.c servicos/teclado_cfg.h servicos/modos.c input-method-unstable-v2-client-protocol.h virtual-keyboard-unstable-v1-client-protocol.h $(teclado_im_obj) libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 wayland-client xkbcommon) -o $@ exemplos/teclado.c servicos/teclado_im.c servicos/teclado_layout.c servicos/teclado_cfg.c servicos/modos.c $(teclado_im_obj) libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
 
 # o Pulse Terminal (lumna-pulse): a libvterm e um pty, desenhados à mão
 pulse: exemplos/pulse.c servicos/terminal.c servicos/terminal.h servicos/pulsedb.c servicos/pulsedb.h servicos/emma_terminal.c servicos/emma_terminal.h servicos/emmac.c servicos/json.c libgravity.a

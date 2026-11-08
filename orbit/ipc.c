@@ -325,6 +325,13 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		put_str(b, server->input.options);
 		put(b, ",\"nome_do_mapa\":");
 		put_str(b, orbit_input_layout_name(server) ? orbit_input_layout_name(server) : "");
+		int teclados = 0;
+		struct orbit_keyboard *kb;
+		wl_list_for_each(kb, &server->keyboards, link) {
+			teclados += kb->shared;
+		}
+		put(b, ",\"teclado_fisico\":%s,\"ultima_entrada\":\"%s\"", teclados ? "true" : "false",
+			server->last_input == ORBIT_INPUT_TOQUE ? "toque" : server->last_input == ORBIT_INPUT_MOUSE ? "mouse" : "teclado");
 		put(b, ",\"repeticao\":[%d,%d],\"dispositivos\":[", server->input.repeat_rate, server->input.repeat_delay);
 		struct ipc_dev_ctx ctx = { b, true };
 		orbit_input_describe(server, ipc_dev_cb, &ctx);

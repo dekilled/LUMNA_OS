@@ -95,7 +95,8 @@ Marque `[x]` ao terminar; o que estiver a meio leva `[~]`. Última conferência 
       processo, não o aparelho). Ver se acontece só com o shell atual ou também parado no TTY.
 - [ ] Orbit e Gravity em aarch64 no CI (o workflow Celular)
 - [ ] Orbit no backend DRM do aparelho, com libseat
-- [ ] Gestos de borda, teclado na tela (já há o relay do input-method), rotação
+- [x] Teclado na tela (`lumna-teclado`: input-method-v2, layouts pt-BR/US, acentos, símbolos, emojis, vários dedos; docs/TECLADO.md)
+- [ ] Gestos de borda (o Orbit já tem), rotação
 - [ ] Medir memória e CPU lá (cada app Gravity usa uns 16 MB aqui no PC)
 - [ ] Trocar a sessão do celular pelo Orbit + desktop novo
 - [x] Atalhos no Painel (Sistema → Teclado e mouse → Atalhos): Alt+Tab, Super+H, Super+Tab (lumna-modo), Super sozinho abre o lançador
