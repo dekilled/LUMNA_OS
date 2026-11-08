@@ -152,7 +152,13 @@ static void on_cursor_motion(struct wl_listener *listener, void *data) {
 	 * segurava o movimento relativo dentro dela: durante um arrasto o relativo puxava o cursor de volta para a borda do monitor, em cabo
 	 * de guerra com o absoluto. Sem dispositivo, o movimento vale no layout todo. */
 	struct wlr_input_device *dev = event->pointer->output_name ? NULL : &event->pointer->base;
+	if (orbit_pointer_motion(server, event)) {
+		/* o ponteiro está travado numa janela (um jogo, o Blender): o cursor não anda, o app só recebe o movimento relativo */
+		orbit_idle_activity(server);
+		return;
+	}
 	wlr_cursor_move(server->cursor, dev, event->delta_x, event->delta_y);
+	orbit_pointer_confine(server);
 	process_cursor_motion(server, event->time_msec);
 }
 

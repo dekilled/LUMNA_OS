@@ -492,6 +492,11 @@ void orbit_touch_up(struct orbit_server *server, uint32_t time, int32_t id);
 void orbit_touch_frame(struct orbit_server *server);
 
 bool orbit_im_bind(struct orbit_server *server);
+/* protocolos.c: primary-selection, data-control, cursor-shape, xdg-activation, relative-pointer e pointer-constraints */
+struct wlr_pointer_motion_event;
+bool orbit_protocols_bind(struct orbit_server *server);
+bool orbit_pointer_motion(struct orbit_server *server, struct wlr_pointer_motion_event *event);
+void orbit_pointer_confine(struct orbit_server *server);
 bool orbit_im_forward_key(struct orbit_server *server, struct wlr_keyboard *keyboard,
 	struct wlr_keyboard_key_event *event);
 bool orbit_im_forward_modifiers(struct orbit_server *server, struct wlr_keyboard *keyboard);
@@ -607,6 +612,7 @@ void orbit_move_end(struct orbit_server *server);
 void orbit_resize_begin(struct orbit_server *server, struct orbit_view *view, uint32_t edges);
 void orbit_resize_motion(struct orbit_server *server);
 void orbit_resize_end(struct orbit_server *server);
+int orbit_float_edge_margin(struct orbit_view *view);
 uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly);
 const char *orbit_edges_cursor(uint32_t edges);
 /* relê o orbit.ini e o atalhos.ini quando mudam (o Painel grava os atalhos) */

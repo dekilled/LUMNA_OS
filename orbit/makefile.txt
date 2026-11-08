@@ -4,14 +4,19 @@
 PKGS ?= wlroots-0.18 wayland-server xkbcommon
 WAYLAND_PROTOCOLS = $(shell pkg-config --variable=pkgdatadir wayland-protocols)
 WAYLAND_SCANNER = $(shell pkg-config --variable=wayland_scanner wayland-scanner)
-SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c deco.c mode.c entrada.c telas.c nested.c clip.c copiados.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c xdg-output-unstable-v1-protocol.c
+SRCS = server.c output.c view.c arrange.c layer.c config.c foreign.c lock.c manage.c anim.c input.c touch.c im.c ipc.c keybinds.c float.c deco.c protocolos.c mode.c entrada.c telas.c nested.c clip.c copiados.c keyboard-shortcuts-inhibit-unstable-v1-protocol.c xdg-output-unstable-v1-protocol.c
 # os cabeçalhos que os do wlroots incluem, gerados dos XML dos protocolos
-PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h xdg-output-unstable-v1-client-protocol.h wlr-output-power-management-unstable-v1-protocol.h xdg-decoration-unstable-v1-protocol.h
+PROTOS = xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h xdg-output-unstable-v1-client-protocol.h wlr-output-power-management-unstable-v1-protocol.h xdg-decoration-unstable-v1-protocol.h cursor-shape-v1-protocol.h xdg-activation-v1-protocol.h pointer-constraints-unstable-v1-protocol.h relative-pointer-unstable-v1-protocol.h alpha-modifier-v1-protocol.h
+
+# o ext-data-control só existe nos wayland-protocols mais novos (o wlroots 0.19+ o usa)
+ifneq ($(wildcard $(WAYLAND_PROTOCOLS)/staging/ext-data-control/ext-data-control-v1.xml),)
+PROTOS += ext-data-control-v1-protocol.h
+endif
 
 all: orbit orbit-msg
 
 orbit: $(SRCS) orbit.h nested.h $(PROTOS)
-	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS) libinput wayland-client cairo pangocairo libdrm) -lm
+	$(CC) -g -Wall -Wextra -DWLR_USE_UNSTABLE -I. -o $@ $(SRCS) $(shell pkg-config --cflags --libs $(PKGS) libinput pixman-1 wayland-client cairo pangocairo libdrm) -lm
 
 orbit-msg: orbit-msg.c
 	$(CC) -g -Wall -Wextra -o $@ orbit-msg.c
@@ -28,6 +33,20 @@ keyboard-shortcuts-inhibit-unstable-v1-protocol.c: keyboard-shortcuts-inhibit-un
 # a barra de título que o Orbit desenha (deco.c): o protocolo xdg-decoration, lado do servidor
 xdg-decoration-unstable-v1-protocol.h:
 	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml $@
+
+# os protocolos de protocolos.c (os cabeçalhos do wlroots incluem estes)
+cursor-shape-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/staging/cursor-shape/cursor-shape-v1.xml $@
+xdg-activation-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/staging/xdg-activation/xdg-activation-v1.xml $@
+pointer-constraints-unstable-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml $@
+relative-pointer-unstable-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/unstable/relative-pointer/relative-pointer-unstable-v1.xml $@
+alpha-modifier-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/staging/alpha-modifier/alpha-modifier-v1.xml $@
+ext-data-control-v1-protocol.h:
+	$(WAYLAND_SCANNER) server-header $(WAYLAND_PROTOCOLS)/staging/ext-data-control/ext-data-control-v1.xml $@
 
 # a posição e o nome de cada monitor do compositor de fora (o wl_output do wlroots diz sempre 0,0; o KDE e o GNOME dizem de verdade nos dois)
 xdg-output-unstable-v1-client-protocol.h:

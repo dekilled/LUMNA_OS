@@ -341,3 +341,13 @@ Barra de título (deco.c)
   desenha, no visual dos apps do LUMNA (título, minimizar, maximizar e fechar; arrastar move, duplo clique maximiza). Quem pede para
   desenhar a própria (CSD) e quem não fala o protocolo (os apps em Gravity, os GTK) fica como estava. barra_titulo = 0 no orbit.ini
   desliga. Teste: testes-arrasto/teste_barra.sh PASTA_DO_BUILD (precisa do foot e do mouse virtual arrasto2).
+
+Protocolos para os apps de fora (protocolos.c)
+  primary-selection (colar com o botão do meio), wlr-data-control (wl-clipboard; ext-data-control no wlroots 0.19+), cursor-shape,
+  xdg-activation (um aviso focar a janela: traz o espaço dela e tira do minimizado), single-pixel-buffer, alpha-modifier,
+  relative-pointer e pointer-constraints. A trava (lock) segura o cursor e só manda o movimento relativo; o confinamento (confine) o
+  prende na janela (fora da faixa de 6 px de mudar o tamanho, que a janela não enxerga). A restrição só vale com o foco do ponteiro E do
+  teclado na mesma janela, e solta com o cursor_hint onde o jogo pediu.
+  Testes: testes-protocolos/teste_globais.sh PASTA_DO_BUILD (os globais e wl-copy/wl-paste) e
+  testes-protocolos/teste_trava.sh PASTA_DO_BUILD ARRASTO2 (um cliente de verdade trava e confina o ponteiro).
+  Só provado no wlroots 0.18 com o Orbit headless; no 0.19/0.20 só a checagem de sintaxe.

@@ -2,7 +2,7 @@
 # Arranque curto e invariantes. Sem wlroots, só confirma o código.
 set -eu
 cd "$(dirname "$0")"
-for f in orbit.h server.c arrange.c anim.c input.c touch.c im.c ipc.c orbit-msg.c config.c lock.c foreign.c manage.c entrada.c telas.c; do
+for f in protocolos.c orbit.h server.c arrange.c anim.c input.c touch.c im.c ipc.c orbit-msg.c config.c lock.c foreign.c manage.c entrada.c telas.c; do
 	test -f "$f"
 done
 grep -q ORBIT_LAYOUT_SPIRAL orbit.h
@@ -11,6 +11,7 @@ grep -q ORBIT_CURSOR_GESTURE input.c
 grep -q anim_ms config.c
 grep -q marked_primary telas.c
 grep -q wlr_session_lock_manager_v1_create lock.c
+grep -q wlr_pointer_constraints_v1_create protocolos.c
 grep -q wlr_seat_touch_notify_down touch.c
 grep -q wlr_input_method_manager_v2_create im.c
 grep -q wlr_virtual_keyboard_manager_v1_create im.c

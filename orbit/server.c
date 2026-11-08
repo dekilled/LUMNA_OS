@@ -179,6 +179,9 @@ int main(int argc, char *argv[]) {
 	if (!orbit_im_bind(&server)) {
 		return fail(&server, "falha ao preparar a escrita (teclado virtual, método de entrada)");
 	}
+	if (!orbit_protocols_bind(&server)) {
+		return fail(&server, "falha ao preparar os protocolos dos apps (seleção, cursor, ativação, trava do ponteiro)");
+	}
 
 	const char *socket = wl_display_add_socket_auto(server.display);
 	if (!socket) {

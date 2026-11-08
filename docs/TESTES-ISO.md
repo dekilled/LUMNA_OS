@@ -178,5 +178,4 @@ O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de
 ## O que **não** está pronto (não é bug)
 
 Teclado na tela, Arquivos e Loja próprios (por ora Thunar e Painel > Aplicativos), Music, Biblioteca Gaming,
-particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, jogos em primeira pessoa (falta
-`pointer-constraints` no Orbit), a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).
+particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).

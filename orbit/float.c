@@ -492,6 +492,14 @@ void orbit_move_end(struct orbit_server *server) {
 #define ORBIT_EDGE_GRAB 6 /* px por dentro da borda de uma janela livre que pegam para mudar o tamanho */
 
 /* as bordas de uma janela livre debaixo deste ponto (0: no meio dela) */
+/* O quanto, por dentro da borda de uma janela livre, o cursor já está na faixa de mudar o tamanho (a janela não o vê ali): o ponteiro confinado fica de fora dela. */
+int orbit_float_edge_margin(struct orbit_view *view) {
+	if (!view || !view->floating || view->maximized || view->snap || view->fullscreen) {
+		return 0;
+	}
+	return ORBIT_EDGE_GRAB + 1;
+}
+
 uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly) {
 	if (!view || !view->floating || view->maximized || view->snap || view->fullscreen) {
 		return 0;

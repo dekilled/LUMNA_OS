@@ -53,10 +53,11 @@ configurar no `orbit.ini`; decidir quais entram no padrão.
 ## O que o Orbit ainda não fala (Wayland)
 
 Tem: layer-shell, session-lock, screencopy, gamma, DPMS, idle (notifier e inhibit), input-method e text-input,
-virtual keyboard e pointer, foreign-toplevel, output-management, fractional-scale, viewporter.
-**Falta:** pointer-constraints e relative-pointer (**jogos em primeira pessoa**), xdg-decoration, xdg-activation
-(focar o app que o aviso abre), primary-selection, wlr-data-control, cursor-shape, presentation-time, linux-dmabuf
-explícito (conferir), tearing. Nenhuma impede de logar e usar; o primeiro (jogos) pesa no modo Gaming.
+virtual keyboard e pointer, foreign-toplevel, output-management, fractional-scale, viewporter, xdg-decoration e
+(`orbit/protocolos.c`) primary-selection, wlr-data-control (e ext-data-control no wlroots 0.19+), cursor-shape,
+xdg-activation, single-pixel-buffer, alpha-modifier, relative-pointer e pointer-constraints (travar e confinar o ponteiro).
+**Falta:** presentation-time, linux-dmabuf explícito (conferir), tearing, keyboard-shortcuts-inhibit, security-context,
+ícone do app na barra de título (xdg-toplevel-icon). Nenhuma impede de logar e usar.
 
 ## Ambiente de execução (descoberto empacotando)
 
