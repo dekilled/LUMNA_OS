@@ -162,6 +162,12 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.118 | Atlas: arrastar um arquivo (mouse) para uma pasta da grade, para um atalho da barra lateral e para o fundo da lista | Copia para lá; o original continua onde estava; o destino acende | ☐ |
 | 2.119 | Atlas: arrastar vários selecionados; soltar na pasta de onde vieram | Copia todos; na própria pasta não faz nada (nem cria "(2)") | ☐ |
 | 2.120 | Atlas: deixar a janela baixa (arraste a borda de baixo) e abrir o menu de contexto de um arquivo perto do fim da janela | O menu aparece **inteiro, passando da borda da janela**, sem barra de rolagem; só rola se for mais alto que a tela. Vale também para os menus de outros apps (Firefox...) | ☐ |
+| 2.121 | Ligar um pendrive. Atlas > Início > Unidades e dispositivos | Aparece um cartão com o nome do pendrive, "não montado" e o botão **Montar**. Tocar monta e abre a pasta dele (a lista se refaz em até uns 3 s) | ☐ |
+| 2.122 | No pendrive montado: botão direito no cartão > **Ejetar** | Desmonta e desliga; o aviso diz que pode retirar. Se você estava dentro dele, o Atlas volta para a Home | ☐ |
+| 2.123 | Painel > Armazenamento > Discos e pendrives > ligar **Ao conectar**; tirar e ligar o pendrive | Ele é montado sozinho (aparece no Atlas como montado). `pgrep lumna-discos` mostra o serviço | ☐ |
+| 2.124 | O mesmo com **Ao entrar na sessão**: deixar o pendrive ligado e sair e entrar na sessão | Já está montado ao chegar | ☐ |
+| 2.125 | Dock: apertar num ícone fixo e arrastar para **fora** da dock (para cima), soltar | O arraste acaba, o ícone fica onde estava e nada fica preso ao mouse | ☐ |
+| 2.126 | Tema claro (Painel > Aparência): passar o mouse nos itens do Atlas, do Painel e dos menus | O texto e os ícones continuam legíveis (o lilás do acento ficou mais escuro no claro) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

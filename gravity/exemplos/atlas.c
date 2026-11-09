@@ -30,6 +30,7 @@
 
 #include "arquivos.h"
 #include "arquivos_cfg.h"
+#include "arquivos_discos.h"
 #include "arquivos_op.h"
 #include "arquivos_prop.h"
 #include "arquivos_rede.h"
@@ -3818,6 +3819,143 @@ static bool cartao_pasta(Clay_ElementId id, const ar_barra_item *it, float larg)
 	return gv_tocado(id);
 }
 
+/* ---- discos e pendrives ligados que ainda não estão montados (a página inicial) ---- */
+
+static struct disco disc_lista[ARMAZ_MAX_DISCOS];
+static int disc_n;
+static bool disc_lendo;
+static double disc_lido_em = -100;
+static char disc_montando[48];  /* o /dev do que está sendo montado agora ("": nenhum) */
+
+typedef struct {
+	struct disco v[ARMAZ_MAX_DISCOS];
+	int n;
+} disc_leitura;
+
+static void disc_ler_fim(void *dados) {
+	disc_leitura *l = dados;
+	memcpy(disc_lista, l->v, sizeof(struct disco) * (size_t)l->n);
+	disc_n = l->n;
+	disc_lendo = false;
+	disc_lido_em = gv_agora();
+	g_free(l);
+	gv_app_redesenhar(app);
+}
+
+static gpointer disc_ler_thread(gpointer dados) {
+	disc_leitura *l = dados;
+	l->n = ar_discos_para_montar(l->v, ARMAZ_MAX_DISCOS);
+	gv_na_linha_principal(disc_ler_fim, l);
+	return NULL;
+}
+
+/* a cada poucos segundos, enquanto a página inicial está aberta: o que foi ligado ou tirado aparece sozinho (o lsblk roda numa thread) */
+static void discos_rever(void) {
+	if (!disc_lendo && gv_agora() - disc_lido_em > 3) {
+		disc_lendo = true;
+		g_thread_unref(g_thread_new("atlas-discos", disc_ler_thread, g_new0(disc_leitura, 1)));
+	}
+	gv_acordar_em(3.2);
+}
+
+typedef struct {
+	struct disco d;
+	char *ponto;      /* onde ficou montado (g_free); NULL se falhou */
+	char erro[300];
+} disc_montagem;
+
+static void disc_montou_fim(void *dados) {
+	disc_montagem *m = dados;
+	disc_montando[0] = '\0';
+	disc_lido_em = -100; /* reler já: o disco sai da lista dos "para montar" */
+	if (m->ponto) {
+		ir_para(m->ponto, true);
+	} else {
+		avisar("Não consegui montar %s: %s", m->d.nome, m->erro);
+	}
+	g_free(m->ponto);
+	g_free(m);
+}
+
+static gpointer disc_montar_thread(gpointer dados) {
+	disc_montagem *m = dados;
+	m->ponto = ar_disco_montar(&m->d, m->erro, sizeof(m->erro));
+	gv_na_linha_principal(disc_montou_fim, m);
+	return NULL;
+}
+
+static void disc_montar(const struct disco *d) {
+	if (disc_montando[0]) {
+		return;
+	}
+	snprintf(disc_montando, sizeof(disc_montando), "%s", d->dev);
+	disc_montagem *m = g_new0(disc_montagem, 1);
+	m->d = *d;
+	g_thread_unref(g_thread_new("atlas-montar", disc_montar_thread, m));
+}
+
+typedef struct {
+	char ponto[4096];
+	char erro[300];
+	bool ok;
+	char nome[96];
+} disc_ejecao;
+
+static void disc_ejetou_fim(void *dados) {
+	disc_ejecao *e = dados;
+	if (e->ok) {
+		avisar("%s pode ser retirado.", e->nome);
+	} else {
+		avisar("Não consegui ejetar %s: %s", e->nome, e->erro);
+	}
+	disc_lido_em = -100;
+	g_free(e);
+}
+
+static gpointer disc_ejetar_thread(gpointer dados) {
+	disc_ejecao *e = dados;
+	struct disco d;
+	if (!ar_disco_do_ponto(e->ponto, &d)) {
+		snprintf(e->erro, sizeof(e->erro), "este não é um disco que se ejeta.");
+	} else {
+		snprintf(e->nome, sizeof(e->nome), "%s", d.nome);
+		e->ok = armazenamento_ejetar(&d, e->erro, sizeof(e->erro)) == 0;
+	}
+	gv_na_linha_principal(disc_ejetou_fim, e);
+	return NULL;
+}
+
+/* ejeta o que está montado em ponto (a pasta de agora sai de dentro dele antes) */
+static void disc_ejetar(const char *ponto) {
+	if (!strncmp(pasta, ponto, strlen(ponto))) {
+		ir_para(g_get_home_dir(), true);
+	}
+	disc_ejecao *e = g_new0(disc_ejecao, 1);
+	snprintf(e->ponto, sizeof(e->ponto), "%s", ponto);
+	snprintf(e->nome, sizeof(e->nome), "O disco");
+	g_thread_unref(g_thread_new("atlas-ejetar", disc_ejetar_thread, e));
+}
+
+/* um disco ligado que ainda não está montado: tocar monta e abre */
+static bool cartao_disco(Clay_ElementId id, const struct disco *d, float larg) {
+	bool sobre = gv_por_cima(id);
+	bool montando = !strcmp(disc_montando, d->dev);
+	char tam[32];
+	ar_tamanho_humano(d->tamanho, tam, sizeof(tam));
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(larg), CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(14), .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = sobre ? gv_t.sob_cursor : gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		gv_icone(d->removivel ? "usb" : "drive", 40, gv_t.texto_secundario);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
+			gv_texto(gv_str(d->nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_fmt("%s · %s · não montado", d->fs, tam), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		CLAY_AUTO_ID({ .layout = { .padding = { 12, 12, 6, 6 } }, .backgroundColor = montando ? gv_t.selecionado : gv_t.acento, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+			gv_texto(gv_str(montando ? "Montando…" : "Montar"), gv_t.tamanho_corpo - 1, montando ? gv_t.texto : gv_t.sobre_acento, GV_PESO_MEDIO);
+		}
+	}
+	return gv_tocado(id);
+}
+
 static bool cartao_unidade(Clay_ElementId id, const ar_unidade *u, float larg) {
 	bool sobre = gv_por_cima(id);
 	float prop = u->total > 0 ? (float)((double)u->usado / (double)u->total) : 0;
@@ -3842,6 +3980,7 @@ static bool cartao_unidade(Clay_ElementId id, const ar_unidade *u, float larg) {
 
 static int inicio_menu_item = -1;       /* o cartão de pasta do menu de contexto da página inicial (índice na barra lateral) */
 static char inicio_menu_caminho[4096];  /* ou o ponto de montagem do cartão de unidade */
+static bool inicio_menu_removivel;      /* e se essa unidade é um pendrive ou disco externo (tem "Ejetar") */
 
 /* o menu de um cartão do Início: abrir (aqui, em aba, em janela) e, nas pastas, tirar da página */
 static void menu_do_inicio(void) {
@@ -3861,6 +4000,13 @@ static void menu_do_inicio(void) {
 	if (gv_menu_item(CLAY_ID("mn-i-janela"), "external", "Abrir em nova janela", NULL)) {
 		gv_popup_fechar(CLAY_ID("menu-inicio"));
 		abrir_nova_janela(copia);
+	}
+	if (inicio_menu_item < 0 && inicio_menu_removivel) {
+		separador("mn-i-sep2", 1);
+		if (gv_menu_item(CLAY_ID("mn-i-ejetar"), "usb", "Ejetar", NULL)) {
+			gv_popup_fechar(CLAY_ID("menu-inicio"));
+			disc_ejetar(copia);
+		}
 	}
 	if (inicio_menu_item >= 0 && inicio_menu_item < barra.n) {
 		separador("mn-i-sep", 1);
@@ -3895,6 +4041,7 @@ static void inicio_conteudo(const ar_barra *b, const ar_cfg *c, bool preview, fl
 					if (!preview && gv_menu_no_ponteiro(cid, CLAY_ID("menu-inicio"))) { /* o botão direito (ou o dedo parado) num cartão */
 						inicio_menu_item = quais[k];
 						inicio_menu_caminho[0] = '\0';
+						inicio_menu_removivel = false;
 					}
 					bool clicou = cartao_pasta(cid, &b->v[quais[k]], larg_cartao);
 					if (clicou && !preview) {
@@ -3908,16 +4055,28 @@ static void inicio_conteudo(const ar_barra *b, const ar_cfg *c, bool preview, fl
 		gv_texto(CLAY_STRING("Unidades e dispositivos"), preview ? gv_t.tamanho_corpo - 1 : gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
 		ar_unidade un[16];
 		int nu = ar_unidades(un, 16);
+		if (!preview) {
+			discos_rever();
+		}
+		int nd = preview ? 0 : disc_n; /* os ligados e ainda não montados vêm depois dos montados */
 		float lu = preview ? (largura - 14) / 2 : 300;
 		int por_linha_u = (int)((largura - 4) / (lu + 14));
 		por_linha_u = por_linha_u < 1 ? 1 : por_linha_u;
-		for (int r = 0; r * por_linha_u < nu; r++) {
+		for (int r = 0; r * por_linha_u < nu + nd; r++) {
 			CLAY(CLAY_SIDI(gv_str(preview ? "ip-ulinha" : "in-ulinha"), (uint32_t)r), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
-				for (int k = r * por_linha_u; k < nu && k < (r + 1) * por_linha_u; k++) {
+				for (int k = r * por_linha_u; k < nu + nd && k < (r + 1) * por_linha_u; k++) {
+					if (k >= nu) {
+						Clay_ElementId did = CLAY_SIDI(CLAY_STRING("in-disco"), (uint32_t)(k - nu));
+						if (cartao_disco(did, &disc_lista[k - nu], lu)) {
+							disc_montar(&disc_lista[k - nu]);
+						}
+						continue;
+					}
 					Clay_ElementId uid = CLAY_SIDI(gv_str(preview ? "ip-unid" : "in-unid"), (uint32_t)k);
 					if (!preview && gv_menu_no_ponteiro(uid, CLAY_ID("menu-inicio"))) {
 						inicio_menu_item = -1;
 						snprintf(inicio_menu_caminho, sizeof(inicio_menu_caminho), "%s", un[k].ponto);
+						inicio_menu_removivel = un[k].removivel;
 					}
 					if (cartao_unidade(uid, &un[k], lu) && !preview) {
 						ir_para(un[k].ponto, true);
@@ -5426,7 +5585,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "in-disco", 4 }, { "in-unid", 4 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {

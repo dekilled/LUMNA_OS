@@ -174,6 +174,11 @@ static void ler_discos(struct armazenamento *a) {
 	g_free(saida);
 }
 
+void armazenamento_ler_discos(struct armazenamento *a) {
+	memset(a, 0, sizeof(*a));
+	ler_discos(a);
+}
+
 void armazenamento_ler(struct armazenamento *a) {
 	memset(a, 0, sizeof(*a));
 	const char *raiz = g_getenv("LUMNA_ARMAZ_RAIZ");

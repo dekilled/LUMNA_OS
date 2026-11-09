@@ -59,6 +59,9 @@ cc $CF -o "$T/testa_idioma" testes/painel/testa_idioma.c servicos/idioma.c $LG
 mkdir -p "$T/idi"
 PATH="$AQUI/testes/painel/bin:$PATH" "$T/testa_idioma" "$T/idi" "$AQUI/../session/lumna-idioma-gerar"
 # a bateria (/sys falso)
+# montagem automática de discos (as escolhas e a regra de quando montar)
+cc $CF -o "$T/testa_discos" testes/painel/testa_discos.c servicos/discos_cfg.c $LG
+HOME="$T/casa-discos" XDG_CONFIG_HOME="$T/casa-discos/c" "$T/testa_discos"
 cc $CF -o "$T/testa_bateria" testes/painel/testa_bateria.c servicos/bateria.c $LG
 mkdir -p "$T/bat"
 "$T/testa_bateria" "$T/bat"

@@ -1,0 +1,10 @@
+#!/bin/sh
+# um udisksctl de mentira: só registra o que recebeu; `mount -b /dev/sdb1` cria o ponto e vira "montado" no lsblk falso
+echo "$@" >> "${FAKE_DISCOS_DIR:?}/udisksctl.log"
+case "$1 $3" in
+	"mount /dev/sdb1")
+		mkdir -p "$FAKE_DISCOS_DIR/PENDRIVE"; touch "$FAKE_DISCOS_DIR/estado"
+		echo "Mounted $3 at $FAKE_DISCOS_DIR/PENDRIVE" ;;
+	"unmount /dev/sdb1") rm -f "$FAKE_DISCOS_DIR/estado" ;;
+esac
+exit 0

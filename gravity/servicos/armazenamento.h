@@ -35,6 +35,8 @@ struct armazenamento {
 };
 
 void armazenamento_ler(struct armazenamento *a);
+/* só os discos (lsblk), sem medir a lixeira e o cache: rápido o bastante para repetir na tela inicial do Atlas */
+void armazenamento_ler_discos(struct armazenamento *a);
 
 /* limpezas: 0 se deu certo, senão o erro em erro */
 int armazenamento_esvaziar_lixeira(char *erro, size_t tam);

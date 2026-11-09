@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "armazenamento.h"
+#include "discos_cfg.h"
 #include "pacotes.h"
 
 static struct armazenamento arm;
@@ -231,7 +232,31 @@ void pn_armaz_limpeza_desenhar(void) {
 
 /* ---- Discos e pendrives ---- */
 
+/* a montagem automática (quem faz é o lumna-discos, que lê o discos.ini a cada evento: mudar aqui vale na hora) */
+static discos_cfg auto_cfg;
+static bool auto_lida;
+
+static void montagem_automatica(void) {
+	if (!auto_lida) {
+		discos_cfg_ler(&auto_cfg);
+		auto_lida = true;
+	}
+	pn_subtitulo(CLAY_ID("ar-auto-t"), "Montar sozinho");
+	bool mudou = false;
+	pn_linha_comecar(CLAY_ID("ar-auto-c"), "usb", "Ao conectar", "Um pendrive ou disco externo que você liga já é montado e aparece no Atlas.");
+	mudou |= gv_interruptor(CLAY_ID("ar-auto-c-v"), &auto_cfg.ao_conectar);
+	pn_linha_acabar();
+	pn_linha_comecar(CLAY_ID("ar-auto-e"), "user", "Ao entrar na sessão", "Os que já estão ligados quando você entra são montados.");
+	mudou |= gv_interruptor(CLAY_ID("ar-auto-e-v"), &auto_cfg.ao_entrar);
+	pn_linha_acabar();
+	if (mudou) {
+		discos_cfg_gravar(&auto_cfg);
+	}
+	pn_subtitulo(CLAY_ID("ar-auto-d"), "Os discos ligados");
+}
+
 void pn_armaz_discos_desenhar(void) {
+	montagem_automatica();
 	if (!lido && !lendo) {
 		ler();
 	}

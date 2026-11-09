@@ -20,7 +20,10 @@ echo "\$@" >> "$run/rclone.log"
 exit 0
 EOF2
 chmod +x "$run/bin/rclone"
-export PATH="$run/bin:$PATH" LUMNA_ATLAS_FALSO_DIR="$casa/Servidor"
+# um lsblk e um udisksctl de mentira (um pendrive ligado e ainda não montado)
+mkdir -p "$run/discos"
+export FAKE_DISCOS_DIR="$run/discos"
+export PATH="$run/bin:$aqui/bin:$PATH" LUMNA_ATLAS_FALSO_DIR="$casa/Servidor"
 (cd "$orbit_dir" && ORBIT_LOG_DEBUG=${ORBIT_LOG_DEBUG:-} ./orbit > "$run/orbit.log" 2>&1 &)
 sleep 3
 export WAYLAND_DISPLAY=wayland-0
@@ -68,6 +71,10 @@ if [ $rc -eq 0 ]; then
 fi
 if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_menu.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_discos.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then

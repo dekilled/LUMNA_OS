@@ -1,0 +1,13 @@
+#!/bin/sh
+# um lsblk de mentira: o disco do sistema (com uma partição do Windows ao lado) e um pendrive (montado só depois do `udisksctl mount`)
+# FAKE_DISCOS_DIR: onde o udisksctl falso deixa o estado e cria os pontos de montagem
+est="${FAKE_DISCOS_DIR:?}/estado"
+ponto=""
+[ -f "$est" ] && ponto="$FAKE_DISCOS_DIR/PENDRIVE"
+cat <<L
+NAME="sda" PKNAME="" LABEL="" SIZE="500107862016" FSTYPE="" MOUNTPOINT="" RM="0" HOTPLUG="0" TYPE="disk" FSUSED=""
+NAME="sda1" PKNAME="sda" LABEL="" SIZE="500000000000" FSTYPE="ext4" MOUNTPOINT="/" RM="0" HOTPLUG="0" TYPE="part" FSUSED="200000000000"
+NAME="sda2" PKNAME="sda" LABEL="Windows" SIZE="100000000000" FSTYPE="ntfs" MOUNTPOINT="" RM="0" HOTPLUG="0" TYPE="part" FSUSED=""
+NAME="sdb" PKNAME="" LABEL="" SIZE="16000000000" FSTYPE="" MOUNTPOINT="" RM="1" HOTPLUG="1" TYPE="disk" FSUSED=""
+NAME="sdb1" PKNAME="sdb" LABEL="PENDRIVE" SIZE="16000000000" FSTYPE="vfat" MOUNTPOINT="$ponto" RM="1" HOTPLUG="1" TYPE="part" FSUSED="1000000"
+L
