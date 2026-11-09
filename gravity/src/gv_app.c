@@ -795,6 +795,13 @@ static void ponteiro_entrou(void *dados, struct wl_pointer *p, uint32_t serial, 
 
 static void ponteiro_saiu(void *dados, struct wl_pointer *p, uint32_t serial, struct wl_surface *s) {
 	gv_app *app = dados;
+	if (gv_arrastando_daqui()) {
+		/* um arraste nosso começou: o compositor leva o ponteiro e o soltar vai para o destino, não para cá */
+		gv__entrada.baixo = false;
+		gv__entrada.ativo = 0;
+		gv__entrada.travado = false;
+		gv__entrada.x = gv__entrada.y = -1;
+	}
 	if (!gv__entrada.baixo) {
 		gv__entrada.x = gv__entrada.y = -1;
 	}
@@ -1818,6 +1825,69 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	tema_vigiar(app);
 	app->precisa = true;
 	return app;
+}
+
+/* ---- arrastar e soltar: o serial do aperto e o ícone do arraste ---- */
+
+uint32_t gv__serial_aperto(void) {
+	return atual ? atual->aperto_serial : 0;
+}
+
+static struct gv_buffer arraste_buffer;
+
+struct wl_surface *gv__arraste_icone(const char *icone, int lado) {
+	gv_app *app = atual;
+	if (!app || !app->compositor || !app->shm || lado < 16) {
+		return NULL;
+	}
+	if (!buffer_criar(app, &arraste_buffer, lado, lado)) {
+		return NULL;
+	}
+	cairo_t *cr = cairo_create(arraste_buffer.superficie);
+	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+	cairo_set_source_rgba(cr, 0, 0, 0, 0);
+	cairo_paint(cr);
+	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+	double m = 4, w = lado - 2 * m, r = 12;
+	cairo_new_sub_path(cr);
+	cairo_arc(cr, m + w - r, m + r, r, -M_PI / 2, 0);
+	cairo_arc(cr, m + w - r, m + w - r, r, 0, M_PI / 2);
+	cairo_arc(cr, m + r, m + w - r, r, M_PI / 2, M_PI);
+	cairo_arc(cr, m + r, m + r, r, M_PI, 3 * M_PI / 2);
+	cairo_close_path(cr);
+	cairo_set_source_rgba(cr, gv_t.elevada.r / 255, gv_t.elevada.g / 255, gv_t.elevada.b / 255, 0.96);
+	cairo_fill_preserve(cr);
+	cairo_set_source_rgba(cr, gv_t.acento.r / 255, gv_t.acento.g / 255, gv_t.acento.b / 255, 1);
+	cairo_set_line_width(cr, 1.5);
+	cairo_stroke(cr);
+	const char *caminho = gv__icone_caminho(icone && icone[0] ? icone : "app");
+	if (!caminho) {
+		caminho = gv__icone_caminho("app");
+	}
+	cairo_save(cr);
+	double ic = w * 0.56;
+	cairo_translate(cr, m + (w - ic) / 2, m + (w - ic) / 2);
+	cairo_scale(cr, ic / 24.0, ic / 24.0);
+	cairo_new_path(cr);
+	if (caminho && gv__svg_tracar(cr, caminho)) {
+		cairo_set_source_rgba(cr, gv_t.icone.r / 255, gv_t.icone.g / 255, gv_t.icone.b / 255, 1);
+		cairo_set_line_width(cr, gv_t.traco_icone);
+		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+		cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+		cairo_stroke(cr);
+	}
+	cairo_restore(cr);
+	cairo_destroy(cr);
+	cairo_surface_flush(arraste_buffer.superficie);
+	struct wl_surface *s = wl_compositor_create_surface(app->compositor);
+	wl_surface_attach(s, arraste_buffer.wl, 0, 0);
+	wl_surface_damage_buffer(s, 0, 0, lado, lado);
+	wl_surface_commit(s);
+	return s;
+}
+
+void gv__arraste_icone_soltar(void) {
+	buffer_destruir(&arraste_buffer);
 }
 
 /* ---- popups ---- */

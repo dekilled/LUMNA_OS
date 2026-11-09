@@ -1710,6 +1710,10 @@ static bool ponteiro_em(Clay_BoundingBox b) {
 	return b.width > 0 && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
 }
 
+static bool ponteiro_em_p(Clay_BoundingBox b, Clay_Vector2 p) {
+	return b.width > 0 && p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
+}
+
 static void abrir_menu_do_item(int i) {
 	if (!sel[i]) {
 		limpar_selecao();
@@ -1748,6 +1752,128 @@ static bool item_recortado(int idx, char **area, bool recortar) {
 static char **area_quadro;       /* o que a área de transferência tem neste quadro */
 static bool area_quadro_recortar;
 
+/* ---- arrastar e soltar de arquivos (entre janelas, e dentro desta) ----
+ * Arrastar: apertar num item e andar (mouse); vai a seleção como text/uri-list. Soltar: numa pasta da grade, num atalho de pasta da barra lateral ou no fundo da
+ * lista (a pasta de agora) copia para lá. Entre os apps do LUMNA a ação é sempre copiar. */
+#define MIME_URIS "text/uri-list"
+static uint32_t dnd_cand;
+static float dnd_x0, dnd_y0;
+static int dnd_alvo_idx = -1;        /* a pasta da grade debaixo do arraste (índice em lista), ou -1 */
+static char dnd_alvo[4096];          /* para onde cairia ("" nada) */
+
+static bool dnd_origem_ok(void) {
+	return renomeando < 0 && !em_lixeira() && vista != V_INICIO && vista != V_REDE && vista != V_NUVEM && pagina_cfg < 0;
+}
+
+static void arraste_arquivo_ver(Clay_ElementId id, int idx) {
+	if (gv_arrastando_daqui() || gv_ponteiro_e_toque() || !dnd_origem_ok()) {
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	if (!gv_premido(id)) {
+		return;
+	}
+	if (dnd_cand != id.id) {
+		dnd_cand = id.id;
+		dnd_x0 = p.x;
+		dnd_y0 = p.y;
+		return;
+	}
+	if ((p.x - dnd_x0) * (p.x - dnd_x0) + (p.y - dnd_y0) * (p.y - dnd_y0) <= 100) {
+		return;
+	}
+	dnd_cand = 0;
+	if (!sel[idx]) { /* arrastar um item solto leva só ele */
+		limpar_selecao();
+		sel[idx] = true;
+		ancora = foco = idx;
+	}
+	GString *g = g_string_new(NULL);
+	int n = 0;
+	for (int i = 0; i < lista.n; i++) {
+		if (sel[i] && cam[i]) {
+			char *uri = g_filename_to_uri(cam[i], NULL, NULL);
+			if (uri) {
+				g_string_append_printf(g, "%s\r\n", uri);
+				n++;
+			}
+			g_free(uri);
+		}
+	}
+	if (n) {
+		gv_arrastar_comecar(MIME_URIS, g->str, n > 1 ? "copy" : lista.v[idx].pasta ? "folder" : "document");
+	}
+	g_string_free(g, TRUE);
+}
+
+/* a cada quadro: onde cairia um arraste que passa por cima desta janela, e o que fazer quando soltam */
+static void dnd_rever(void) {
+	dnd_alvo_idx = -1;
+	dnd_alvo[0] = '\0';
+	Clay_Vector2 p;
+	bool sobre = gv_arraste_sobre(&p);
+	if (sobre && pagina_cfg < 0) {
+		/* um atalho de pasta da barra lateral */
+		for (int i = 0; i < barra.n && !dnd_alvo[0]; i++) {
+			if (barra.v[i].visivel && barra.v[i].caminho[0] && ponteiro_em_p(gv_caixa(CLAY_IDI("l-it", (uint32_t)i)), p)) {
+				snprintf(dnd_alvo, sizeof(dnd_alvo), "%s", barra.v[i].caminho);
+			}
+		}
+		/* uma pasta da grade ou da lista */
+		for (int k = 0; k < nvis && !dnd_alvo[0] && vista == V_PASTA; k++) {
+			int idx = vis[k];
+			Clay_ElementId id = modo_lista ? CLAY_IDI("lin", (uint32_t)idx) : CLAY_IDI("cel", (uint32_t)idx);
+			if (lista.v[idx].pasta && cam[idx] && ponteiro_em_p(gv_caixa(id), p)) {
+				dnd_alvo_idx = idx;
+				snprintf(dnd_alvo, sizeof(dnd_alvo), "%s", cam[idx]);
+			}
+		}
+		/* o fundo da lista: a pasta de agora */
+		if (!dnd_alvo[0] && vista == V_PASTA && !em_lixeira() && ponteiro_em_p(gv_caixa(ID_CONTEUDO), p)) {
+			snprintf(dnd_alvo, sizeof(dnd_alvo), "%s", pasta);
+		}
+	}
+	static char ultimo[4096]; /* o alvo do último quadro com o arraste por cima: soltar já tira o "por cima" */
+	if (sobre) {
+		snprintf(ultimo, sizeof(ultimo), "%s", dnd_alvo);
+	}
+	char *dados = NULL;
+	if (!gv_arraste_soltou(MIME_URIS, &dados)) {
+		if (!sobre) {
+			ultimo[0] = '\0';
+		}
+		return;
+	}
+	char destino[4096];
+	snprintf(destino, sizeof(destino), "%s", ultimo);
+	ultimo[0] = '\0';
+	if (destino[0]) {
+		GPtrArray *v = g_ptr_array_new_with_free_func(g_free);
+		char **linhas = g_strsplit_set(dados, "\r\n", -1);
+		for (int i = 0; linhas[i]; i++) {
+			if (g_str_has_prefix(linhas[i], "file://")) {
+				char *c = g_filename_from_uri(linhas[i], NULL, NULL);
+				if (c) {
+					char *pai = g_path_get_dirname(c);
+					bool ja_la = !strcmp(pai, destino) || !strcmp(c, destino); /* já está lá, ou é a própria pasta */
+					g_free(pai);
+					if (ja_la) {
+						g_free(c);
+					} else {
+						g_ptr_array_add(v, c);
+					}
+				}
+			}
+		}
+		g_strfreev(linhas);
+		if (v->len) {
+			iniciar_op(AR_OP_COPIAR, v, destino);
+		}
+		g_ptr_array_free(v, TRUE);
+	}
+	free(dados);
+}
+
 static void celula_grade(int idx, float tam, float cw, float ch) {
 	Clay_ElementId id = CLAY_IDI("cel", (uint32_t)idx);
 	const ar_entrada *e = &lista.v[idx];
@@ -1758,10 +1884,11 @@ static void celula_grade(int idx, float tam, float cw, float ch) {
 	if (pediu && ponteiro_em(gv_caixa(id))) {
 		abrir_menu_do_item(idx);
 	}
+	arraste_arquivo_ver(id, idx);
 	Clay_ElementId mais = CLAY_IDI("cel-mais", (uint32_t)idx);
 	bool sobre = gv_por_cima(id) || gv_por_cima(mais);
 	bool recortado = item_recortado(idx, area_quadro, area_quadro_recortar);
-	Clay_Color fundo = sel[idx] ? gv_alfa(gv_t.acento, 0.18f) : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 };
+	Clay_Color fundo = dnd_alvo_idx == idx ? gv_alfa(gv_t.acento, 0.35f) : sel[idx] ? gv_alfa(gv_t.acento, 0.18f) : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 };
 	CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(cw), CLAY_SIZING_FIXED(ch) }, .padding = { 6, 6, 10, 6 },
 		.childGap = 6, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } }, .backgroundColor = fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
 		.border = { .color = sel[idx] ? gv_t.acento : (Clay_Color){ 0, 0, 0, 0 }, .width = GV_BORDA(2) } }) {
@@ -1801,6 +1928,7 @@ static void linha_lista(int idx, int linha_par) {
 	if (pediu && ponteiro_em(gv_caixa(id))) {
 		abrir_menu_do_item(idx);
 	}
+	arraste_arquivo_ver(id, idx);
 	Clay_ElementId mais = CLAY_IDI("lin-mais", (uint32_t)idx);
 	bool sobre = gv_por_cima(id) || gv_por_cima(mais);
 	Clay_Color fundo = sel[idx] ? gv_alfa(gv_t.acento, 0.18f) : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 };
@@ -5424,6 +5552,7 @@ static void desenhar(gv_app *a, void *dados) {
 		texto_aplicar(false);
 		return;
 	}
+	dnd_rever();
 	teclado_atalhos();
 	CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
 		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
@@ -5438,6 +5567,14 @@ static void desenhar(gv_app *a, void *dados) {
 			}
 		}
 		barra_status();
+	}
+	if (dnd_alvo[0] && dnd_alvo_idx < 0 && !strcmp(dnd_alvo, pasta)) { /* soltando no fundo da lista: o contorno da lista inteira */
+		Clay_BoundingBox b = gv_caixa(ID_CONTEUDO);
+		if (b.width > 0) {
+			CLAY(CLAY_ID("dnd-contorno"), { .layout = { .sizing = { CLAY_SIZING_FIXED(b.width), CLAY_SIZING_FIXED(b.height) } }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
+				.border = { .color = gv_t.acento, .width = GV_BORDA(2) },
+				.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 60, .offset = { b.x, b.y }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+		}
 	}
 	/* o pedido do menu do espaço vazio vem depois dos itens (cada pedido de menu é de quem pede primeiro: o item ganha do fundo) */
 	if (!VISTA_CARTOES && gv_menu_no_ponteiro(ID_CONTEUDO, CLAY_ID("menu-fundo"))) {
@@ -5526,7 +5663,8 @@ int main(int argc, char **argv) {
 	if (especial) {
 		destino = especial;
 	}
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "Arquivos", .app_id = "lumna-atlas", .largura = 1240, .altura = 760 });
+	app = gv_app_criar(&(gv_opcoes){ .titulo = "Atlas", .app_id = "lumna-atlas", .largura = 1240, .altura = 760 });
+	gv_arraste_aceitar(MIME_URIS);
 	if (!app) {
 		return 1;
 	}

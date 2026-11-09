@@ -254,6 +254,10 @@ struct orbit_server {
 	struct wl_listener new_input;
 	struct wl_listener request_cursor;
 	struct wl_listener request_set_selection;
+	struct wl_listener request_start_drag;  /* arrastar e soltar (arraste.c) */
+	struct wl_listener start_drag;
+	struct wlr_scene_tree *drag_tree;       /* o ícone do arraste: por cima de tudo */
+	double touch_x, touch_y;                /* onde o último dedo mexido está (para o ícone do arraste) */
 	struct wl_list keyboards;
 	struct wl_list touches;
 	struct wl_list pointers;       /* os mouses e touchpads (entrada.c) */
@@ -492,6 +496,13 @@ void orbit_gesture_end(struct orbit_server *server);
 void orbit_touch_bind(struct orbit_server *server);
 void orbit_touch_down(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly);
 void orbit_touch_motion(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly);
+/* arraste.c */
+void orbit_dnd_bind(struct orbit_server *server);
+void orbit_dnd_move(struct orbit_server *server);
+bool orbit_dnd_touch_motion(struct orbit_server *server, uint32_t time, int32_t id, double lx, double ly, double *ox, double *oy);
+/* para os testes (orbit-msg mouse): o ponteiro vai para lá e o botão desce ou sobe como se viessem de um mouse */
+void orbit_pointer_warp(struct orbit_server *server, double x, double y);
+void orbit_pointer_button(struct orbit_server *server, uint32_t time, uint32_t button, enum wl_pointer_button_state state);
 void orbit_touch_up(struct orbit_server *server, uint32_t time, int32_t id);
 void orbit_touch_frame(struct orbit_server *server);
 

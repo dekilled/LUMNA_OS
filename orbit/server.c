@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	wlr_log_init(WLR_INFO, NULL);
+	wlr_log_init(getenv("ORBIT_LOG_DEBUG") ? WLR_DEBUG : WLR_INFO, NULL); /* ORBIT_LOG_DEBUG=1: o que o wlroots diz de dentro (testes) */
 	struct orbit_server server = { 0 };
 	orbit_config_load(&server);
 	server.display = wl_display_create();
@@ -165,6 +165,7 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao criar o seat0");
 	}
 	orbit_input_bind(&server);
+	orbit_dnd_bind(&server);
 	orbit_touch_bind(&server);
 	/* ponteiro e teclado desde o início: no telemóvel não há teclado físico, e sem isto as
 	 * aplicações nem escutam o teclado virtual */

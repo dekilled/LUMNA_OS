@@ -89,6 +89,8 @@ void orbit_touch_down(struct orbit_server *server, uint32_t time, int32_t id, do
 	}
 	point->ox = lx - sx;
 	point->oy = ly - sy;
+	server->touch_x = lx;
+	server->touch_y = ly;
 #if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR < 19
 	bool aceita = wlr_surface_accepts_touch(server->seat, surface);
 #else
@@ -120,6 +122,11 @@ void orbit_touch_motion(struct orbit_server *server, uint32_t time, int32_t id, 
 	if (point->gesture) {
 		orbit_gesture_motion(server, lx, ly);
 		return;
+	}
+	server->touch_x = lx;
+	server->touch_y = ly;
+	if (!point->emulated && orbit_dnd_touch_motion(server, time, id, lx, ly, &point->ox, &point->oy)) {
+		return; /* um arraste deste dedo: o foco do toque anda com ele */
 	}
 	double sx = lx - point->ox;
 	double sy = ly - point->oy;

@@ -559,6 +559,20 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			_exit(1);
 		}
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "mouse")) {
+		/* mouse mover X Y | mouse botao baixo|cima (o mesmo caminho de um mouse de verdade: serve para testar arrastos) */
+		char *kind = arg1;
+		char *a = arg2;
+		char *b2 = strtok_r(NULL, " \t", &save);
+		if (kind && !strcmp(kind, "mover") && a && b2) {
+			orbit_pointer_warp(server, atof(a), atof(b2));
+		} else if (kind && !strcmp(kind, "botao") && a && (!strcmp(a, "baixo") || !strcmp(a, "cima"))) {
+			orbit_pointer_button(server, now_ms(), 0x110 /* BTN_LEFT */, !strcmp(a, "baixo") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
+		} else {
+			fail(b, "uso: mouse mover X Y | mouse botao baixo|cima");
+			return;
+		}
+		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "toque")) {
 		/* toque baixo|move|cima DEDO X Y */
 		char *kind = arg1;

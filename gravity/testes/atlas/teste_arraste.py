@@ -68,6 +68,28 @@ confere(lambda: [r for r, s in itens() if s == 0] == ["Favoritos", "Início", "R
 toca("l-it/3")  # o Home, que agora é o último de Espaços
 confere(lambda: estado().get("vista") == "0" and estado().get("pasta") == casa, "clicar num item (sem segurar) continua navegando")
 
+# 5. com o mouse (o Orbit de teste injeta o ponteiro): apertar em Início e andar para cima de Favoritos
+def arrasta_mouse(de, ate, dy):
+    x, y = centro(de)
+    ox, oy = origem()
+    p = pos(ate)
+    y2 = oy + p[1] + dy
+    msg("mouse", "mover", x, y)
+    time.sleep(0.3)
+    msg("mouse", "botao", "baixo")
+    time.sleep(0.2)
+    for i in range(1, 9):
+        msg("mouse", "mover", x, int(y + (y2 - y) * i / 8))
+        time.sleep(0.07)
+    time.sleep(0.3)
+    msg("mouse", "botao", "cima")
+    time.sleep(0.8)
+
+
+ordem_antes = [r for r, _ in itens()]
+arrasta_mouse("l-it/1", "l-it/0", 5)  # Início (índice 1 agora) para antes de Favoritos
+confere(lambda: [r for r, _ in itens()][:2] == ["Início", "Favoritos"], f"arrastar com o mouse reordena ({itens()})")
+
 if falhas:
     print(f"{len(falhas)} falha(s)")
     sys.exit(1)

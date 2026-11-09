@@ -1,7 +1,7 @@
 /*
  * O lançador do desktop novo (o "Início"), em Gravity: cobre a tela por baixo da topbar, com a
  * busca, as abas (Favoritos, Trabalho, Internet, Jogos, Mídia, Sistema), os recentes e, em
- * baixo, Bloquear, Desligar e a Emma.
+ * baixo, Bloquear, Sair da conta, Desligar e a Emma.
  *
  * - Favoritos: cartões grandes com os apps favoritados (~/.config/lumna/favoritos, um id de
  *   .desktop por linha) e os arquivos recentes (~/.local/share/recently-used.xbel).
@@ -367,6 +367,12 @@ static bool na_dock(const struct app *a) {
 	return tem;
 }
 
+/* a linha de um app no formato da dock (ícone ; nome ; app_id ; comando): é também o que vai quando se arrasta o app para a dock */
+static void linha_dock(const struct app *a, char *saida, size_t tam) {
+	const char *l = icone_lumna(a);
+	snprintf(saida, tam, "%s ; %s ; %s ; %s", l ? l : a->icone, a->nome, a->janela, a->comando);
+}
+
 static void fixar_na_dock(const struct app *a) {
 	char caminho[1100];
 	snprintf(caminho, sizeof(caminho), "%s/dock", pasta_config);
@@ -573,11 +579,49 @@ static bool combina(const struct app *a) {
 
 /* ---- os cartões ---- */
 
+/* ---- arrastar um app para a dock (arrastar e soltar entre aplicativos) ----
+ * Com o mouse: apertar no cartão e andar. Com o dedo: segurar (o painel de detalhes abre, como sempre) e andar. Ao começar, o Início fica transparente e
+ * sem entrada, para a dock aparecer por baixo e receber o app; se for aceito, o Início fecha. */
+static uint32_t arr_cand;
+static float arr_x0, arr_y0;
+
+static void arraste_cartao(Clay_ElementId id, int i) {
+	if (gv_arrastando_daqui()) {
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	bool comecar = false;
+	if (gv_premido(id)) {
+		if (arr_cand != id.id) {
+			arr_cand = id.id;
+			arr_x0 = p.x;
+			arr_y0 = p.y;
+		} else if (!gv_ponteiro_e_toque() && ((p.x - arr_x0) * (p.x - arr_x0) + (p.y - arr_y0) * (p.y - arr_y0) > 100)) {
+			comecar = true;
+		}
+	}
+	if (gv_ponteiro_e_toque() && gv_segurou(id)) {
+		detalhe = i;
+		fixado = true;
+		confirmar_remocao = false;
+		comecar = true;
+	}
+	if (comecar) {
+		char linha[900];
+		linha_dock(&apps[i], linha, sizeof(linha));
+		const char *l = icone_lumna(&apps[i]);
+		if (gv_arrastar_comecar("application/x-lumna-app", linha, l ? l : "app")) {
+			arr_cand = 0;
+		}
+	}
+}
+
 /* o cartão grande dos favoritos: ícone e nome ao centro */
 static bool cartao_grande(int i, float largura) {
 	const struct app *a = &apps[i];
 	Clay_ElementId id = CLAY_IDI("fav", i);
-	bool tocado = gv_tocado(id);
+	arraste_cartao(id, i);
+	bool tocado = gv_tocado(id) && !gv_arrastando_daqui();
 	bool sobre = gv_por_cima(id);
 	float marca = gv_anim(id.id ^ 0x77u, sobre || gv_focado(id) ? 1 : 0, gv_t.duracao_normal);
 	CLAY(id, {
@@ -605,12 +649,13 @@ static bool cartao_grande(int i, float largura) {
 static bool cartao(int i, float largura) {
 	const struct app *a = &apps[i];
 	Clay_ElementId id = CLAY_IDI("app", i);
-	if (gv_segurou(id) || gv_menu_contexto(id)) {
+	arraste_cartao(id, i);
+	if (gv_menu_contexto_mouse(id)) {
 		detalhe = i;
 		fixado = true;
 		confirmar_remocao = false;
 	}
-	bool tocado = gv_tocado(id);
+	bool tocado = gv_tocado(id) && !gv_arrastando_daqui();
 	bool sobre = gv_por_cima(id);
 	if ((sobre || gv_focado(id)) && !fixado && detalhe != i) {
 		detalhe = i;
@@ -832,6 +877,34 @@ static void desenhar(gv_app *app, void *dados) {
 		marca_tempo(quadros == 1 ? "primeiro quadro" : quadros == 2 ? "segundo quadro" : "terceiro quadro");
 	}
 	(void)dados;
+	/* arrastando um app para a dock: o Início some de vista e deixa passar o ponteiro; se o destino aceitou, ele fecha */
+	static bool estava_arrastando;
+	if (getenv("GV_DEBUG_DND")) {
+		static int ult = -1;
+		if (ult != (int)gv_arrastando_daqui()) {
+			ult = gv_arrastando_daqui();
+			fprintf(stderr, "lancador: arrastando_daqui=%d\n", ult);
+		}
+	}
+	if (gv_arrastando_daqui()) {
+		if (getenv("GV_DEBUG_DND")) {
+			fprintf(stderr, "lancador: desenhando transparente\n");
+		}
+		estava_arrastando = true;
+		CLAY(CLAY_ID("tela-livre"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+			CLAY(CLAY_ID("sem-entrada"), { .layout = { .sizing = { CLAY_SIZING_FIXED(1), CLAY_SIZING_FIXED(1) } } }) {}
+		}
+		gv_app_entrada_em(app, CLAY_ID("sem-entrada"));
+		return;
+	}
+	if (estava_arrastando) {
+		estava_arrastando = false;
+		gv_app_entrada_em(app, CLAY_ID("tela"));
+		if (gv_arraste_ultimo_ok()) {
+			sair();
+			return;
+		}
+	}
 	static int lista[MAX_APPS];
 	int n = 0;
 	bool buscando = busca[0] != '\0';
@@ -921,6 +994,18 @@ static void desenhar(gv_app *app, void *dados) {
 			if (gv_botao(CLAY_ID("bloquear"), "lock", "Bloquear", GV_BOTAO_SIMPLES)) {
 				executar("lumna-bloqueio");
 				sair();
+			}
+			gv_separador(true, 28);
+			if (gv_botao(CLAY_ID("sair-conta"), "logout", "Sair", GV_BOTAO_SIMPLES)) {
+				gv_popup_alternar(CLAY_ID("sair-menu"));
+			}
+			GV_POPUP(CLAY_ID("sair-menu"), CLAY_ID("sair-conta"), .lado = GV_POPUP_ACIMA, .alinhar = GV_ALINHAR_INICIO, .largura = 290) {
+				CLAY(CLAY_ID("sair-aviso"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 8, 6 } } }) {
+					gv_texto(CLAY_STRING("Sair da conta fecha os aplicativos abertos."), gv_t.tamanho_legenda + 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (gv_menu_item(CLAY_ID("sair-confirmar"), "logout", "Sair da conta", NULL)) {
+					executar("orbit-msg acao terminar"); /* o Orbit termina: a sessão acaba e o login volta */
+				}
 			}
 			gv_separador(true, 28);
 			if (gv_botao(CLAY_ID("desligar"), "power", "Desligar", GV_BOTAO_SIMPLES)) {

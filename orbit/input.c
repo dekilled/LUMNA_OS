@@ -94,6 +94,7 @@ void orbit_gesture_end(struct orbit_server *server) {
 
 static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	orbit_idle_activity(server); /* mexer o rato conta mesmo fora das janelas */
+	orbit_dnd_move(server); /* o ícone de um arraste anda com o ponteiro */
 	orbit_deco_pending_motion(server);
 	if (server->cursor_mode == ORBIT_CURSOR_GESTURE) {
 		orbit_gesture_motion(server, server->cursor->x, server->cursor->y);
@@ -194,9 +195,37 @@ static void on_cursor_motion_absolute(struct wl_listener *listener, void *data) 
 	process_cursor_motion(server, event->time_msec);
 }
 
+struct orbit_button_event {
+	uint32_t time_msec, button;
+	enum wl_pointer_button_state state;
+};
+
+static void cursor_button(struct orbit_server *server, const struct orbit_button_event *event);
+
 static void on_cursor_button(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, cursor_button);
-	struct wlr_pointer_button_event *event = data;
+	struct wlr_pointer_button_event *e = data;
+	struct orbit_button_event event = { e->time_msec, e->button, e->state };
+	cursor_button(server, &event);
+}
+
+/* o ponteiro vai para lá e o botão desce ou sobe como se viessem de um mouse (orbit-msg mouse, para os testes) */
+void orbit_pointer_warp(struct orbit_server *server, double x, double y) {
+	wlr_cursor_warp(server->cursor, NULL, x, y);
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	server->last_input = ORBIT_INPUT_MOUSE;
+	process_cursor_motion(server, (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000));
+	wlr_seat_pointer_notify_frame(server->seat);
+}
+
+void orbit_pointer_button(struct orbit_server *server, uint32_t time, uint32_t button, enum wl_pointer_button_state state) {
+	struct orbit_button_event event = { time, button, state };
+	cursor_button(server, &event);
+	wlr_seat_pointer_notify_frame(server->seat);
+}
+
+static void cursor_button(struct orbit_server *server, const struct orbit_button_event *event) {
 	server->last_input = ORBIT_INPUT_MOUSE;
 	orbit_idle_activity(server);
 	server->super_tap = false; /* Super+clique não é o Super sozinho */

@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <stdio.h>
@@ -63,9 +64,28 @@ static struct {
 
 /* ---- área de transferência ---- */
 
-/* o que cada oferta tem fica na própria oferta (user_data, em bits): 1 texto, 2 png, 4 jpeg, 8 webp */
+/* o que cada oferta tem fica na própria oferta (user_data): em bits 1 texto, 2 png, 4 jpeg, 8 webp, e a lista dos tipos (o arrastar escolhe um) */
+#define GV_MAX_TIPOS 12
+struct oferta_info {
+	uintptr_t bits;
+	int n;
+	char tipos[GV_MAX_TIPOS][96];
+};
+
+static void oferta_destruir(struct wl_data_offer *oferta) {
+	free(wl_data_offer_get_user_data(oferta));
+	wl_data_offer_destroy(oferta);
+}
+
 static void oferta_tipo(void *dados, struct wl_data_offer *oferta, const char *tipo) {
-	uintptr_t bits = (uintptr_t)wl_data_offer_get_user_data(oferta);
+	struct oferta_info *info = wl_data_offer_get_user_data(oferta);
+	if (!info) {
+		return;
+	}
+	if (info->n < GV_MAX_TIPOS) {
+		snprintf(info->tipos[info->n++], sizeof(info->tipos[0]), "%s", tipo);
+	}
+	uintptr_t bits = info->bits;
 	if (!strcmp(tipo, MIME_TEXTO) || !strcmp(tipo, "text/plain") || !strcmp(tipo, "UTF8_STRING")) {
 		bits |= 1;
 	} else if (!strcmp(tipo, "image/png")) {
@@ -75,7 +95,7 @@ static void oferta_tipo(void *dados, struct wl_data_offer *oferta, const char *t
 	} else if (!strcmp(tipo, "image/webp")) {
 		bits |= 8;
 	}
-	wl_data_offer_set_user_data(oferta, (void *)bits);
+	info->bits = bits;
 }
 
 static void oferta_acoes(void *d, struct wl_data_offer *o, uint32_t a) {}
@@ -88,21 +108,177 @@ static const struct wl_data_offer_listener oferta_ouvinte = {
 };
 
 static void disp_oferta(void *d, struct wl_data_device *dev, struct wl_data_offer *oferta) {
-	wl_data_offer_add_listener(oferta, &oferta_ouvinte, NULL);
+	wl_data_offer_add_listener(oferta, &oferta_ouvinte, NULL); /* (isto põe o user_data a NULL: o nosso vem depois) */
+	wl_data_offer_set_user_data(oferta, calloc(1, sizeof(struct oferta_info)));
 }
 
-static void disp_entrou(void *d, struct wl_data_device *dev, uint32_t s, struct wl_surface *sup, wl_fixed_t x,
-		wl_fixed_t y, struct wl_data_offer *o) {}
-static void disp_saiu(void *d, struct wl_data_device *dev) {}
-static void disp_moveu(void *d, struct wl_data_device *dev, uint32_t t, wl_fixed_t x, wl_fixed_t y) {}
-static void disp_largou(void *d, struct wl_data_device *dev) {}
+/* ---- arrastar e soltar: o que esta app recebe ---- */
+
+#define GV_MAX_ACEITOS 4
+static char aceitos[GV_MAX_ACEITOS][96];
+static int n_aceitos;
+static struct {
+	struct wl_data_offer *oferta;
+	char mime[96];     /* o tipo aceito para esta oferta ("" nenhum) */
+	bool sobre;
+	double x, y;
+	char *dados;       /* o que chegou no soltar (uma vez) */
+	char dados_mime[96];
+} dnd;
+
+void gv_arraste_aceitar(const char *mime) {
+	for (int i = 0; i < n_aceitos; i++) {
+		if (!strcmp(aceitos[i], mime)) {
+			return;
+		}
+	}
+	if (n_aceitos < GV_MAX_ACEITOS) {
+		snprintf(aceitos[n_aceitos++], sizeof(aceitos[0]), "%.95s", mime);
+	}
+}
+
+static void dnd_largar_oferta(void) {
+	if (dnd.oferta) {
+		oferta_destruir(dnd.oferta);
+		dnd.oferta = NULL;
+	}
+	dnd.sobre = false;
+	dnd.mime[0] = '\0';
+}
+
+static void disp_entrou(void *d, struct wl_data_device *dev, uint32_t serial, struct wl_surface *sup, wl_fixed_t x,
+		wl_fixed_t y, struct wl_data_offer *oferta) {
+	dnd_largar_oferta();
+	if (getenv("GV_DEBUG_DND")) {
+		fprintf(stderr, "gravity: arrastar: entrou (oferta %p) em %g,%g\n", (void *)oferta, wl_fixed_to_double(x), wl_fixed_to_double(y));
+	}
+	if (!oferta) {
+		return;
+	}
+	dnd.oferta = oferta;
+	dnd.x = wl_fixed_to_double(x);
+	dnd.y = wl_fixed_to_double(y);
+	struct oferta_info *info = wl_data_offer_get_user_data(oferta);
+	if (getenv("GV_DEBUG_DND")) {
+		fprintf(stderr, "gravity: arrastar: aceitos=%d, tipos da oferta=%d (%s)\n", n_aceitos, info ? info->n : -1, info && info->n ? info->tipos[0] : "-");
+	}
+	for (int i = 0; info && i < info->n && !dnd.mime[0]; i++) {
+		for (int k = 0; k < n_aceitos; k++) {
+			if (!strcmp(info->tipos[i], aceitos[k])) {
+				snprintf(dnd.mime, sizeof(dnd.mime), "%.95s", aceitos[k]);
+				break;
+			}
+		}
+	}
+	wl_data_offer_accept(oferta, serial, dnd.mime[0] ? dnd.mime : NULL);
+	if (dnd.mime[0] && wl_data_offer_get_version(oferta) >= 3) {
+		wl_data_offer_set_actions(oferta, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
+	}
+	dnd.sobre = dnd.mime[0] != '\0';
+	gv__app_pedir();
+}
+
+static void disp_saiu(void *d, struct wl_data_device *dev) {
+	dnd_largar_oferta();
+	gv__app_pedir();
+}
+
+static void disp_moveu(void *d, struct wl_data_device *dev, uint32_t t, wl_fixed_t x, wl_fixed_t y) {
+	dnd.x = wl_fixed_to_double(x);
+	dnd.y = wl_fixed_to_double(y);
+	gv__app_pedir();
+}
+
+/* soltou em cima de nós: pede os dados à origem (que escreve no cano) e termina o arraste */
+static const char *arr_dados_se(const char *mime); /* o que estamos arrastando, se for deste tipo */
+
+static void disp_largou(void *d, struct wl_data_device *dev) {
+	struct wl_data_offer *oferta = dnd.oferta;
+	if (getenv("GV_DEBUG_DND")) {
+		fprintf(stderr, "gravity: arrastar: largou (oferta %p, mime \"%s\")\n", (void *)oferta, dnd.mime);
+	}
+	if (!oferta || !dnd.mime[0]) {
+		dnd_largar_oferta();
+		return;
+	}
+	const char *nossos = arr_dados_se(dnd.mime);
+	if (nossos) {
+		/* a fonte somos nós: pedir pelo cano travava (o envio só é atendido depois deste retorno) */
+		free(dnd.dados);
+		dnd.dados = strdup(nossos);
+		snprintf(dnd.dados_mime, sizeof(dnd.dados_mime), "%s", dnd.mime);
+		if (wl_data_offer_get_version(oferta) >= 3) {
+			wl_data_offer_finish(oferta);
+		}
+		dnd_largar_oferta();
+		gv__app_pedir();
+		return;
+	}
+	int canos[2];
+	if (pipe2(canos, O_CLOEXEC) < 0) {
+		dnd_largar_oferta();
+		return;
+	}
+	wl_data_offer_receive(oferta, dnd.mime, canos[1]);
+	close(canos[1]);
+	wl_display_flush(e.display);
+	size_t cap = 4096, n = 0;
+	char *buf = malloc(cap);
+	struct pollfd p = { .fd = canos[0], .events = POLLIN };
+	while (buf && n < (1u << 20) && poll(&p, 1, 1500) > 0) {
+		if (n + 1024 > cap) {
+			char *maior = realloc(buf, cap * 2);
+			if (!maior) {
+				break;
+			}
+			buf = maior;
+			cap *= 2;
+		}
+		ssize_t r = read(canos[0], buf + n, cap - n - 1);
+		if (r <= 0) {
+			break;
+		}
+		n += (size_t)r;
+	}
+	close(canos[0]);
+	if (buf) {
+		buf[n] = '\0';
+	}
+	if (wl_data_offer_get_version(oferta) >= 3) {
+		wl_data_offer_finish(oferta);
+	}
+	free(dnd.dados);
+	dnd.dados = buf;
+	snprintf(dnd.dados_mime, sizeof(dnd.dados_mime), "%s", dnd.mime);
+	dnd_largar_oferta();
+	gv__app_pedir();
+}
+
+bool gv_arraste_sobre(Clay_Vector2 *pos) {
+	if (dnd.sobre && pos) {
+		pos->x = (float)dnd.x;
+		pos->y = (float)dnd.y;
+	}
+	return dnd.sobre;
+}
+
+/* chegou um soltar do tipo mime: devolve os dados (g_free/free) uma vez */
+bool gv_arraste_soltou(const char *mime, char **dados) {
+	if (!dnd.dados || strcmp(dnd.dados_mime, mime)) {
+		return false;
+	}
+	*dados = dnd.dados;
+	dnd.dados = NULL;
+	return true;
+}
 
 static void disp_selecao(void *d, struct wl_data_device *dev, struct wl_data_offer *oferta) {
 	if (e.oferta && e.oferta != oferta) {
-		wl_data_offer_destroy(e.oferta);
+		oferta_destruir(e.oferta);
 	}
 	e.oferta = oferta;
-	uintptr_t bits = oferta ? (uintptr_t)wl_data_offer_get_user_data(oferta) : 0;
+	struct oferta_info *info = oferta ? wl_data_offer_get_user_data(oferta) : NULL;
+	uintptr_t bits = info ? info->bits : 0;
 	e.oferta_texto = bits & 1;
 	e.oferta_imagem = bits & 2 ? "image/png" : bits & 4 ? "image/jpeg" : bits & 8 ? "image/webp" : NULL;
 }
@@ -154,6 +330,116 @@ static const struct wl_data_source_listener fonte_ouvinte = {
 	.dnd_finished = fonte_terminada,
 	.action = fonte_acao,
 };
+
+/* ---- arrastar e soltar: o que esta app arrasta ---- */
+
+static struct {
+	struct wl_data_source *fonte;
+	char *mime;
+	char *dados;
+	struct wl_surface *icone;
+	bool em_curso;
+} arr;
+
+static const char *arr_dados_se(const char *mime) {
+	return arr.em_curso && arr.dados && arr.mime && !strcmp(arr.mime, mime) ? arr.dados : NULL;
+}
+
+static void arr_acabou(void) {
+	if (arr.fonte) {
+		wl_data_source_destroy(arr.fonte);
+	}
+	if (arr.icone) {
+		wl_surface_destroy(arr.icone);
+		gv__arraste_icone_soltar();
+	}
+	free(arr.mime);
+	free(arr.dados);
+	memset(&arr, 0, sizeof(arr));
+	gv__app_pedir();
+}
+
+static void arr_enviar(void *d, struct wl_data_source *f, const char *tipo, int32_t fd) {
+	const char *t = arr.dados ? arr.dados : "";
+	size_t n = strlen(t), feito = 0;
+	while (feito < n) {
+		ssize_t w = write(fd, t + feito, n - feito);
+		if (w < 0 && errno == EINTR) {
+			continue;
+		}
+		if (w <= 0) {
+			break;
+		}
+		feito += (size_t)w;
+	}
+	close(fd);
+}
+
+static bool arr_ultimo_ok;
+
+static void arr_cancelado(void *d, struct wl_data_source *f) {
+	if (getenv("GV_DEBUG_DND")) {
+		fprintf(stderr, "gravity: arrastar: cancelado\n");
+	}
+	arr_acabou(); /* ninguém aceitou, ou o compositor cancelou (Esc) */
+	arr_ultimo_ok = false;
+}
+
+static void arr_terminado(void *d, struct wl_data_source *f) {
+	if (getenv("GV_DEBUG_DND")) {
+		fprintf(stderr, "gravity: arrastar: terminado\n");
+	}
+	arr_acabou(); /* o destino leu os dados */
+	arr_ultimo_ok = true;
+}
+
+bool gv_arraste_ultimo_ok(void) {
+	return arr_ultimo_ok;
+}
+
+static void arr_nada_alvo(void *d, struct wl_data_source *f, const char *tipo) {}
+static void arr_nada_largou(void *d, struct wl_data_source *f) {}
+static void arr_nada_acao(void *d, struct wl_data_source *f, uint32_t a) {}
+
+static const struct wl_data_source_listener arr_ouvinte = {
+	.target = arr_nada_alvo,
+	.send = arr_enviar,
+	.cancelled = arr_cancelado,
+	.dnd_drop_performed = arr_nada_largou,
+	.dnd_finished = arr_terminado,
+	.action = arr_nada_acao,
+};
+
+bool gv_arrastar_comecar(const char *mime, const char *dados, const char *icone) {
+	if (arr.em_curso || !e.gerente || !e.dispositivo || !e.superficie || !mime || !dados) {
+		return false;
+	}
+	uint32_t serial = gv__serial_aperto();
+	if (getenv("GV_DEBUG_DND")) {
+		fprintf(stderr, "gravity: arrastar: serial %u, gerente %p, dispositivo %p\n", serial, (void *)e.gerente, (void *)e.dispositivo);
+	}
+	if (!serial) {
+		return false;
+	}
+	arr.fonte = wl_data_device_manager_create_data_source(e.gerente);
+	wl_data_source_add_listener(arr.fonte, &arr_ouvinte, NULL);
+	wl_data_source_offer(arr.fonte, mime);
+	if (wl_data_source_get_version(arr.fonte) >= 3) {
+		wl_data_source_set_actions(arr.fonte, WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
+	}
+	arr.mime = strdup(mime);
+	arr.dados = strdup(dados);
+	arr.icone = gv__arraste_icone(icone, 56);
+	arr.em_curso = true;
+	wl_data_device_start_drag(e.dispositivo, arr.fonte, e.superficie, arr.icone, serial);
+	wl_display_flush(e.display);
+	gv__app_pedir();
+	return true;
+}
+
+bool gv_arrastando_daqui(void) {
+	return arr.em_curso;
+}
 
 void gv_copiar(const char *texto) {
 	if (!e.gerente || !e.dispositivo || !texto) {
@@ -343,6 +629,7 @@ bool gv__escrita_global(struct wl_registry *registo, uint32_t nome, const char *
 }
 
 void gv__escrita_iniciar(struct wl_display *display, struct wl_seat *seat, struct wl_surface *superficie) {
+	signal(SIGPIPE, SIG_IGN); /* quem lê o que enviamos (copiar, arrastar) pode fechar o cano: é uma falha da escrita, não o fim do app */
 	e.display = display;
 	e.seat = seat;
 	e.superficie = superficie;

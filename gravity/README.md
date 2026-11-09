@@ -48,6 +48,7 @@ são bibliotecas partilhadas) e mudáveis por tema — cor, tamanho, cantos, tex
 | `gv_anim`, `gv_anim_cor` | qualquer número ou cor animado até ao alvo |
 | `gv_tocado`, `gv_premido`, `gv_por_cima`, `gv_tecla`, `gv_tecla_carregada`, `gv_modificadores` | interação |
 | `gv_copiar`, `gv_colar` | área de transferência (entre apps) |
+| `gv_arrastar_comecar`, `gv_arraste_aceitar`, `gv_arraste_sobre`, `gv_arraste_soltou` | arrastar e soltar entre apps (e dentro de uma): quem arrasta chama `gv_arrastar_comecar(mime, dados, ícone)` no aperto; quem recebe declara o tipo com `gv_arraste_aceitar`, desenha o alvo com `gv_arraste_sobre` e pega o que caiu com `gv_arraste_soltou`. O Orbit leva o ícone; o arraste só copia (`GV_DEBUG_DND=1` imprime o que acontece) |
 | `gv_focar`, `gv_focado` | o campo com o foco |
 
 ## Teclado

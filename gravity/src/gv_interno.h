@@ -99,6 +99,10 @@ struct wl_seat;
 struct wl_surface;
 bool gv__escrita_global(struct wl_registry *registo, uint32_t nome, const char *iface, uint32_t versao);
 void gv__escrita_iniciar(struct wl_display *display, struct wl_seat *seat, struct wl_surface *superficie);
+/* arrastar e soltar (gv_app.c): o serial do último aperto, e o ícone do arraste (uma superfície com o ícone desenhado) */
+uint32_t gv__serial_aperto(void);
+struct wl_surface *gv__arraste_icone(const char *icone, int lado);
+void gv__arraste_icone_soltar(void);
 void gv__escrita_superficie(struct wl_surface *superficie); /* a principal mudou (o bloqueio passou para outra tela) */
 void gv__escrita_fim_do_quadro(void);
 /* O campo focado diz, a cada quadro, o que o teclado no ecrã deve saber dele. */

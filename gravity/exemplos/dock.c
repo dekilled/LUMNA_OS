@@ -873,17 +873,13 @@ static void arraste_rever(void) {
 	arr_suprimir = true;
 }
 
-/* com o arraste em curso: onde cairia (pelo x do ponteiro, contando os separadores) e o que se desenha por cima */
-static void arraste_desenhar(void) {
-	if (!arr_origem) {
-		return;
-	}
-	Clay_Vector2 p = gv_ponteiro();
+/* o índice em fixos[] antes do qual um ícone cairia se soltassem no x dado (os separadores contam); linha_x: onde fica a linha de destino */
+static int onde_para_x(float x, int ignorar, float *linha_x) {
 	int onde = nfixos;
-	float linha_x = -1;
 	float ultimo_x = -1;
+	*linha_x = -1;
 	for (int j = 0; j < nfixos; j++) {
-		if (arr_origem == 1 && j == arr_i) {
+		if (j == ignorar) {
 			continue;
 		}
 		Clay_BoundingBox b = gv_caixa(fixos[j].separador ? CLAY_IDI("sep", j) : CLAY_IDI("fixo", j));
@@ -891,20 +887,99 @@ static void arraste_desenhar(void) {
 			continue;
 		}
 		ultimo_x = b.x + b.width;
-		if (p.x < b.x + b.width / 2) {
-			onde = j;
-			linha_x = b.x;
-			break;
+		if (x < b.x + b.width / 2) {
+			*linha_x = b.x;
+			return j;
 		}
 	}
-	if (onde == nfixos && ultimo_x >= 0) {
-		linha_x = ultimo_x;
+	if (ultimo_x >= 0) {
+		*linha_x = ultimo_x;
 	}
-	arr_onde = onde;
+	return onde;
+}
+
+static void linha_de_destino(float linha_x) {
 	if (linha_x >= 0) {
 		CLAY(CLAY_ID("arr-linha"), { .layout = { .sizing = { CLAY_SIZING_FIXED(3), CLAY_SIZING_FIXED(40) } }, .backgroundColor = gv_t.acento, .cornerRadius = CLAY_CORNER_RADIUS(2),
 			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 50, .offset = { linha_x - 4, 14 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
 	}
+}
+
+/* ---- um app arrastado de outro aplicativo (o Início) para a dock ---- */
+#define MIME_APP "application/x-lumna-app"
+static float dnd_linha_x = -1;
+static int dnd_onde;
+
+/* "ícone ; nome ; app_id ; comando" numa struct fixo; falso se a linha não serve */
+static bool fixo_da_linha(char *linha, struct fixo *x) {
+	char *campos[4] = { NULL, NULL, NULL, NULL };
+	int n = 0;
+	char *p = linha;
+	while (n < 4) {
+		campos[n++] = p;
+		char *pv = n < 4 ? strchr(p, ';') : NULL;
+		if (!pv) {
+			break;
+		}
+		*pv = '\0';
+		p = pv + 1;
+	}
+	if (n < 4) {
+		return false;
+	}
+	memset(x, 0, sizeof(*x));
+	snprintf(x->icone, sizeof(x->icone), "%s", aparar(campos[0]));
+	snprintf(x->nome, sizeof(x->nome), "%s", aparar(campos[1]));
+	snprintf(x->app_id, sizeof(x->app_id), "%s", aparar(campos[2]));
+	snprintf(x->comando, sizeof(x->comando), "%s", aparar(campos[3]));
+	return x->app_id[0] && x->nome[0];
+}
+
+/* a cada quadro: um arraste de fora por cima mostra a linha; soltar fixa o app ali (se já não estiver) */
+static bool dnd_rever(void) {
+	Clay_Vector2 p;
+	bool sobre = gv_arraste_sobre(&p);
+	dnd_linha_x = -1;
+	if (sobre) {
+		dnd_onde = onde_para_x(p.x, -1, &dnd_linha_x);
+	}
+	char *dados = NULL;
+	if (gv_arraste_soltou(MIME_APP, &dados)) {
+		struct fixo x;
+		bool ja = false;
+		if (fixo_da_linha(dados, &x)) {
+			for (int i = 0; i < nfixos; i++) {
+				ja |= !fixos[i].separador && !strcasecmp(fixos[i].app_id, x.app_id);
+			}
+			if (!ja && nfixos < MAX_FIXOS) {
+				int onde = dnd_onde < 0 || dnd_onde > nfixos ? nfixos : dnd_onde;
+				memmove(&fixos[onde + 1], &fixos[onde], (size_t)(nfixos - onde) * sizeof(fixos[0]));
+				memmove(&abriu_em[onde + 1], &abriu_em[onde], (size_t)(nfixos - onde) * sizeof(abriu_em[0]));
+				fixos[onde] = x;
+				abriu_em[onde] = 0;
+				nfixos++;
+				printf("fixar na dock arrastando de fora: %s (%s) na posição %d\n", x.app_id, x.nome, onde);
+				fflush(stdout);
+				salvar();
+			}
+		}
+		free(dados);
+	}
+	return sobre;
+}
+
+/* com o arraste em curso: onde cairia (pelo x do ponteiro, contando os separadores) e o que se desenha por cima */
+static void arraste_desenhar(void) {
+	if (dnd_linha_x >= 0) {
+		linha_de_destino(dnd_linha_x);
+	}
+	if (!arr_origem) {
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	float linha_x;
+	arr_onde = onde_para_x(p.x, arr_origem == 1 ? arr_i : -1, &linha_x);
+	linha_de_destino(linha_x);
 	CLAY(CLAY_ID("arr-fantasma"), { .layout = { .sizing = { CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(52) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.acento, .width = GV_BORDA(1) },
 		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 51, .offset = { p.x - 26, 8 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {
@@ -921,6 +996,7 @@ static void desenhar(gv_app *app, void *dados) {
 	const gv_janela *janelas[MAX_JANELAS];
 	int n = gv_janelas(janelas, MAX_JANELAS);
 	arraste_rever();
+	bool dnd_sobre = dnd_rever();
 	if (gv_ponteiro_baixo() && arrastando()) {
 		gv_app_redesenhar(app);
 	}
@@ -937,7 +1013,7 @@ static void desenhar(gv_app *app, void *dados) {
 	bool ocultar = (maximizada && !pref.esticar) || modo_esconde;
 	int altura = barra ? 68 : 92;
 	camada_quer(altura, ocultar ? 0 : altura);
-	bool popup = gv_popup_aberto(CLAY_ID("menu")) || gv_popup_aberto(CLAY_ID("previa"));
+	bool popup = gv_popup_aberto(CLAY_ID("menu")) || gv_popup_aberto(CLAY_ID("previa")) || dnd_sobre;
 	bool sobre = gv_por_cima(faixa) || (oculta.revelada && gv_por_cima(pilula)) || popup;
 	if (!ocultar) {
 		oculta.revelada = false;
@@ -1105,6 +1181,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	app_dock = app;
+	gv_arraste_aceitar(MIME_APP);
 	vigiar_config(app);
 	int fd_modos = modos_assinar();
 	if (fd_modos >= 0) {

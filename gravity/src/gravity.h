@@ -342,6 +342,18 @@ bool gv_saidas_mudaram(gv_app *app);
 /* o nome da tela principal segundo o Orbit (a marcada em Painel > Monitores); false se o Orbit não responde */
 bool gv_tela_principal(char *nome, size_t tam);
 
+/* ---- arrastar e soltar entre aplicativos (wl_data_device) ----
+ * Quem arrasta chama gv_arrastar_comecar quando o aperto (mouse, ou o dedo que segurou) virar arraste: o compositor leva o ponteiro dali (esta app
+ * deixa de ver o aperto e o soltar) e mostra o ícone. mime e dados (texto) são o que vai ("application/x-lumna-app", "text/uri-list"...); icone, um
+ * ícone do LUMNA (o fantasma). Falso se não deu (sem aperto, ou sem arrastar e soltar no compositor).
+ * Quem recebe registra os tipos que aceita (uma vez) e, a cada quadro, pergunta se há um arraste por cima (com a posição) e se soltaram. */
+bool gv_arrastar_comecar(const char *mime, const char *dados, const char *icone);
+bool gv_arrastando_daqui(void);
+bool gv_arraste_ultimo_ok(void);             /* o último arraste que esta app começou foi aceito e lido pelo destino (e não cancelado) */              /* o arraste que esta app começou ainda não terminou */
+void gv_arraste_aceitar(const char *mime);
+bool gv_arraste_sobre(Clay_Vector2 *pos);    /* um arraste de um tipo aceito está por cima da janela (pos na janela) */
+bool gv_arraste_soltou(const char *mime, char **dados); /* soltaram um desse tipo: os dados (free), uma vez */
+
 /* ---- popups e menus ---- */
 enum gv_popup_lado { GV_POPUP_ABAIXO, GV_POPUP_ACIMA, GV_POPUP_DIREITA, GV_POPUP_ESQUERDA };
 enum gv_alinhar { GV_ALINHAR_INICIO, GV_ALINHAR_CENTRO, GV_ALINHAR_FIM };

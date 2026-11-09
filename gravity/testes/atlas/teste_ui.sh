@@ -21,7 +21,7 @@ exit 0
 EOF2
 chmod +x "$run/bin/rclone"
 export PATH="$run/bin:$PATH" LUMNA_ATLAS_FALSO_DIR="$casa/Servidor"
-(cd "$orbit_dir" && ./orbit > "$run/orbit.log" 2>&1 &)
+(cd "$orbit_dir" && ORBIT_LOG_DEBUG=${ORBIT_LOG_DEBUG:-} ./orbit > "$run/orbit.log" 2>&1 &)
 sleep 3
 export WAYLAND_DISPLAY=wayland-0
 LUMNA_ATLAS_DEBUG=1 "$gravity/atlas" "$casa/Documentos" > "$run/ar.out" 2> "$run/ar.err" &
@@ -60,6 +60,10 @@ if [ $rc -eq 0 ]; then
 fi
 if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_arraste.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_dnd.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then

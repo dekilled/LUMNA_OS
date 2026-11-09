@@ -156,6 +156,11 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.112 | Dock: apertar num ícone fixo e arrastar de lado (mouse); soltar | Uma linha mostra onde cai; o ícone muda de lugar e fica assim ao reabrir a sessão; um clique simples ainda abre o app | ☐ |
 | 2.113 | Dock no celular: segurar meio segundo e arrastar; segurar e soltar sem andar | Reordena; sem andar abre o menu do app | ☐ |
 | 2.114 | Abrir um app que não está na dock e arrastar o ícone dele (na dock) para entre os fixos | Ele fica fixo ali | ☐ |
+| 2.115 | Menu de aplicativos (Início) > botão **Sair da conta** (ao lado do Bloquear) | Abre uma confirmação (Cancelar / Sair); "Sair" encerra a sessão e volta para a tela de login (greetd) | ☐ |
+| 2.116 | No menu de aplicativos, apertar num app e arrastar (mouse) até a dock; soltar | O menu fica transparente enquanto arrasta, o app fica fixo na dock onde caiu e o menu fecha. Soltar fora da dock: nada fixa e o menu volta como estava | ☐ |
+| 2.117 | O mesmo com o dedo: segurar meio segundo num app do menu e arrastar | Idem | ☐ |
+| 2.118 | Atlas: arrastar um arquivo (mouse) para uma pasta da grade, para um atalho da barra lateral e para o fundo da lista | Copia para lá; o original continua onde estava; o destino acende | ☐ |
+| 2.119 | Atlas: arrastar vários selecionados; soltar na pasta de onde vieram | Copia todos; na própria pasta não faz nada (nem cria "(2)") | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

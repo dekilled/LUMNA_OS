@@ -52,6 +52,7 @@ Módulos
   anim.c      deslize curto até à posição nova
   input.c     ponteiro, gestos da borda, tablet, tampa e teclado
   touch.c     toque: wl_touch de verdade, ou o dedo como rato
+  arraste.c   arrastar e soltar entre aplicações (wl_data_device): ícone do arraste e o dedo/mouse que o levam
   im.c        teclado virtual e método de entrada (escrever sem teclado físico)
   copiados.c  o histórico dos últimos 20 textos copiados
   clip.c      a ponte de copiar e colar (texto) com o compositor de fora, no modo aninhado
@@ -156,6 +157,13 @@ orbit-msg
     orbit-msg toque cima 0
   O primeiro toque de teste (ou ORBIT_TOQUE_VIRTUAL=1 no arranque) faz o
   seat anunciar wl_touch, para as aplicações o escutarem.
+  O mesmo para o rato (por exemplo, para arrastar e soltar):
+    orbit-msg mouse mover 400 300
+    orbit-msg mouse botao baixo      (ou: cima)
+  ORBIT_LOG_DEBUG=1 no arranque liga o registo de depuração do wlroots.
+  Arrastar e soltar: o arraste só começa com o número de série de um botão do
+  rato premido ou de um único dedo em baixo (senão fica no registo, nível INFO,
+  "arrastar: serial ... não é de um aperto").
 
 Popup
   O unconstrain usa a geometria da janela (origem da superfície do
