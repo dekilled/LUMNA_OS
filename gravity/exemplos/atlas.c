@@ -195,9 +195,20 @@ static void vigiar_pasta(void) {
 	}
 }
 
-/* (Re)lê o que a vista mostra. preservar: mantém a seleção pelos nomes (uma atualização por inotify). */
+/* Recarregar a lista (libera e refaz lista, cam, sel e vis) no MEIO do desenho deixava a grade, a lista e os menus lendo memória liberada: um
+ * Enter no renome, um clique que abre uma pasta, "mostrar ocultos"... e o Atlas caía (visto com o ASAN). Enquanto se desenha, o pedido só fica
+ * anotado; a recarga roda no começo do quadro seguinte, quando nada está segurando ponteiros para a lista. */
+static int recarga_bloqueada;
+static bool recarga_pendente, recarga_preservar;
+
 static void carregar(bool preservar) {
 	extern void previas_limpar(void);
+	if (recarga_bloqueada) {
+		recarga_preservar = recarga_pendente ? recarga_preservar && preservar : preservar;
+		recarga_pendente = true;
+		gv_app_redesenhar(app);
+		return;
+	}
 	previas_limpar();
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
 	if (preservar && sel) {
@@ -407,6 +418,12 @@ static void abrir_item(int i) {
 	}
 }
 
+/* A pasta mudou por fora (um download, uma cópia, o gerenciador de pacotes...): cada aviso do inotify relia a pasta inteira, de imediato. Numa pasta
+ * grande com arquivos chegando, isso era uma releitura por arquivo (a lista pisca e a janela trava). Agora os avisos se juntam: relê 0,3 s depois do
+ * último, e no máximo 1,5 s depois do primeiro se não para de chegar. */
+static bool ino_pendente;
+static double ino_primeiro, ino_ultimo;
+
 static void inotify_pronto(gv_app *a, int fd, void *dados) {
 	char buf[4096];
 	bool mudou = false;
@@ -414,7 +431,30 @@ static void inotify_pronto(gv_app *a, int fd, void *dados) {
 		mudou = true;
 	}
 	if (mudou && vista == V_PASTA) {
-		carregar(true);
+		double agora = gv_agora();
+		if (!ino_pendente) {
+			ino_pendente = true;
+			ino_primeiro = agora;
+		}
+		ino_ultimo = agora;
+		gv_acordar_em(0.32);
+		gv_app_redesenhar(app);
+	}
+}
+
+/* no começo de cada quadro: já é hora de reler a pasta? */
+static void ino_rever(void) {
+	if (!ino_pendente) {
+		return;
+	}
+	double agora = gv_agora();
+	if (agora - ino_ultimo >= 0.3 || agora - ino_primeiro >= 1.5) {
+		ino_pendente = false;
+		if (vista == V_PASTA) {
+			carregar(true);
+		}
+	} else {
+		gv_acordar_em(0.32 - (agora - ino_ultimo));
 	}
 }
 
@@ -504,15 +544,27 @@ static void texto_aplicar(bool aplicar) {
 }
 
 /* o nome como se mostra: sem a extensão, se a pessoa preferiu (o que se digita ao renomear é sempre o nome inteiro) */
+/* o texto de um nome para mostrar: um nome que não é UTF-8 (pendrives antigos, zips) vira UTF-8 com o caractere de "inválido" no lugar dos bytes ruins
+ * (o pango recusa o texto inválido e o nome sumia da tela); o arquivo em si continua com o nome verdadeiro */
+static const char *utf8_para_mostrar(const char *s) {
+	if (g_utf8_validate(s, -1, NULL)) {
+		return s;
+	}
+	char *v = g_utf8_make_valid(s, -1);
+	const char *r = gv_str(v).chars;
+	g_free(v);
+	return r;
+}
+
 static const char *nome_exibido(const ar_entrada *e) {
 	if (cfg.extensoes || e->pasta) {
-		return e->nome;
+		return utf8_para_mostrar(e->nome);
 	}
 	const char *ponto = strrchr(e->nome, '.');
 	if (!ponto || ponto == e->nome || strlen(ponto) > 9 || !ponto[1]) {
-		return e->nome;
+		return utf8_para_mostrar(e->nome);
 	}
-	return gv_fmt("%.*s", (int)(ponto - e->nome), e->nome).chars;
+	return utf8_para_mostrar(gv_fmt("%.*s", (int)(ponto - e->nome), e->nome).chars);
 }
 
 static void salvar_cfg(void) {
@@ -1504,6 +1556,7 @@ static void item_lateral(Clay_ElementId id, int idx, const char *ic, const char 
 			} else if (!gv_ponteiro_e_toque() && (fabsf(p.x - arr_x0) > 6 || fabsf(p.y - arr_y0) > 6)) {
 				arr_item = idx;
 				arr_cand = -1;
+				gv_rolagem_travar(); /* a lista não rola com o arraste (vale já no quadro seguinte, o do primeiro movimento) */
 			}
 		}
 		if (gv_ponteiro_e_toque() && gv_segurou(id)) { /* o mouse não precisa segurar: anda e pronto (segurar com o mouse continua sendo um clique devagar) */
@@ -1512,6 +1565,8 @@ static void item_lateral(Clay_ElementId id, int idx, const char *ic, const char 
 			arr_y0 = p0.y;
 			arr_item = idx;
 			arr_cand = -1;
+			/* sem isto a trava só era pedida no quadro seguinte e valia dois quadros depois: com a tela parada (sem quadros à toa) o primeiro movimento do dedo ainda rolava a lista */
+			gv_rolagem_travar();
 		}
 	}
 	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(38) }, .padding = { 12, 10, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
@@ -5698,6 +5753,11 @@ static void area_rever(void) {
 
 static void desenhar(gv_app *a, void *dados) {
 	ic_n = 0;
+	if (recarga_pendente) { /* pedida no quadro anterior, durante o desenho */
+		recarga_pendente = false;
+		carregar(recarga_preservar);
+	}
+	ino_rever();
 	texto_aplicar(true);
 	op_rever();
 	rede_rever();
@@ -5728,7 +5788,9 @@ static void desenhar(gv_app *a, void *dados) {
 		barra_ferramentas();
 		CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 			barra_lateral();
+			recarga_bloqueada++;
 			conteudo();
+			recarga_bloqueada--;
 			if (detalhes && !VISTA_CARTOES && lista.n >= 0) {
 				painel_detalhes();
 			}
@@ -5748,6 +5810,7 @@ static void desenhar(gv_app *a, void *dados) {
 		limpar_selecao();
 		ancora = foco = -1;
 	}
+	recarga_bloqueada++; /* tudo daqui até o fim ainda lê lista, cam e sel: a recarga espera o quadro seguinte */
 	menus_de_contexto();
 	rede_menus();
 	menu_lateral();
@@ -5761,6 +5824,7 @@ static void desenhar(gv_app *a, void *dados) {
 		salvar_cfg();
 	}
 	debug_posicoes();
+	recarga_bloqueada--;
 	texto_aplicar(false);
 }
 

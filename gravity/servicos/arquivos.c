@@ -174,7 +174,13 @@ void ar_liberar(ar_lista *l) {
 
 /* sem acento e sem caixa, com números por valor: a chave de comparação do nome */
 static char *chave_nome(const char *s) {
-	char *norm = g_utf8_normalize(s, -1, G_NORMALIZE_NFD);
+	/* um nome de arquivo pode não ser UTF-8 (pendrives antigos, zips, NTFS: "caf\xe9.txt"): g_utf8_normalize devolve NULL e o Atlas caía ao ordenar */
+	char *valido = g_utf8_make_valid(s, -1);
+	char *norm = g_utf8_normalize(valido, -1, G_NORMALIZE_NFD);
+	if (!norm) {
+		norm = g_strdup(valido);
+	}
+	g_free(valido);
 	GString *g = g_string_new(NULL);
 	for (const char *p = norm; *p; p = g_utf8_next_char(p)) {
 		gunichar c = g_utf8_get_char(p);
@@ -226,8 +232,16 @@ void ar_ordenar_pastas_primeiro(bool sim) { pastas_primeiro = sim; }
 static enum ar_ordem ordem_atual;
 static bool desc_atual;
 
+/* a entrada com a chave de comparação do nome já calculada: a chave (normalizar, tirar acentos) é cara, e calculada a cada comparação dava
+ * milhões de normalizações numa pasta de 20 mil arquivos (segundos de CPU parado). Agora é uma por entrada. */
+struct chaveada {
+	const ar_entrada *e;
+	char *k;
+};
+
 static int cmp_entrada(const void *pa, const void *pb) {
-	const ar_entrada *a = pa, *b = pb;
+	const struct chaveada *ca = pa, *cb = pb;
+	const ar_entrada *a = ca->e, *b = cb->e;
 	if (pastas_primeiro && a->pasta != b->pasta) {
 		return a->pasta ? -1 : 1; /* as pastas vêm primeiro (a menos que a pessoa tenha desligado) */
 	}
@@ -239,10 +253,7 @@ static int cmp_entrada(const void *pa, const void *pb) {
 	default: break;
 	}
 	if (!r) {
-		char *ka = chave_nome(a->nome), *kb = chave_nome(b->nome);
-		r = comparar_naturais(ka, kb);
-		g_free(ka);
-		g_free(kb);
+		r = comparar_naturais(ca->k, cb->k);
 		if (ordem_atual != AR_O_NOME) {
 			return r; /* o desempate é sempre A-Z */
 		}
@@ -251,9 +262,25 @@ static int cmp_entrada(const void *pa, const void *pb) {
 }
 
 void ar_ordenar(ar_lista *l, enum ar_ordem ordem, bool decrescente) {
+	if (l->n < 2 || !l->v) {
+		return;
+	}
 	ordem_atual = ordem;
 	desc_atual = decrescente;
-	qsort(l->v, (size_t)l->n, sizeof(ar_entrada), cmp_entrada);
+	struct chaveada *c = g_new(struct chaveada, (gsize)l->n);
+	for (int i = 0; i < l->n; i++) {
+		c[i].e = &l->v[i];
+		c[i].k = chave_nome(l->v[i].nome);
+	}
+	qsort(c, (size_t)l->n, sizeof(*c), cmp_entrada);
+	ar_entrada *novo = g_new(ar_entrada, (gsize)l->cap > (gsize)l->n ? (gsize)l->cap : (gsize)l->n);
+	for (int i = 0; i < l->n; i++) {
+		novo[i] = *c[i].e;
+		g_free(c[i].k);
+	}
+	g_free(c);
+	g_free(l->v);
+	l->v = novo;
 }
 
 int ar_filtrar(const ar_lista *l, const char *busca, enum ar_filtro filtro, int *indices) {

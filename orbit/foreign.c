@@ -99,8 +99,15 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	}
 	const char *title = view->toplevel->title ? view->toplevel->title : "";
 	const char *app = view->toplevel->app_id ? view->toplevel->app_id : "";
-	wlr_foreign_toplevel_handle_v1_set_title(view->foreign, title);
-	wlr_foreign_toplevel_handle_v1_set_app_id(view->foreign, app);
+	/* o wlroots manda o título e o app_id (e um "done") a TODOS os clientes a cada chamada, mesmo igual. Esta função roda a cada commit de janela:
+	 * sem esta conferência, cada commit de uma janela acordava todo app Gravity (dock, barra, Atlas...), que redesenhava e fazia commit, e o ciclo
+	 * não acabava: 60 quadros por segundo, parado, em todos os apps. */
+	if (!view->foreign->title || strcmp(view->foreign->title, title)) {
+		wlr_foreign_toplevel_handle_v1_set_title(view->foreign, title);
+	}
+	if (!view->foreign->app_id || strcmp(view->foreign->app_id, app)) {
+		wlr_foreign_toplevel_handle_v1_set_app_id(view->foreign, app);
+	}
 	wlr_foreign_toplevel_handle_v1_set_activated(view->foreign, view->server->focused == view);
 	wlr_foreign_toplevel_handle_v1_set_fullscreen(view->foreign, view->fullscreen);
 	wlr_foreign_toplevel_handle_v1_set_maximized(view->foreign, view->maximized && !view->fullscreen);

@@ -171,6 +171,9 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.127 | Num computador antigo (sem SSE4.2): `systemctl --user status lumna-emma` e Painel > Emma > Provedores | O servidor fica `active (running)` e o Painel conecta (antes caía com `core-dump` em loop). `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8011/api/auth/me` dá `401` | ☐ |
 | 2.128 | Nesse computador: Painel > Emma > Voz > instalar o Whisper ou o Pocket TTS | Recusa na hora: "Este processador é antigo demais para a voz local" (use o Fish Audio). Num computador novo instala normal | ☐ |
 | 2.129 | Atlas: criar uma pasta com nome bem comprido (ex.: `Projeto_de_Historias_Fantasticas_Volume_Um`) e uma palavra longa sem espaço | Na grade o nome quebra em até duas linhas e termina em **…** se ainda passar; o ícone ficou um pouco mais largo. Na lista termina em **…**. Selecionando, o painel de detalhes mostra o nome inteiro | ☐ |
+| 2.130 | Atlas: abrir uma pasta com milhares de arquivos e fotos grandes; rolar depressa (Fim, Início, PageDown) | Não cai, não pisca e as miniaturas da tela aparecem logo (só as visíveis são pedidas) | ☐ |
+| 2.131 | Atlas: montar um pendrive velho (nomes com acento de outro sistema, de FAT/NTFS antigo) | Abre a pasta; os nomes ruins aparecem com um "�" no lugar do byte inválido, e nada cai | ☐ |
+| 2.132 | Deixar o Atlas, a dock e a barra parados por uns 30 s e olhar o uso de CPU (`top`) | Perto de 0 % (antes, cada app Gravity gastava 15 a 50 % de um núcleo redesenhando à toa) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

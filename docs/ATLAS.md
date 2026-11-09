@@ -84,3 +84,15 @@ sh gravity/testes/atlas.sh PASTA_DO_BUILD_DO_ORBIT   # + o app inteiro num Orbit
 Do mockup: as opções "Pausar transferências ao fechar", "Transferências simultâneas", "Verificar cópias" e o cache de miniaturas da página Avançado, Etiquetas. Também: mover (em vez de copiar) ao arrastar, arrastar com o dedo, discos e USB, sincronização da nuvem com o Atlas fechado, busca dentro das subpastas, selecionar o nome sem a extensão ao renomear. 
 
 **Só provado** no Orbit headless (wlroots 0.18), com toques e teclas simuladas: o menu de contexto foi aberto e tem as entradas, mas clicar nos submenus (Fixar, Compartilhar) não está no teste automático (a janela de teste é baixa e o menu rola); o enviar ao celular não foi testado (não há celular). Nunca com mouse, teclado e tela de verdade.
+
+## Robustez (o que já derrubou o Atlas, e como se testa)
+
+Vistos com o ASAN e com um notebook de 2011 (nov. 2026):
+- **Nome de arquivo que não é UTF-8** (pendrives antigos, zips, NTFS: `café.txt` em Latin-1): `g_utf8_normalize` devolve NULL e o Atlas caía ao ordenar a pasta. Montar um pendrive antigo abre a pasta dele, por isso parecia "cair ao montar". Agora o nome vira UTF-8 válido só para ordenar, buscar e mostrar (o arquivo mantém o nome verdadeiro).
+- **Recarregar a lista no meio do desenho** (Enter no renome, clique que abre uma pasta, "mostrar ocultos"): a grade e os menus liam memória já liberada. Agora a recarga pedida durante o desenho roda no quadro seguinte.
+- **Ordenar uma pasta grande** calculava a chave do nome a cada comparação (milhões de normalizações para 20 mil arquivos); agora é uma por entrada.
+- **A pasta mudando por fora** (download, cópia) relia tudo a cada aviso do inotify; agora os avisos se juntam (0,3 s depois do último, no máximo 1,5 s depois do primeiro).
+- **Miniaturas**: só as que estão à vista entram na fila das threads (no máximo 2 por thread, na ordem da tela), e a proporção não pede mais uma segunda descodificação. Rolar depressa uma pasta de fotos não enfileira centenas de miniaturas que já saíram da tela.
+- **O Orbit mandava o título da janela a todos os apps a cada commit**, e cada app redesenhava e fazia commit: 60 quadros por segundo, parado, em todos os apps Gravity (dock, barra, Atlas...). Era o "flicker" e o CPU alto em repouso.
+
+Testes: `testes/atlas/teste_robustez.py` (nomes não UTF-8, pasta que muda e CPU parado) e, para pegar memória liberada ou ponteiro nulo, **`sh testes/atlas/asan.sh PASTA_DO_ORBIT [testes...]`** roda a bateria inteira com o ASAN e o UBSAN numa cópia.

@@ -22,7 +22,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define TRABALHADORES 2
+#define TRABALHADORES_MIN 2
+#define TRABALHADORES_MAX 4
 #define ESMAECER 0.18 /* s */
 
 struct imagem {
@@ -34,6 +35,7 @@ struct imagem {
 	bool pedida;           /* um pedido a caminho */
 	bool erro;
 	uint64_t uso;          /* o último quadro em que apareceu */
+	uint64_t desejada;     /* o último quadro em que entrou na lista de desejos (uma vez por quadro) */
 	double chegou;         /* quando chegou pela primeira vez (para esmaecer) */
 };
 
@@ -55,6 +57,11 @@ static GAsyncQueue *pedidos, *resultados;
 static int aviso = -1; /* eventfd: há resultados */
 static uint64_t quadro;
 static size_t limite;
+/* O que ESTE quadro mostra e ainda não tem: os pedidos só vão para as threads no fim do quadro, no máximo `em_voo_max` de cada vez, na ordem em que a
+ * tela os pediu. Antes iam todos na hora, para uma fila: numa pasta com milhares de fotos, rolar depressa enfileirava centenas de miniaturas que já
+ * não estavam à vista, e as que se vêem esperavam atrás delas. Agora o que sai da tela nunca chega a ser pedido. */
+static GPtrArray *desejos;
+static int em_voo, em_voo_max;
 
 /* ---- os ícones do tema (freedesktop) ---- */
 
@@ -239,6 +246,9 @@ static void chegaram(gv_app *app, int fd, void *dados) {
 	struct resultado *r;
 	double agora = gv_agora();
 	while ((r = g_async_queue_try_pop(resultados))) {
+		if (em_voo > 0) {
+			em_voo--;
+		}
 		struct imagem *img = g_hash_table_lookup(imagens, r->chave);
 		if (img) {
 			img->pedida = false;
@@ -276,7 +286,11 @@ void gv__imagens_iniciar(gv_app *app) {
 	aviso = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
 	const char *mb = getenv("GRAVITY_CACHE_MB");
 	limite = (size_t)(mb && atoi(mb) > 0 ? atoi(mb) : 48) << 20;
-	for (int i = 0; i < TRABALHADORES; i++) {
+	int trab = (int)g_get_num_processors();
+	trab = trab < TRABALHADORES_MIN ? TRABALHADORES_MIN : trab > TRABALHADORES_MAX ? TRABALHADORES_MAX : trab;
+	em_voo_max = trab * 2; /* dois por thread: ela nunca espera um quadro para ter o que fazer */
+	desejos = g_ptr_array_new();
+	for (int i = 0; i < trab; i++) {
 		g_thread_unref(g_thread_new("gravity-imagens", trabalhar, NULL));
 	}
 	gv_app_vigiar(app, aviso, chegaram, NULL);
@@ -310,14 +324,14 @@ static struct imagem *pedir(const char *chave, float bw, float bh, enum gv_ajust
 		}
 		falta = quer_w > img->sw * 1.15;
 	}
-	if (falta) {
+	if (falta && img->desejada != quadro + 1) { /* (+1: o quadro 0 não conta como "já pedido") */
 		struct pedido *p = g_new0(struct pedido, 1);
 		p->chave = g_strdup(chave);
 		p->bw = pw;
 		p->bh = ph;
 		p->ajuste = ajuste;
-		img->pedida = true;
-		g_async_queue_push(pedidos, p);
+		img->desejada = quadro + 1;
+		g_ptr_array_add(desejos, p);
 	}
 	return img;
 }
@@ -364,10 +378,8 @@ Clay_ElementDeclaration gv_imagem(Clay_ElementId id, const char *caminho, enum g
 
 float gv_imagem_proporcao(const char *caminho) {
 	struct imagem *img = imagens ? g_hash_table_lookup(imagens, caminho) : NULL;
-	if (!img) {
-		/* pede pequeno só para saber o tamanho (e já fica uma miniatura) */
-		img = pedir(caminho, 64, 64, GV_AJUSTE_CONTER);
-	}
+	/* sem pedido aqui: o tamanho natural chega junto com a primeira miniatura, que quem pergunta a proporção já pede ao desenhar a imagem
+	 * (antes um pedido pequeno só para saber o tamanho fazia cada foto ser descodificada duas vezes) */
 	return img && img->nh > 0 ? (float)img->nw / img->nh : 0;
 }
 
@@ -406,10 +418,34 @@ static void mais_velha(gpointer chave, gpointer valor, gpointer dados) {
 	}
 }
 
+/* os desejos deste quadro vão para as threads, enquanto houver vaga; o resto se pede de novo no próximo quadro, se ainda estiver à vista */
+static void despachar(void) {
+	guint i = 0;
+	for (; i < desejos->len && em_voo < em_voo_max; i++) {
+		struct pedido *p = desejos->pdata[i];
+		struct imagem *img = g_hash_table_lookup(imagens, p->chave);
+		if (img && !img->pedida) {
+			img->pedida = true;
+			em_voo++;
+			g_async_queue_push(pedidos, p);
+		} else {
+			g_free(p->chave);
+			g_free(p);
+		}
+	}
+	for (; i < desejos->len; i++) {
+		struct pedido *p = desejos->pdata[i];
+		g_free(p->chave);
+		g_free(p);
+	}
+	g_ptr_array_set_size(desejos, 0);
+}
+
 void gv__imagens_fim_do_quadro(void) {
 	if (!imagens) {
 		return;
 	}
+	despachar();
 	size_t total = 0;
 	g_hash_table_foreach(imagens, contar, &total);
 	/* passa do limite: saem as que não aparecem há mais tempo (as deste quadro ficam) */

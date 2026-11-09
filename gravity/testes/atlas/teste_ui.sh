@@ -27,7 +27,7 @@ export PATH="$run/bin:$aqui/bin:$PATH" LUMNA_ATLAS_FALSO_DIR="$casa/Servidor"
 (cd "$orbit_dir" && ORBIT_LOG_DEBUG=${ORBIT_LOG_DEBUG:-} ./orbit > "$run/orbit.log" 2>&1 &)
 sleep 3
 export WAYLAND_DISPLAY=wayland-0
-LUMNA_ATLAS_DEBUG=1 "$gravity/atlas" "$casa/Documentos" > "$run/ar.out" 2> "$run/ar.err" &
+LUMNA_ATLAS_DEBUG=1 "${ATLAS_BIN:-$gravity/atlas}" "$casa/Documentos" > "$run/ar.out" 2> "$run/ar.err" &
 sleep 2
 if [ -n "$SO" ]; then
 	# só um teste (SO=teste_rede.py): vai direto para ele, com o app recém-aberto
@@ -75,6 +75,10 @@ if [ $rc -eq 0 ]; then
 fi
 if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_discos.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_robustez.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then
