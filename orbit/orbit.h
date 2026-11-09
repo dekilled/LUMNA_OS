@@ -258,6 +258,8 @@ struct orbit_server {
 	struct wl_listener start_drag;
 	struct wlr_scene_tree *drag_tree;       /* o ícone do arraste: por cima de tudo */
 	double touch_x, touch_y;                /* onde o último dedo mexido está (para o ícone do arraste) */
+	struct wlr_surface *ptr_surface;        /* a superfície onde o ponteiro entrou por último, e onde ela começa no layout: com um botão */
+	double ptr_ox, ptr_oy;                  /* apertado o foco fica nela até soltar (o "grab implícito"), mesmo com o ponteiro fora */
 	struct wl_list keyboards;
 	struct wl_list touches;
 	struct wl_list pointers;       /* os mouses e touchpads (entrada.c) */

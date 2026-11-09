@@ -4,6 +4,8 @@ lumna-orbit
 lumna-gravity
 lumna-session
 greetd
+# A rede (o Painel > Rede fala com ele); o build liga o serviço e desliga o systemd-networkd e o iwd do releng
+networkmanager
 # A sessão antiga (Hyprland), só de emergência até o Orbit provar que sobe (sai quando o Eric validar)
 lumna-classico
 lumna-shell

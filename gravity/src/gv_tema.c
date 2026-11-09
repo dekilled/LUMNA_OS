@@ -90,7 +90,12 @@ static void paleta_clara(gv_tema *t) {
 	t->borda_controle = gv_cor(0xb8bcc6ff);
 	t->texto = gv_cor(0x1b1a22ff);
 	t->texto_secundario = gv_cor(0x4c4958ff);
-	t->texto_suave = gv_cor(0x777383ff);
+	t->texto_suave = gv_cor(0x5f5b6cff); /* 5,4 a 6,1 : 1 sobre as superfícies e o cursor em cima (o 777383 dava 3,8 : 1) */
+	/* o lilás do tema escuro (a78bfa) como texto ou ícone sobre o claro dá 2,3 : 1, e o branco sobre ele como botão, 2,7 : 1: no claro o acento é mais escuro */
+	t->acento = gv_cor(0x6d4fd6ff);
+	t->acento_cursor = gv_cor(0x5f42c4ff);
+	t->acento_premido = gv_cor(0x4e34a8ff);
+	t->foco = gv_cor(0x8b6ff0ff);
 	t->sobre_acento = gv_cor(0xffffffff);
 	t->desativado = gv_cor(0xaaa7b4ff);
 	t->divisor = gv_cor(0x9a96a6ff);

@@ -871,6 +871,10 @@ static void arraste_rever(void) {
 	arr_origem = 0;
 	arr_i = -1;
 	arr_suprimir = true;
+	if (getenv("LUMNA_DOCK_DEBUG")) {
+		printf("arraste: fim\n");
+		fflush(stdout);
+	}
 }
 
 /* o índice em fixos[] antes do qual um ícone cairia se soltassem no x dado (os separadores contam); linha_x: onde fica a linha de destino */

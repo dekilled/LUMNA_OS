@@ -96,6 +96,13 @@ rm -rf "$profile/airootfs/etc/systemd/system/getty@tty1.service.d"
 # chaveiro do pacman). Sem rede, ou com NTP bloqueado, o boot fica parado minutos nisso.
 # O LUMNA não espera: o relógio acerta sozinho quando a rede aparecer (o timesyncd segue ativo).
 rm -f "$profile/airootfs/etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service"
+# A rede é do NetworkManager (o Painel > Rede e a mesclagem de conexões falam com ele). O releng sobe o systemd-networkd e o iwd por conta
+# própria: tiram-se os dois (brigariam pelas mesmas interfaces) e liga-se o NetworkManager, no live e, como o instalador copia o live, no sistema instalado.
+sysd="$profile/airootfs/etc/systemd/system"
+find "$sysd" \( -name 'systemd-networkd.service' -o -name 'systemd-networkd.socket' -o -name 'systemd-networkd-wait-online.service' -o -name 'iwd.service' \) -path '*wants*' -delete
+install -d "$sysd/multi-user.target.wants"
+ln -sf /usr/lib/systemd/system/NetworkManager.service "$sysd/multi-user.target.wants/NetworkManager.service"
+ln -sf /usr/lib/systemd/system/NetworkManager-dispatcher.service "$sysd/dbus-org.freedesktop.nm-dispatcher.service"
 grep -v '^#' "$SRC/iso/packages.x86_64" | sed '/^$/d' >> "$profile/packages.x86_64"
 [ "$with_emma" = 1 ] && echo lumna-emma >> "$profile/packages.x86_64"
 [ "$with_bars" = 1 ] && echo lumna-hyprbars >> "$profile/packages.x86_64"

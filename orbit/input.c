@@ -108,6 +108,15 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 		orbit_resize_motion(server);
 		return;
 	}
+	/* com um botão apertado o foco fica na superfície que o recebeu até soltar (o grab implícito do Wayland): quem arrasta um ícone, uma
+	 * barra de rolagem ou uma seleção para fora do app ainda vê o movimento e, principalmente, o soltar. Um arraste de verdade (wl_data_device)
+	 * tem o grab dele. */
+	struct wlr_seat *seat = server->seat;
+	if (seat->pointer_state.button_count > 0 && seat->pointer_state.focused_surface && seat->pointer_state.focused_surface == server->ptr_surface &&
+			seat->pointer_state.grab == seat->pointer_state.default_grab && !seat->drag) {
+		wlr_seat_pointer_notify_motion(seat, time, server->cursor->x - server->ptr_ox, server->cursor->y - server->ptr_oy);
+		return;
+	}
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
 	struct orbit_view *under = view_at(server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
@@ -135,6 +144,9 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, orbit_edges_cursor(edges));
 		return;
 	}
+	server->ptr_surface = surface;
+	server->ptr_ox = server->cursor->x - sx;
+	server->ptr_oy = server->cursor->y - sy;
 	wlr_seat_pointer_notify_enter(server->seat, surface, sx, sy);
 	wlr_seat_pointer_notify_motion(server->seat, time, sx, sy);
 }
@@ -323,6 +335,10 @@ static void cursor_button(struct orbit_server *server, const struct orbit_button
 		}
 	}
 	wlr_seat_pointer_notify_button(server->seat, event->time_msec, event->button, event->state);
+	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && server->seat->pointer_state.button_count == 0) {
+		/* soltou o último botão: o foco vai para o que está debaixo do cursor (se saiu do app, ele vê a saída agora) */
+		process_cursor_motion(server, event->time_msec);
+	}
 }
 
 static void on_cursor_axis(struct wl_listener *listener, void *data) {

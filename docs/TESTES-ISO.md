@@ -32,7 +32,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | # | O que fazer | Deve acontecer | |
 |---|---|---|---|
 | 2.1 | Abrir o **Painel de controle** (dock) | Abre; as páginas carregam | ☐ |
-| 2.2 | Painel > Rede > Wi-Fi (ou Cabo) | Lista redes; conecta (a VM já vem com rede) | ☐ |
+| 2.2 | Painel > Rede > Wi-Fi (ou Cabo). Num terminal: `systemctl is-active NetworkManager` | Lista redes; conecta (a VM já vem com rede). O NetworkManager vem instalado e ativo (`active`), no live e no sistema instalado; o systemd-networkd e o iwd não sobem | ☐ |
 | 2.3 | Painel > Som > Saída | Lista a saída; o tom de teste toca | ☐ |
 | 2.4 | Mexer no volume na barra | O volume muda | ☐ |
 | 2.5 | Painel > Sistema > Idioma, depois **Aplicar** | **Aparece a janela de senha do administrador** (`lumna-polkit`); senha `lumna` aplica | ☐ |

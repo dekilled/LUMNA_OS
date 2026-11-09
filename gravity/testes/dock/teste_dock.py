@@ -131,6 +131,28 @@ arrasta_mouse(f"fixo/{i_inicio}", pos()["fixo/0"][0] + 8)
 if not espera(lambda: ordem()[0] == "Início"):
     falha(f"arrastar com o mouse devia levar o Início para o começo: {ordem()}")
 
+# 5c. arrastar um ícone para FORA da dock (para cima, em cima do desktop) e soltar lá: o arraste acaba, a ordem não muda e nada fica preso
+def fins():
+    return open(f"{run}/dock.out", encoding="utf-8", errors="replace").read().count("arraste: fim")
+
+
+antes = open(arq).read()
+n_fins = fins()
+x, y = centro("fixo/1")
+msg("mouse", "mover", x, y)
+time.sleep(0.3)
+msg("mouse", "botao", "baixo")
+time.sleep(0.2)
+for i in range(1, 9):
+    msg("mouse", "mover", x + i * 4, y - i * 60)  # sobe 480 px: bem fora da dock
+    time.sleep(0.07)
+time.sleep(0.3)
+msg("mouse", "botao", "cima")
+if not espera(lambda: fins() > n_fins, 3):
+    falha("soltar um ícone fora da dock devia acabar o arraste (o Orbit deve entregar o soltar à dock, mesmo com o ponteiro fora dela)")
+if open(arq).read() != antes:
+    falha("soltar fora da dock não devia reordenar")
+
 # 6. um app aberto que não está fixo (o Atlas, tirado da dock) arrasta-se para a dock e fica fixo onde cair
 subprocess.run(["sed", "-i", "/lumna-atlas/d", arq])
 time.sleep(1)
