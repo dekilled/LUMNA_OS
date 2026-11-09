@@ -76,6 +76,9 @@ async def _install(what: str) -> None:
         args += ["--extra-index-url", "https://download.pytorch.org/whl/cpu"]  # the CPU build: no gigabytes of CUDA
     PYDEPS.mkdir(parents=True, exist_ok=True)
     try:
+        if importlib.util.find_spec("pip") is None:
+            # no Arch o pip é outro pacote (python-pip); sem ele o `-m pip` morre com "No module named pip" e a pessoa só via "a instalação falhou"
+            raise RuntimeError("falta o pip no Python do sistema (sudo pacman -S python-pip)")
         proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         async for line in proc.stdout:
             text = line.decode(errors="replace").strip()

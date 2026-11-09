@@ -8,7 +8,8 @@ pkgdesc="Emma, a assistente do LUMNA OS (backend local, serviço do usuário)"
 arch=(x86_64 aarch64)
 url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
-depends=(python curl)
+# python-pip: o Painel > Emma > Voz instala o Whisper e o Pocket TTS sob demanda com `python -m pip` (o pip não vem junto do python no Arch)
+depends=(python python-pip curl)
 makedepends=(python-pip)
 options=(!strip !debug)
 install=lumna-emma.install
