@@ -193,7 +193,22 @@ static gpointer trabalhar(gpointer dados) {
 		if (formato && r->nw > 0 && r->nh > 0) {
 			char *nome = gdk_pixbuf_format_get_name(formato);
 			r->vetor = nome && !strcmp(nome, "svg");
+			bool jpeg = nome && !strcmp(nome, "jpeg");
 			g_free(nome);
+			/* Só o JPEG descodifica já reduzido; os outros formatos abrem a imagem inteira (largura × altura × 4 bytes) para só então reduzir. Uma pasta de
+			 * fotos grandes (ou de capturas de scanner) com quatro threads fazendo isso ao mesmo tempo comia a memória toda e o sistema matava o app. Acima
+			 * do limite não há miniatura: o ícone genérico fica. */
+			double pixels = (double)r->nw * r->nh;
+			if (!r->vetor && pixels > (jpeg ? 4e8 : 6e7)) {
+				fprintf(stderr, "gravity: %s: %dx%d é grande demais para uma miniatura\n", caminho, r->nw, r->nh);
+				g_free(caminho);
+				g_free(p);
+				g_async_queue_push(resultados, r);
+				uint64_t um_ = 1;
+				ssize_t n_ = write(aviso, &um_, sizeof(um_));
+				(void)n_;
+				continue;
+			}
 			/* o tamanho em que vai aparecer; um bitmap nunca acima do natural */
 			double ex = (double)p->bw / r->nw, ey = (double)p->bh / r->nh;
 			double e = p->ajuste == GV_AJUSTE_COBRIR ? fmax(ex, ey) : fmin(ex, ey);

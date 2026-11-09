@@ -199,6 +199,25 @@ int main(void) {
 	int np2 = ar_previa_pasta(sub, pt, 4);
 	CONFERE(np2 == 2, "uma pasta com 2 itens (a.txt e b.md; o oculto fica de fora): %d", np2);
 	CONFERE(ar_previa_pasta("/nao/existe", pt, 4) == 0, "uma pasta que não abre não tem prévia");
+	/* a ordem da prévia é a do nome (antes comparava ponteiros e mudava a cada leitura), arquivos antes das pastas, e é a mesma sempre */
+	char *ord = g_dir_make_tmp("previa-XXXXXX", NULL);
+	escreve(ord, "c.png", "x");
+	escreve(ord, "a.mp3", "x");
+	escreve(ord, "b.pdf", "x");
+	char *ord_pasta = g_build_filename(ord, "0pasta", NULL);
+	g_mkdir(ord_pasta, 0755);
+	enum ar_tipo po[4], po2[4];
+	int nor = ar_previa_pasta(ord, po, 4);
+	CONFERE(nor == 4 && po[0] == AR_AUDIO && po[1] == AR_PDF && po[2] == AR_IMAGEM && po[3] == AR_PASTA, "a prévia segue a ordem dos nomes: arquivos (a, b, c) e depois a pasta (%d)", nor);
+	for (int rodada = 0; rodada < 50; rodada++) {
+		for (int junk = 0; junk < 7; junk++) { /* mexe no heap: a ordem por ponteiro mudaria */
+			g_free(g_malloc(37 + rodada * junk));
+		}
+		ar_previa_pasta(ord, po2, 4);
+		CONFERE(!memcmp(po, po2, sizeof(po)), "a prévia é a mesma a cada leitura (rodada %d)", rodada);
+	}
+	g_free(ord_pasta);
+	g_free(ord);
 
 	/* unidades */
 	ar_unidade un[16];

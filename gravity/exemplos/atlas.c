@@ -209,7 +209,9 @@ static void carregar(bool preservar) {
 		gv_app_redesenhar(app);
 		return;
 	}
-	previas_limpar();
+	if (!preservar) {
+		previas_limpar();
+	}
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
 	if (preservar && sel) {
 		for (int i = 0; i < lista.n; i++) {
@@ -1084,28 +1086,96 @@ static void desenhar_icone(cairo_t *cr, Clay_BoundingBox c, void *dados) {
 	}
 }
 
-/* o que há dentro de cada pasta à vista, lembrado até a pasta de agora mudar */
-void previas_limpar(void);
+/* O que há dentro de cada pasta à vista (as miniaturas coloridas). Duas regras que faltavam:
+ *  - nunca na linha principal: abrir uma pasta com dezenas de subpastas lia e conferia centenas de arquivos de CADA uma antes do primeiro quadro (num pendrive
+ *    ou HD lento, o app ficava congelado por segundos); agora uma thread lê, a pasta aparece já e as miniaturas entram quando chegam;
+ *  - guardado pela data da pasta, não só "até recarregar": uma recarga da mesma pasta (o inotify avisando) não joga fora nem recalcula o que não mudou, e nada
+ *    pisca. */
+typedef struct {
+	int n;
+	enum ar_tipo t[4];
+	bool tem;           /* já se leu alguma vez (n e t valem) */
+	time_t mtime;       /* a data da pasta quando se leu */
+	bool pedida;        /* uma thread está lendo... */
+	time_t mtime_pedida; /* ...para esta data da pasta */
+} previa_t;
+typedef struct {
+	char *caminho;
+	time_t mtime;
+	int n;
+	enum ar_tipo t[4];
+} previa_pedido;
+
 static GHashTable *previas_cache;
+static GThreadPool *previas_fila;
+static int previas_pendentes;
+#define PREVIAS_MAX_PENDENTES 48
+
+void previas_limpar(void);
 void previas_limpar(void) {
 	if (previas_cache) {
 		g_hash_table_remove_all(previas_cache);
 	}
 }
 
-static int previa_da_pasta(const char *caminho, enum ar_tipo *saida) {
+static void previa_chegou(void *dados) {
+	previa_pedido *p = dados;
+	previas_pendentes--;
+	previa_t *c = previas_cache ? g_hash_table_lookup(previas_cache, p->caminho) : NULL;
+	if (c) { /* (a pasta pode ter saído do cache enquanto a thread lia: então o resultado se perde, sem problema) */
+		c->n = p->n;
+		memcpy(c->t, p->t, sizeof(c->t));
+		c->tem = true;
+		c->mtime = p->mtime;
+		if (c->pedida && c->mtime_pedida == p->mtime) {
+			c->pedida = false;
+		}
+		gv_app_redesenhar(app);
+	}
+	g_free(p->caminho);
+	g_free(p);
+}
+
+static void previa_ler(gpointer dados, gpointer usuario) {
+	previa_pedido *p = dados;
+	p->n = ar_previa_pasta(p->caminho, p->t, 4);
+	gv_na_linha_principal(previa_chegou, p);
+}
+
+/* quantas miniaturas já se sabe desta pasta (0 enquanto a thread não leu); se a pasta mudou, as de antes ficam até as novas chegarem: nada pisca */
+static int previa_da_pasta(const char *caminho, time_t mtime, enum ar_tipo *saida) {
 	if (!previas_cache) {
 		previas_cache = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		previas_fila = g_thread_pool_new(previa_ler, NULL, 1, FALSE, NULL);
 	}
-	typedef struct { int n; enum ar_tipo t[4]; } previa_t;
-	previa_t *p = g_hash_table_lookup(previas_cache, caminho);
-	if (!p) {
-		p = g_new0(previa_t, 1);
-		p->n = ar_previa_pasta(caminho, p->t, 4);
-		g_hash_table_insert(previas_cache, g_strdup(caminho), p);
+	previa_t *c = g_hash_table_lookup(previas_cache, caminho);
+	if (!c) {
+		if (g_hash_table_size(previas_cache) > 4000) { /* uma pasta de milhares de pastas: não guarda para sempre */
+			g_hash_table_remove_all(previas_cache);
+		}
+		c = g_new0(previa_t, 1);
+		g_hash_table_insert(previas_cache, g_strdup(caminho), c);
 	}
-	memcpy(saida, p->t, sizeof(p->t));
-	return p->n;
+	bool atual = c->tem && c->mtime == mtime;
+	bool a_caminho = c->pedida && c->mtime_pedida == mtime;
+	if (!atual && !a_caminho) {
+		if (previas_pendentes >= PREVIAS_MAX_PENDENTES) {
+			gv_acordar_em(0.25); /* fila cheia (rolagem rápida): tenta de novo logo, com o que estiver à vista então */
+		} else {
+			previa_pedido *p = g_new0(previa_pedido, 1);
+			p->caminho = g_strdup(caminho);
+			p->mtime = mtime;
+			c->pedida = true;
+			c->mtime_pedida = mtime;
+			previas_pendentes++;
+			g_thread_pool_push(previas_fila, p, NULL);
+		}
+	}
+	if (!c->tem) {
+		return 0;
+	}
+	memcpy(saida, c->t, sizeof(c->t));
+	return c->n;
 }
 
 /* O ícone de uma entrada: uma imagem mostra a miniatura (o Gravity descodifica numa thread); o resto é desenhado. */
@@ -1137,7 +1207,7 @@ static void icone(Clay_ElementId id, int idx, float tam) {
 	if (e->pasta && cam[idx]) {
 		ar_pasta_estilo(cam[idx], &d->cor, emblema, sizeof(emblema));
 		if (cfg.previas && !emblema[0] && tam >= 60) { /* com emblema, o emblema é o desenho; sem ícone pequeno demais, a prévia */
-			d->nprevia = previa_da_pasta(cam[idx], d->previa);
+			d->nprevia = previa_da_pasta(cam[idx], e->mtime, d->previa);
 		}
 	}
 	ar_selo(e, d->selo, sizeof(d->selo));

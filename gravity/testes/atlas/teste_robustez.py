@@ -58,6 +58,22 @@ usado = ticks(p0) - a  # em centésimos de segundo de CPU, em 3 s
 if usado > 30:  # mais de 10 % de um núcleo
     falha(f"parado, o Atlas gastou {usado} centésimos de CPU em 3 s (devia ficar perto de zero: ele está redesenhando à toa)")
 
+# 4. se o Atlas cair, deixa um relatório em ~/.cache/lumna/crash (só no build normal: o ASAN tem o relatório dele)
+if not os.environ.get("ATLAS_BIN"):
+    binario = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "atlas")
+    rel = os.path.join(casa, ".cache", "lumna", "crash", "atlas.log")
+    if os.path.exists(rel):
+        os.remove(rel)
+    outro = subprocess.Popen([binario, casa], env=dict(os.environ, WAYLAND_DISPLAY="wayland-0", HOME=casa), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(2.0)
+    outro.send_signal(11)  # SIGSEGV
+    outro.wait(timeout=10)
+    confere(lambda: os.path.exists(rel) and "SIGSEGV" in open(rel).read() and "mapa do executável" in open(rel).read(), "uma queda deixa o relatório em ~/.cache/lumna/crash/atlas.log")
+    if outro.returncode != -11:
+        falha(f"depois do relatório o app devia morrer pelo SIGSEGV (saiu com {outro.returncode})")
+    if pid() != p0:
+        falha("a queda da segunda instância levou o Atlas principal junto")
+
 if falhas:
     print(f"{len(falhas)} falha(s)")
     sys.exit(1)

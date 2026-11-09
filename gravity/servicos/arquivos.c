@@ -938,31 +938,52 @@ int ar_unidades(ar_unidade *v, int max) {
 
 /* ---- prévia do conteúdo de uma pasta ---- */
 
+struct previa_nome {
+	char *nome;
+	bool pasta;
+};
+
+static int comparar_previa(const void *a, const void *b) {
+	return strcmp(((const struct previa_nome *)a)->nome, ((const struct previa_nome *)b)->nome);
+}
+
+/* Os primeiros arquivos da pasta (e depois as pastas), em ordem de nome. A ordem é a do nome de verdade: antes ordenava com o strcmp sobre os ponteiros do
+ * g_ptr_array_sort (que entrega ponteiros PARA os elementos), uma ordem que mudava a cada leitura, e as miniaturas da pasta trocavam de cor sozinhas. */
 int ar_previa_pasta(const char *caminho, enum ar_tipo *tipos, int max) {
-	GDir *d = g_dir_open(caminho, 0, NULL);
+	DIR *d = opendir(caminho);
 	if (!d) {
 		return 0;
 	}
-	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
-	const char *n;
-	while ((n = g_dir_read_name(d)) && nomes->len < 300) {
-		if (n[0] != '.') {
-			g_ptr_array_add(nomes, g_strdup(n));
+	/* o tipo vem do próprio diretório (d_type): sem um stat por arquivo, que num pendrive lento levava segundos; só o que o sistema de arquivos não diz é conferido */
+	struct previa_nome v[300];
+	int n = 0;
+	struct dirent *de;
+	while (n < 300 && (de = readdir(d))) {
+		if (de->d_name[0] == '.') {
+			continue;
 		}
-	}
-	g_dir_close(d);
-	g_ptr_array_sort(nomes, (GCompareFunc)strcmp);
-	int k = 0;
-	for (int passo = 0; passo < 2 && k < max; passo++) { /* primeiro os arquivos, depois as pastas */
-		for (guint i = 0; i < nomes->len && k < max; i++) {
-			char *c2 = g_build_filename(caminho, g_ptr_array_index(nomes, i), NULL);
-			bool pasta = g_file_test(c2, G_FILE_TEST_IS_DIR);
-			if (pasta == (passo == 1)) {
-				tipos[k++] = pasta ? AR_PASTA : ar_tipo_do_nome(g_ptr_array_index(nomes, i));
-			}
+		bool pasta = de->d_type == DT_DIR;
+		if (de->d_type == DT_UNKNOWN || de->d_type == DT_LNK) {
+			char *c2 = g_build_filename(caminho, de->d_name, NULL);
+			pasta = g_file_test(c2, G_FILE_TEST_IS_DIR);
 			g_free(c2);
 		}
+		v[n].nome = g_strdup(de->d_name);
+		v[n].pasta = pasta;
+		n++;
 	}
-	g_ptr_array_free(nomes, TRUE);
+	closedir(d);
+	qsort(v, (size_t)n, sizeof(v[0]), comparar_previa);
+	int k = 0;
+	for (int passo = 0; passo < 2 && k < max; passo++) {
+		for (int i = 0; i < n && k < max; i++) {
+			if (v[i].pasta == (passo == 1)) {
+				tipos[k++] = v[i].pasta ? AR_PASTA : ar_tipo_do_nome(v[i].nome);
+			}
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		g_free(v[i].nome);
+	}
 	return k;
 }

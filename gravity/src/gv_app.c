@@ -1727,6 +1727,7 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 	app->altura = opcoes->altura > 0 ? opcoes->altura : 640;
 	atual = app;
 
+	gv__crash_iniciar(opcoes->app_id);
 	gv_tema_padrao(&gv_t);
 	gv_tema_carregar(NULL);
 	gv__texto_iniciar();

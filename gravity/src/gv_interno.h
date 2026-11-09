@@ -197,6 +197,7 @@ struct gv_extra {
 
 /* ---- texto (pango) ---- */
 void gv__texto_iniciar(void);
+void gv__crash_iniciar(const char *app); /* o relatório de queda em ~/.cache/lumna/crash */
 Clay_Dimensions gv__texto_medir(Clay_StringSlice texto, Clay_TextElementConfig *config, void *dados);
 void gv__texto_desenhar(cairo_t *cr, Clay_RenderCommand *cmd);
 struct gv_extra;
