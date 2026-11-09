@@ -151,6 +151,11 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.107 | Adicionar conta Nextcloud (endereço, usuário, senha de aplicativo) | Sincroniza `~/Nuvem/NOME` sozinho; "Sincronizar agora" e o horário da última sincronização atualizam; erros aparecem em vermelho | ☐ |
 | 2.108 | Adicionar conta Google Drive/Dropbox/OneDrive | O navegador abre para entrar; ao voltar a conta aparece e sincroniza | ☐ |
 | 2.109 | "Lembrar a senha" de um servidor SMB/SFTP | **Atenção:** a sessão ainda não traz um provedor de segredos (gnome-keyring ou similar); sem ele o gvfs não guarda a senha. Anotar o que acontece | ☐ |
+| 2.110 | Passar o mouse num arquivo ou pasta, ou selecioná-lo (grade e lista) | Aparece o "..." no canto/fim; clicar abre o mesmo menu do botão direito; na grade o ícone dos três pontinhos não cobre o nome | ☐ |
+| 2.111 | Botão direito num item da barra lateral (Início, uma pasta, Lixeira, Compartilhadas) e, no celular, segurar e soltar sem andar | Abre o menu (Abrir, nova aba, nova janela; Esconder/Remover nas pastas; Esvaziar na Lixeira); "Abrir em nova janela" abre outra janela do Atlas no lugar certo | ☐ |
+| 2.112 | Dock: apertar num ícone fixo e arrastar de lado (mouse); soltar | Uma linha mostra onde cai; o ícone muda de lugar e fica assim ao reabrir a sessão; um clique simples ainda abre o app | ☐ |
+| 2.113 | Dock no celular: segurar meio segundo e arrastar; segurar e soltar sem andar | Reordena; sem andar abre o menu do app | ☐ |
+| 2.114 | Abrir um app que não está na dock e arrastar o ícone dele (na dock) para entre os fixos | Ele fica fixo ali | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

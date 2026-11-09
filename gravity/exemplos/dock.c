@@ -7,6 +7,8 @@
  * vai para ela, o ✕ fecha só essa).
  * Botão direito (ou segurar o dedo, ou a tecla Menu) abre o menu do app: abrir nova janela,
  * fixar ou remover da dock, fechar as janelas e as preferências da dock.
+ * Arrastar reordena: com o mouse, aperte num ícone e ande de lado; com o dedo, segure meio segundo e então ande (segurar e soltar sem andar abre
+ * o menu). Um app aberto que não está fixo também se arrasta para dentro da dock e fica fixo onde cair.
  *
  * As janelas vêm do compositor (wlr-foreign-toplevel, o Orbit tem). Os fixos vêm de
  * ~/.config/lumna/dock, uma linha por app (# comenta, "-" é um separador):
@@ -759,10 +761,169 @@ static void vigiar_config(gv_app *app) {
 	}
 }
 
+/* ---- arrastar para reordenar (e fixar) ----
+ * Com o mouse: apertar num ícone e andar de lado. Com o dedo: segurar meio segundo e então andar; segurar e soltar sem andar abre o menu do app.
+ * Um app aberto que não está fixo também se arrasta: soltá-lo entre os fixos o fixa ali. Uma linha mostra onde cai e um fantasma acompanha o ponteiro. */
+static int arr_origem;                  /* 0 nada, 1 um fixo (arr_i), 2 um aberto que não é fixo (arr_app) */
+static int arr_i = -1;
+static struct fixo arr_app;
+static Clay_ElementId arr_ancora;
+static uint32_t arr_cand;
+static float arr_x0;
+static int arr_onde;                    /* o índice em fixos[] antes do qual cai (nfixos: no fim) */
+static bool arr_suprimir;               /* neste quadro o arraste acabou: o soltar não é um toque no app */
+
+static float absf(float v) {
+	return v < 0 ? -v : v;
+}
+
+static bool arrastando(void) {
+	return arr_origem != 0;
+}
+
+/* um ícone (fixo i, ou aberto: i = -1 e app_id) olha se o aperto nele virou arraste */
+static void arraste_ver(Clay_ElementId id, int i, const char *app_id) {
+	if (arr_origem) {
+		return;
+	}
+	bool comecar = false;
+	Clay_Vector2 p = gv_ponteiro();
+	if (gv_premido(id)) {
+		if (arr_cand != id.id) {
+			arr_cand = id.id;
+			arr_x0 = p.x;
+		} else if (!gv_ponteiro_e_toque() && absf(p.x - arr_x0) > 8) {
+			comecar = true;
+		}
+	}
+	if (gv_ponteiro_e_toque() && gv_segurou(id)) {
+		arr_x0 = p.x;
+		comecar = true;
+	}
+	if (!comecar) {
+		return;
+	}
+	arr_cand = 0;
+	arr_ancora = id;
+	if (i >= 0) {
+		arr_origem = 1;
+		arr_i = i;
+		arr_app = fixos[i];
+	} else {
+		arr_origem = 2;
+		arr_i = -1;
+		achar_app(app_id, &arr_app);
+	}
+	arr_onde = nfixos;
+}
+
+static void arraste_aplicar(void) {
+	int onde = arr_onde;
+	if (arr_origem == 1) {
+		int a = arr_i;
+		if (a < 0 || a >= nfixos || onde == a || onde == a + 1) {
+			return;
+		}
+		struct fixo f = fixos[a];
+		double ab = abriu_em[a];
+		memmove(&fixos[a], &fixos[a + 1], (size_t)(nfixos - a - 1) * sizeof(fixos[0]));
+		memmove(&abriu_em[a], &abriu_em[a + 1], (size_t)(nfixos - a - 1) * sizeof(abriu_em[0]));
+		if (onde > a) {
+			onde--;
+		}
+		memmove(&fixos[onde + 1], &fixos[onde], (size_t)(nfixos - 1 - onde) * sizeof(fixos[0]));
+		memmove(&abriu_em[onde + 1], &abriu_em[onde], (size_t)(nfixos - 1 - onde) * sizeof(abriu_em[0]));
+		fixos[onde] = f;
+		abriu_em[onde] = ab;
+		printf("reordenar a dock: %s para a posição %d\n", f.app_id, onde);
+	} else if (arr_origem == 2 && nfixos < MAX_FIXOS) {
+		memmove(&fixos[onde + 1], &fixos[onde], (size_t)(nfixos - onde) * sizeof(fixos[0]));
+		memmove(&abriu_em[onde + 1], &abriu_em[onde], (size_t)(nfixos - onde) * sizeof(abriu_em[0]));
+		fixos[onde] = arr_app;
+		abriu_em[onde] = 0;
+		nfixos++;
+		printf("fixar na dock arrastando: %s na posição %d\n", arr_app.app_id, onde);
+	} else {
+		return;
+	}
+	fflush(stdout);
+	salvar();
+}
+
+/* a cada quadro, antes de desenhar: soltar aplica, ou (o dedo que não andou) abre o menu do app */
+static void arraste_rever(void) {
+	arr_suprimir = false;
+	if (!arr_origem) {
+		if (!gv_ponteiro_baixo()) {
+			arr_cand = 0;
+		}
+		return;
+	}
+	if (gv_ponteiro_baixo()) {
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	if (gv_ponteiro_e_toque() && absf(p.x - arr_x0) < 10) {
+		menu_abrir(arr_ancora, &arr_app, arr_origem == 1 ? arr_i : -1);
+	} else {
+		arraste_aplicar();
+	}
+	arr_origem = 0;
+	arr_i = -1;
+	arr_suprimir = true;
+}
+
+/* com o arraste em curso: onde cairia (pelo x do ponteiro, contando os separadores) e o que se desenha por cima */
+static void arraste_desenhar(void) {
+	if (!arr_origem) {
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	int onde = nfixos;
+	float linha_x = -1;
+	float ultimo_x = -1;
+	for (int j = 0; j < nfixos; j++) {
+		if (arr_origem == 1 && j == arr_i) {
+			continue;
+		}
+		Clay_BoundingBox b = gv_caixa(fixos[j].separador ? CLAY_IDI("sep", j) : CLAY_IDI("fixo", j));
+		if (b.width <= 0) {
+			continue;
+		}
+		ultimo_x = b.x + b.width;
+		if (p.x < b.x + b.width / 2) {
+			onde = j;
+			linha_x = b.x;
+			break;
+		}
+	}
+	if (onde == nfixos && ultimo_x >= 0) {
+		linha_x = ultimo_x;
+	}
+	arr_onde = onde;
+	if (linha_x >= 0) {
+		CLAY(CLAY_ID("arr-linha"), { .layout = { .sizing = { CLAY_SIZING_FIXED(3), CLAY_SIZING_FIXED(40) } }, .backgroundColor = gv_t.acento, .cornerRadius = CLAY_CORNER_RADIUS(2),
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 50, .offset = { linha_x - 4, 14 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+	}
+	CLAY(CLAY_ID("arr-fantasma"), { .layout = { .sizing = { CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(52) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.acento, .width = GV_BORDA(1) },
+		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 51, .offset = { p.x - 26, 8 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {
+		if (tem_icone_lumna(arr_app.icone)) {
+			gv_icone(arr_app.icone, 28, gv_t.icone);
+		} else {
+			gv_icone_app(arr_app.icone, 30);
+		}
+	}
+}
+
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
 	const gv_janela *janelas[MAX_JANELAS];
 	int n = gv_janelas(janelas, MAX_JANELAS);
+	arraste_rever();
+	if (gv_ponteiro_baixo() && arrastando()) {
+		gv_app_redesenhar(app);
+	}
 	if (!minha_saida && gv_saidas_mudaram(app)) {
 		filhas_rever(); /* uma tela ligou ou desligou */
 	}
@@ -843,11 +1004,14 @@ static void desenhar(gv_app *app, void *dados) {
 					abriu_em[i] = 0;
 				}
 				Clay_ElementId id = CLAY_IDI("fixo", i);
-				if (gv_menu_contexto(id)) {
+				arraste_ver(id, i, NULL);
+				if (gv_menu_contexto_mouse(id)) {
 					menu_abrir(id, x, i);
 				}
-				bool tocado = item(id, x->icone, !tem_icone_lumna(x->icone), abertas, ativo, abriu_em[i]);
-				previa_ver(id, x->app_id, x->nome, x->icone, abertas, tocado);
+				bool tocado = item(id, x->icone, !tem_icone_lumna(x->icone), abertas, ativo, abriu_em[i]) && !arr_suprimir && !arrastando();
+				if (!arrastando()) {
+					previa_ver(id, x->app_id, x->nome, x->icone, abertas, tocado);
+				}
 				if (tocado) {
 					tocar(x->app_id, x->comando, janelas, n, &abriu_em[i]);
 				}
@@ -881,18 +1045,44 @@ static void desenhar(gv_app *app, void *dados) {
 					}
 				}
 				Clay_ElementId id = CLAY_IDI("aberto", (int)j->id);
-				if (gv_menu_contexto(id)) {
+				arraste_ver(id, -1, j->app_id);
+				if (gv_menu_contexto_mouse(id)) {
 					struct fixo x;
 					achar_app(j->app_id, &x);
 					menu_abrir(id, &x, -1);
 				}
-				bool tocado = item(id, j->app_id, true, abertas, ativo, 0);
-				previa_ver(id, j->app_id, j->app_id, j->app_id, abertas, tocado);
+				if (getenv("LUMNA_DOCK_DEBUG")) {
+					static float ax, ay;
+					Clay_BoundingBox b = gv_caixa(id);
+					if (b.x != ax || b.y != ay) {
+						ax = b.x;
+						ay = b.y;
+						printf("pos aberto/%s %d %d %d %d\n", j->app_id, (int)b.x, (int)b.y, (int)b.width, (int)b.height);
+						fflush(stdout);
+					}
+				}
+				bool tocado = item(id, j->app_id, true, abertas, ativo, 0) && !arr_suprimir && !arrastando();
+				if (!arrastando()) {
+					previa_ver(id, j->app_id, j->app_id, j->app_id, abertas, tocado);
+				}
 				if (tocado) {
 					tocar(j->app_id, NULL, janelas, n, NULL);
 				}
 			}
 		}
+	}
+	arraste_desenhar();
+	if (getenv("LUMNA_DOCK_DEBUG")) { /* em teste: onde está cada ícone (em pixels da dock), para os toques acertarem */
+		static float antes[MAX_FIXOS][2];
+		for (int i = 0; i < nfixos; i++) {
+			Clay_BoundingBox b = gv_caixa(fixos[i].separador ? CLAY_IDI("sep", i) : CLAY_IDI("fixo", i));
+			if (b.x != antes[i][0] || b.y != antes[i][1]) {
+				antes[i][0] = b.x;
+				antes[i][1] = b.y;
+				printf("pos %s/%d %d %d %d %d %s\n", fixos[i].separador ? "sep" : "fixo", i, (int)b.x, (int)b.y, (int)b.width, (int)b.height, fixos[i].app_id);
+			}
+		}
+		fflush(stdout);
 	}
 	previa_rever();
 	previa_desenhar(janelas, n);

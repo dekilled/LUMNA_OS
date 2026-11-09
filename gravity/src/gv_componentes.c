@@ -639,6 +639,16 @@ bool gv_segurou(Clay_ElementId id) {
 	return false;
 }
 
+/* o menu de contexto pedido só pelo botão direito do mouse (ou pela tecla Menu); o dedo parado fica livre, para arrastar o elemento */
+bool gv_menu_contexto_mouse(Clay_ElementId id) {
+	if (gv__entrada.direito && Clay_PointerOver(id)) {
+		gv__entrada.direito = false;
+		return true;
+	}
+	return gv__foco_tecla(id, XKB_KEY_Menu) ||
+		((gv__entrada.mods & GV_MOD_SHIFT) && gv__foco_tecla(id, XKB_KEY_F10));
+}
+
 bool gv_menu_contexto(Clay_ElementId id) {
 	if ((gv__entrada.direito || gv__entrada.segurou) && Clay_PointerOver(id)) {
 		if (gv__entrada.segurou) {
@@ -703,6 +713,35 @@ bool gv_menu_no_ponteiro(Clay_ElementId alvo, Clay_ElementId menu) {
 		return true;
 	}
 	return false;
+}
+
+/* o mesmo, mas só o botão direito do mouse pede (o dedo parado fica livre para outra coisa, como arrastar o item) */
+bool gv_menu_no_ponteiro_mouse(Clay_ElementId alvo, Clay_ElementId menu) {
+	struct menu_ponteiro *m = menu_ponteiro_de(menu.id);
+	if (m->abrir && gv__quadro_n > m->pedido_em) {
+		m->abrir = false;
+		gv_popup_abrir(menu);
+	}
+	if (gv__entrada.direito && Clay_PointerOver(alvo)) {
+		gv__entrada.direito = false; /* só um elemento abre menu */
+		m->pedido_em = gv__quadro_n;
+		m->onde = gv_ponteiro();
+		gv_popup_fechar(menu);
+		m->abrir = true;
+		gv__app_pedir();
+		return true;
+	}
+	return false;
+}
+
+/* abre o menu agora, no ponto do ponteiro (um botão "..." que chama o menu de contexto do item) */
+void gv_menu_pedir_no_ponteiro(Clay_ElementId menu) {
+	struct menu_ponteiro *m = menu_ponteiro_de(menu.id);
+	m->pedido_em = gv__quadro_n;
+	m->onde = gv_ponteiro();
+	gv_popup_fechar(menu);
+	m->abrir = true;
+	gv__app_pedir();
 }
 
 Clay_ElementId gv_menu_ancora(Clay_ElementId menu) {

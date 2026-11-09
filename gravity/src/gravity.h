@@ -383,6 +383,7 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
  * soltar já não conta como toque), ou a tecla Menu / Shift+F10 com ele focado. Abra um GV_POPUP
  * preso a ele. Peça-o antes de declarar elementos de dentro (o de fora fica com o pedido). */
 bool gv_menu_contexto(Clay_ElementId id);
+bool gv_menu_contexto_mouse(Clay_ElementId id); /* só o botão direito do mouse (e a tecla Menu): o dedo parado não pede */
 /* O menu de contexto do sistema: abre no ponto do ponteiro, no mesmo estilo em toda a parte. Peça antes do elemento (o mais de dentro
  * pede primeiro; só um abre menu) e declare o conteúdo depois dele:
  *   bool pediu = gv_menu_no_ponteiro(alvo, CLAY_ID("menu-x"));   // true no quadro em que pediram
@@ -391,6 +392,8 @@ bool gv_menu_contexto(Clay_ElementId id);
  *       if (gv_menu_item(CLAY_ID("x-copiar"), "copy", "Copiar", "Ctrl+C")) { ...; gv_popup_fechar(CLAY_ID("menu-x")); }
  *   } */
 bool gv_menu_no_ponteiro(Clay_ElementId alvo, Clay_ElementId menu);
+bool gv_menu_no_ponteiro_mouse(Clay_ElementId alvo, Clay_ElementId menu); /* só o botão direito do mouse (o toque parado não conta) */
+void gv_menu_pedir_no_ponteiro(Clay_ElementId menu); /* abre o menu já, no ponteiro: o "..." de um item (peça no quadro do toque nele) */
 Clay_ElementId gv_menu_ancora(Clay_ElementId menu); /* (do GV_MENU_PONTEIRO) o ponto onde se pediu */
 #define GV_MENU_PONTEIRO(menu) GV_POPUP((menu), gv_menu_ancora(menu), .lado = GV_POPUP_ABAIXO, .alinhar = GV_ALINHAR_INICIO, .largura = 240, .distancia = 2)
 /* Seguraram este elemento meio segundo (o dedo ou o botão do rato, sem arrastar): o soltar já não

@@ -136,6 +136,7 @@ static void rede_rever(void);
 static void sync_rever(void);
 static void rede_menus(void);
 static void rede_dialogos(void);
+static void menu_lateral(void);
 
 /* ---- carregar a pasta ---- */
 
@@ -1482,9 +1483,15 @@ static int arr_cand = -1;       /* apertado, ainda sem andar o bastante */
 static float arr_x0, arr_y0;
 static int arr_secao, arr_antes; /* onde cairia: a seção e antes de qual índice (-1: no fim dela) */
 static bool arr_suprimir;       /* este quadro o arraste acabou: o soltar não é um clique */
+static int lat_menu_idx = -1;   /* o item da barra lateral do menu de contexto (índice na barra; -1: um fixo, como a Lixeira) */
+static char lat_menu_destino[4096];
 
 static void item_lateral(Clay_ElementId id, int idx, const char *ic, const char *rotulo, bool ativo, const char *destino) {
 	bool arrastado = idx >= 0 && arr_item == idx;
+	if (idx >= 0 ? gv_menu_no_ponteiro_mouse(id, CLAY_ID("menu-lateral")) : gv_menu_no_ponteiro(id, CLAY_ID("menu-lateral"))) { /* os fixos (Lixeira, Rede) não arrastam: o dedo parado abre o menu */ /* o botão direito; o dedo parado é do arraste (soltar sem andar abre este mesmo menu) */
+		lat_menu_idx = idx;
+		snprintf(lat_menu_destino, sizeof(lat_menu_destino), "%s", destino);
+	}
 	bool sobre = gv_por_cima(id) && arr_item < 0;
 	if (idx >= 0 && arr_item < 0) {
 		if (gv_premido(id)) {
@@ -1499,6 +1506,9 @@ static void item_lateral(Clay_ElementId id, int idx, const char *ic, const char 
 			}
 		}
 		if (gv_ponteiro_e_toque() && gv_segurou(id)) { /* o mouse não precisa segurar: anda e pronto (segurar com o mouse continua sendo um clique devagar) */
+			Clay_Vector2 p0 = gv_ponteiro();
+			arr_x0 = p0.x;
+			arr_y0 = p0.y;
 			arr_item = idx;
 			arr_cand = -1;
 		}
@@ -1561,6 +1571,15 @@ static void arraste_rever(void) {
 		return;
 	}
 	if (!gv_ponteiro_baixo()) {
+		Clay_Vector2 p = gv_ponteiro();
+		if (gv_ponteiro_e_toque() && fabsf(p.x - arr_x0) < 10 && fabsf(p.y - arr_y0) < 10) { /* segurou e soltou sem andar: o menu do item */
+			lat_menu_idx = arr_item;
+			snprintf(lat_menu_destino, sizeof(lat_menu_destino), "%s", destino_do_item(&barra.v[arr_item]));
+			gv_menu_pedir_no_ponteiro(CLAY_ID("menu-lateral"));
+			arr_item = -1;
+			arr_suprimir = true;
+			return;
+		}
 		int novo = ar_barra_mover_para(&barra, arr_item, arr_secao, arr_antes);
 		(void)novo;
 		ar_barra_gravar(&barra);
@@ -1739,7 +1758,8 @@ static void celula_grade(int idx, float tam, float cw, float ch) {
 	if (pediu && ponteiro_em(gv_caixa(id))) {
 		abrir_menu_do_item(idx);
 	}
-	bool sobre = gv_por_cima(id);
+	Clay_ElementId mais = CLAY_IDI("cel-mais", (uint32_t)idx);
+	bool sobre = gv_por_cima(id) || gv_por_cima(mais);
 	bool recortado = item_recortado(idx, area_quadro, area_quadro_recortar);
 	Clay_Color fundo = sel[idx] ? gv_alfa(gv_t.acento, 0.18f) : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 };
 	CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(cw), CLAY_SIZING_FIXED(ch) }, .padding = { 6, 6, 10, 6 },
@@ -1759,6 +1779,15 @@ static void celula_grade(int idx, float tam, float cw, float ch) {
 				gv_texto(gv_fmt(e->itens == 1 ? "%d item" : "%d itens", e->itens), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
 			}
 		}
+		if ((sobre || sel[idx]) && renomeando != idx) { /* o "..." no canto: o mesmo menu do botão direito */
+			bool sm = gv_por_cima(mais);
+			CLAY(mais, { .layout = { .sizing = { CLAY_SIZING_FIXED(30), CLAY_SIZING_FIXED(30) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = sm ? gv_t.selecionado : gv_alfa(gv_t.superficie, 0.9f), .cornerRadius = CLAY_CORNER_RADIUS(15),
+				.border = { .color = gv_t.borda, .width = GV_BORDA(1) },
+				.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { .element = CLAY_ATTACH_POINT_RIGHT_TOP, .parent = CLAY_ATTACH_POINT_RIGHT_TOP }, .offset = { -6, 6 } } }) {
+				gv_icone("more", 20, gv_t.texto);
+			}
+		}
 	}
 }
 
@@ -1772,7 +1801,8 @@ static void linha_lista(int idx, int linha_par) {
 	if (pediu && ponteiro_em(gv_caixa(id))) {
 		abrir_menu_do_item(idx);
 	}
-	bool sobre = gv_por_cima(id);
+	Clay_ElementId mais = CLAY_IDI("lin-mais", (uint32_t)idx);
+	bool sobre = gv_por_cima(id) || gv_por_cima(mais);
 	Clay_Color fundo = sel[idx] ? gv_alfa(gv_t.acento, 0.18f) : sobre ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 };
 	char data[48], tam[32];
 	ar_data_humana(e->mtime, time(NULL), data, sizeof(data));
@@ -1809,6 +1839,15 @@ static void linha_lista(int idx, int linha_par) {
 			CLAY(CLAY_IDI("lin-tipo", (uint32_t)idx), { .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
 				gv_texto(gv_str(ar_tipo_nome(e)), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 			}
+		}
+		if ((sobre || sel[idx]) && renomeando != idx) { /* o "..." no fim da linha */
+			bool sm = gv_por_cima(mais);
+			CLAY(mais, { .layout = { .sizing = { CLAY_SIZING_FIXED(32), CLAY_SIZING_FIXED(32) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = sm ? gv_t.selecionado : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(16) }) {
+				gv_icone("more", 20, gv_t.texto);
+			}
+		} else {
+			CLAY(CLAY_IDI("lin-mais-vazio", (uint32_t)idx), { .layout = { .sizing = { CLAY_SIZING_FIXED(32), CLAY_SIZING_FIXED(32) } } }) {}
 		}
 	}
 	(void)linha_par;
@@ -2017,7 +2056,13 @@ static void tratar_cliques_conteudo(void) {
 	for (int k = 0; k < nvis; k++) {
 		int idx = vis[k];
 		Clay_ElementId id = modo_lista ? CLAY_IDI("lin", (uint32_t)idx) : CLAY_IDI("cel", (uint32_t)idx);
-		if (gv_caixa(id).width > 0 && gv_tocado(id)) {
+		bool no_item = gv_caixa(id).width > 0 && gv_tocado(id);
+		Clay_ElementId mais = modo_lista ? CLAY_IDI("lin-mais", (uint32_t)idx) : CLAY_IDI("cel-mais", (uint32_t)idx);
+		if (gv_caixa(mais).width > 0 && gv_tocado(mais)) { /* chamado depois do item: o "..." ganha o toque que é dele */
+			abrir_menu_do_item(idx);
+			gv_menu_pedir_no_ponteiro(CLAY_ID("menu-item"));
+			algum = true;
+		} else if (no_item) {
 			tratar_clique(idx, id);
 			algum = true;
 		}
@@ -4707,6 +4752,69 @@ static void rede_menus(void) {
 	}
 }
 
+/* ---- o menu de contexto da barra lateral ---- */
+
+static void menu_lateral_conteudo(void) {
+	const char *dest = lat_menu_destino;
+	if (!dest[0]) {
+		return;
+	}
+	char *copia = g_strdup(dest);
+	Clay_ElementId popup = CLAY_ID("menu-lateral");
+	if (gv_menu_item(CLAY_ID("ml-abrir"), "folder", "Abrir", NULL)) {
+		gv_popup_fechar(popup);
+		ir_para(copia, true);
+	}
+	if (gv_menu_item(CLAY_ID("ml-aba"), "plus", "Abrir em nova aba", NULL)) {
+		gv_popup_fechar(popup);
+		aba_nova(copia);
+	}
+	if (gv_menu_item(CLAY_ID("ml-janela"), "external", "Abrir em nova janela", NULL)) {
+		gv_popup_fechar(popup);
+		abrir_nova_janela(copia);
+	}
+	char *lix = ar_lixeira_pasta();
+	bool eh_lixeira = !strcmp(copia, lix);
+	g_free(lix);
+	if (eh_lixeira && gv_menu_item(CLAY_ID("ml-esvaziar"), "trash", "Esvaziar a lixeira", NULL)) {
+		gv_popup_fechar(popup);
+		pedir_esvaziar();
+	}
+	if (lat_menu_idx >= 0 && lat_menu_idx < barra.n) {
+		separador("ml-sep", 1);
+		if (gv_menu_item(CLAY_ID("ml-esconder"), "eye-off", "Esconder da barra lateral", NULL)) {
+			gv_popup_fechar(popup);
+			barra.v[lat_menu_idx].visivel = false;
+			ar_barra_gravar(&barra);
+			avisar("Escondido da barra lateral (volta em Configurações > Barra lateral)");
+		}
+		if (!barra.v[lat_menu_idx].id[0] && gv_menu_item(CLAY_ID("ml-remover"), "close", "Remover da barra lateral", NULL)) {
+			gv_popup_fechar(popup);
+			ar_barra_remover(&barra, lat_menu_idx);
+			ar_barra_gravar(&barra);
+			lat_menu_idx = -1;
+		}
+	}
+	separador("ml-sep", 2);
+	if (gv_menu_item(CLAY_ID("ml-personalizar"), "settings", "Personalizar barra lateral", NULL)) {
+		gv_popup_fechar(popup);
+		abrir_configuracoes(2);
+	}
+	g_free(copia);
+}
+
+static void menu_lateral(void) {
+	enum gv_popup_lado lado;
+	float altura_max;
+	Clay_ElementId anc = gv_menu_ancora(CLAY_ID("menu-lateral"));
+	lado_do_menu(anc, &lado, &altura_max);
+	GV_POPUP(CLAY_ID("menu-lateral"), anc, .lado = lado, .alinhar = GV_ALINHAR_INICIO, .largura = 300, .distancia = 2, .altura_max = altura_max) {
+		CLAY(CLAY_ID("ml-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(6), .childGap = 2 } }) {
+			menu_lateral_conteudo();
+		}
+	}
+}
+
 /* ---- os diálogos: senha (e pergunta) do gvfs, adicionar conta, esperando o navegador ---- */
 
 static bool rede_dialogo_aberto(void) {
@@ -4914,7 +5022,7 @@ static void rede_url_conectar(void) {
 }
 
 static bool botao_mais(Clay_ElementId id) {
-	return gv_botao_ext(id, &(gv_botao_opcoes){ .icone = "dots", .estilo = GV_BOTAO_SIMPLES, .altura = 36 });
+	return gv_botao_ext(id, &(gv_botao_opcoes){ .icone = "more", .estilo = GV_BOTAO_SIMPLES, .altura = 36 });
 }
 
 static void pagina_rede(void) {
@@ -5184,7 +5292,7 @@ static void debug_posicoes(void) {
 	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
 		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
-		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
+		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "l-lixeira", "l-rede", "ml-abrir", "ml-aba", "ml-janela", "ml-esvaziar", "ml-esconder", "ml-remover", "ml-personalizar", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
 		"mi-terminal", "mi-lixeira", "mi-cor", "mi-icone", "mf-cor", "mf-icone", "sub-ic-nenhum", "mf-ordenar", "mf-ord/0", "mf-git", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "cfg-aplicar", "cfg-cancelar", "cfg-voltar", "cfg-restaurar", "ex-r1", "ex-r2", "ex-tam-sl", "cfg-corpo", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
 	for (int i = 0; FIXOS[i]; i++) {
@@ -5197,7 +5305,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {
@@ -5338,6 +5446,7 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 	menus_de_contexto();
 	rede_menus();
+	menu_lateral();
 	sugestoes_do_caminho();
 	dialogos();
 	rede_dialogos();
@@ -5379,6 +5488,11 @@ int main(int argc, char **argv) {
 			argv[1] = c;
 		}
 	}
+	/* uma janela nova pode abrir numa lista (@recentes, @favoritos, @rede...) */
+	const char *especial = argc > 1 && (!strcmp(argv[1], ESPECIAL_INICIO) || !strcmp(argv[1], ESPECIAL_RECENTES) || !strcmp(argv[1], ESPECIAL_FAVORITOS) || !strcmp(argv[1], ESPECIAL_REDE) || !strcmp(argv[1], ESPECIAL_NUVEM)) ? argv[1] : NULL;
+	if (especial) {
+		argc = 1;
+	}
 	char inicio[4096];
 	snprintf(inicio, sizeof(inicio), "%s", argc > 1 && g_file_test(argv[1], G_FILE_TEST_IS_DIR) ? argv[1] : g_get_home_dir());
 	char *real = realpath(inicio, NULL);
@@ -5408,6 +5522,9 @@ int main(int argc, char **argv) {
 		} else if (cfg.abrir_em == AR_ABRIR_PERSONALIZADA && g_file_test(cfg.pasta_inicial, G_FILE_TEST_IS_DIR)) {
 			destino = cfg.pasta_inicial;
 		}
+	}
+	if (especial) {
+		destino = especial;
 	}
 	app = gv_app_criar(&(gv_opcoes){ .titulo = "Arquivos", .app_id = "lumna-atlas", .largura = 1240, .altura = 760 });
 	if (!app) {
