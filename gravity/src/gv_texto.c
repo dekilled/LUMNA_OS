@@ -336,6 +336,82 @@ void gv_texto(Clay_String texto, float tamanho, Clay_Color cor, enum gv_peso pes
 	});
 }
 
+/* ---- texto que cabe: quebra e reticências ---- */
+
+float gv_texto_largura(const char *texto, float tamanho, enum gv_peso peso) {
+	Clay_TextElementConfig c = { .fontSize = (uint16_t)(tamanho > 0 ? tamanho : gv_t.tamanho_corpo), .fontId = (uint16_t)peso };
+	return gv__texto_medir((Clay_StringSlice){ .length = (int32_t)strlen(texto), .chars = texto }, &c, NULL).width;
+}
+
+/* o maior número de BYTES (em limite de caractere) de `texto` que cabe em `largura`, com `sufixo` depois */
+static int cabe_ate(const char *texto, const char *sufixo, float largura, float tamanho, enum gv_peso peso) {
+	int n = (int)strlen(texto);
+	/* os limites de caractere UTF-8, de trás para a frente, com busca binária no índice do caractere */
+	int total = (int)g_utf8_strlen(texto, -1), a = 0, b = total;
+	while (a < b) {
+		int m = (a + b + 1) / 2;
+		char *fim = g_utf8_offset_to_pointer(texto, m);
+		char *tentativa = g_strdup_printf("%.*s%s", (int)(fim - texto), texto, sufixo);
+		float w = gv_texto_largura(tentativa, tamanho, peso);
+		g_free(tentativa);
+		if (w <= largura) {
+			a = m;
+		} else {
+			b = m - 1;
+		}
+	}
+	int bytes = (int)(g_utf8_offset_to_pointer(texto, a) - texto);
+	return bytes > n ? n : bytes;
+}
+
+int gv_texto_ajustar(const char *texto, float largura, float tamanho, enum gv_peso peso, int linhas, Clay_String *saida) {
+	int n = 0;
+	const char *resto = texto;
+	while (*resto == ' ') {
+		resto++;
+	}
+	while (*resto && n < linhas) {
+		bool ultima = n == linhas - 1;
+		if (gv_texto_largura(resto, tamanho, peso) <= largura) {
+			saida[n++] = gv_str(resto);
+			break;
+		}
+		if (ultima) { /* não cabe mais nada: o que sobra vira "…" */
+			int k = cabe_ate(resto, "\u2026", largura, tamanho, peso);
+			while (k > 0 && resto[k - 1] == ' ') {
+				k--;
+			}
+			saida[n++] = gv_fmt("%.*s\u2026", k, resto);
+			break;
+		}
+		int k = cabe_ate(resto, "", largura, tamanho, peso);
+		if (k <= 0) {
+			k = (int)(g_utf8_next_char(resto) - resto); /* nem um caractere cabe: leva um mesmo assim */
+		}
+		/* de preferência quebra num espaço ou num separador, se a linha não ficar curta demais; senão no meio da palavra */
+		int corte = k;
+		if (resto[k]) {
+			for (int i = k; i > k / 3; i--) {
+				char ch = resto[i - 1];
+				if (ch == ' ' || ch == '-' || ch == '_' || ch == '.' || ch == '/') {
+					corte = i;
+					break;
+				}
+			}
+		}
+		int fim = corte;
+		while (fim > 0 && resto[fim - 1] == ' ') {
+			fim--;
+		}
+		saida[n++] = gv_fmt("%.*s", fim, resto);
+		resto += corte;
+		while (*resto == ' ') {
+			resto++;
+		}
+	}
+	return n;
+}
+
 /* ---- texto rico: a marcação do pango, quebrada na largura do elemento ---- */
 
 static GHashTable *larguras_ricas; /* id -> a largura do quadro anterior (em 1/16 de px) */

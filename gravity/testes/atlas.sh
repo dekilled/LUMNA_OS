@@ -21,6 +21,12 @@ env HOME="$T/casa" XDG_CONFIG_HOME="$T/casa/c3" "$T/testa_rede"
 cc $CF $(pkg-config --cflags gio-2.0) -o "$T/testa_discos" testes/atlas/testa_discos.c servicos/arquivos_discos.c servicos/armazenamento.c $(pkg-config --libs glib-2.0 gio-2.0)
 mkdir -p "$T/fdiscos"
 PATH="$AQUI/testes/atlas/bin:$PATH" FAKE_DISCOS_DIR="$T/fdiscos" "$T/testa_discos"
+# o nome que cabe (quebra e reticências), em cima do medidor de texto do Gravity (precisa do libgravity.a: make libgravity.a)
+if [ -f libgravity.a ]; then
+	cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wno-unused-parameter -Isrc -Ivendor/clay -I. $(pkg-config --cflags pangocairo glib-2.0) -o "$T/testa_ajustar" testes/texto/testa_ajustar.c libgravity.a \
+		-lwayland-client -lwayland-cursor -lxkbcommon $(pkg-config --libs pangocairo gdk-pixbuf-2.0 glib-2.0) -lm
+	"$T/testa_ajustar"
+fi
 if [ -n "${1:-}" ]; then
 	sh testes/atlas/teste_ui.sh "$1" "$AQUI"
 fi

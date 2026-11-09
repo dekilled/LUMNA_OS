@@ -170,6 +170,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.126 | Tema claro (Painel > Aparência): passar o mouse nos itens do Atlas, do Painel e dos menus | O texto e os ícones continuam legíveis (o lilás do acento ficou mais escuro no claro) | ☐ |
 | 2.127 | Num computador antigo (sem SSE4.2): `systemctl --user status lumna-emma` e Painel > Emma > Provedores | O servidor fica `active (running)` e o Painel conecta (antes caía com `core-dump` em loop). `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8011/api/auth/me` dá `401` | ☐ |
 | 2.128 | Nesse computador: Painel > Emma > Voz > instalar o Whisper ou o Pocket TTS | Recusa na hora: "Este processador é antigo demais para a voz local" (use o Fish Audio). Num computador novo instala normal | ☐ |
+| 2.129 | Atlas: criar uma pasta com nome bem comprido (ex.: `Projeto_de_Historias_Fantasticas_Volume_Um`) e uma palavra longa sem espaço | Na grade o nome quebra em até duas linhas e termina em **…** se ainda passar; o ícone ficou um pouco mais largo. Na lista termina em **…**. Selecionando, o painel de detalhes mostra o nome inteiro | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

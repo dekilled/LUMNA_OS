@@ -6,6 +6,7 @@ O explorador de arquivos do LUMNA OS, em Gravity (C/Clay). Fatias prontas: **a n
 
 - **Barra de ferramentas**: voltar, avançar, subir, caminho clicável (Home / Documentos / Projetos), busca, **+** (nova pasta, novo arquivo de texto), ordenar (nome, data, tamanho, tipo, crescente/decrescente), grade/lista e ajustes (mostrar ocultos, painel de detalhes).
 - **Barra lateral**: Espaços (Início, Recentes, Favoritos), Coleções (Home, Documentos, Imagens, Músicas, Downloads, Vídeos, Templates e a pasta da Emma, só as que existem) e Fixados (pastas favoritas).
+- **Nomes longos**: na grade o nome ganha até duas linhas (quebra nos espaços, nos `_` e `-`, ou no meio da palavra comprida) e, se ainda passar, termina em **…**; na lista, termina em **…** quando não cabe na coluna. O nome inteiro aparece no painel de detalhes ao selecionar. (Antes o nome era cortado sem aviso, e dava a impressão de um nome com letras faltando.)
 - **Grade e lista**: só desenha o que está à vista (pasta com milhares de itens não pesa); miniatura nas imagens (decodificada numa thread); a quantidade de itens nas pastas; os ícones de pasta e arquivo (PDF, MD, ODS, ODP, ...) são desenhados à mão.
 - **Filtros** (Tudo, Pastas, Documentos, Imagens, Mídia, Outros): só aparecem os que separam alguma coisa.
 - **Painel de detalhes**: prévia (imagem ou ícone), tipo, itens, tamanho (a pasta é somada, até 20 mil entradas), local, modificado, Favoritar e as permissões. Vários selecionados mostram o total.

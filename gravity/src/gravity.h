@@ -167,6 +167,11 @@ Clay_String gv_fmt(const char *formato, ...) __attribute__((format(printf, 1, 2)
 /* Um texto com o tamanho, a cor e o peso dados (0 no tamanho: o do corpo). */
 void gv_texto(Clay_String texto, float tamanho, Clay_Color cor, enum gv_peso peso);
 /* Atalho: texto do corpo na cor do tema. */
+/* A largura, em px, de um texto numa linha só. */
+float gv_texto_largura(const char *texto, float tamanho, enum gv_peso peso);
+/* Um texto que tem de caber em `linhas` linhas de `largura` px (um nome de arquivo sob um ícone): quebra nos espaços e nos separadores (-, _, ., /) e, se uma
+ * palavra sozinha não cabe, no meio dela; o que passa da última linha vira "…". Preenche `saida` (até `linhas` entradas, vivem até o fim do quadro) e devolve quantas. */
+int gv_texto_ajustar(const char *texto, float largura, float tamanho, enum gv_peso peso, int linhas, Clay_String *saida);
 /* Texto com marcação do pango (<b>negrito</b>, <i>itálico</i>, <tt>código</tt>, <a>, <span ...>), quebrado na largura
  * que o elemento tiver (quem chama escapa o que for texto puro com g_markup_escape_text). mono: toda a fonte é monoespaçada.
  * O id tem de ser único; a altura certa chega no quadro seguinte à primeira vez, ou quando a largura muda. */

@@ -1875,6 +1875,16 @@ static void dnd_rever(void) {
 	free(dados);
 }
 
+/* o nome numa linha só, com "…" no fim se não couber na coluna (a largura que ela tinha no quadro anterior; sem ela ainda, o nome inteiro) */
+static Clay_String nome_em_uma_linha(Clay_ElementId coluna, const char *nome, float tamanho) {
+	float larg = gv_caixa(coluna).width;
+	if (larg <= 8) {
+		return gv_str(nome);
+	}
+	Clay_String linha;
+	return gv_texto_ajustar(nome, larg - 4, tamanho, GV_PESO_NORMAL, 1, &linha) ? linha : gv_str(nome);
+}
+
 static void celula_grade(int idx, float tam, float cw, float ch) {
 	Clay_ElementId id = CLAY_IDI("cel", (uint32_t)idx);
 	const ar_entrada *e = &lista.v[idx];
@@ -1894,13 +1904,18 @@ static void celula_grade(int idx, float tam, float cw, float ch) {
 		.childGap = 6, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } }, .backgroundColor = fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande),
 		.border = { .color = sel[idx] ? gv_t.acento : (Clay_Color){ 0, 0, 0, 0 }, .width = GV_BORDA(2) } }) {
 		icone(CLAY_IDI("cel-ic", (uint32_t)idx), idx, tam);
-		CLAY(CLAY_IDI("cel-nome", (uint32_t)idx), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } },
+		CLAY(CLAY_IDI("cel-nome", (uint32_t)idx), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } },
 			.clip = { .horizontal = true, .vertical = true } }) {
-			CLAY(CLAY_IDI("cel-nome-t", (uint32_t)idx), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0, (gv_t.tamanho_corpo + 6) * 2) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } }, .clip = { .vertical = true } }) {
+			CLAY(CLAY_IDI("cel-nome-t", (uint32_t)idx), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0, (gv_t.tamanho_corpo + 6) * 2) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } }, .clip = { .vertical = true } }) {
 				if (renomeando == idx) {
 					campo_renomear();
 				} else {
-					gv_texto(gv_str(nome_exibido(e)), gv_t.tamanho_corpo - 1, recortado ? gv_t.texto_suave : gv_t.texto, GV_PESO_NORMAL);
+					/* o nome inteiro, em até duas linhas (quebra nos espaços, nos "_" e "-", ou no meio da palavra); se ainda passar, termina em "…" */
+					Clay_String ls[2];
+					int nl = gv_texto_ajustar(nome_exibido(e), cw - 24, gv_t.tamanho_corpo - 1, GV_PESO_NORMAL, 2, ls);
+					for (int i = 0; i < nl; i++) {
+						gv_texto(ls[i], gv_t.tamanho_corpo - 1, recortado ? gv_t.texto_suave : gv_t.texto, GV_PESO_NORMAL);
+					}
 				}
 			}
 			if (e->pasta && e->itens >= 0) {
@@ -1951,11 +1966,11 @@ static void linha_lista(int idx, int linha_par) {
 				campo_renomear();
 			} else if (grande) {
 				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
-					gv_texto(gv_str(nome_exibido(e)), gv_t.tamanho_corpo + 1, item_recortado(idx, area_quadro, area_quadro_recortar) ? gv_t.texto_suave : gv_t.texto, GV_PESO_NORMAL);
+					gv_texto(nome_em_uma_linha(CLAY_IDI("lin-nome", (uint32_t)idx), nome_exibido(e), gv_t.tamanho_corpo + 1), gv_t.tamanho_corpo + 1, item_recortado(idx, area_quadro, area_quadro_recortar) ? gv_t.texto_suave : gv_t.texto, GV_PESO_NORMAL);
 					gv_texto(gv_str(e->pasta ? (e->itens >= 0 ? gv_fmt(e->itens == 1 ? "%d item" : "%d itens", e->itens).chars : "") : ar_tipo_nome(e)), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
 				}
 			} else {
-				gv_texto(gv_str(nome_exibido(e)), gv_t.tamanho_corpo, item_recortado(idx, area_quadro, area_quadro_recortar) ? gv_t.texto_suave : gv_t.texto, GV_PESO_NORMAL);
+				gv_texto(nome_em_uma_linha(CLAY_IDI("lin-nome", (uint32_t)idx), nome_exibido(e), gv_t.tamanho_corpo), gv_t.tamanho_corpo, item_recortado(idx, area_quadro, area_quadro_recortar) ? gv_t.texto_suave : gv_t.texto, GV_PESO_NORMAL);
 			}
 		}
 		CLAY(CLAY_IDI("lin-data", (uint32_t)idx), { .layout = { .sizing = { CLAY_SIZING_FIXED(150) } } }) {
@@ -2132,7 +2147,7 @@ static void conteudo(void) {
 				}
 			} else if (!modo_lista) {
 				float tam = tam_icone();
-				float cw = tam + 44, ch = tam + 14 + 10 + 6 + (gv_t.tamanho_corpo + 6) * 2 + 20;
+				float cw = tam + 68, ch = tam + 14 + 10 + 6 + (gv_t.tamanho_corpo + 6) * 2 + 20;
 				int cols = (int)(larg / cw);
 				colunas = cols < 1 ? 1 : cols;
 				int linhas = (nvis + colunas - 1) / colunas;
