@@ -166,9 +166,10 @@ orbit-msg
   "arrastar: serial ... não é de um aperto").
 
 Popup
-  O unconstrain usa a geometria da janela (origem da superfície do
-  toplevel), não a caixa de todo o layout. Sem tamanho ainda, usa a
-  saída dessa janela traduzida para o mesmo espaço.
+  O unconstrain de um popup de janela usa a área útil da saída (sem a
+  barra e a dock), traduzida para o espaço da superfície do toplevel: um menu
+  passa dos limites da janela e só é virado ou deslizado para caber na TELA.
+  Sem saída conhecida, usa a geometria da janela.
 
 Secretária, a partir de um TTY
   ./orbit

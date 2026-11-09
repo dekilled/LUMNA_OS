@@ -394,20 +394,22 @@ static struct orbit_view *popup_root_view(struct wlr_xdg_popup *popup) {
 	return NULL;
 }
 
-/* A caixa é no espaço da superfície do toplevel, não do layout global. */
+/* A caixa é no espaço da superfície do toplevel, não do layout global. Um menu pode passar da janela: o limite é a área útil da tela
+ * (sem a barra e a dock, que ficam por cima), não o tamanho da janela. */
 static void popup_unconstrain(struct orbit_popup *popup) {
 	struct orbit_view *view = popup->parent_view;
 	struct wlr_box box = { 0, 0, 0, 0 };
-	if (view && view->w > 0 && view->h > 0) {
-		box.width = view->w;
-		box.height = view->h;
-	} else if (view && view->output) {
+	if (view && view->output) {
 		struct wlr_box out;
 		wlr_output_layout_get_box(popup->server->layout, view->output->wlr, &out);
-		box.x = out.x - view->x;
-		box.y = out.y - view->y;
-		box.width = out.width;
-		box.height = out.height;
+		struct wlr_box usable = view->output->off ? out : orbit_layer_usable(view->output, &out);
+		box.x = usable.x - view->x;
+		box.y = usable.y - view->y;
+		box.width = usable.width;
+		box.height = usable.height;
+	} else if (view && view->w > 0 && view->h > 0) {
+		box.width = view->w;
+		box.height = view->h;
 	} else {
 		wlr_output_layout_get_box(popup->server->layout, NULL, &box);
 	}

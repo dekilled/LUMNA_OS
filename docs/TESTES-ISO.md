@@ -161,6 +161,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.117 | O mesmo com o dedo: segurar meio segundo num app do menu e arrastar | Idem | ☐ |
 | 2.118 | Atlas: arrastar um arquivo (mouse) para uma pasta da grade, para um atalho da barra lateral e para o fundo da lista | Copia para lá; o original continua onde estava; o destino acende | ☐ |
 | 2.119 | Atlas: arrastar vários selecionados; soltar na pasta de onde vieram | Copia todos; na própria pasta não faz nada (nem cria "(2)") | ☐ |
+| 2.120 | Atlas: deixar a janela baixa (arraste a borda de baixo) e abrir o menu de contexto de um arquivo perto do fim da janela | O menu aparece **inteiro, passando da borda da janela**, sem barra de rolagem; só rola se for mais alto que a tela. Vale também para os menus de outros apps (Firefox...) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

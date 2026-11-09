@@ -153,6 +153,7 @@ void gv_app_vigiar(gv_app *app, int fd, void (*pronto)(gv_app *app, int fd, void
 void gv_app_desvigiar(gv_app *app, int fd);
 float gv_app_largura(gv_app *app);
 float gv_app_altura(gv_app *app);
+float gv_app_altura_tela(gv_app *app); /* a altura (lógica) da tela em que a janela está; 0 se ainda não se sabe. Um popup pode passar da janela, mas não da tela */
 /* Segundos desde o arranque. */
 double gv_agora(void);
 

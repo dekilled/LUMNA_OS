@@ -2776,19 +2776,12 @@ static void menu_do_fundo(void) {
 	}
 }
 
-/* o menu de contexto abre para baixo do ponto onde se pediu, ou para cima se embaixo não cabe; se ainda assim não couber, rola */
+/* o menu de contexto abre para baixo do ponto onde se pediu e passa da janela quando preciso: quem o põe na tela é o compositor, que o vira para
+ * cima ou o desliza para caber na TELA (não na janela). Só rola se o menu for mais alto que a tela. */
 static void lado_do_menu(Clay_ElementId ancora, enum gv_popup_lado *lado, float *altura_max) {
-	Clay_BoundingBox a = gv_caixa(ancora);
-	float h = gv_app_altura(app);
-	float margem = 64; /* a sombra do popup também ocupa lugar na superfície dele */
-	float embaixo = h - a.y - margem, em_cima = a.y - margem;
-	if (a.width <= 0 || embaixo >= 380 || embaixo >= em_cima) {
-		*lado = GV_POPUP_ABAIXO;
-		*altura_max = embaixo > 160 ? embaixo : 160;
-	} else {
-		*lado = GV_POPUP_ACIMA;
-		*altura_max = em_cima > 160 ? em_cima : 160;
-	}
+	float tela = gv_app_altura_tela(app);
+	*lado = GV_POPUP_ABAIXO;
+	*altura_max = tela > 0 ? fmaxf(tela - 96, 480) : 0; /* 96: a sombra do popup e um respiro */
 }
 
 static void menu_do_inicio(void);

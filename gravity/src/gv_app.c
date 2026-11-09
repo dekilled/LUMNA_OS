@@ -58,6 +58,7 @@ struct gv_saida {
 	struct wl_output *wl;
 	uint32_t global;
 	int escala;
+	int modo_w, modo_h, transf; /* o modo atual (pixels) e a rotação (wl_output.transform) */
 	bool dentro; /* a nossa superfície está nela */
 	char nome[64]; /* "HDMI-A-1", "eDP-1"... (wl_output v4) */
 };
@@ -235,6 +236,23 @@ float gv_app_largura(gv_app *app) {
 
 float gv_app_altura(gv_app *app) {
 	return app->altura;
+}
+
+float gv_app_altura_tela(gv_app *app) {
+	/* a tela em que a janela está (ou a primeira): o tamanho lógico, com a rotação e a escala */
+	const struct gv_saida *melhor = NULL;
+	for (int i = 0; i < app->nsaidas; i++) {
+		if (app->saidas[i].modo_h > 0 && (app->saidas[i].dentro || !melhor)) {
+			melhor = &app->saidas[i];
+		}
+	}
+	if (!melhor) {
+		return 0;
+	}
+	bool girada = melhor->transf == WL_OUTPUT_TRANSFORM_90 || melhor->transf == WL_OUTPUT_TRANSFORM_270 ||
+		melhor->transf == WL_OUTPUT_TRANSFORM_FLIPPED_90 || melhor->transf == WL_OUTPUT_TRANSFORM_FLIPPED_270;
+	float e = melhor->escala > 0 ? (float)melhor->escala : 1.0f;
+	return (float)(girada ? melhor->modo_w : melhor->modo_h) / e;
 }
 
 void gv_app_minimizar(gv_app *app) {
@@ -672,8 +690,17 @@ static void escala_rever(gv_app *app) {
 }
 
 static void saida_geometria(void *d, struct wl_output *o, int32_t x, int32_t y, int32_t pw, int32_t ph,
-		int32_t sub, const char *marca, const char *modelo, int32_t transf) {}
-static void saida_modo(void *d, struct wl_output *o, uint32_t f, int32_t w, int32_t h, int32_t r) {}
+		int32_t sub, const char *marca, const char *modelo, int32_t transf) {
+	struct gv_saida *saida = d;
+	saida->transf = transf;
+}
+static void saida_modo(void *d, struct wl_output *o, uint32_t f, int32_t w, int32_t h, int32_t r) {
+	struct gv_saida *saida = d;
+	if (f & WL_OUTPUT_MODE_CURRENT) {
+		saida->modo_w = w;
+		saida->modo_h = h;
+	}
+}
 static void saida_feito(void *d, struct wl_output *o) {}
 static void saida_escala(void *dados, struct wl_output *o, int32_t escala) {
 	struct gv_saida *saida = dados;
