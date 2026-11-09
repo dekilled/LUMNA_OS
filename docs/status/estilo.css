@@ -74,7 +74,11 @@ ul.chips{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:5px}
 ol.nx{margin:0;padding:0;list-style:none;display:grid;gap:10px;counter-reset:n}
 ol.nx li{counter-increment:n;display:grid;grid-template-columns:34px 1fr;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
 ol.nx li::before{content:counter(n);font-family:var(--f-display);font-weight:700;font-size:1.2rem;color:var(--accent);line-height:1.2}
-ol.nx b{display:block;font-weight:600}ol.nx span{color:var(--ink2);font-size:.92rem}
+ol.nx li>div{min-width:0}
+ol.nx b{display:block;font-weight:600}ol.nx span{display:block;margin-top:2px;color:var(--ink2);font-size:.92rem;overflow-wrap:break-word}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.grp .cnt{margin-left:6px}
+ol.nx+.grp{margin-top:30px}
 .note{margin-top:22px;color:var(--ink2);font-size:.9rem;border-left:3px solid var(--line);padding-left:14px;max-width:72ch}
 footer{margin-top:48px;color:var(--ink2);font-size:.85rem;border-top:1px solid var(--line);padding-top:16px}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}

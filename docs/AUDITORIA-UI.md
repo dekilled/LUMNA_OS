@@ -21,7 +21,7 @@
 | Papel de parede | `lumna-papel` | ✅ |
 | **Instalador** (`installer.rs`) | `lumna-instalador` (seis passos, em cima do `lumna-install`) | ✅ feito na fase 2 (testado com o `lumna-install` de mentira) |
 | **Agente do polkit** (`polkit.rs`, `AuthDialog.vue`) | `lumna-polkit` + `lumna-polkit-janela` | ✅ feito na fase 2 (testado com um polkit de mentira, nos dois modos do helper) |
-| Arquivos (`files.rs`, `FilesApp.vue`) | — | ❌ temporário: Thunar na ISO (fase 5) |
+| Arquivos (`files.rs`, `FilesApp.vue`) | `lumna-atlas` (o Atlas, ver [ATLAS.md](ATLAS.md)) | ✅ no lugar do Thunar (só provado no Orbit sem tela) |
 | Loja (`store.rs`) | Painel > Aplicativos instala/atualiza; falta a Loja | ❌ fase 5 |
 | Music e Qobuz (`music.rs`, `qobuz.rs`) | — | ❌ fase 5 |
 | Biblioteca Gaming (`games.rs`, `vdf.rs`, `pad.rs`) | — | ❌ fase 5 |

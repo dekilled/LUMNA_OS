@@ -11,7 +11,7 @@ O resultado também vai para o artefato (a página publicada). Regras da casa:
 import html, os, sys
 E = html.escape
 AQUI = os.path.dirname(os.path.abspath(__file__))
-HOJE = "6 de novembro de 2026"
+HOJE = "9 de novembro de 2026"
 
 # ---------------------------------------------------------------------------------------------------------- O PAINEL
 # (contagem feita lendo gravity/exemplos/painel: página sem função de desenho = esqueleto)
@@ -31,7 +31,7 @@ painel = [
   ("Sobre", ["Este computador","Atualizações do sistema","Avisos legais"], []),
   ("Armazenamento", ["Uso do disco","Limpeza","Discos e pendrives"], []),
   ("Energia", ["Perfil de energia","Bateria","Tela e suspensão","Botão de ligar"], []),
-  ("Teclado e mouse", ["Teclado","Atalhos","Mouse e touchpad"], ["Teclado na tela"]),
+  ("Teclado e mouse", ["Teclado","Atalhos","Mouse e touchpad","Teclado na tela"], []),
   ("Data e hora", ["Data e hora","Fuso horário","Formato"], []),
   ("Idioma e região", ["Idioma","Formatos regionais","Métodos de entrada"], []),
   ("Usuários", ["Sua conta","Senha e PIN","Outros usuários"], []),
@@ -43,25 +43,35 @@ tot_ok = sum(len(o) for _, cats in painel for _, o, s in cats)
 tot_sk = sum(len(s) for _, cats in painel for _, o, s in cats)
 tot = tot_ok + tot_sk
 pct = round(100 * tot_ok / tot)
+_sk = [x for _, cats in painel for _, o, sk in cats for x in sk]
+FALTAM_PAINEL = ", ".join(_sk[:-1]) + " e " + _sk[-1] if len(_sk) > 1 else "".join(_sk)
 
 # ---------------------------------------------------------------------------------------------- O QUE SE SABE POR ÁREA
 # estado: conf = confirmado por você · sim = só simulado · and = em andamento · falta = não existe
 areas = [
- ("Desktop (Orbit + Gravity)", "and", "Funciona numa janela dentro do KDE, com uma janela por monitor. Ainda não rodou como a sua sessão de verdade.",
-  "Você confirmou: janelas por monitor, tela cheia e o mouse no lugar."),
+ ("ISO nova (Orbit + Gravity)", "and", "Pacotes lumna-orbit e lumna-gravity, sessão do Orbit no login, instalador em Gravity (disco inteiro, UEFI e BIOS, GRUB), agente da senha de administrador, sessão live e atualizações pelo GitHub com snapshot e \"Desfazer\". A ISO de teste é a do release teste-orbit (7 de novembro); o que entrou depois chega pelo Painel > Sobre > Atualizações.",
+  "Montada pelo CI e provada com programas falsos e Orbit sem tela. O boot de verdade (VM e PC) é seu: o roteiro com passou/falhou está em docs/TESTES-ISO.md."),
+ ("Desktop (Orbit + Gravity)", "and", "Janelas livres e encaixe, um modo por tela, barra de título do lado do Orbit nos apps de fora, teclado na tela, copiar e colar, arrastar e soltar entre apps (Início para a dock) e o botão Sair da conta no menu de aplicativos.",
+  "Você confirmou, aninhado no KDE: janelas por monitor, tela cheia e o mouse no lugar. Nunca rodou num monitor de verdade (DRM): é o maior risco da ISO."),
+ ("Atlas (explorador de arquivos)", "sim", "Substitui o Thunar. Abas, grade e lista, operações com desfazer, lixeira, menu de contexto e \"...\" em cada item, Propriedades em abas, Início com pastas e partições, barra lateral que reordena arrastando, Rede e nuvem (servidores pelo gvfs e contas pelo rclone) e arrastar arquivos entre pastas.",
+  "Provado no Orbit sem tela. Você já abriu e me mandou os travamentos, que foram corrigidos. Nenhum servidor nem conta de nuvem de verdade foi usado (só gvfs e rclone de mentira)."),
+ ("Terminal (Pulse) com a Emma", "sim", "Terminal em Gravity com abas, histórico e memória em SQLite. A Emma sugere a correção de um comando que falhou, traduz o que você quer fazer (Ctrl+E) e explica antes de executar um comando perigoso. Nada roda sem a sua confirmação.",
+  "Provado aqui com a Emma de mentira. Com a sua Emma e um provedor de verdade ainda não."),
+ ("Teclado na tela", "sim", "Sobe de baixo e empurra as janelas, com acentos por toque longo, símbolos, emojis, vários dedos e a tela larga do PC. Abre sozinho nos apps de fora (input-method). O Painel escolhe quando aparece e o tamanho.",
+  "Provado com um app de mentira e toques simulados. Falta ver no Firefox e no celular de verdade."),
+ ("Painel de controle", "and", f"{tot_ok} de {tot} páginas prontas ({pct}%). Faltam {FALTAM_PAINEL}: estão no plano e ainda nem têm página.",
+  "Tudo foi testado com simulação e com o Orbit sem tela (headless); em máquina de verdade ainda não: gama da Luz noturna, perfil automático da bateria, a senha de administrador (polkit) e o idioma do sistema."),
  ("Mídia", "and", "Início, seletor, controle pelo celular, nunca dois vídeos juntos e o YouTube em formato de TV.",
   "Você confirmou: extensão, login do Google e os botões do controle no YouTube de desktop. Falta o YouTube TV e a Netflix."),
- ("Painel de controle", "and", f"{tot_ok} de {tot} páginas prontas ({pct}%). Falta o Teclado na tela (esqueleto) e três páginas planejadas que ainda nem existem.",
-  "Tudo foi testado com simulação e com o Orbit sem tela (headless); em máquina de verdade ainda não: gama da Luz noturna, perfil automático da bateria, a senha de administrador (polkit) e o idioma do sistema."),
- ("Emma", "and", "Servidor, assistente, arquivos e comandos, código, perfis SFW e NSFW, imagens e visão, Oi Emma, histórias e MCP.",
+ ("Emma", "and", "Servidor, assistente, arquivos e comandos, código, perfis SFW e NSFW, imagens e visão, Oi Emma, histórias, MCP e a página Voz do Painel.",
   "Você confirmou o PIN do perfil NSFW. Imagens, MCP, Oi Emma e a voz: sem confirmação sua."),
  ("Telas e monitores", "sim", "Estender, por modo, espelhar, só a da esquerda ou da direita, topbar por monitor e o botão de tela cheia.",
   "Num KDE falso. Você confirmou só as janelas, a tela cheia e o mouse."),
  ("LUMNA Connect (no PC)", "sim", "Pareamento, área de transferência, avisos, arquivos, informações do PC, energia (bloquear, suspender, reiniciar, desligar), agendamentos e a Emma por texto. Falta no PC: senhas e confirmações (polkit).",
   "Só com um celular falso. O OnePlus com o PC novo ainda não foi testado."),
+ ("App LUMNA Connect (Android)", "sim", "Um app só, em cinco telas: Controle, Compartilhar (arquivos e área de transferência), Emma, PC (informações, energia e agendamentos) e Ajustes. Avisos nos dois sentidos e um serviço que mantém a conexão.", "Escrito e compilado pela CI, mas nunca rodou num celular."),
  ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
- ("App LUMNA Connect (Android)", "sim", "Um app só, em cinco telas: Controle, Compartilhar (arquivos e área de transferência), Emma, PC (informações, energia e agendamentos) e Ajustes. Avisos nos dois sentidos e um serviço que mantém a conexão.", "Escrito e compilado pela CI, mas nunca rodou num celular. O controle você já confirmou no Samsung; o resto é novo."),
- ("Apps do sistema", "falta", "Nenhum ainda no desktop novo (só a captura). No LUMNA antigo existem o Explorador, a Galeria, a Música, a Loja e o Telefone.", "—"),
+ ("Apps que ainda não existem", "falta", "Música, player de vídeo, Galeria de fotos, bloco de notas, Code, Reminders, StoryTeller, Loja, Telefone e o navegador. No LUMNA antigo (Vue) existem Música, Galeria, Loja e Telefone, como referência.", "—"),
 ]
 lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("Em andamento", "and"), "falta": ("Não existe", "sk")}
 
@@ -75,7 +85,9 @@ timeline = [
  ("LUMNA Connect", "O dia a dia com o celular: pareamento, área de transferência, avisos e arquivos.", "feito"),
  ("Vários monitores", "Uma janela por monitor, mouse corrigido, topbar por monitor, botão de tela cheia, as disposições e o modo por tela. Distribuir os workspaces foi descartado por você.", "feito"),
  ("A Mídia de verdade", "Firefox Developer Edition escolhido sozinho, perfil por Firefox, extensão validada, voltar que sai do serviço, nunca dois vídeos juntos e o YouTube em formato de TV.", "feito"),
- ("Agora", "Fechar as lacunas: Gaming, a voz da Emma, o Painel, o app LUMNA Connect completo e os apps do sistema.", "agora"),
+ ("A ISO nova", "Auditoria do shell antigo, pacotes do Orbit e do Gravity, agente da senha de administrador, instalador em Gravity, sessão live, GRUB em UEFI e BIOS, atualizações pelo GitHub com snapshot e a ISO de teste no canal teste-orbit.", "feito"),
+ ("Os apps do sistema começam", "Teclado na tela, o terminal Pulse com a Emma por dentro, a barra de título do lado do Orbit e o Atlas no lugar do Thunar, com abas, Rede e nuvem e arrastar e soltar entre apps.", "feito"),
+ ("Agora", "Você dar o primeiro boot da ISO e passar pelos apps novos. Depois: Gaming, a voz da Emma, o app LUMNA Connect completo e os apps que faltam (Música, player de vídeo, Navegador).", "agora"),
 ]
 
 # ---------------------------------------------------------------------------------------- O QUE AINDA NÃO TEMOS (backlog)
@@ -92,15 +104,15 @@ backlog = [
  ]),
  ("2. A voz da Emma", "A Emma já ouve, entende e fala pelo serviço. Falta a tela para escolher como, e testar de verdade.", [
   ("feito", "O serviço fala e ouve", "Microfone, transcrição (/api/stt), resposta falada frase a frase (/api/tts), Oi Emma offline. O servidor tem voz Fish Audio ou local (faster-whisper e voz clonada)."),
-  ("falta", "Página Voz no Painel", "Escolher o motor (Fish Audio ou local), a voz, a velocidade, o microfone e a saída, e um botão de testar a voz."),
+  ("testar", "Página Voz no Painel", "Escolher o motor (Whisper e Pocket TTS no próprio PC, ou Fish Audio com chave), o botão \"Instalar no PC\" e o \"Testar a voz da Emma\". Falta a velocidade, o microfone e a saída."),
   ("falta", "Gerenciar os modelos de voz", "Baixar com progresso e poder cancelar (o download do Vosk travou em 6% na sua máquina) e dizer quanto espaço usa."),
   ("falta", "O ícone da Emma mostra quando ela fala", "Ouvindo, pensando e falando já têm estado; falta ligar na voz."),
   ("falta", "A voz da Emma na tela de bloqueio", "Consta no roteiro."),
   ("testar", "Falar com a Emma, com microfone de verdade", "O servidor e o serviço estão prontos; ninguém confirmou ainda na sua máquina."),
   ("pergunta", "\"Voz da Emma\" é ela falar, ela ouvir, ou os dois?", "Estou assumindo os dois: falar e ouvir (o microfone e a palavra \"Oi Emma\")."),
  ]),
- ("3. Páginas do Painel de controle", f"o que falta no Painel é pouco: ", [
-  ("falta", "Teclado na tela", "O Gravity ainda não tem teclado virtual; a página fica \"em breve\" até existir um (o antigo era do shell Tauri)."),
+ ("3. Páginas do Painel de controle", "Quase tudo existe. Faltam só as pontas e duas páginas que o LUMNA antigo tinha.", [
+  ("feito", "Teclado na tela", "A página existe: quando o teclado sobe (sozinho, sempre ou só quando você pedir) e o tamanho. O teclado em si é o lumna-teclado."),
  ("falta", "As pontas", "VPN, Ponto de acesso e Receber arquivos por Bluetooth: estão no plano, mas ainda nem têm página."),
  ("ref", "Páginas que o LUMNA antigo tinha", "Impressoras e Dados móveis (PrintersPage.vue e MobileDataPage.vue)."),
  ]),
@@ -120,32 +132,64 @@ backlog = [
   ("testar", "Connect de arquivos e avisos do PC novo com o OnePlus", "O app antigo já fala o protocolo; a parte nova do PC só foi testada com um celular falso."),
   ("feito", "Um app só: LUMNA Connect", "Decidido por você: o LUMNA Controle virou LUMNA Connect (no PC, no Android e nos textos). O app cresce em telas fáceis e intuitivas: controle, arquivos, avisos, energia, agendamento, senhas e Emma."),
  ]),
- ("5. Apps do sistema", "No desktop novo só existe a captura de tela. A lista abaixo é o que você pediu; a coluna do meio diz se o LUMNA antigo (Vue) já tem uma versão para portar.", [
-  ("ref", "Explorador de arquivos", "No antigo: FilesApp.vue. No novo: não existe."),
+ ("5. Apps do sistema", "A lista abaixo é o que você pediu. A etiqueta \"Portar do antigo\" diz que o LUMNA antigo (Vue) já tem uma versão para olhar.", [
+  ("testar", "Atlas, o explorador de arquivos", "No lugar do Thunar. Ainda não tem: mover (em vez de copiar) ao arrastar, arrastar com o dedo, discos e USB, sincronização da nuvem com o Atlas fechado, busca dentro das subpastas e as opções avançadas do mockup (pausar transferências, transferências simultâneas, verificar cópias, cache de miniaturas, etiquetas)."),
+  ("testar", "Terminal (Pulse)", "Abas, memória, correção de erro, comando por linguagem natural e explicação antes de executar. Detalhes em docs/PULSE.md."),
+  ("testar", "Captura de tela", "Foto, vídeo com áudio e o editor de anotações."),
   ("ref", "Player de música", "No antigo: MusicApp.vue (fila, letras, Qobuz, saídas). No novo: não existe."),
   ("falta", "Player de vídeo", "O mpv por baixo, com os controles do LUMNA. Não existe em nenhum dos dois."),
-  ("ref", "Galeria", "No antigo: GalleryApp.vue. (O \"galeria\" do Gravity é a vitrine dos componentes, não um app de fotos.)"),
+  ("ref", "Galeria de fotos", "No antigo: GalleryApp.vue. (O \"galeria\" do Gravity é a vitrine dos componentes, não um app de fotos.)"),
   ("falta", "Bloco de notas", "Não existe em nenhum dos dois."),
   ("falta", "LUMNA Code", "Definido por você: a sua versão do VS Code, com a Emma integrada. Em C com o Gravity. Ainda não começou."),
   ("falta", "Reminders", "Definido por você: calendário e lembretes centralizados, que você e a Emma gerenciam. Em C com o Gravity. O agendamento do Connect já é a base dos avisos."),
   ("falta", "StoryTeller", "Definido por você: a sua engine de histórias, com a Emma integrada, em cima do repositório dekilled/world-forge-app. Ainda não comecei; vou ler o repositório antes de propor a estrutura."),
   ("falta", "O Gravity vira o \"Gravity framework\"", "Decidido por você: tudo novo é em C com o Gravity, no estilo do sistema, para construir qualquer interface dentro do LUMNA. Depois do sistema pronto, a interface do celular também vai para C, para todos os apps."),
   ("ref", "Outros que o antigo tinha", "Loja (StoreApp.vue) e Telefone (PhoneApp.vue)."),
-  ("falta", "Outros em aberto", "Navegador, visualizador de imagens e PDF, terminal, calculadora, monitor do sistema. Diga quais entram."),
+  ("falta", "Outros em aberto", "Navegador, visualizador de imagens e PDF, calculadora, monitor do sistema. Diga quais entram."),
   ("pergunta", "Em Gravity (C) ou aproveitando o shell Vue?", "Estou assumindo que tudo novo é em Gravity, como o resto do desktop novo, e que o antigo serve de referência."),
  ]),
- ("6. Para o desktop ser a sessão do sistema", "Hoje ele roda numa janela dentro do KDE. Isto é o que falta para ser a sessão que você abre no login.", [
-  ("falta", "Rodar o Orbit como sessão de verdade", "A entrada \"LUMNA · Orbit\" do greetd existe em session/ e nunca foi testada na sua máquina."),
+ ("6. Para o desktop ser a sessão do sistema", "O desktop já tem sessão no login, instalador e ISO de teste. O que falta é rodar tudo isso numa máquina de verdade.", [
+  ("feito", "Sessão, instalador e ISO de teste", "A entrada \"LUMNA · Orbit\" do greetd, o instalador em Gravity (disco inteiro, UEFI e BIOS, GRUB com o /boot no Btrfs) e a ISO do release teste-orbit. A sessão do Hyprland antigo vai junto só como emergência."),
+  ("testar", "O primeiro boot de verdade", "O Orbit nunca rodou num monitor de verdade (DRM). Primeiro numa VM com scripts/run-vm.sh, depois no PC. O roteiro com passou/falhou está em docs/TESTES-ISO.md."),
+  ("testar", "Atualizar pelo GitHub", "Painel > Sobre > Atualizações: Procurar, Atualizar tudo (com snapshot antes) e Desfazer a última atualização. Os pacotes saem a cada push na iso-orbit."),
+  ("testar", "Teclado que abre sozinho nos apps de fora", "Pelo input-method do Orbit: provado com um app de mentira; falta ver no Firefox e nos outros."),
   ("falta", "A tela principal no Orbit real", "tela_principal só vale no aninhado; no real precisa apontar para o Odyssey."),
   ("falta", "Desligar um monitor de verdade", "No \"só um lado\" o código existe e nunca rodou em hardware."),
-  ("falta", "Teclado que abre sozinho nos apps de fora", "Hoje só abre nos campos do próprio LUMNA."),
   ("falta", "Navegador", "Testar Epiphany, Firefox e Chromium no Wayland e avaliar o LUMNA Browser."),
-  ("falta", "Instalador e GRUB do LUMNA", "Particionamento, perfis de instalação e boot (docs/PROXIMOS.md)."),
+  ("falta", "Instalador: o que ficou de fora", "Particionamento manual, hibernar, tipos e perfis de instalação, instalação automática, tema do GRUB e Secure Boot (docs/PROXIMOS.md). O pacote do repositório ainda não é assinado."),
+  ("pergunta", "Quando apagar o shell antigo?", "A UI antiga (Hyprland e Tauri) continua no repositório e na ISO como sessão de emergência. Só tiro depois do seu \"pode apagar\", e antes eu marco o estado com a tag ui-antiga-hyprland."),
  ]),
 ]
 
 # ------------------------------------------------------------------------------------- PARA VOCÊ TESTAR (em casa)
-testar = [
+# Os itens novos vêm primeiro; os antigos (abaixo, sem confirmação sua) entram nos grupos pelo começo do título.
+GRUPOS = ["A ISO nova e o instalador", "Apps novos", "Desktop, monitores e modos", "Mídia", "Emma", "Connect e celular"]
+testar_novos = [
+ ("A ISO nova e o instalador", "Dar boot na ISO, numa VM", "Baixe a ISO do release teste-orbit e rode scripts/run-vm.sh --disco --telas 2 lumna-os-teste.iso. Deve entrar sozinha no Orbit, com papel de parede, barra e dock. Se a tela ficar preta, escolha \"LUMNA (clássico · emergência)\" no login e me mande o log (o comando está no roteiro, seção 1). Todos os passos, com número, estão em docs/TESTES-ISO.md."),
+ ("A ISO nova e o instalador", "Instalar e entrar no sistema instalado", "Instalar pelo atalho \"Instalar LUMNA OS\" (disco inteiro), em UEFI e em BIOS, reiniciar e entrar. Conferir o GRUB e o Painel > Sobre."),
+ ("A ISO nova e o instalador", "A janela de senha do administrador", "Painel > Sistema > Idioma, depois Aplicar: deve aparecer a janela do lumna-polkit. Senha errada, três vezes seguidas, recusa o pedido; Esc cancela."),
+ ("A ISO nova e o instalador", "Atualizar o sistema pelo GitHub", "Painel > Sobre > Atualizações: Procurar, Atualizar tudo e Desfazer a última atualização (tira um snapshot do Btrfs antes). O Atlas, o Pulse e o arrastar e soltar, que entraram depois da ISO de 7 de novembro, chegam por aqui."),
+ ("A ISO nova e o instalador", "No PC de verdade", "O que a VM não mostra: a gama da Luz noturna, a tela apagando (DPMS), suspensão, botão de ligar, bateria, vários monitores e a placa AMD ou Intel (roteiro, seção 5)."),
+ ("Apps novos", "Atlas: o dia a dia", "Abas, grade e lista, copiar e colar, renomear, lixeira com desfazer, compactar e extrair. O \"...\" aparece em cada item; no botão direito de uma pasta, os submenus Cor e Ícone abrem ao lado e Propriedades abre a janela em abas. No Início, duplo clique entra na pasta e o botão direito oferece \"Remover da página inicial\". Foi onde você achou os travamentos que corrigi: confirme que sumiram."),
+ ("Apps novos", "Atlas: arrastar", "Na barra lateral, arraste um atalho para reordenar. Arraste um arquivo (ou vários selecionados) para uma pasta, para um atalho da barra lateral ou para o fundo da lista: copia, e o original fica. Com o dedo, arrastar arquivos ainda não existe."),
+ ("Apps novos", "Atlas: Rede e nuvem", "Configurações > Rede e nuvem: conectar a um servidor (smb://, sftp, ftp, WebDAV, nfs) e criar contas de nuvem pelo rclone (Nextcloud, WebDAV, Google Drive, Dropbox, OneDrive). Só foi provado com gvfs e rclone de mentira, então é aqui que mais pode falhar."),
+ ("Apps novos", "Terminal Pulse", "Alt+Enter abre o terminal. Rode um comando que erra (gti status) e veja o cartão da Emma; Ctrl+E em um prompt vazio pede um comando em português; um rm ou dd mostra a explicação antes de executar. Precisa de um provedor em Painel > Emma > Provedores."),
+ ("Apps novos", "Teclado na tela", "Toque num campo de texto no Firefox ou no Painel: o teclado sobe e as janelas se ajustam. Teste o toque longo nas letras, Shift duplo, símbolos, emojis, e Painel > Teclado e mouse > Teclado na tela (Sozinho, Sempre, Só quando eu pedir)."),
+ ("Desktop, monitores e modos", "Sair da conta", "Menu de aplicativos, botão Sair da conta (ao lado do Bloquear): pede confirmação e, ao confirmar, volta para a tela de login. Só provei que o Orbit encerra a sessão; a volta pelo greetd é sua."),
+ ("Desktop, monitores e modos", "Arrastar um app do Início para a dock", "Com o mouse, aperte num app do menu e arraste até a dock; com o dedo, segure meio segundo. O menu fica transparente enquanto arrasta, o app fica fixo onde você soltar e o menu fecha. Soltar fora não fixa nada. Na dock, arrastar um ícone fixo reordena."),
+ ("Desktop, monitores e modos", "Barra de título das janelas de fora", "Firefox, Blender e outros apps de fora ganham a barra de título que o Orbit desenha, no estilo dos apps nativos. Foi testada só com o foot e um mouse virtual."),
+]
+GRUPO_DE = [  # (começo do título antigo, grupo)
+ ("YouTube TV", "Mídia"), ("Nunca dois vídeos", "Mídia"), ("Netflix", "Mídia"), ("Setas nos serviços", "Mídia"), ("YouTube em modo TV", "Mídia"),
+ ("Painel: Por modo", "Desktop, monitores e modos"), ("Passar janelas", "Desktop, monitores e modos"), ("Topbar por monitor", "Desktop, monitores e modos"),
+ ("Seletor de modo", "Desktop, monitores e modos"), ("Modos: Super+Tab", "Desktop, monitores e modos"), ("Mídia: escolher o modo", "Desktop, monitores e modos"),
+ ("Mídia: a tela", "Desktop, monitores e modos"), ("Modos por tela", "Desktop, monitores e modos"), ("Tela de bloqueio", "Desktop, monitores e modos"),
+ ("Tela principal", "Desktop, monitores e modos"), ("Arrastar janela para", "Desktop, monitores e modos"), ("Trocar de modo", "Desktop, monitores e modos"),
+ ("A voz da Emma", "Emma"), ("A Emma", "Emma"), ("Painel > Som", "Emma"), ("Painel > Emma", "Emma"),
+ ("Connect no OnePlus", "Connect e celular"), ("App LUMNA Connect", "Connect e celular"),
+ ("Captura de tela", "Apps novos"),
+]
+testar_antigos = [
  ("YouTube TV (a interface de TV)", "As setas movem a seleção entre os vídeos, o OK abre o vídeo, o voltar volta para a lista e o play/pausa e o ±10 s funcionam dentro do vídeo. Me diga o que aparece na tela se algo falhar."),
  ("Nunca dois vídeos juntos", "Abra um vídeo, aperte Home, abra outro serviço e outro vídeo: só um deve tocar por vez. Voltar até a primeira página deve sair do serviço e pausar. (A aba fica viva: para retomar, aperte play.)"),
  ("Netflix e os outros serviços", "Abrir e tocar. É aqui que o Widevine (o decodificador de vídeo protegido) pode dar problema na primeira vez."),
@@ -186,6 +230,13 @@ confirmado = [
  "Mover janelas entre as telas (Alt+setas), um modo por monitor sem as janelas passarem de um para o outro e a troca de modo pelo celular",
 ]
 simulado = [
+ "A ISO nova: o CI monta e confere os pacotes, e o instalador e o agente de senha foram provados com o lumna-install e o polkit de mentira. Ninguém deu boot ainda no registro",
+ "O Orbit num monitor de verdade (DRM): nunca; só sem tela (headless) e aninhado no seu KDE",
+ "O Atlas inteiro, com toques e teclas simulados no Orbit sem tela; Rede e nuvem só com gvfs e rclone de mentira",
+ "O terminal Pulse e a Emma dentro dele (a Emma de mentira)",
+ "O teclado na tela (um app de mentira com text-input e toques simulados)",
+ "Arrastar e soltar entre apps (Início para a dock, dock e Atlas) com o mouse e o dedo simulados; o botão Sair da conta (provado que o Orbit encerra; a volta ao login não)",
+ "A barra de título do Orbit nas janelas de fora (foot e mouse virtual)",
  "O Connect de arquivos, avisos, informações do PC, energia, agendamentos e a Emma por texto (só com um celular falso)",
  "O app Android novo inteiro (compila na CI, nunca rodou num celular)",
  "A topbar por monitor e o botão de tela cheia",
@@ -197,12 +248,14 @@ simulado = [
 ]
 
 proximos = [
- ("Quando você chegar: testar a lista \"Para você testar\"", "Principalmente o YouTube TV e o Connect do OnePlus; o que falhar eu corrijo antes de começar coisa nova."),
+ ("Dar o primeiro boot da ISO numa VM", "Siga docs/TESTES-ISO.md, marque passou ou falhou e me mande o que falhar (o Painel > Sistema > Diagnóstico junta os logs). É o maior risco que sobrou: o Orbit nunca rodou num monitor de verdade."),
+ ("Passar pelos apps novos", "Atlas, Pulse, teclado na tela, Sair da conta e o arrastar e soltar (a lista \"Para você testar\"). O que falhar eu corrijo antes de começar coisa nova."),
+ ("Testar a Mídia e o Connect do OnePlus", "O YouTube TV, a Netflix e os avisos, arquivos e área de transferência com o PC novo."),
  ("O Início do Gaming (a biblioteca)", "É a maior parte visível que falta e o antigo já tem a referência."),
  ("Instalar o APK novo e caçar bugs", "O APK sai da CI (aba Actions, \"LUMNA Connect (APK)\"). Todas as telas são novas; o que falhar eu corrijo."),
  ("Senhas e confirmações do PC no celular (polkit)", "O último pedaço do Connect completo."),
- ("Painel do dia a dia: Energia, Som e Inicialização", "Sem eles o desktop ainda não serve como sessão única."),
- ("Os apps do sistema, um por vez", "Começando pelo Explorador, o player de vídeo e a Galeria; os que você ainda não descreveu esperam a sua resposta."),
+ ("Os apps que faltam, um por vez", "Player de vídeo, Música e Navegador primeiro; os que você ainda não descreveu esperam a sua resposta."),
+ ("Depois da ISO validada: tirar o shell antigo", "Só com o seu \"pode apagar\". Depois vem a interface do celular (um desenho juntos antes de qualquer código)."),
 ]
 
 # --------------------------------------------------------------------------------------------------------------- HTML
@@ -230,10 +283,23 @@ def backlog_html():
         out.append(f'<section class="bk"><header><h3>{E(titulo)}</h3></header><p class="rs">{E(resumo)}</p><ul>{li}</ul></section>')
     return "".join(out)
 
-tst = "".join(f'<li><b>{E(a)}</b><span>{E(b)}</span></li>' for a, b in testar)
+def _grupo_de(titulo):
+    for ini, g in GRUPO_DE:
+        if titulo.startswith(ini):
+            return g
+    raise SystemExit("sem grupo para: " + titulo)
+por_grupo = {g: [] for g in GRUPOS}
+for g, a, b in testar_novos:
+    por_grupo[g].append((a, b))
+for a, b in testar_antigos:
+    por_grupo[_grupo_de(a)].append((a, b))
+tst = "".join(
+    f'<h3 class="grp">{E(g)} <span class="cnt">{len(itens)}</span></h3><ol class="nx">'
+    + "".join(f'<li><div><b>{E(a)}</b><span>{E(b)}</span></div></li>' for a, b in itens) + '</ol>'
+    for g, itens in por_grupo.items() if itens)
 cf = "".join(f"<li>{E(x)}</li>" for x in confirmado)
 sm = "".join(f"<li>{E(x)}</li>" for x in simulado)
-px = "".join(f'<li><b>{E(a)}</b><span>{E(b)}</span></li>' for a, b in proximos)
+px = "".join(f'<li><div><b>{E(a)}</b><span>{E(b)}</span></div></li>' for a, b in proximos)
 
 CSS = open(os.path.join(AQUI, "estilo.css")).read()
 page = f'''<title>LUMNA OS, onde estamos</title>
@@ -259,12 +325,12 @@ page = f'''<title>LUMNA OS, onde estamos</title>
 <section class="sec" id="fio"><h2>O fio da meada</h2><p class="sub">A ordem em que as coisas aconteceram.</p><ol class="tl">{tl}</ol></section>
 
 <section class="sec" id="faltam"><h2>O que ainda não temos</h2>
-<p class="sub">As cinco frentes que você listou, mais o que falta para o desktop virar a sessão do sistema. Cada linha tem uma etiqueta: <b>Feito</b>, <b>Falta testar</b>, <b>Falta</b>, <b>Portar do antigo</b> (já existe no LUMNA antigo, em Vue, como referência) ou <b>Pergunta</b> (preciso de uma decisão sua).</p>
+<p class="sub">As frentes que você listou, mais o que falta para o desktop virar a sessão do sistema. Cada linha tem uma etiqueta: <b>Feito</b>, <b>Falta testar</b>, <b>Falta</b>, <b>Portar do antigo</b> (já existe no LUMNA antigo, em Vue, como referência) ou <b>Pergunta</b> (preciso de uma decisão sua).</p>
 {backlog_html()}</section>
 
 <section class="sec" id="testar"><h2>Para você testar</h2>
-<p class="sub">Está pronto, mas só você pode confirmar na sua máquina. Quando algo falhar, o mais útil é me dizer <b>o que aparece na tela</b>.</p>
-<ol class="nx">{tst}</ol></section>
+<p class="sub">Está pronto, mas só você pode confirmar na sua máquina. Quando algo falhar, o mais útil é me dizer <b>o que aparece na tela</b>. Os passos numerados da ISO estão em <code>docs/TESTES-ISO.md</code>.</p>
+{tst}</section>
 
 <section class="sec" id="painel"><h2>Painel de controle, página por página</h2>
 <p class="sub">Contado lendo o código do Painel. Uma página sem função de desenho aparece como “em breve”, e é isso que está tracejado.</p>

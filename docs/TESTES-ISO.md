@@ -259,5 +259,5 @@ O snapshot e o "voltar" usam o Btrfs de verdade; eu só testei com um `btrfs` de
 
 ## O que **não** está pronto (não é bug)
 
-Loja própria (por ora o Painel > Aplicativos); o Arquivos novo ainda sem a página Rede e nuvem nem abas, Music, Biblioteca Gaming,
+Loja própria (por ora o Painel > Aplicativos); o Atlas sem mover ao arrastar, sem arrastar com o dedo e sem discos e USB, Music, Biblioteca Gaming,
 particionamento manual, VPN, Ponto de acesso, Receber arquivos por Bluetooth, a UI do celular. Lista completa em [AUDITORIA-UI.md](AUDITORIA-UI.md).
