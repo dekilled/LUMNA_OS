@@ -10,11 +10,32 @@ for f in planejamento.pdf notas.md orçamento.ods apresentação.odp; do echo "x
 printf 'XDG_DOCUMENTS_DIR="$HOME/Documentos"\nXDG_PICTURES_DIR="$HOME/Imagens"\nXDG_DOWNLOAD_DIR="$HOME/Downloads"\n' > "$casa/.config/user-dirs.dirs"
 export XDG_RUNTIME_DIR=$run HOME=$casa WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_DOCUMENTS_DIR XDG_DOWNLOAD_DIR XDG_PICTURES_DIR
+# um rclone de mentira (só registra o que recebeu) e uma pasta que faz de ponto de montagem dos compartilhamentos
+mkdir -p "$run/bin" "$casa/Servidor/dados"
+echo "x" > "$casa/Servidor/dados/ola.txt"
+cat > "$run/bin/rclone" <<EOF2
+#!/bin/sh
+if [ "\$1" = obscure ]; then read s; echo "OBSC-\$s"; exit 0; fi
+echo "\$@" >> "$run/rclone.log"
+exit 0
+EOF2
+chmod +x "$run/bin/rclone"
+export PATH="$run/bin:$PATH" LUMNA_ATLAS_FALSO_DIR="$casa/Servidor"
 (cd "$orbit_dir" && ./orbit > "$run/orbit.log" 2>&1 &)
 sleep 3
 export WAYLAND_DISPLAY=wayland-0
 LUMNA_ATLAS_DEBUG=1 "$gravity/atlas" "$casa/Documentos" > "$run/ar.out" 2> "$run/ar.err" &
 sleep 2
+if [ -n "$SO" ]; then
+	# só um teste (SO=teste_rede.py): vai direto para ele, com o app recém-aberto
+	rc=0
+	for t in $SO; do
+		[ $rc -eq 0 ] && { python3 "$aqui/$t" "$orbit_dir" "$run" "$casa"; rc=$?; }
+	done
+	pkill -x orbit; pkill -x atlas
+	[ $rc -eq 0 ] || { echo "(log em $run)"; tail -10 "$run/ar.err"; }
+	exit $rc
+fi
 python3 "$aqui/teste_ui.py" "$orbit_dir" "$run" "$casa"
 rc=$?
 if [ $rc -eq 0 ]; then
@@ -27,6 +48,10 @@ if [ $rc -eq 0 ]; then
 fi
 if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_dialogos.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_rede.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then

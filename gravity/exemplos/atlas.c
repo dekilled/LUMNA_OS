@@ -32,17 +32,22 @@
 #include "arquivos_cfg.h"
 #include "arquivos_op.h"
 #include "arquivos_prop.h"
+#include "arquivos_rede.h"
 #include "connectc.h"
 #include "gravity.h"
 #include "json.h"
 
 /* ---- estado ---- */
 
-enum vista { V_PASTA, V_RECENTES, V_FAVORITOS, V_INICIO };
+enum vista { V_PASTA, V_RECENTES, V_FAVORITOS, V_INICIO, V_REDE, V_NUVEM };
 static bool em_lixeira(void);
 #define ESPECIAL_RECENTES "@recentes"
 #define ESPECIAL_FAVORITOS "@favoritos"
 #define ESPECIAL_INICIO "@inicio"
+#define ESPECIAL_REDE "@rede"
+#define ESPECIAL_NUVEM "@nuvem"
+/* páginas de cartões (sem lista de arquivos): o Início e as duas da Rede */
+#define VISTA_CARTOES (vista == V_INICIO || vista == V_REDE || vista == V_NUVEM)
 
 static gv_app *app;
 static enum vista vista;
@@ -125,6 +130,12 @@ static void mudar_vista(int v);
 static void conteudo_inicio(void);
 static void pedir_esvaziar(void);
 static void abrir_configuracoes(int pagina);
+static void conteudo_rede(void);
+static bool rede_dialogo_aberto(void);
+static void rede_rever(void);
+static void sync_rever(void);
+static void rede_menus(void);
+static void rede_dialogos(void);
 
 /* ---- carregar a pasta ---- */
 
@@ -205,7 +216,7 @@ static void carregar(bool preservar) {
 		}
 		ar_ordenar(&lista, cfg.ordem, cfg.decrescente);
 		nomear_caminhos();
-	} else if (vista == V_INICIO) {
+	} else if (VISTA_CARTOES) {
 		lista.v = g_new(ar_entrada, 1);
 		lista.cap = 1;
 		cam = g_new0(char *, 1);
@@ -248,6 +259,10 @@ static void ir_para(const char *destino, bool na_historia) {
 		vista = V_FAVORITOS;
 	} else if (!strcmp(destino, ESPECIAL_INICIO)) {
 		vista = V_INICIO;
+	} else if (!strcmp(destino, ESPECIAL_REDE)) {
+		vista = V_REDE;
+	} else if (!strcmp(destino, ESPECIAL_NUVEM)) {
+		vista = V_NUVEM;
 	} else {
 		vista = V_PASTA;
 		snprintf(pasta, sizeof(pasta), "%s", destino);
@@ -1099,6 +1114,12 @@ static const char *nome_da_vista(void) {
 	if (vista == V_INICIO) {
 		return "Início";
 	}
+	if (vista == V_REDE) {
+		return "Compartilhadas";
+	}
+	if (vista == V_NUVEM) {
+		return "Nuvem";
+	}
 	if (em_lixeira()) {
 		return "Lixeira";
 	}
@@ -1194,7 +1215,7 @@ static void caminho_barra(void) {
 	CLAY(CLAY_ID("caminho"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 14, 14, 0, 0 }, .childGap = 6,
 		.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .clip = { .horizontal = true } }) {
 		if (vista != V_PASTA || em_lixeira()) {
-			gv_icone(vista == V_RECENTES ? "clock" : vista == V_FAVORITOS ? "star" : vista == V_INICIO ? "home" : "trash", 20, gv_t.texto_secundario);
+			gv_icone(vista == V_RECENTES ? "clock" : vista == V_FAVORITOS ? "star" : vista == V_INICIO ? "home" : vista == V_REDE ? "network" : vista == V_NUVEM ? "cloud" : "trash", 20, gv_t.texto_secundario);
 			gv_texto(gv_str(nome_da_vista()), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_NORMAL);
 		} else {
 			ar_parte p[32];
@@ -1283,6 +1304,12 @@ static const char *rotulo_do_destino(const char *d) {
 	if (!strcmp(d, ESPECIAL_FAVORITOS)) {
 		return "Favoritos";
 	}
+	if (!strcmp(d, ESPECIAL_REDE)) {
+		return "Compartilhadas";
+	}
+	if (!strcmp(d, ESPECIAL_NUVEM)) {
+		return "Nuvem";
+	}
 	char *lix = ar_lixeira_pasta();
 	bool eh_lixeira = !strcmp(d, lix);
 	g_free(lix);
@@ -1307,7 +1334,7 @@ static void faixa_de_abas(void) {
 		for (int i = 0; i < n_abas; i++) {
 			bool ativa = i == aba_atual;
 			const char *dest = ar_hist_atual(i == aba_atual ? &hist : &abas[i].hist);
-			const char *ic = !dest ? "folder" : !strcmp(dest, ESPECIAL_INICIO) ? "home" : !strcmp(dest, ESPECIAL_RECENTES) ? "clock" : !strcmp(dest, ESPECIAL_FAVORITOS) ? "star" : "folder";
+			const char *ic = !dest ? "folder" : !strcmp(dest, ESPECIAL_INICIO) ? "home" : !strcmp(dest, ESPECIAL_RECENTES) ? "clock" : !strcmp(dest, ESPECIAL_FAVORITOS) ? "star" : !strcmp(dest, ESPECIAL_REDE) ? "network" : !strcmp(dest, ESPECIAL_NUVEM) ? "cloud" : "folder";
 			char nome[96];
 			snprintf(nome, sizeof(nome), "%s", rotulo_do_destino(dest));
 			if (g_utf8_strlen(nome, -1) > 22) { /* nome comprido: corta com reticências */
@@ -1642,6 +1669,10 @@ static void barra_lateral(void) {
 				}
 			}
 			arraste_desenhar();
+			CLAY(CLAY_ID("l-div-rede"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+			titulo_lateral("Rede");
+			item_lateral(CLAY_ID("l-rede"), -1, "network", "Compartilhadas", vista == V_REDE, ESPECIAL_REDE);
+			item_lateral(CLAY_ID("l-nuvem"), -1, "cloud", "Nuvem", vista == V_NUVEM, ESPECIAL_NUVEM);
 			CLAY(CLAY_ID("l-d3"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
 			char *lix = ar_lixeira_pasta();
 			item_lateral(CLAY_ID("l-lixeira"), -1, "trash", "Lixeira", em_lixeira(), lix);
@@ -1897,6 +1928,10 @@ static void conteudo(void) {
 		conteudo_inicio();
 		return;
 	}
+	if (vista == V_REDE || vista == V_NUVEM) {
+		conteudo_rede();
+		return;
+	}
 	CLAY(CLAY_ID("principal"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 		cabecalho_conteudo();
 		if (modo_lista && !erro_pasta[0]) {
@@ -1974,8 +2009,8 @@ static void conteudo(void) {
 
 /* os cliques são tratados depois do desenho: o Clay já sabe onde cada um está */
 static void tratar_cliques_conteudo(void) {
-	if (vista == V_INICIO) {
-		return; /* o Início tem os seus cartões; o fundo da rolagem pedir o toque por último tirava o clique deles */
+	if (VISTA_CARTOES) {
+		return; /* o Início e a Rede têm os seus cartões; o fundo da rolagem pedir o toque por último tirava o clique deles */
 	}
 	bool fundo = gv_tocado(ID_CONTEUDO); /* primeiro: quem pede o aperto depois ganha, e o item vale mais que o fundo */
 	bool algum = false;
@@ -3435,7 +3470,7 @@ static void mover_foco(int dk) {
 static void teclado_atalhos(void) {
 	bool digitando = gv_focado(CLAY_ID("busca")) || gv_focado(CLAY_ID("mn-nome")) || gv_focado(CLAY_ID("renome")) || gv_focado(CLAY_ID("caminho-campo")) || gv_focado(CLAY_ID("cl-url"));
 	uint32_t mods = gv_modificadores();
-	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto;
+	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || rede_dialogo_aberto();
 	for (int i = 0;; i++) {
 		uint32_t k = gv_tecla_n(i);
 		if (!k) {
@@ -4201,12 +4236,857 @@ static void restaurar_padrao_da_pagina(void) {
 		ar_barra_padrao(&barra_edit);
 		edit_item = -1;
 		break;
+	case 3:
+		cfg_edit.rede_reconectar = padrao.rede_reconectar;
+		cfg_edit.rede_indisponiveis = padrao.rede_indisponiveis;
+		break;
 	case 4:
 		cfg_edit.conflito = padrao.conflito;
 		cfg_edit.confirmar_apagar = padrao.confirmar_apagar;
 		cfg_edit.confirmar_esvaziar = padrao.confirmar_esvaziar;
 		cfg_edit.registrar_erros = padrao.registrar_erros;
 		break;
+	}
+}
+
+/* ---- rede e nuvem ----
+ * Os compartilhamentos de rede (o gvfs, numa thread própria: servicos/arquivos_rede.c) e as contas na nuvem (o rclone). A página de Configurações e as
+ * duas listas da barra lateral ("Compartilhadas" e "Nuvem") mexem na mesma lista salva em rede.ini. */
+
+static ar_rede rede;
+static bool rede_montado[AR_SHARES_MAX];   /* o gvfs tem este compartilhamento montado (lido a cada ~2 s, não a cada quadro) */
+static double rede_montado_em;
+static bool tem_rclone;
+static int rede_proto_i;                    /* o protocolo do formulário "Conectar a um servidor" */
+static char rede_url[512];
+static int nuvem_sel;                       /* a conta cujos detalhes a página mostra */
+static int menu_share = -1, menu_conta = -1; /* o item do menu "..." */
+
+/* a conexão em curso (uma de cada vez) */
+static ar_conexao *cx;
+static int cx_share = -1;
+static bool cx_abrir_ao_fim, cx_desconectando;
+static ar_conexao_estado cx_st;
+static char cx_usuario[96], cx_senha[256], cx_dominio[96];
+static bool cx_lembrar, cx_anonimo, cx_focar;
+static int rec_fila[AR_SHARES_MAX], rec_n, rec_i; /* "Reconectar ao abrir": os que estavam conectados */
+
+/* o rclone em curso: sincronizando uma conta, ou a pessoa entrando numa conta nova (o navegador) */
+static ar_sync *sy;
+static int sy_conta = -1;
+static bool sy_oauth, sy_cancelado;
+static char sy_remote[48], sy_nome[96], sy_tipo[16];
+static time_t sy_tentativa[AR_CONTAS_MAX];  /* a última vez que se tentou (para não repetir a cada quadro quando falha) */
+#define SYNC_INTERVALO 600
+
+/* o diálogo "Adicionar conta" */
+static bool conta_aberta;
+static int conta_tipo_i;
+static char conta_nome[96], conta_url[256], conta_usuario[96], conta_senha[256];
+static bool conta_focar;
+
+static void rede_redesenhar(void *d) {
+	(void)d;
+	gv_app_redesenhar(app);
+}
+
+static void rede_acordou(void *d) {
+	(void)d;
+	gv_na_linha_principal(rede_redesenhar, NULL);
+}
+
+static void rede_atualizar_montados(void) {
+	for (int i = 0; i < rede.n_shares; i++) {
+		rede_montado[i] = ar_share_montado(rede.shares[i].uri, NULL, 0);
+	}
+	rede_montado_em = gv_agora();
+}
+
+static void rede_salvar(void) {
+	ar_rede_gravar(&rede);
+}
+
+static void share_conectar(int i, bool abrir, bool silencioso) {
+	if (i < 0 || i >= rede.n_shares) {
+		return;
+	}
+	if (cx) {
+		avisar("Já tem uma conexão em andamento");
+		return;
+	}
+	cx = ar_share_conectar(rede.shares[i].uri, silencioso, rede_acordou, NULL);
+	cx_share = i;
+	cx_abrir_ao_fim = abrir;
+	cx_desconectando = false;
+	cx_usuario[0] = cx_senha[0] = cx_dominio[0] = '\0';
+	cx_lembrar = true;
+	cx_anonimo = false;
+	cx_focar = true;
+	memset(&cx_st, 0, sizeof(cx_st));
+	if (!silencioso) {
+		avisar("Conectando a %s…", rede.shares[i].nome);
+	}
+}
+
+static void share_desconectar(int i) {
+	if (i < 0 || i >= rede.n_shares) {
+		return;
+	}
+	if (cx) {
+		avisar("Já tem uma conexão em andamento");
+		return;
+	}
+	cx = ar_share_desconectar(rede.shares[i].uri, rede_acordou, NULL);
+	cx_share = i;
+	cx_abrir_ao_fim = false;
+	cx_desconectando = true;
+}
+
+/* a pasta local do compartilhamento montado, para o Atlas entrar nele */
+static void share_abrir(int i) {
+	if (i < 0 || i >= rede.n_shares) {
+		return;
+	}
+	char caminho[4096];
+	if (ar_share_montado(rede.shares[i].uri, caminho, sizeof(caminho)) && caminho[0] && g_file_test(caminho, G_FILE_TEST_IS_DIR)) {
+		ir_para(caminho, true);
+	} else {
+		avisar("%s está conectado, mas o gvfs não mostrou a pasta no sistema de arquivos (o gvfs-fuse está rodando?)", rede.shares[i].nome);
+	}
+}
+
+static void share_esquecer(int i) {
+	if (i < 0 || i >= rede.n_shares || (cx && cx_share == i)) {
+		return;
+	}
+	ar_rede_remover_share(&rede, i);
+	rede_salvar();
+	rede_atualizar_montados();
+	avisar("Compartilhamento removido da lista");
+}
+
+/* a cada quadro: a conexão anda; ao fim, diz o que houve; e vai conectando os que estavam conectados da última vez */
+static void rede_rever(void) {
+	if (cx) {
+		ar_conexao_estado_ler(cx, &cx_st);
+		if (cx_st.fase == AR_CX_OK || cx_st.fase == AR_CX_ERRO || cx_st.fase == AR_CX_CANCELADA) {
+			int i = cx_share;
+			bool abrir = cx_abrir_ao_fim, desc = cx_desconectando;
+			char msg[256];
+			snprintf(msg, sizeof(msg), "%s", cx_st.mensagem);
+			int fase = cx_st.fase;
+			ar_conexao_liberar(cx);
+			cx = NULL;
+			explicit_bzero(cx_senha, sizeof(cx_senha));
+			if (i >= 0 && i < rede.n_shares) {
+				if (fase == AR_CX_OK) {
+					rede.shares[i].conectado_antes = !desc;
+					rede_salvar();
+					rede_atualizar_montados();
+					avisar(desc ? "Desconectado de %s" : "Conectado a %s", rede.shares[i].nome);
+					if (abrir && !desc) {
+						share_abrir(i);
+					}
+				} else if (fase == AR_CX_ERRO) {
+					rede.shares[i].conectado_antes = false;
+					rede_salvar();
+					avisar("Não consegui %s %s: %s", desc ? "desconectar de" : "conectar a", rede.shares[i].nome, msg);
+				} else {
+					avisar("Conexão cancelada");
+				}
+			}
+			cx_share = -1;
+			gv_app_redesenhar(app);
+		}
+	} else if (rec_i < rec_n) { /* os que estavam conectados, um de cada vez e sem pedir senha */
+		int i = rec_fila[rec_i++];
+		if (i < rede.n_shares && !rede_montado[i]) {
+			share_conectar(i, false, true);
+		}
+	}
+	/* o estado de "montado" se renova de tempos em tempos enquanto se olha para a rede */
+	if ((pagina_cfg == 3 || vista == V_REDE) && gv_agora() - rede_montado_em > 2) {
+		rede_atualizar_montados();
+		gv_acordar_em(2.1);
+	}
+}
+
+/* ---- nuvem ---- */
+
+static void conta_sincronizar(int i, bool avisa) {
+	if (i < 0 || i >= rede.n_contas || sy) {
+		if (avisa && sy) {
+			avisar("Já tem uma sincronização em andamento");
+		}
+		return;
+	}
+	if (!tem_rclone) {
+		if (avisa) {
+			avisar("Falta instalar o rclone (as contas na nuvem dependem dele)");
+		}
+		return;
+	}
+	sy = ar_nuvem_sincronizar(&rede.contas[i], rede_acordou, NULL);
+	sy_conta = i;
+	sy_oauth = false;
+	sy_tentativa[i] = time(NULL);
+	if (avisa) {
+		avisar("Sincronizando %s…", rede.contas[i].nome);
+	}
+}
+
+static void conta_entrar_oauth(void) {
+	char remote[48];
+	ar_nuvem_nome_remote(&rede, conta_nome, remote, sizeof(remote));
+	snprintf(sy_remote, sizeof(sy_remote), "%s", remote);
+	snprintf(sy_nome, sizeof(sy_nome), "%s", conta_nome);
+	snprintf(sy_tipo, sizeof(sy_tipo), "%s", AR_NUVEM_TIPOS[conta_tipo_i]);
+	sy = ar_nuvem_entrar(remote, sy_tipo, rede_acordou, NULL);
+	sy_oauth = true;
+	sy_cancelado = false;
+	sy_conta = -1;
+}
+
+static void sync_rever(void) {
+	if (sy) {
+		ar_sync_estado st;
+		ar_sync_estado_ler(sy, &st);
+		if (st.fase != AR_SY_ANDANDO) {
+			ar_sync_liberar(sy);
+			sy = NULL;
+			if (sy_oauth) {
+				if (!sy_cancelado && st.fase == AR_SY_OK) {
+					int k = ar_nuvem_adicionar_conta(&rede, sy_nome, sy_tipo, sy_remote);
+					if (k >= 0) {
+						rede_salvar();
+						nuvem_sel = k;
+						conta_aberta = false;
+						avisar("Conta %s adicionada", sy_nome);
+						conta_sincronizar(k, false);
+					}
+				} else if (!sy_cancelado) {
+					avisar("Não consegui entrar na conta: %s", st.mensagem);
+					conta_aberta = true;
+				}
+			} else if (sy_conta >= 0 && sy_conta < rede.n_contas) {
+				ar_conta *c = &rede.contas[sy_conta];
+				if (st.fase == AR_SY_OK) {
+					c->ultima_sync = time(NULL);
+					c->sincronizada = true;
+					c->ultimo_erro[0] = '\0';
+				} else {
+					snprintf(c->ultimo_erro, sizeof(c->ultimo_erro), "%s", st.mensagem);
+				}
+				rede_salvar();
+				if (pagina_cfg == 3 || vista == V_NUVEM) {
+					avisar(st.fase == AR_SY_OK ? "%s sincronizada" : "A sincronização de %s falhou", c->nome);
+				}
+			}
+			sy_conta = -1;
+			gv_app_redesenhar(app);
+		}
+		return;
+	}
+	if (!tem_rclone) {
+		return;
+	}
+	time_t agora = time(NULL);
+	bool alguma = false;
+	for (int i = 0; i < rede.n_contas; i++) {
+		if (!rede.contas[i].segundo_plano) {
+			continue;
+		}
+		alguma = true;
+		time_t ref = rede.contas[i].ultima_sync > sy_tentativa[i] ? rede.contas[i].ultima_sync : sy_tentativa[i];
+		if (agora - ref >= SYNC_INTERVALO) {
+			conta_sincronizar(i, false);
+			break;
+		}
+	}
+	if (alguma) {
+		gv_acordar_em(30.3);
+	}
+}
+
+static const char *conta_status(const ar_conta *c, int i) {
+	if (sy && !sy_oauth && sy_conta == i) {
+		return "Sincronizando…";
+	}
+	if (c->ultimo_erro[0]) {
+		return "Erro na sincronização";
+	}
+	if (!c->ultima_sync) {
+		return "Ainda não sincronizada";
+	}
+	return "Sincronizado";
+}
+
+static Clay_Color conta_status_cor(const ar_conta *c, int i) {
+	if (sy && !sy_oauth && sy_conta == i) {
+		return gv_t.acento;
+	}
+	return c->ultimo_erro[0] ? gv_t.perigo : c->ultima_sync ? (Clay_Color){ 52, 199, 89, 255 } : gv_t.texto_suave;
+}
+
+/* ---- as listas da barra lateral (Compartilhadas, Nuvem): cartões, como o Início ---- */
+
+static bool cartao_rede(Clay_ElementId id, const char *ic, const char *titulo, const char *sub, const char *estado, Clay_Color cor_estado, float larg) {
+	bool sobre = gv_por_cima(id);
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(larg), CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(14), .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = sobre ? gv_t.sob_cursor : gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		gv_icone(ic, 40, gv_t.texto_secundario);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 }, .clip = { .horizontal = true } }) {
+			gv_texto(gv_str(titulo), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_str(sub), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			gv_texto(gv_str(estado), gv_t.tamanho_legenda + 1, cor_estado, GV_PESO_NORMAL);
+		}
+	}
+	return gv_tocado(id);
+}
+
+static void vazio_rede(const char *texto) {
+	gv_texto(gv_str(texto), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+	if (gv_botao_ext(CLAY_ID("rd-abrir-cfg"), &(gv_botao_opcoes){ .icone = "settings", .texto = "Abrir Rede e nuvem nas configurações", .estilo = GV_BOTAO_ELEVADO })) {
+		abrir_configuracoes(3);
+	}
+}
+
+static void conteudo_rede(void) {
+	bool nuvem = vista == V_NUVEM;
+	CLAY(CLAY_ID("principal"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+		CLAY(CLAY_ID("cabeca"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 18, 8 }, .childGap = 4 } }) {
+			gv_texto(nuvem ? CLAY_STRING("Nuvem") : CLAY_STRING("Compartilhadas"), 32, gv_t.texto, GV_PESO_NORMAL);
+			gv_texto(nuvem ? CLAY_STRING("Suas contas na nuvem, sincronizadas com uma pasta daqui") : CLAY_STRING("Pastas compartilhadas na rede (SMB, SFTP, FTP, WebDAV, NFS)"), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		CLAY(ID_CONTEUDO, gv_rolagem(ID_CONTEUDO, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM,
+			.sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 8, 24 }, .childGap = 14 } })) {
+			float larg = gv_caixa(ID_CONTEUDO).width - 48 - 12;
+			int por_linha = (int)((larg - 4) / (320 + 14));
+			por_linha = por_linha < 1 ? 1 : por_linha;
+			float lc = por_linha > 1 ? 320 : (larg > 200 ? larg - 4 : 200);
+			int quais[AR_SHARES_MAX > AR_CONTAS_MAX ? AR_SHARES_MAX : AR_CONTAS_MAX], nq = 0;
+			if (nuvem) {
+				for (int i = 0; i < rede.n_contas; i++) {
+					quais[nq++] = i;
+				}
+			} else {
+				for (int i = 0; i < rede.n_shares; i++) {
+					if (rede_montado[i] || cfg.rede_indisponiveis || (cx && cx_share == i)) {
+						quais[nq++] = i;
+					}
+				}
+			}
+			if (!nq) {
+				vazio_rede(nuvem ? "Nenhuma conta na nuvem ainda." : rede.n_shares ? "Nenhum compartilhamento conectado. Os desconectados ficam escondidos (dá para mostrá-los em Configurações)." : "Nenhum compartilhamento ainda.");
+			}
+			for (int r = 0; r * por_linha < nq; r++) {
+				CLAY(CLAY_IDI("rd-linha", (uint32_t)r), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
+					for (int k = r * por_linha; k < nq && k < (r + 1) * por_linha; k++) {
+						int i = quais[k];
+						Clay_ElementId id = CLAY_IDI("rd-cartao", (uint32_t)i);
+						if (gv_menu_no_ponteiro(id, CLAY_ID("menu-rede"))) {
+							menu_share = nuvem ? -1 : i;
+							menu_conta = nuvem ? i : -1;
+						}
+						if (nuvem) {
+							const ar_conta *c = &rede.contas[i];
+							if (cartao_rede(id, "cloud", c->nome, c->pasta_local, conta_status(c, i), conta_status_cor(c, i), lc)) {
+								if (g_file_test(c->pasta_local, G_FILE_TEST_IS_DIR)) {
+									ir_para(c->pasta_local, true);
+								} else {
+									avisar("A pasta local ainda não existe: ela nasce na primeira sincronização");
+								}
+							}
+						} else {
+							const ar_share *s = &rede.shares[i];
+							bool on = rede_montado[i];
+							bool tentando = cx && cx_share == i;
+							if (cartao_rede(id, "network", s->nome, gv_fmt("%s · %s", AR_PROTO_NOMES[s->proto], s->uri).chars, tentando ? "Conectando…" : on ? "Conectado" : "Desconectado",
+								on ? (Clay_Color){ 52, 199, 89, 255 } : gv_t.texto_suave, lc)) {
+								if (on) {
+									share_abrir(i);
+								} else if (!tentando) {
+									share_conectar(i, true, false);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+/* o conteúdo do menu de um compartilhamento ou de uma conta (o "..." da página e o botão direito nos cartões) */
+static void menu_do_share(Clay_ElementId popup) {
+	int i = menu_share;
+	if (i < 0 || i >= rede.n_shares) {
+		return;
+	}
+	bool on = rede_montado[i];
+	if (on && gv_menu_item(CLAY_ID("mr-abrir"), "folder", "Abrir", NULL)) {
+		gv_popup_fechar(popup);
+		share_abrir(i);
+	}
+	if (on && gv_menu_item(CLAY_ID("mr-aba"), "plus", "Abrir em nova aba", NULL)) {
+		char caminho[4096];
+		gv_popup_fechar(popup);
+		if (ar_share_montado(rede.shares[i].uri, caminho, sizeof(caminho)) && caminho[0]) {
+			aba_nova(caminho);
+		}
+	}
+	if (!on && gv_menu_item(CLAY_ID("mr-conectar"), "plus-circle", "Conectar", NULL)) {
+		gv_popup_fechar(popup);
+		share_conectar(i, false, false);
+	}
+	if (on && gv_menu_item(CLAY_ID("mr-desconectar"), "eject", "Desconectar", NULL)) {
+		gv_popup_fechar(popup);
+		share_desconectar(i);
+	}
+	separador("mr-sep", 1);
+	if (gv_menu_item(CLAY_ID("mr-copiar"), "link", "Copiar endereço", NULL)) {
+		gv_popup_fechar(popup);
+		gv_copiar(rede.shares[i].uri);
+		avisar("Endereço copiado");
+	}
+	if (gv_menu_item(CLAY_ID("mr-esquecer"), "trash", "Esquecer este compartilhamento", NULL)) {
+		gv_popup_fechar(popup);
+		share_esquecer(i);
+	}
+}
+
+static void menu_da_conta(Clay_ElementId popup) {
+	int i = menu_conta;
+	if (i < 0 || i >= rede.n_contas) {
+		return;
+	}
+	if (gv_menu_item(CLAY_ID("mc-sync"), "refresh", "Sincronizar agora", NULL)) {
+		gv_popup_fechar(popup);
+		conta_sincronizar(i, true);
+	}
+	if (gv_menu_item(CLAY_ID("mc-abrir"), "folder", "Abrir a pasta local", NULL)) {
+		gv_popup_fechar(popup);
+		if (g_file_test(rede.contas[i].pasta_local, G_FILE_TEST_IS_DIR)) {
+			ir_para(rede.contas[i].pasta_local, true);
+		} else {
+			avisar("A pasta local ainda não existe: ela nasce na primeira sincronização");
+		}
+	}
+	separador("mc-sep", 1);
+	if (gv_menu_item(CLAY_ID("mc-remover"), "trash", "Remover a conta", NULL)) {
+		gv_popup_fechar(popup);
+		if (sy && !sy_oauth && sy_conta == i) {
+			avisar("Espere a sincronização acabar para remover a conta");
+		} else {
+			ar_nuvem_remover(&rede, i);
+			rede_salvar();
+			if (nuvem_sel >= rede.n_contas) {
+				nuvem_sel = rede.n_contas - 1;
+			}
+			avisar("Conta removida");
+		}
+	}
+}
+
+static void rede_menus(void) {
+	/* o botão direito (ou o dedo parado) num cartão das listas da barra lateral */
+	if (vista == V_REDE || vista == V_NUVEM) {
+		enum gv_popup_lado lado;
+		float altura_max;
+		Clay_ElementId anc = gv_menu_ancora(CLAY_ID("menu-rede"));
+		lado_do_menu(anc, &lado, &altura_max);
+		GV_POPUP(CLAY_ID("menu-rede"), anc, .lado = lado, .alinhar = GV_ALINHAR_INICIO, .largura = 300, .distancia = 2, .altura_max = altura_max) {
+			CLAY(CLAY_ID("mr-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(6), .childGap = 2 } }) {
+				if (vista == V_NUVEM) {
+					menu_da_conta(CLAY_ID("menu-rede"));
+				} else {
+					menu_do_share(CLAY_ID("menu-rede"));
+				}
+			}
+		}
+	}
+}
+
+/* ---- os diálogos: senha (e pergunta) do gvfs, adicionar conta, esperando o navegador ---- */
+
+static bool rede_dialogo_aberto(void) {
+	return (cx && (cx_st.fase == AR_CX_PEDINDO_SENHA || cx_st.fase == AR_CX_PERGUNTANDO)) || conta_aberta || (sy && sy_oauth);
+}
+
+static void corpo_senha(void) {
+	texto_dialogo(cx_st.mensagem[0] ? cx_st.mensagem : "Este servidor pede uma senha.");
+	if (cx_st.fase == AR_CX_PERGUNTANDO) {
+		return;
+	}
+	if (cx_st.quer_usuario && !cx_anonimo) {
+		if (!cx_usuario[0] && cx_st.usuario[0]) {
+			snprintf(cx_usuario, sizeof(cx_usuario), "%s", cx_st.usuario);
+		}
+		gv_campo(CLAY_ID("cx-usuario"), cx_usuario, sizeof(cx_usuario), "Usuário", GV_CAMPO_TEXTO);
+	}
+	if (cx_st.quer_dominio && !cx_anonimo) {
+		if (!cx_dominio[0] && cx_st.dominio[0]) {
+			snprintf(cx_dominio, sizeof(cx_dominio), "%s", cx_st.dominio);
+		}
+		gv_campo(CLAY_ID("cx-dominio"), cx_dominio, sizeof(cx_dominio), "Domínio", GV_CAMPO_TEXTO);
+	}
+	if (!cx_anonimo) {
+		int r = gv_campo(CLAY_ID("cx-senha"), cx_senha, sizeof(cx_senha), "Senha", GV_CAMPO_SENHA);
+		if (cx_focar) {
+			gv_focar(cx_st.quer_usuario && !cx_usuario[0] ? CLAY_ID("cx-usuario") : CLAY_ID("cx-senha"));
+			cx_focar = false;
+		}
+		if (r & GV_CAMPO_ENTER) {
+			ar_conexao_responder(cx, true, cx_usuario, cx_senha, cx_dominio, cx_lembrar, false);
+			explicit_bzero(cx_senha, sizeof(cx_senha));
+			cx_senha[0] = '\0';
+		}
+	}
+	if (cx_st.anonimo_possivel) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_interruptor(CLAY_ID("cx-anonimo"), &cx_anonimo);
+			gv_texto(CLAY_STRING("Entrar como convidado (sem senha)"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+	}
+	if (cx_st.pode_lembrar && !cx_anonimo) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_interruptor(CLAY_ID("cx-lembrar"), &cx_lembrar);
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(CLAY_STRING("Lembrar a senha"), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_NORMAL);
+				gv_texto(CLAY_STRING("Guardada no chaveiro do sistema, nunca em arquivo do Atlas."), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+		}
+	}
+}
+
+static void botoes_senha(void) {
+	if (!cx) {
+		return;
+	}
+	if (cx_st.fase == AR_CX_PERGUNTANDO) {
+		if (gv_botao_ext(CLAY_ID("cx-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+			ar_conexao_escolher(cx, -1);
+		}
+		for (int k = 0; k < cx_st.n_opcoes; k++) {
+			if (gv_botao_ext(CLAY_IDI("cx-opcao", (uint32_t)k), &(gv_botao_opcoes){ .texto = cx_st.opcoes[k], .estilo = k == 0 ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO })) {
+				ar_conexao_escolher(cx, k);
+			}
+		}
+		return;
+	}
+	if (gv_botao_ext(CLAY_ID("cx-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+		ar_conexao_responder(cx, false, "", "", "", false, false);
+	}
+	if (gv_botao_ext(CLAY_ID("cx-entrar"), &(gv_botao_opcoes){ .texto = "Conectar", .estilo = GV_BOTAO_CHEIO })) {
+		ar_conexao_responder(cx, true, cx_usuario, cx_senha, cx_dominio, cx_lembrar, cx_anonimo);
+		explicit_bzero(cx_senha, sizeof(cx_senha));
+		cx_senha[0] = '\0';
+	}
+}
+
+static bool conta_eh_oauth(void) {
+	return conta_tipo_i >= 2;
+}
+
+static void conta_fechar(void) {
+	conta_aberta = false;
+	explicit_bzero(conta_senha, sizeof(conta_senha));
+	conta_senha[0] = '\0';
+}
+
+static void conta_confirmar(void) {
+	if (!tem_rclone) {
+		avisar("Falta instalar o rclone (as contas na nuvem dependem dele)");
+		return;
+	}
+	if (!conta_nome[0]) {
+		snprintf(conta_nome, sizeof(conta_nome), "%s", AR_NUVEM_NOMES[conta_tipo_i]);
+	}
+	if (conta_eh_oauth()) {
+		conta_entrar_oauth();
+		return;
+	}
+	char erro[256] = "";
+	int k = ar_nuvem_criar_webdav(&rede, conta_nome, AR_NUVEM_TIPOS[conta_tipo_i], conta_url, conta_usuario, conta_senha, erro, sizeof(erro));
+	if (k < 0) {
+		avisar("%s", erro[0] ? erro : "Não consegui adicionar a conta");
+		return;
+	}
+	rede_salvar();
+	nuvem_sel = k;
+	conta_fechar();
+	avisar("Conta %s adicionada", rede.contas[k].nome);
+	conta_sincronizar(k, false);
+}
+
+static void corpo_conta(void) {
+	if (sy && sy_oauth) {
+		texto_dialogo("O rclone abriu uma página no navegador para você entrar na conta. Quando terminar lá, volte aqui: o Atlas continua sozinho.");
+		return;
+	}
+	texto_dialogo("De que tipo é a conta?");
+	CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+		if (gv_lista_suspensa(CLAY_ID("ct-tipo"), AR_NUVEM_NOMES, 5, &conta_tipo_i) || !conta_nome[0]) {
+			if (!conta_nome[0] || !strcmp(conta_nome, AR_NUVEM_NOMES[0]) || !strcmp(conta_nome, AR_NUVEM_NOMES[1]) || !strcmp(conta_nome, AR_NUVEM_NOMES[2]) || !strcmp(conta_nome, AR_NUVEM_NOMES[3]) || !strcmp(conta_nome, AR_NUVEM_NOMES[4])) {
+				snprintf(conta_nome, sizeof(conta_nome), "%s", AR_NUVEM_NOMES[conta_tipo_i]);
+			}
+		}
+	}
+	gv_campo(CLAY_ID("ct-nome"), conta_nome, sizeof(conta_nome), "Nome da conta", GV_CAMPO_TEXTO);
+	if (!conta_eh_oauth()) {
+		gv_campo(CLAY_ID("ct-url"), conta_url, sizeof(conta_url), conta_tipo_i == 0 ? "https://nuvem.exemplo.com" : "https://servidor/dav/", GV_CAMPO_URL);
+		gv_campo(CLAY_ID("ct-usuario"), conta_usuario, sizeof(conta_usuario), "Usuário", GV_CAMPO_TEXTO);
+		int r = gv_campo(CLAY_ID("ct-senha"), conta_senha, sizeof(conta_senha), conta_tipo_i == 0 ? "Senha (ou senha de aplicativo)" : "Senha", GV_CAMPO_SENHA);
+		if (r & GV_CAMPO_ENTER) {
+			conta_confirmar();
+		}
+		texto_dialogo("A senha vai ofuscada para o rclone.conf do Atlas (só você lê). No Nextcloud, prefira uma senha de aplicativo.");
+	} else {
+		texto_dialogo("Você entra pelo navegador: o Atlas nunca vê a sua senha.");
+	}
+	if (!tem_rclone) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			gv_texto(CLAY_STRING("O rclone não está instalado neste sistema."), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+		}
+	}
+	if (conta_focar) {
+		gv_focar(CLAY_ID("ct-nome"));
+		conta_focar = false;
+	}
+}
+
+static void botoes_conta(void) {
+	if (sy && sy_oauth) {
+		if (gv_botao_ext(CLAY_ID("ct-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+			sy_cancelado = true; /* o rclone ainda espera o navegador; quando acabar o resultado é descartado */
+			conta_fechar();
+		}
+		return;
+	}
+	if (gv_botao_ext(CLAY_ID("ct-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+		conta_fechar();
+	}
+	if (gv_botao_ext(CLAY_ID("ct-ok"), &(gv_botao_opcoes){ .icone = conta_eh_oauth() ? "globe" : "plus", .texto = conta_eh_oauth() ? "Entrar pelo navegador" : "Adicionar", .estilo = GV_BOTAO_CHEIO })) {
+		conta_confirmar();
+	}
+}
+
+static void rede_dialogos(void) {
+	if (gv_tecla() == 0xff1b) { /* Esc cancela o diálogo de cima (a página de configurações também fecha com Esc: ela espera os diálogos) */
+		if (cx && (cx_st.fase == AR_CX_PEDINDO_SENHA || cx_st.fase == AR_CX_PERGUNTANDO)) {
+			if (cx_st.fase == AR_CX_PERGUNTANDO) {
+				ar_conexao_escolher(cx, -1);
+			} else {
+				ar_conexao_responder(cx, false, "", "", "", false, false);
+			}
+		} else if (sy && sy_oauth) {
+			sy_cancelado = true;
+			conta_fechar();
+		} else if (conta_aberta) {
+			conta_fechar();
+		}
+	}
+	if (cx && (cx_st.fase == AR_CX_PEDINDO_SENHA || cx_st.fase == AR_CX_PERGUNTANDO)) {
+		dialogo(CLAY_ID("dlg-senha"), 460, cx_share >= 0 && cx_share < rede.n_shares ? gv_fmt("Conectar a %s", rede.shares[cx_share].nome).chars : "Conectar", corpo_senha, botoes_senha);
+	} else if (conta_aberta || (sy && sy_oauth)) {
+		dialogo(CLAY_ID("dlg-conta"), 500, "Adicionar conta na nuvem", corpo_conta, botoes_conta);
+	}
+}
+
+/* ---- a página de Configurações > Rede e nuvem ---- */
+
+static void rede_url_conectar(void) {
+	char uri[512], nome[96], erro[256] = "";
+	int proto;
+	if (!ar_rede_normalizar(rede_proto_i, rede_url, &proto, uri, sizeof(uri), nome, sizeof(nome), erro, sizeof(erro))) {
+		avisar("%s", erro);
+		return;
+	}
+	int i = ar_rede_adicionar_share(&rede, nome, proto, uri);
+	if (i < 0) {
+		avisar("A lista de compartilhamentos está cheia");
+		return;
+	}
+	rede_salvar();
+	rede_url[0] = '\0';
+	rede_proto_i = proto;
+	share_conectar(i, false, false);
+}
+
+static bool botao_mais(Clay_ElementId id) {
+	return gv_botao_ext(id, &(gv_botao_opcoes){ .icone = "dots", .estilo = GV_BOTAO_SIMPLES, .altura = 36 });
+}
+
+static void pagina_rede(void) {
+	if (gv_agora() - rede_montado_em > 2) {
+		rede_atualizar_montados();
+	}
+	CLAY(CLAY_ID("rd-colunas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 18 } }) {
+		/* a esquerda: compartilhamentos, o formulário e as preferências */
+		CLAY(CLAY_ID("rd-esq"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_PERCENT(0.56f) }, .childGap = 16 } }) {
+			CLAY(CLAY_ID("rd-shares"), CARTAO) {
+				CLAY(CLAY_ID("rd-shares-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						titulo_cartao("Compartilhamentos de rede");
+					}
+					if (gv_botao_ext(CLAY_ID("rd-conectar-topo"), &(gv_botao_opcoes){ .icone = "plus", .texto = "Conectar", .estilo = GV_BOTAO_ELEVADO, .altura = 36 })) {
+						gv_focar(CLAY_ID("rd-url"));
+					}
+				}
+				if (!rede.n_shares) {
+					gv_texto(CLAY_STRING("Nenhum compartilhamento ainda. Conecte a um servidor abaixo."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+				}
+				for (int i = 0; i < rede.n_shares; i++) {
+					const ar_share *s = &rede.shares[i];
+					bool on = rede_montado[i];
+					bool tentando = cx && cx_share == i;
+					CLAY(CLAY_IDI("rd-share", (uint32_t)i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, 8, 8 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+						.border = { .color = gv_t.borda, .width = { .top = i ? 1 : 0 } } }) {
+						CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(48), CLAY_SIZING_FIXED(48) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+							.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+							gv_icone("network", 28, gv_t.texto_secundario);
+						}
+						CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+							gv_texto(gv_str(s->nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+							gv_texto(gv_fmt("%s · %s", AR_PROTO_NOMES[s->proto], tentando ? "Conectando…" : on ? "Conectado" : "Desconectado"), gv_t.tamanho_corpo - 2, on ? (Clay_Color){ 52, 199, 89, 255 } : gv_t.texto_suave, GV_PESO_NORMAL);
+						}
+						if (botao_mais(CLAY_IDI("rd-mais", (uint32_t)i))) {
+							menu_share = i;
+							gv_popup_alternar(CLAY_ID("menu-share"));
+						}
+					}
+				}
+				/* conectar a um servidor */
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+				gv_texto(CLAY_STRING("Conectar a um servidor"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+				CLAY(CLAY_ID("rd-form"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+					CLAY(CLAY_ID("rd-proto-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(120) } } }) {
+						gv_lista_suspensa(CLAY_ID("rd-proto"), AR_PROTO_NOMES, AR_PROTOS_N, &rede_proto_i);
+					}
+					CLAY(CLAY_ID("rd-url-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						int r = gv_campo(CLAY_ID("rd-url"), rede_url, sizeof(rede_url), AR_PROTO_DICAS[rede_proto_i], GV_CAMPO_TEXTO);
+						if (r & GV_CAMPO_ENTER) {
+							rede_url_conectar();
+						}
+					}
+					if (gv_botao_ext(CLAY_ID("rd-conectar"), &(gv_botao_opcoes){ .texto = "Conectar", .estilo = GV_BOTAO_ELEVADO, .desativado = !rede_url[0] || cx != NULL })) {
+						rede_url_conectar();
+					}
+				}
+			}
+			CLAY(CLAY_ID("rd-prefs"), CARTAO) {
+				titulo_cartao("Preferências de rede");
+				linha_interruptor(CLAY_ID("rd-reconectar"), "Reconectar ao abrir o Atlas", "Restabelece automaticamente os compartilhamentos de rede.", &cfg_edit.rede_reconectar);
+				linha_interruptor(CLAY_ID("rd-indisp"), "Mostrar locais indisponíveis", "Exibe os desconectados na lista de locais de rede.", &cfg_edit.rede_indisponiveis);
+			}
+		}
+		/* a direita: as contas na nuvem */
+		CLAY(CLAY_ID("rd-dir"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 16 } }) {
+			CLAY(CLAY_ID("rd-nuvem"), CARTAO) {
+				CLAY(CLAY_ID("rd-nuvem-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						titulo_cartao("Contas na nuvem");
+					}
+					if (gv_botao_ext(CLAY_ID("rd-add-conta"), &(gv_botao_opcoes){ .icone = "plus", .texto = "Adicionar conta", .estilo = GV_BOTAO_ELEVADO, .altura = 36 })) {
+						conta_aberta = true;
+						conta_focar = true;
+						conta_tipo_i = 0;
+						snprintf(conta_nome, sizeof(conta_nome), "%s", AR_NUVEM_NOMES[0]);
+						conta_url[0] = conta_usuario[0] = conta_senha[0] = '\0';
+					}
+				}
+				if (!tem_rclone) {
+					gv_texto(CLAY_STRING("O rclone não está instalado: sem ele não há como sincronizar contas na nuvem."), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+				}
+				if (!rede.n_contas) {
+					gv_texto(CLAY_STRING("Nenhuma conta ainda. Adicione uma (Nextcloud, WebDAV, Google Drive, Dropbox ou OneDrive)."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+				}
+				for (int i = 0; i < rede.n_contas; i++) {
+					const ar_conta *c = &rede.contas[i];
+					Clay_ElementId id = CLAY_IDI("rd-conta", (uint32_t)i);
+					bool atual = i == nuvem_sel;
+					bool tocou = gv_tocado(id); /* antes do "...": quem pede o toque depois ganha, e o botão vale mais que a linha */
+					CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 8, 4, 8, 8 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+						.backgroundColor = atual ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+						CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(48), CLAY_SIZING_FIXED(48) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+							.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+							gv_icone("cloud", 28, gv_t.texto_secundario);
+						}
+						CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+							gv_texto(gv_str(c->nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+							CLAY_AUTO_ID({ .layout = { .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+								CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(8), CLAY_SIZING_FIXED(8) } }, .backgroundColor = conta_status_cor(c, i), .cornerRadius = CLAY_CORNER_RADIUS(4) }) {}
+								gv_texto(gv_str(conta_status(c, i)), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+							}
+						}
+						if (botao_mais(CLAY_IDI("rd-conta-mais", (uint32_t)i))) {
+							menu_conta = i;
+							nuvem_sel = i;
+							gv_popup_alternar(CLAY_ID("menu-conta"));
+						}
+					}
+					if (tocou) {
+						nuvem_sel = i;
+					}
+				}
+				if (nuvem_sel >= 0 && nuvem_sel < rede.n_contas) {
+					ar_conta *c = &rede.contas[nuvem_sel];
+					gv_texto(CLAY_STRING("Pasta local"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+					CLAY(CLAY_ID("rd-pasta-linha"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+						CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+							if (gv_campo(CLAY_ID("rd-pasta"), c->pasta_local, sizeof(c->pasta_local), "~/Nuvem/Projetos", GV_CAMPO_TEXTO) & GV_CAMPO_MUDOU) {
+								rede_salvar();
+							}
+						}
+						if (gv_botao_ext(CLAY_ID("rd-pasta-abrir"), &(gv_botao_opcoes){ .icone = "folder", .estilo = GV_BOTAO_ELEVADO, .altura = 40 })) {
+							if (g_file_test(c->pasta_local, G_FILE_TEST_IS_DIR)) {
+								char *destino = g_strdup(c->pasta_local);
+								fechar_configuracoes();
+								ir_para(destino, true);
+								g_free(destino);
+							} else {
+								avisar("A pasta ainda não existe: ela nasce na primeira sincronização");
+							}
+						}
+					}
+					bool seg = c->segundo_plano;
+					if (linha_interruptor(CLAY_ID("rd-seg"), "Sincronizar em segundo plano", "Mantém seus arquivos atualizados enquanto o Atlas está aberto.", &seg)) {
+						c->segundo_plano = seg;
+						rede_salvar();
+					}
+					CLAY(CLAY_ID("rd-sync-linha"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+						CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+							char quando[48] = "nunca";
+							if (c->ultima_sync) {
+								ar_data_humana(c->ultima_sync, time(NULL), quando, sizeof(quando));
+							}
+							gv_texto(gv_fmt("Última sincronização: %s", quando), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+							if (c->ultimo_erro[0]) {
+								gv_texto(gv_str(c->ultimo_erro), gv_t.tamanho_legenda, gv_t.perigo, GV_PESO_NORMAL);
+							}
+						}
+						if (gv_botao_ext(CLAY_ID("rd-sync-agora"), &(gv_botao_opcoes){ .icone = "refresh", .texto = "Sincronizar agora", .estilo = GV_BOTAO_ELEVADO, .desativado = sy != NULL })) {
+							conta_sincronizar(nuvem_sel, true);
+						}
+					}
+				}
+			}
+		}
+	}
+	/* os menus dos "..." */
+	if (menu_share >= 0) {
+		GV_POPUP(CLAY_ID("menu-share"), CLAY_IDI("rd-mais", (uint32_t)menu_share), .alinhar = GV_ALINHAR_FIM, .largura = 300) {
+			CLAY(CLAY_ID("ms-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+				menu_do_share(CLAY_ID("menu-share"));
+			}
+		}
+	}
+	if (menu_conta >= 0) {
+		GV_POPUP(CLAY_ID("menu-conta"), CLAY_IDI("rd-conta-mais", (uint32_t)menu_conta), .alinhar = GV_ALINHAR_FIM, .largura = 320) {
+			CLAY(CLAY_ID("mc-corpo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+				menu_da_conta(CLAY_ID("menu-conta"));
+			}
+		}
 	}
 }
 
@@ -4218,7 +5098,7 @@ static void tela_configuracoes(void) {
 		{ "Rede e nuvem", "globe", "Rede e nuvem", "Acesse pastas compartilhadas e gerencie suas conexões." },
 		{ "Avançado", "settings", "Avançado", "Ajuste operações de arquivo e diagnóstico." },
 	};
-	static const int ORDEM_NAV[] = { 0, 1, 2, 4 }; /* a Rede e nuvem ainda não existe: fora da lista */
+	static const int ORDEM_NAV[] = { 0, 1, 2, 3, 4 };
 	CLAY(CLAY_ID("cfg-corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 		CLAY(CLAY_ID("cfg-nav"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(260), CLAY_SIZING_GROW(0) }, .padding = { 12, 12, 14, 12 }, .childGap = 4 },
 			.border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
@@ -4234,7 +5114,7 @@ static void tela_configuracoes(void) {
 			CLAY(CLAY_ID("cfg-nav-t"), { .layout = { .padding = { 8, 8, 18, 8 } } }) {
 				gv_texto(CLAY_STRING("Configurações"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
 			}
-			for (int k = 0; k < 4; k++) {
+			for (int k = 0; k < 5; k++) {
 				int pg = ORDEM_NAV[k];
 				Clay_ElementId id = CLAY_IDI("cfg-pg", (uint32_t)pg);
 				bool ativo = pagina_cfg == pg;
@@ -4261,6 +5141,7 @@ static void tela_configuracoes(void) {
 				case 0: pagina_exibicao(); break;
 				case 1: pagina_inicial(); break;
 				case 2: pagina_barra(); break;
+				case 3: pagina_rede(); break;
 				default: pagina_avancado(); break;
 				}
 			}
@@ -4303,7 +5184,7 @@ static void debug_posicoes(void) {
 	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
 		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
-		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
+		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
 		"mi-terminal", "mi-lixeira", "mi-cor", "mi-icone", "mf-cor", "mf-icone", "sub-ic-nenhum", "mf-ordenar", "mf-ord/0", "mf-git", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "cfg-aplicar", "cfg-cancelar", "cfg-voltar", "cfg-restaurar", "ex-r1", "ex-r2", "ex-tam-sl", "cfg-corpo", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
 	for (int i = 0; FIXOS[i]; i++) {
@@ -4316,7 +5197,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {
@@ -4330,7 +5211,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "mo-o", .length = 4 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const char *const LINHAS[] = { "ex-ocultos", "ex-ext", "ex-prev", "ex-pf", "av-apagar", "av-esvaziar", "av-log", "pi-s1", "pi-s2", NULL };
+	static const char *const LINHAS[] = { "ex-ocultos", "ex-ext", "ex-prev", "ex-pf", "av-apagar", "av-esvaziar", "av-log", "rd-reconectar", "rd-indisp", "rd-seg", "pi-s1", "pi-s2", NULL };
 	for (int i = 0; LINHAS[i]; i++) {
 		Clay_String base = { .chars = LINHAS[i], .length = (int)strlen(LINHAS[i]) };
 		uint32_t h = Clay__HashString(base, 0).id;
@@ -4368,8 +5249,8 @@ static void debug_posicoes(void) {
 			g_free(linha);
 		}
 	}
-	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
-		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas);
+	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
+		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")));
 	static char *estado_antes;
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("estado %s\n", estado);
@@ -4416,6 +5297,8 @@ static void desenhar(gv_app *a, void *dados) {
 	ic_n = 0;
 	texto_aplicar(true);
 	op_rever();
+	rede_rever();
+	sync_rever();
 	area_rever();
 	if (pagina_cfg >= 0) {
 		/* as páginas de configurações no lugar dos arquivos: a mesma janela, com a barra de título */
@@ -4424,7 +5307,9 @@ static void desenhar(gv_app *a, void *dados) {
 			gv_barra_janela(a, CLAY_ID("barra"), "folder", "Atlas");
 			tela_configuracoes();
 		}
-		if (gv_tecla() == 0xff1b && !gv_focado(CLAY_ID("bl-ed-nc")) && !gv_focado(CLAY_ID("pi-pasta"))) {
+		bool dialogo_rede = rede_dialogo_aberto();
+		rede_dialogos();
+		if (gv_tecla() == 0xff1b && !dialogo_rede && !gv_focado(CLAY_ID("bl-ed-nc")) && !gv_focado(CLAY_ID("pi-pasta")) && !gv_focado(CLAY_ID("rd-url")) && !gv_focado(CLAY_ID("rd-pasta"))) {
 			fechar_configuracoes();
 		}
 		debug_posicoes();
@@ -4440,20 +5325,22 @@ static void desenhar(gv_app *a, void *dados) {
 		CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 			barra_lateral();
 			conteudo();
-			if (detalhes && vista != V_INICIO && lista.n >= 0) {
+			if (detalhes && !VISTA_CARTOES && lista.n >= 0) {
 				painel_detalhes();
 			}
 		}
 		barra_status();
 	}
 	/* o pedido do menu do espaço vazio vem depois dos itens (cada pedido de menu é de quem pede primeiro: o item ganha do fundo) */
-	if (vista != V_INICIO && gv_menu_no_ponteiro(ID_CONTEUDO, CLAY_ID("menu-fundo"))) {
+	if (!VISTA_CARTOES && gv_menu_no_ponteiro(ID_CONTEUDO, CLAY_ID("menu-fundo"))) {
 		limpar_selecao();
 		ancora = foco = -1;
 	}
 	menus_de_contexto();
+	rede_menus();
 	sugestoes_do_caminho();
 	dialogos();
+	rede_dialogos();
 	tratar_cliques_conteudo();
 	/* o tamanho dos ícones da grade fica gravado quando o dedo solta o controle */
 	if (zoom_sujo && !gv_premido(CLAY_ID("zoom"))) {
@@ -4464,7 +5351,27 @@ static void desenhar(gv_app *a, void *dados) {
 	texto_aplicar(false);
 }
 
+/* Só em teste (LUMNA_ATLAS_DEBUG): no lugar do gvfs, um "servidor" que pede a senha (eric / certa) e uma pasta de mentira como ponto de montagem */
+static bool montagem_de_teste(ar_conexao *c, const char *uri, char *erro, size_t tam) {
+	if (strstr(uri, "livre")) {
+		return true;
+	}
+	char usuario[96], senha[256];
+	if (!ar_conexao_pedir_senha(c, "O servidor pede usuário e senha.", usuario, senha, sizeof(senha))) {
+		snprintf(erro, tam, "Operação cancelada");
+		return false;
+	}
+	if (!strcmp(usuario, "eric") && !strcmp(senha, "certa")) {
+		return true;
+	}
+	snprintf(erro, tam, "Usuário ou senha incorretos");
+	return false;
+}
+
 int main(int argc, char **argv) {
+	if (getenv("LUMNA_ATLAS_DEBUG") && getenv("LUMNA_ATLAS_FALSO_DIR")) {
+		ar_rede_usar_montagem_falsa(montagem_de_teste);
+	}
 	/* quem abre uma pasta pelo sistema (xdg-open, "Mostrar na pasta") manda file:///caminho: vira o caminho */
 	if (argc > 1 && g_str_has_prefix(argv[1], "file://")) {
 		char *c = g_filename_from_uri(argv[1], NULL, NULL);
@@ -4480,6 +5387,16 @@ int main(int argc, char **argv) {
 		free(real);
 	}
 	ar_cfg_ler(&cfg);
+	ar_rede_ler(&rede);
+	tem_rclone = ar_nuvem_disponivel();
+	rede_atualizar_montados();
+	if (cfg.rede_reconectar) { /* os que estavam conectados da última vez e já não estão: um de cada vez, sem pedir senha */
+		for (int i = 0; i < rede.n_shares; i++) {
+			if (rede.shares[i].conectado_antes && !rede_montado[i]) {
+				rec_fila[rec_n++] = i;
+			}
+		}
+	}
 	ar_barra_ler(&barra);
 	vista_atual = cfg.vista;
 	aplicar_cfg_ao_vivo();

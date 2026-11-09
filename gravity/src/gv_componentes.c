@@ -655,30 +655,36 @@ bool gv_menu_contexto(Clay_ElementId id) {
 
 /* ---- o menu de contexto no ponteiro ---- */
 
-#define GV_MENUS_PONTEIRO 16
+#define GV_MENUS_PONTEIRO 128 /* um por menu da app e um por campo de texto (o menu copiar/colar de cada campo) */
 struct menu_ponteiro {
 	uint32_t id;
 	Clay_Vector2 onde;
 	bool abrir; /* abre no quadro seguinte, já com a âncora no lugar novo */
+	uint64_t visto_em;  /* o último quadro em que alguém perguntou por ele (quem some há mais tempo cede o lugar) */
 	uint64_t pedido_em; /* o quadro do pedido: vários alvos do mesmo menu no mesmo quadro não o abrem antes da âncora ir para o lugar novo */
 };
 static struct menu_ponteiro menus_ponteiro[GV_MENUS_PONTEIRO];
 
 static struct menu_ponteiro *menu_ponteiro_de(uint32_t id) {
-	int livre = -1;
+	int livre = -1, velho = 0;
 	for (int i = 0; i < GV_MENUS_PONTEIRO; i++) {
 		if (menus_ponteiro[i].id == id) {
+			menus_ponteiro[i].visto_em = gv__quadro_n;
 			return &menus_ponteiro[i];
 		}
 		if (!menus_ponteiro[i].id && livre < 0) {
 			livre = i;
 		}
+		if (menus_ponteiro[i].visto_em < menus_ponteiro[velho].visto_em) {
+			velho = i;
+		}
 	}
 	if (livre < 0) {
-		livre = 0;
+		livre = velho; /* cheia: sai o que há mais tempo ninguém procura (nunca o que está sempre à vista, como o menu de um item) */
 	}
 	menus_ponteiro[livre].id = id;
 	menus_ponteiro[livre].abrir = false;
+	menus_ponteiro[livre].visto_em = gv__quadro_n;
 	return &menus_ponteiro[livre];
 }
 

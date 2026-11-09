@@ -15,6 +15,8 @@ cc $CF -o "$T/testa_cfg" testes/atlas/testa_cfg.c servicos/arquivos_cfg.c $(pkg-
 env HOME="$T/casa" XDG_CONFIG_HOME="$T/casa/c2" XDG_DATA_HOME="$T/casa/d2" "$T/testa_cfg"
 cc $CF -o "$T/testa_prop" testes/atlas/testa_prop.c servicos/arquivos_prop.c $(pkg-config --libs glib-2.0)
 "$T/testa_prop"
+cc $CF $(pkg-config --cflags gio-2.0) -o "$T/testa_rede" testes/atlas/testa_rede.c servicos/arquivos_rede.c $(pkg-config --libs glib-2.0 gio-2.0) -lpthread
+env HOME="$T/casa" XDG_CONFIG_HOME="$T/casa/c3" "$T/testa_rede"
 if [ -n "${1:-}" ]; then
 	sh testes/atlas/teste_ui.sh "$1" "$AQUI"
 fi

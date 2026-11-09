@@ -13,7 +13,9 @@ depends=(
   # portais: escolher arquivo, abrir link (gtk) e compartilhar tela (wlr; o Orbit tem o wlr-screencopy)
   xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
   foot pipewire pipewire-pulse wireplumber polkit
-  firefox mousepad gvfs
+  firefox mousepad gvfs gvfs-smb gvfs-nfs
+  # Atlas: contas na nuvem (Nextcloud, WebDAV, Google Drive, Dropbox, OneDrive) sincronizadas pelo rclone
+  rclone
   mpv mpv-mpris ffmpeg playerctl wtype
   noto-fonts noto-fonts-emoji inter-font
   # Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware

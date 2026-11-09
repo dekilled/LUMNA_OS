@@ -36,6 +36,9 @@ typedef struct ar_cfg {
 	bool confirmar_apagar;   /* confirmar a exclusão permanente */
 	bool confirmar_esvaziar; /* confirmar ao esvaziar a lixeira */
 	bool registrar_erros;
+	/* rede e nuvem */
+	bool rede_reconectar;      /* ao abrir, conecta de novo os compartilhamentos que estavam conectados */
+	bool rede_indisponiveis;   /* mostra na lista de locais de rede os que estão desconectados */
 } ar_cfg;
 
 void ar_cfg_padrao(ar_cfg *c);

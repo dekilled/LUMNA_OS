@@ -48,6 +48,8 @@ void ar_cfg_padrao(ar_cfg *c) {
 	c->confirmar_apagar = true;
 	c->confirmar_esvaziar = true;
 	c->registrar_erros = true;
+	c->rede_reconectar = true;
+	c->rede_indisponiveis = false;
 }
 
 static int dentro(int v, int a, int b) { return v < a ? a : v > b ? b : v; }
@@ -74,6 +76,8 @@ void ar_cfg_ler(ar_cfg *c) {
 	BOOL("confirmar_apagar", confirmar_apagar);
 	BOOL("confirmar_esvaziar", confirmar_esvaziar);
 	BOOL("registrar_erros", registrar_erros);
+	BOOL("rede_reconectar", rede_reconectar);
+	BOOL("rede_indisponiveis", rede_indisponiveis);
 #undef INT
 #undef BOOL
 	char *p = g_key_file_get_string(kf, "explorador", "pasta_inicial", NULL);
@@ -110,6 +114,8 @@ bool ar_cfg_gravar(const ar_cfg *c) {
 	B("confirmar_apagar", confirmar_apagar);
 	B("confirmar_esvaziar", confirmar_esvaziar);
 	B("registrar_erros", registrar_erros);
+	B("rede_reconectar", rede_reconectar);
+	B("rede_indisponiveis", rede_indisponiveis);
 #undef I
 #undef B
 	g_key_file_set_string(kf, "explorador", "pasta_inicial", c->pasta_inicial);

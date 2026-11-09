@@ -145,6 +145,12 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.101 | Início: duplo clique e clique num cartão de pasta e de unidade; botão direito num cartão | Entra; o menu tem "Remover da página inicial", que tira o cartão (volta em Configurações) | ☐ |
 | 2.102 | Barra lateral: apertar num item e arrastar para cima ou para baixo (mouse); soltar | Uma linha mostra onde cai; solta, o item muda de lugar e fica assim ao reabrir; Esc no meio cancela; um clique simples ainda navega | ☐ |
 | 2.103 | Barra lateral: arrastar um item de Espaços para Coleções e vice-versa; no celular, segurar meio segundo e arrastar | Muda de seção; no toque a lista não rola enquanto se arrasta | ☐ |
+| 2.104 | Atlas > engrenagem > Rede e nuvem; "Conectar a um servidor" com `smb://IP-DO-NAS/pasta` (ou um servidor do PC/celular) | Pede usuário e senha num diálogo do Atlas; conectado, aparece "Conectado" e dá para abrir a pasta; "Lembrar a senha" não pede de novo ao reconectar | ☐ |
+| 2.105 | Menu "..." do compartilhamento: Desconectar, Conectar, Esquecer; fechar e abrir o Atlas | Desconectar tira a pasta; com "Reconectar ao abrir" ligado, o que estava conectado volta sozinho | ☐ |
+| 2.106 | Barra lateral > Rede > Compartilhadas e Nuvem | Cartões dos compartilhamentos conectados (os desconectados só com "Mostrar locais indisponíveis") e das contas; clicar entra; botão direito abre o menu | ☐ |
+| 2.107 | Adicionar conta Nextcloud (endereço, usuário, senha de aplicativo) | Sincroniza `~/Nuvem/NOME` sozinho; "Sincronizar agora" e o horário da última sincronização atualizam; erros aparecem em vermelho | ☐ |
+| 2.108 | Adicionar conta Google Drive/Dropbox/OneDrive | O navegador abre para entrar; ao voltar a conta aparece e sincroniza | ☐ |
+| 2.109 | "Lembrar a senha" de um servidor SMB/SFTP | **Atenção:** a sessão ainda não traz um provedor de segredos (gnome-keyring ou similar); sem ele o gvfs não guarda a senha. Anotar o que acontece | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
