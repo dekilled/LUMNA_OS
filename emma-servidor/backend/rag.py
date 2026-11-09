@@ -7,10 +7,10 @@ import re
 from collections import Counter
 
 import httpx
-import numpy as np
 
 from core import Chunk, Project, db, get_settings, now_iso, oid
 from llm import embed
+from nativeok import numpy_or_none
 from netguard import assert_public_url
 from workspace_runtime import IGNORED_DIRS, is_binary, project_root
 
@@ -168,8 +168,12 @@ class _Index:
         self.vec_docs = [self.docs[i] for i, _ in vec]
         self.matrix = None
         if vec:
-            m = np.array([v for _, v in vec], dtype=np.float32)
-            self.matrix = m / (np.linalg.norm(m, axis=1, keepdims=True) + 1e-9)
+            np = numpy_or_none()  # None on a CPU numpy cannot run on: plain Python then (slower, same scores)
+            if np is not None:
+                m = np.array([v for _, v in vec], dtype=np.float32)
+                self.matrix = m / (np.linalg.norm(m, axis=1, keepdims=True) + 1e-9)
+            else:
+                self.matrix = [[x / (math.sqrt(sum(y * y for y in v)) + 1e-9) for x in v] for _, v in vec]
 
     def bm25(self, query: str) -> list[float]:
         """The same scores as _bm25(query, docs), touching only the chunks that have a query term."""
@@ -213,6 +217,17 @@ async def _index(project_id: str) -> _Index:
     return idx
 
 
+def _similarities(index: "_Index", qv: list[float]) -> list[float]:
+    """Cosine similarity of the query vector to every embedded chunk (numpy where the CPU runs it, plain Python elsewhere)."""
+    np = numpy_or_none()
+    if np is not None:
+        qa = np.array(qv, dtype=np.float32)
+        return (index.matrix @ (qa / (np.linalg.norm(qa) + 1e-9))).tolist()
+    norm = math.sqrt(sum(x * x for x in qv)) + 1e-9
+    q = [x / norm for x in qv]
+    return [sum(a * b for a, b in zip(row, q)) for row in index.matrix]
+
+
 async def retrieve(project_id: str, query: str, k: int = 6) -> list[dict]:
     index = await _index(project_id)
     if not index.n:
@@ -224,9 +239,7 @@ async def retrieve(project_id: str, query: str, k: int = 6) -> list[dict]:
     if settings.embedding.enabled and index.matrix is not None:
         try:
             qv = (await embed([query]))[0]
-            qa = np.array(qv, dtype=np.float32)
-            sims = index.matrix @ (qa / (np.linalg.norm(qa) + 1e-9))
-            docs, scores, method = index.vec_docs, sims.tolist(), "embedding"
+            docs, scores, method = index.vec_docs, _similarities(index, qv), "embedding"
         except Exception as e:
             log.warning("query embedding failed: %s", e)
     if scores is None:

@@ -27,6 +27,7 @@ from pydantic import BaseModel
 
 import pc_actions
 from core import DB_PATH
+from nativeok import CPU_MESSAGE, crashes
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger("local_voice")
@@ -57,7 +58,7 @@ def installed(what: str) -> bool:
 
 
 def ready(what: str) -> bool:
-    return pc_actions.available() and installed(what)
+    return pc_actions.available() and installed(what) and not crashes("numpy")
 
 
 def voices() -> list[str]:
@@ -76,6 +77,9 @@ async def _install(what: str) -> None:
         args += ["--extra-index-url", "https://download.pytorch.org/whl/cpu"]  # the CPU build: no gigabytes of CUDA
     PYDEPS.mkdir(parents=True, exist_ok=True)
     try:
+        if crashes("numpy"):
+            # instalar de nada adiantaria (e importar derrubaria o servidor): avisa já
+            raise RuntimeError(CPU_MESSAGE)
         if importlib.util.find_spec("pip") is None:
             # no Arch o pip é outro pacote (python-pip); sem ele o `-m pip` morre com "No module named pip" e a pessoa só via "a instalação falhou"
             raise RuntimeError("falta o pip no Python do sistema (sudo pacman -S python-pip)")

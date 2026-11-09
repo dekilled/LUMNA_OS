@@ -168,6 +168,8 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.124 | O mesmo com **Ao entrar na sessão**: deixar o pendrive ligado e sair e entrar na sessão | Já está montado ao chegar | ☐ |
 | 2.125 | Dock: apertar num ícone fixo e arrastar para **fora** da dock (para cima), soltar | O arraste acaba, o ícone fica onde estava e nada fica preso ao mouse | ☐ |
 | 2.126 | Tema claro (Painel > Aparência): passar o mouse nos itens do Atlas, do Painel e dos menus | O texto e os ícones continuam legíveis (o lilás do acento ficou mais escuro no claro) | ☐ |
+| 2.127 | Num computador antigo (sem SSE4.2): `systemctl --user status lumna-emma` e Painel > Emma > Provedores | O servidor fica `active (running)` e o Painel conecta (antes caía com `core-dump` em loop). `curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8011/api/auth/me` dá `401` | ☐ |
+| 2.128 | Nesse computador: Painel > Emma > Voz > instalar o Whisper ou o Pocket TTS | Recusa na hora: "Este processador é antigo demais para a voz local" (use o Fish Audio). Num computador novo instala normal | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

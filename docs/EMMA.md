@@ -256,3 +256,16 @@ Dois jeitos, no app e no popup (o botão some com a **visão** desligada em Recu
 Nos dois, **o recorte aparece antes de ir** ("Isto vai para a Emma. Confira…", com Cancelar e Mostrar à Emma): nada sai sem o seu OK, e o temporário é apagado.
 A imagem sobe pelo serviço (`anexar_emma ALVO ARQUIVO`) e chega no campo do app como as outras; no popup, **vai junto só da próxima mensagem** e some. Conteúdo
 de tela é conteúdo de fora: as ações depois dele continuam pedindo aprovação, como com qualquer imagem.
+
+## Processadores antigos (sem SSE4.2)
+
+Um wheel binário feito para uma CPU nova não dá `ImportError` numa antiga: o Python morre com `SIGILL` no `import`, e nenhum `try` pega. O numpy 2.x, por exemplo, pede
+x86-64-v2 (SSE4.2 e POPCNT); no primeiro notebook de teste (2011) isso derrubava o servidor logo ao subir, em loop. Por isso `backend/nativeok.py` testa o import num processo
+filho antes de importar no servidor (`crashes(modulo)`, `numpy_or_none()`):
+
+- **RAG** (busca por embeddings dos projetos): sem numpy, as semelhanças são calculadas em Python puro (mesmos resultados, mais devagar).
+- **Voz local** (Whisper e Pocket TTS, que precisam do numpy e do PyTorch): numa CPU assim a instalação recusa na hora, com a mensagem "Este processador é antigo demais para a voz
+  local", em vez de instalar e derrubar o servidor. Use o Fish Audio.
+- `PYTHONFAULTHANDLER=1` no serviço e no script: uma falha nativa imprime a pilha do Python no `journalctl --user -u lumna-emma`.
+
+Teste: `PYTHONPATH=<dependências> python3 emma-servidor/testes/nativo_teste.py`.
