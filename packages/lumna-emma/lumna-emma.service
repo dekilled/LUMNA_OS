@@ -2,9 +2,15 @@
 Description=Emma, a assistente do LUMNA OS
 Documentation=https://github.com/dekilled/LUMNA_OS/blob/main/docs/EMMA.md
 After=network-online.target
+# Se o servidor cai logo ao subir, não fica religando para sempre (cada subida custa uns segundos de CPU, muito num computador antigo):
+# desiste depois de 8 quedas em 10 minutos. O serviço do LUMNA (lumna-emma) ainda tenta de novo a cada minuto.
+StartLimitIntervalSec=600
+StartLimitBurst=8
 
 [Service]
 ExecStart=/usr/lib/lumna/lumna-emma
+# Uma falha nativa (core dump) imprime a pilha do Python no journal: `journalctl --user -u lumna-emma`
+Environment=PYTHONFAULTHANDLER=1
 Restart=on-failure
 RestartSec=5
 # Só escuta em 127.0.0.1 e entra com token; nunca vira administrador.
