@@ -18,7 +18,8 @@ void orbit_focus(struct orbit_view *view) {
 	struct wlr_surface *prev = server->seat->keyboard_state.focused_surface;
 	if (prev && prev != view->toplevel->base->surface) {
 		struct wlr_xdg_surface *previous = wlr_xdg_surface_try_from_wlr_surface(prev);
-		if (previous && previous->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL && previous->toplevel) {
+		/* uma janela escondida (o app segue vivo, sem janela) está desmapeada e sem configure: pedir-lhe um é erro de protocolo (e, conforme o wlroots, aborta o compositor) */
+		if (previous && previous->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL && previous->toplevel && previous->initialized) {
 			wlr_xdg_toplevel_set_activated(previous->toplevel, false);
 		}
 	}
@@ -274,6 +275,10 @@ static void xdg_unmap(struct wl_listener *listener, void *data) {
 	}
 	struct orbit_output *output = view->output;
 	wl_list_remove(&view->link);
+	/* o teclado não pode ficar apontando para uma superfície que acabou de sumir */
+	if (server->seat->keyboard_state.focused_surface == view->toplevel->base->surface) {
+		wlr_seat_keyboard_notify_clear_focus(server->seat);
+	}
 	orbit_arrange(server);
 	if (was_focused && partner && partner->mapped && partner->output == output) {
 		orbit_focus(partner);

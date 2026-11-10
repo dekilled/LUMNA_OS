@@ -29,6 +29,8 @@ Escolhas minhas (o esboço não mostrava): o menu de cada faixa, o detalhe de ar
 
 - **Cada faixa começa do 0:00**: o ponto de partida (retomar a fila em 0:43, por exemplo) valia só para o primeiro arquivo, mas o mpv guardava a opção `--start` e a aplicava a todas as faixas seguintes; agora o primeiro arquivo entra como os outros (loadfile, e um seek quando carrega). E a tela é avisada quando a faixa carrega, em vez de ficar parada em "pausado" até mexerem o mouse.
 
+- **Com o Music escondido, outras janelas abrem normalmente**: o Orbit deixava o foco do teclado apontando para a janela escondida e pedia um configure a ela ao abrir outra janela (o Firefox, por exemplo): erro de protocolo que, conforme a versão do wlroots, derruba o compositor e a sessão volta ao login. Agora o Orbit limpa o foco do teclado quando a janela some e nunca pede configure a superfície sem inicializar; o teste de segundo plano abre outra janela com o Music escondido e confere que o Orbit segue de pé e sem erro no log.
+
 ## O que não faz (ainda)
 
 Qobuz e outros serviços (o botão de perfil só avisa), equalizador, mini-player, editar tags, buscar letra na internet, ReplayGain calculado (usa só a tag que houver), a **Emma controlar a música** (a opção "Emma neste app" só mostra o botão que abre a conversa), tocar numa **caixa de som de outro aparelho** (só os dispositivos de áudio do mpv). Itens de playlist que saíram da biblioteca somem da lista (a contagem diz quantos).

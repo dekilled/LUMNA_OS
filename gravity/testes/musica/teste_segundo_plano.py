@@ -72,6 +72,23 @@ confere(lambda: e("tocando") == "1", "Play pelo MPRIS volta a tocar", 6)
 confere(lambda: len(da_musica()) == 0, "e a janela segue escondida")
 confere(lambda: "true" in gd("org.freedesktop.DBus.Properties.Get", "org.mpris.MediaPlayer2", "CanQuit"), "o MPRIS aceita Quit")
 
+# 2b. com o Music escondido, abrir OUTRA janela (o Firefox, na vida real) não pode dar erro de protocolo nem derrubar o compositor: o Orbit pedia um configure à
+# janela escondida (a que ainda tinha o foco do teclado), o que o wlroots recusa (e, conforme a versão, aborta: a sessão ia direto para o login)
+outra = os.path.join(os.path.dirname(bin_), "galeria")
+if os.path.exists(outra):
+    log_antes = len(open(f"{run}/orbit.log", errors="replace").read().splitlines())
+    proc = subprocess.Popen([outra], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    confere(lambda: any("galeria" in (x.get("app_id") or "") for x in janelas()), "abre outra janela com o Music escondido", 10)
+    time.sleep(1.0)
+    novo = open(f"{run}/orbit.log", errors="replace").read().splitlines()[log_antes:]
+    confere(lambda: subprocess.run(["pgrep", "-x", "orbit"], capture_output=True).returncode == 0, "o compositor continua de pé")
+    confere(lambda: not any("ERROR" in l for l in novo), f"e sem erro de protocolo no log do Orbit ({[l for l in novo if 'ERROR' in l][:1]})")
+    for x in janelas():
+        if "galeria" in (x.get("app_id") or ""):
+            msg("fechar", x["id"])
+    proc.terminate()
+    confere(lambda: e("esc") == "1" and pids() == [pid1], "e o Music segue em segundo plano")
+
 # 3. Raise traz a janela de volta, a música não para
 gd("org.mpris.MediaPlayer2.Raise")
 confere(lambda: len(da_musica()) == 1, "Raise traz a janela de volta", 8)
