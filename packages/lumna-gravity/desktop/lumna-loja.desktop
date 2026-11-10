@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Loja
+GenericName=Loja de aplicativos
+Comment=Instale e atualize aplicativos (Arch e AUR), drivers e kernels
+Exec=lumna-loja
+Icon=lumna-loja
+StartupWMClass=lumna-loja
+Terminal=false
+Categories=System;PackageManager;
+Keywords=loja;aplicativos;pacotes;instalar;atualizar;aur;pacman;drivers;kernel;

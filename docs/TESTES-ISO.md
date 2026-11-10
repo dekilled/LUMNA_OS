@@ -272,6 +272,25 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.213 | Com o vídeo tocando, tela de bloqueio ou celular (controle de mídia) | Mostra o vídeo e os botões funcionam | ☐ |
 | 2.214 | Se o app cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-galeria-<número>.log` com a pilha; mande-o para mim | ☐ |
 
+### 2f. Loja: apps (fase 1)
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.215 | Abra a Loja | Lê os repositórios (alguns segundos) e abre em Explorar com os cartões (Firefox, Blender…) e os ícones dos apps | ☐ |
+| 2.216 | Toque numa aba (Multimídia, Jogos…) | Só os apps dessa categoria | ☐ |
+| 2.217 | Digite `mesa` na busca (ou `Ctrl+K`) | Vai para Pacotes: "Resultados para “mesa”", o nome exato primeiro | ☐ |
+| 2.218 | Mexa nos filtros (Tipo, Repositório, Categoria) e em Limpar | A lista acompanha; Limpar volta ao começo | ☐ |
+| 2.219 | Toque numa linha | Abre o detalhe (versão, tamanhos, licença, site) | ☐ |
+| 2.220 | Instale um app pequeno (ex.: `htop` se não tiver) | Pergunta; a janela da senha do LUMNA aparece; o painel mostra o andamento; no fim, "Instalado" | ☐ |
+| 2.221 | Remova o que você instalou (Instalados > Remover) | Pergunta, remove, some da lista | ☐ |
+| 2.222 | Busque algo do AUR (ex.: `visual-studio-code-bin`) | Aparece "aur"; Instalar avisa que não é oficial; com o paru/yay instalados compila e instala | ☐ |
+| 2.223 | Sem paru nem yay: tente instalar do AUR | A Loja diz que precisa de um deles (não falha calada) | ☐ |
+| 2.224 | Atualizações | Lista o que tem versão nova com a versão de agora e a nova; o selo na lateral confere | ☐ |
+| 2.225 | Atualizar tudo | Atualiza o sistema (e o AUR, se houver paru/yay) | ☐ |
+| 2.226 | Configurações: desligue o AUR; escolha o yay | A busca deixa de trazer do AUR; o "Em uso" muda | ☐ |
+| 2.227 | Com o catálogo carregado, digite uma letra | Não trava (vários milhares de pacotes) | ☐ |
+| 2.228 | Se o app cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-loja-<número>.log`; mande-o para mim | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

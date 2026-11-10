@@ -20,15 +20,16 @@ depends=(
   systemd xdg-utils libnotify iproute2 util-linux ffmpeg libarchive git mpv
   # a Mídia e os links abrem no Firefox; o foot fica de reserva (a sessão de emergência com o Hyprland o usa)
   firefox foot
-  # o que o instalador de apps do Painel usa (pacman, checkupdates)
-  pacman-contrib)
+  # o que o instalador de apps do Painel e a Loja usam (pacman, checkupdates, a busca no AUR)
+  pacman-contrib curl)
+optdepends=('paru: instalar do AUR pela Loja' 'yay: instalar do AUR pela Loja (alternativa ao paru)')
 makedepends=(wayland-protocols zip)
 options=(!strip !debug)
 
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja)
 
 build() {
   cd "$_root/gravity"
@@ -40,7 +41,8 @@ package() {
   cd "$_root/gravity"
   local a
   for a in "${_apps[@]}"; do
-    install -Dm755 "$a" "$pkgdir/usr/bin/lumna-$a"
+    # o app "musica" instala como lumna-music (o nome do .desktop, do app_id e da janela)
+    install -Dm755 "$a" "$pkgdir/usr/bin/lumna-${a/#musica/music}"
   done
   # o que as peças leem de /usr/share/lumna: a arte da Emma e a extensão do Firefox da Mídia
   install -d "$pkgdir/usr/share/lumna/emma"

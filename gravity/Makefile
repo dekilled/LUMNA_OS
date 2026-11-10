@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica
+all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -184,6 +184,11 @@ MUSICA = exemplos/musica/principal.c exemplos/musica/barra.c exemplos/musica/bib
 musica: $(MUSICA) exemplos/musica/app.h servicos/musica.c servicos/musica.h servicos/musica_player.c servicos/musica_player.h servicos/musica_mpris.c servicos/musica_mpris.h servicos/json.c servicos/json.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -Iexemplos/musica $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(MUSICA) servicos/musica.c servicos/musica_player.c servicos/musica_mpris.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
 
+# a loja de aplicativos (lumna-loja)
+LOJA = exemplos/loja/principal.c exemplos/loja/barra.c exemplos/loja/telas.c
+loja: $(LOJA) exemplos/loja/app.h servicos/loja.c servicos/loja.h servicos/json.c servicos/json.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -Iexemplos/loja $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(LOJA) servicos/loja.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
+
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0) -o $@ exemplos/atlas.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
@@ -201,7 +206,7 @@ instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h se
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
