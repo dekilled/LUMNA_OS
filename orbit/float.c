@@ -188,6 +188,11 @@ void orbit_float_fit(struct orbit_server *server) {
 
 /* mostra uma janela livre onde ela está; só manda configure quando sai de maximizada/encaixada */
 void orbit_float_show(struct orbit_view *view) {
+	/* Interrompe a animação de entrada que um arranjo anterior começou (ela deixa a janela recortada pela posição de ANTES de chegar). Só zerar
+	 * `sliding` deixava o recorte para sempre: a janela constava como ativa e visível, e não aparecia na tela (um app que voltava da Mídia para o Desktop
+	 * parecia minimizado, e o clique dele na dock não fazia nada porque ele já era o ativo). */
+	orbit_slide_unclip(view);
+	view->leaving = false;
 	view->sliding = false;
 	view->placed = true;
 	view->slide_x = view->x;

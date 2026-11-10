@@ -159,10 +159,12 @@ static void put_view(struct ipc_buf *b, struct orbit_view *view) {
 	put_str(b, view->toplevel->title);
 	put(b, ",\"saida\":");
 	put_str(b, view->output ? view->output->wlr->name : "");
-	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}",
+	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"visivel\":%s,\"recortada\":%s}",
 		view->tag + 1, server->focused == view ? "true" : "false", view->floating ? "true" : "false",
 		view->fullscreen ? "true" : "false", view->maximized ? "true" : "false", view->minimized ? "true" : "false",
-		view->foreign ? "true" : "false", view->x, view->y, view->w, view->h);
+		view->foreign ? "true" : "false", view->x, view->y, view->w, view->h,
+		view->scene_tree->node.enabled ? "true" : "false", view->clipped ? "true" : "false");
+	/* visivel: o nó está ligado (a janela pode constar como ativa e estar escondida); recortada: uma animação a está recortando (só enquanto desliza) */
 }
 
 static struct orbit_view *view_by_id(uint32_t id) {

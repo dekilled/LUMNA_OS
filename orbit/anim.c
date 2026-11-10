@@ -34,7 +34,7 @@ static void orbit_slide_clip(struct orbit_view *view, int x, int y) {
 	wlr_scene_subsurface_tree_set_clip(&view->scene_tree->node, &clip);
 }
 
-static void orbit_slide_unclip(struct orbit_view *view) {
+void orbit_slide_unclip(struct orbit_view *view) {
 	if (view->clipped) {
 		view->clipped = false;
 		wlr_scene_subsurface_tree_set_clip(&view->scene_tree->node, NULL);
@@ -100,6 +100,8 @@ static int slide_tick(void *data) {
 void orbit_slide(struct orbit_view *view, int x, int y) {
 	struct orbit_server *server = view->server;
 	if (!view->placed || server->anim_ms <= 0) {
+		/* posta direto, sem deslizar: um recorte de animação que sobrou (uma entrada interrompida por outro arranjo) não vale mais */
+		orbit_slide_unclip(view);
 		view->placed = true;
 		view->sliding = false;
 		view->slide_to_x = x;

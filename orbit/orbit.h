@@ -582,6 +582,7 @@ void orbit_deco_hover(struct orbit_server *server, struct orbit_view *view, enum
 void orbit_deco_press(struct orbit_server *server, struct orbit_view *view, enum orbit_deco_zone zone, uint32_t time);
 void orbit_slide(struct orbit_view *view, int x, int y);
 void orbit_slide_stop(struct orbit_view *view);
+void orbit_slide_unclip(struct orbit_view *view); /* tira o recorte de uma animação (a janela inteira volta a aparecer) */
 void orbit_slide_leave(struct orbit_view *view, int dx);
 void orbit_slide_enter(struct orbit_view *view, int dx);
 void orbit_areas_set(struct orbit_server *server, int count);
