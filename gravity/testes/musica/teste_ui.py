@@ -472,6 +472,7 @@ time.sleep(1.5)
 if pid():
     subprocess.run(["pkill", "-x", "-9", "musica"])
     time.sleep(0.5)
+shutil.copy(f"{run}/g.out", f"{run}/g.antes")   # o log da primeira instância, para quem investigar
 open(f"{run}/g.out", "w").close()
 novo = subprocess.Popen([f"{os.environ.get('MUSICA_BIN', '')}" or "musica"], env=dict(os.environ, LUMNA_MUSICA_DEBUG="1"), stdout=open(f"{run}/g.out", "a"), stderr=open(f"{run}/g2.err", "a"))
 confere(lambda: e("nfaixas") == "9" and e("carregando") == "0", "reabriu e leu a biblioteca (pelo cache)", 30)

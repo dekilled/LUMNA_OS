@@ -160,9 +160,12 @@ static void tratar_linha(deck *d, const char *linha) {
 			d->pos_em = g_get_monotonic_time();
 			avancou = true;
 		}
+		bool eh_a = d == p->a;
 		g_mutex_unlock(&p->m);
 		if (avancou) {
 			avisar(p, MP_EV_AVANCOU);
+		} else if (eh_a) {
+			avisar(p, MP_EV_ESTADO);   /* a faixa carregou: quem desenha precisa saber (sem isto a tela ficava com "pausado" até alguém mexer o mouse) */
 		}
 	} else if (!strcmp(ev, "end-file")) {
 		const char *motivo = json_chave_texto(j, "reason");
@@ -313,14 +316,8 @@ static deck *deck_novo(mp_player *p, const char *arquivo_inicial, bool pausado, 
 	if (p->normalizar) {
 		A("--replaygain=track"); A("--af=lavfi=[dynaudnorm=f=250:g=7:m=10]");
 	}
-	if (arquivo_inicial) {
-		if (pausado) {
-			A("--pause=yes");
-		}
-		if (inicio > 0) {
-			g_ptr_array_add(a, g_strdup_printf("--start=%.3f", inicio));
-		}
-		A("--"); A(arquivo_inicial);
+	if (arquivo_inicial && pausado) {
+		A("--pause=yes");   /* quem toca depois decide o pause de novo (mp_tocar_i); este só vale para o primeiro */
 	}
 #undef A
 	g_ptr_array_add(a, NULL);
@@ -353,16 +350,22 @@ static deck *deck_novo(mp_player *p, const char *arquivo_inicial, bool pausado, 
 		return NULL;
 	}
 	d->vivo = true;
-	if (arquivo_inicial) {
-		g_strlcpy(d->caminho, arquivo_inicial, sizeof(d->caminho));
-		d->pausado = pausado;
-		d->carregada = true; /* o mpv já carregou o arquivo da linha de comando antes de a gente conectar: o file-loaded passou */
-	}
 	d->pos = inicio;
 	d->pos_em = g_get_monotonic_time();
 	comando(d, "\"observe_property\",1,\"time-pos\"");
 	comando(d, "\"observe_property\",2,\"duration\"");
 	comando(d, "\"observe_property\",3,\"pause\"");
+	if (arquivo_inicial) {
+		/* o primeiro arquivo vai por loadfile, como todos os outros, e o ponto de partida por seek quando ele carregar (file-loaded). Na linha de comando do mpv, --start e o
+		 * arquivo valem para TODOS os que se tocarem depois: retomar a fila em 0:43 fazia cada faixa seguinte começar em 0:43. */
+		g_strlcpy(d->caminho, arquivo_inicial, sizeof(d->caminho));
+		d->pausado = pausado;
+		d->carregada = false;
+		d->seek_pend = inicio;
+		char *c = js(arquivo_inicial);
+		comando(d, "\"loadfile\",%s,\"replace\"", c);
+		g_free(c);
+	}
 	d->leitor = g_thread_new("musica-mpv", ler_thread, d);
 	return d;
 }

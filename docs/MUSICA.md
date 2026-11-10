@@ -27,6 +27,8 @@ Escolhas minhas (o esboço não mostrava): o menu de cada faixa, o detalhe de ar
 - **Ícone na topbar**: enquanto há um player (o Music, em segundo plano ou não), a topbar mostra um ícone de música, que **acende tocando**. Tocar nele abre um painel (título, artista, tempo, anterior, tocar/pausar, próxima), e, sendo o LUMNA Music, "Abrir o LUMNA Music" e "Fechar o LUMNA Music" (encerra o app, que pode estar sem janela). Serve a qualquer player MPRIS, o Music ganha os dois botões a mais.
 - **Widget na área de trabalho** (`lumna-widgets`, ver [WIDGETS.md](WIDGETS.md)): com o Music em segundo plano, um cartão (capa, título, artista, tempo e os botões) aparece no canto de cima, atrás das janelas; tocar no cartão abre o Music e o cartão some.
 
+- **Cada faixa começa do 0:00**: o ponto de partida (retomar a fila em 0:43, por exemplo) valia só para o primeiro arquivo, mas o mpv guardava a opção `--start` e a aplicava a todas as faixas seguintes; agora o primeiro arquivo entra como os outros (loadfile, e um seek quando carrega). E a tela é avisada quando a faixa carrega, em vez de ficar parada em "pausado" até mexerem o mouse.
+
 ## O que não faz (ainda)
 
 Qobuz e outros serviços (o botão de perfil só avisa), equalizador, mini-player, editar tags, buscar letra na internet, ReplayGain calculado (usa só a tag que houver), a **Emma controlar a música** (a opção "Emma neste app" só mostra o botão que abre a conversa), tocar numa **caixa de som de outro aparelho** (só os dispositivos de áudio do mpv). Itens de playlist que saíram da biblioteca somem da lista (a contagem diz quantos).
