@@ -17,7 +17,7 @@ depends=(
   # som, energia, discos, rede, Bluetooth, bateria e senha de administrador (pkexec)
   wireplumber pipewire-pulse power-profiles-daemon udisks2 networkmanager bluez upower polkit
   # sessão: systemd (localectl, timedatectl), abrir arquivos e links, avisos, rotas, discos
-  systemd xdg-utils libnotify iproute2 util-linux ffmpeg libarchive git
+  systemd xdg-utils libnotify iproute2 util-linux ffmpeg libarchive git mpv
   # a Mídia e os links abrem no Firefox; o foot fica de reserva (a sessão de emergência com o Hyprland o usa)
   firefox foot
   # o que o instalador de apps do Painel usa (pacman, checkupdates)
@@ -28,7 +28,7 @@ options=(!strip !debug)
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica)
 
 build() {
   cd "$_root/gravity"

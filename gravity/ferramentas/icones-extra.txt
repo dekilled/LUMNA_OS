@@ -19,3 +19,7 @@
 	"logout": "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
 	"network": "M9 3h6v5H9zM3 16h6v5H3zM15 16h6v5h-6zM12 8v4M6 16v-4h12v4",
 	"save": "M5 4h12l3 3v13H5zM8 4v5h8V4M8 20v-6h8v6",
+	grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
+	queue: "M4 6h12M4 12h12M4 18h6M16 15v6l5-3z",
+	lyrics: "M4 5h16v11H10l-5 4V5zM8 9h8M8 12h5",
+	library: "M5 4h14v16H5zM9 8h.01M9 12h6M9 16h6",

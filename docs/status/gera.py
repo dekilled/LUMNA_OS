@@ -73,7 +73,7 @@ areas = [
   "Num KDE falso. Você confirmou só as janelas, a tela cheia e o mouse."),
  ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
  ("Vídeo", "falta", "Ainda não há player de vídeo do LUMNA. O mpv vem com o Arch e, na sua máquina, não abre (a investigar).", "—"),
- ("Apps que ainda não existem", "falta", "Música, bloco de notas, Code, Reminders, StoryTeller, Loja, Telefone e o navegador. O LUMNA antigo (Vue) está descartado por desempenho e espaço; o que ele tinha serve só de referência.", "—"),
+ ("Apps que ainda não existem", "falta", "bloco de notas, Code, Reminders, StoryTeller, Loja, Telefone e o navegador. O LUMNA antigo (Vue) está descartado por desempenho e espaço; o que ele tinha serve só de referência.", "—"),
 ]
 lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("Em andamento", "and"), "falta": ("Não existe", "sk")}
 
@@ -136,7 +136,7 @@ backlog = [
   ("testar", "Atlas: o menu de contexto fora da janela", "Corrigido: o menu abre por cima da janela, passa dos limites dela e só rola se for mais alto que a tela (o Orbit prendia o popup na janela e o Atlas limitava a altura pela janela). Provado no Orbit sem tela; falta você ver no seu PC."),
   ("testar", "Terminal (Pulse)", "O comando por linguagem natural (Ctrl+E) você confirmou. Falta a correção de erro, a explicação antes de executar e a memória. Detalhes em docs/PULSE.md."),
   ("feito", "Captura de tela", "Imagem e vídeo confirmados por você. Falta o áudio da gravação."),
-  ("falta", "Player de música", "Decidido: biblioteca local, fila, letras e saída de áudio primeiro; o Qobuz entra numa segunda fase. Referência: MusicApp.vue (antigo). Espera o seu esboço. Plano em docs/APPS-SISTEMA.md."),
+  ("testar", "Player de música (LUMNA Music)", "Pronto pelo seu esboço: biblioteca local com tags e capas, Álbuns, Artistas, Pastas, playlists e Favoritas, fila (arrastar para reordenar), letra sincronizada, busca, gapless, transição entre faixas, escolha da saída de áudio, MPRIS (tela de bloqueio, celular e Mídia controlam) e as configurações. Testado num Orbit sem tela com o mpv e o D-Bus de verdade (saída de áudio nula, ASAN/UBSAN sem relatório); falta você ouvir no PC: o som, sua biblioteca grande, a troca de saída e o toque. O Qobuz fica para depois. Roteiro: TESTES-ISO 2.180 a 2.199. Detalhes em docs/MUSICA.md."),
   ("falta", "Player de vídeo", "O mpv por baixo, com os controles do LUMNA. O mpv abre (ele exigia um arquivo para abrir, você já confirmou). Espera o seu esboço; em aberto: o mpv em janela própria com os controles numa camada, ou o vídeo dentro da nossa janela."),
   ("testar", "Galeria de fotos e vídeos (fases 1, 2 e 3)", "Pronta pelos seus esboços: biblioteca por data, álbuns, busca, seleção, visualizador com zoom, importar, compartilhar e configurações; o editor de fotos (Ajustar, Recortar, Girar, Filtros) e o editor de vídeos (faixa do tempo com recorte, prévia tocando sem som, áudio, girar e Exportar cópia em MP4). As cópias saem ao lado do original, que nunca é alterado. Testada só num Orbit sem tela (com ASAN/UBSAN); falta você ver no PC: disco lento, toque, fotos e vídeos grandes. Roteiro: TESTES-ISO 2.139 a 2.179. Detalhes em docs/GALERIA.md."),
  ("falta", "Loja de apps", "Esboço: docs/visual/02-loja.jpg (Descobrir, Instalados, Atualizações, categorias, Essenciais para começar). Base: o serviço de pacotes do Painel. Em aberto: só pacman ou também Flatpak e AUR."),

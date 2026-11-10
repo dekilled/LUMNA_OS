@@ -12,10 +12,7 @@ Esboço recebido (biblioteca, editor de fotos, editor de vídeos, configuraçõe
 
 ## 2. Player de música
 
-Decidido: **biblioteca local, fila, letras e saída de áudio primeiro; o Qobuz entra numa segunda fase** (como no antigo).
-- Referência: `shell/src/components/music/MusicApp.vue` (fila, letras, Qobuz, saídas).
-- Motor: o mpv (o Eric confirmou que abre; ele exigia um arquivo para abrir), controlado pelo socket JSON dele, e MPRIS para a tela de bloqueio, o controle do celular e a Mídia.
-- Escolher a saída usa o que o Painel > Som já faz (PipeWire/Pulse).
+Esboço recebido (Ouvir agora com a fila, Álbuns, Letra sincronizada, Configurações). **Pronto, aguardando seu teste** (biblioteca local, fila, letras, saída de áudio, gapless, transição, MPRIS); o Qobuz fica para a segunda fase. Tudo em [MUSICA.md](MUSICA.md).
 
 ## 3. Player de vídeo
 

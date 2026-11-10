@@ -227,6 +227,31 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.178 | Um vídeo grande (1080p, vários minutos) e um de celular na vertical | Abre sem travar (as miniaturas chegam em segundos), a prévia sai na orientação certa e a cópia também | ☐ |
 | 2.179 | Um vídeo sem áudio e um que não é MP4 (MKV, WebM) | O painel diz que não tem áudio; o MKV/WebM exporta como MP4 | ☐ |
 
+### 2e. Música (`lumna-music`)
+
+| # | O que fazer | O que deve acontecer | OK? |
+|---|---|---|---|
+| 2.180 | Pôr músicas em `~/Músicas` (MP3, FLAC...) e abrir "Música" no lançador | A biblioteca aparece (Minha biblioteca, Álbuns, Artistas, Pastas) com as capas e as tags certas | ☐ |
+| 2.181 | Uma biblioteca grande (milhares de faixas, ou o disco lento): abrir e rolar a lista | Abre dizendo "Procurando…" sem travar; a 2ª abertura é bem mais rápida; rola suave | ☐ |
+| 2.182 | Abrir um álbum e tocar em Reproduzir; depois em uma faixa do meio | **Sai som** pela caixa/fone; a lista toca a partir de onde clicou; o tempo anda | ☐ |
+| 2.183 | Pausar, Próxima, Anterior (nos primeiros 3 s e depois), clicar e arrastar na barra de tempo, volume | Tudo responde; arrastar na barra não pula o som até soltar | ☐ |
+| 2.184 | Aleatório e Repetir (nada, fila, faixa) | A ordem muda; no fim da fila com "repetir a fila" volta à primeira; com "repetir a faixa" ela recomeça | ☐ |
+| 2.185 | Deixar um álbum tocar inteiro com "Reprodução sem intervalos" ligado | De uma faixa para a outra **não há corte** (álbum ao vivo ou de música contínua é o melhor teste) | ☐ |
+| 2.186 | Configurações > Reprodução > Transição entre faixas em 4 s | As faixas se misturam no fim (uma some, a outra entra); mexer na barra durante a mistura a desfaz | ☐ |
+| 2.187 | Abrir o painel da fila (ícone no canto); tocar numa linha; arrastar a alça; botão direito numa linha | Pula para a linha; a ordem muda; tira da fila | ☐ |
+| 2.188 | "..." de uma faixa: Tocar a seguir, Adicionar à fila, Favoritar, Adicionar a uma playlist | Cada um faz o que diz; o coração da barra acende na favorita | ☐ |
+| 2.189 | `+` ao lado de Playlists: criar; adicionar faixas; arrastar a alça para reordenar; renomear e apagar pelo "..." | Funciona; apagar pergunta e **não apaga as músicas**; o arquivo `.m3u8` abre em outro player | ☐ |
+| 2.190 | Buscar `cancao` (sem acento) e depois duas palavras (artista e álbum) | Acha a "Canção"; várias palavras afinam; apagar a busca volta à tela de antes | ☐ |
+| 2.191 | Uma música com `.lrc` ao lado: abrir a letra (ícone da barra) | Aparece "Sincronizada"; a linha da vez acende e rola junto; tocar numa linha vai até ela; "Seguir reprodução" desliga a rolagem | ☐ |
+| 2.192 | Uma música com a letra só na tag; uma sem letra | A 1ª aparece inteira ("Não sincronizada"); a 2ª diz como pôr o `.lrc` | ☐ |
+| 2.193 | Configurações: cada aba (Reprodução, Biblioteca, Letras, Aparência, Emma) | Mudar vale na hora e fica gravado; adicionar uma pasta traz as músicas; remover tira | ☐ |
+| 2.194 | Barra do player > "Neste computador" | Lista as saídas de áudio; escolher outra muda o som na hora (fone, HDMI, caixa Bluetooth) | ☐ |
+| 2.195 | Fechar com uma faixa a meio e abrir de novo | A fila volta com a mesma faixa, **parada**, e Tocar continua de onde estava | ☐ |
+| 2.196 | Com música tocando, bloquear a tela e olhar o celular (Connect) / o modo Mídia | Mostram título, artista e capa; pausar, próxima e anterior de lá funcionam | ☐ |
+| 2.197 | Teclas de mídia do teclado (play/pause, próxima) | Controlam o LUMNA Music | ☐ |
+| 2.198 | Arrastar uma pasta de músicas e alguns arquivos do Atlas para a janela | A pasta entra na biblioteca; os arquivos vão para a fila | ☐ |
+| 2.199 | Se o app cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-music-<número>.log` com a pilha; mande-o para mim | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

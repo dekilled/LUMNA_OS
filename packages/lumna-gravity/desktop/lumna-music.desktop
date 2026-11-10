@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Música
+GenericName=Player de música
+Comment=Sua biblioteca, fila e letras
+Exec=lumna-music %U
+Icon=lumna-music
+StartupWMClass=lumna-music
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+MimeType=audio/mpeg;audio/flac;audio/ogg;audio/mp4;audio/x-wav;audio/opus;audio/x-flac;
+Keywords=musica;música;player;audio;letras;playlist;albuns;

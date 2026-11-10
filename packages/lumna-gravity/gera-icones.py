@@ -11,7 +11,7 @@ caminhos = dict(re.findall(r'\{ "([a-z0-9-]+)", "([^"]+)" \}', fonte))
 apps = {
     "lumna-painel": "settings", "lumna-emma": "emma", "lumna-galeria": "image", "lumna-captura": "camera",
     "lumna-rede": "wifi", "lumna-mixer": "volume", "lumna-midia": "media-play", "lumna-instalador": "download",
-    "lumna-connect": "phone", "lumna-atlas": "folder", "lumna-loja": "bag", "lumna-pulse": "terminal",
+    "lumna-connect": "phone", "lumna-atlas": "folder", "lumna-loja": "bag", "lumna-pulse": "terminal", "lumna-music": "music",
 }
 saida = os.path.join(aqui, "icones")
 os.makedirs(saida, exist_ok=True)
