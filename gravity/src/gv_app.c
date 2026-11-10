@@ -158,6 +158,11 @@ struct gv_app {
 	bool configurado;
 	bool precisa;   /* há algo novo para desenhar */
 	bool a_correr;
+	bool escondida;                 /* a janela está desmapeada (o app segue vivo, sem janela) */
+	bool (*ao_fechar)(void *);      /* pedido de fechar: devolve verdadeiro se tratou (esconder) em vez de sair */
+	void *ao_fechar_dados;
+	void (*segundo_plano)(void *);  /* o que roda no lugar do quadro enquanto a janela está escondida */
+	void *segundo_plano_dados;
 	int codigo;
 
 	struct gv_vigia vigias[GV_MAX_VIGIAS];
@@ -511,6 +516,57 @@ static void entrada_rever(gv_app *app) {
 
 void gv_app_sair(gv_app *app) {
 	app->a_correr = false;
+}
+
+/* o pedido de fechar (o X da barra, o fechar do compositor): o app pode tratar (esconder a janela e seguir) em vez de sair */
+void gv__app_fechar(gv_app *app) {
+	if (app->ao_fechar && app->ao_fechar(app->ao_fechar_dados)) {
+		return;
+	}
+	gv_app_sair(app);
+}
+
+void gv_app_ao_fechar(gv_app *app, bool (*fn)(void *), void *dados) {
+	app->ao_fechar = fn;
+	app->ao_fechar_dados = dados;
+}
+
+void gv_app_segundo_plano(gv_app *app, void (*fn)(void *), void *dados) {
+	app->segundo_plano = fn;
+	app->segundo_plano_dados = dados;
+}
+
+bool gv_app_escondida(gv_app *app) {
+	return app->escondida;
+}
+
+/* Esconder: um commit sem buffer desmapeia a janela (o compositor a tira da tela, da dock e da lista de janelas); o app segue correndo. */
+void gv_app_esconder(gv_app *app) {
+	if (app->opcoes.tipo != GV_JANELA || app->escondida) {
+		return;
+	}
+	app->escondida = true;
+	if (app->quadro_cb) {
+		wl_callback_destroy(app->quadro_cb);
+		app->quadro_cb = NULL;
+	}
+	wl_surface_attach(app->superficie, NULL, 0, 0);
+	wl_surface_commit(app->superficie);
+	app->configurado = false;
+	app->precisa = true;   /* o primeiro passo do fundo roda já */
+}
+
+/* Mostrar: o xdg-shell manda refazer o começo (um commit vazio pede o configure; o título e o app_id voltam a valer) e o quadro sai quando o configure chega. */
+void gv_app_mostrar(gv_app *app) {
+	if (app->opcoes.tipo != GV_JANELA || !app->escondida) {
+		return;
+	}
+	app->escondida = false;
+	app->configurado = false;
+	xdg_toplevel_set_title(app->janela, app->opcoes.titulo ? app->opcoes.titulo : "Gravity");
+	xdg_toplevel_set_app_id(app->janela, app->opcoes.app_id ? app->opcoes.app_id : "gravity");
+	wl_surface_commit(app->superficie);
+	app->precisa = true;
 }
 
 /* ---- executar na linha principal, vindo de outra thread ---- */
@@ -1432,7 +1488,7 @@ static void janela_configurar(void *dados, struct xdg_toplevel *j, int32_t largu
 }
 
 static void janela_fechar(void *dados, struct xdg_toplevel *j) {
-	gv_app_sair(dados);
+	gv__app_fechar(dados);
 }
 
 static void janela_limites(void *d, struct xdg_toplevel *j, int32_t w, int32_t h) {}
@@ -2379,7 +2435,14 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {
 	app->a_correr = true;
 	struct pollfd fds[1 + GV_MAX_VIGIAS];
 	while (app->a_correr) {
-		if (app->precisa && app->configurado && !app->quadro_cb) {
+		if (app->escondida) {
+			if (app->precisa) {   /* sem janela não há quadro: roda só o que o app pediu para o segundo plano */
+				app->precisa = false;
+				if (app->segundo_plano) {
+					app->segundo_plano(app->segundo_plano_dados);
+				}
+			}
+		} else if (app->precisa && app->configurado && !app->quadro_cb) {
 			desenhar_quadro(app, desenhar, dados);
 		}
 		if (!app->a_correr) {
@@ -2397,7 +2460,7 @@ int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados) {
 			fds[1 + i] = (struct pollfd){ .fd = app->vigias[i].fd, .events = POLLIN };
 		}
 		/* com um quadro por desenhar mas à espera do compositor, o poll acorda com o callback */
-		int espera = (app->precisa && app->configurado && !app->quadro_cb) ? 0 : -1;
+		int espera = (!app->escondida && app->precisa && app->configurado && !app->quadro_cb) ? 0 : -1;
 		if (espera < 0 && app->acordar > 0) {
 			/* um quadro marcado (o cursor que pisca): dorme só até lá */
 			double falta = app->acordar - gv_agora();

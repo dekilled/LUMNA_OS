@@ -131,6 +131,14 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes);
 /* Corre até gv_app_sair (ou o compositor fechar a janela). Devolve o código de saída. */
 int gv_app_correr(gv_app *app, gv_desenho desenhar, void *dados);
 void gv_app_sair(gv_app *app);
+/* Segundo plano (só janelas): ao_fechar roda quando pedem para fechar a janela (o X da barra, o compositor); devolva verdadeiro se tratou (por exemplo esconder) e o app
+ * segue; falso (ou sem o gancho) sai como sempre. Escondida, a janela some do compositor e o app continua no laço: em vez de desenhar, ele chama o segundo_plano a cada despertar
+ * (gv_acordar_em, descritores vigiados, tarefas), para quem toca música ou espera eventos. */
+void gv_app_ao_fechar(gv_app *app, bool (*fn)(void *dados), void *dados);
+void gv_app_segundo_plano(gv_app *app, void (*fn)(void *dados), void *dados);
+void gv_app_esconder(gv_app *app);
+void gv_app_mostrar(gv_app *app);
+bool gv_app_escondida(gv_app *app);
 /* GV_BLOQUEIO: destranca a sessão (a senha conferiu) e sai. */
 void gv_app_desbloquear(gv_app *app);
 /* GV_BLOQUEIO: a tela de bloqueio fica na tela escolhida (opcoes.saida, ou a primeira); as outras

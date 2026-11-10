@@ -19,6 +19,7 @@ typedef struct mu_cfg {
 	int transicao;             /* 0..12 s entre as faixas */
 	bool restaurar_fila;
 	bool emma_no_app;
+	bool segundo_plano;        /* fechar a janela tocando: continua tocando, sem janela */
 	/* biblioteca */
 	char pastas[MU_PASTAS_MAX][4096];
 	int npastas;

@@ -28,6 +28,7 @@ void mu_cfg_padrao(mu_cfg *c) {
 	c->sem_intervalos = true;
 	c->restaurar_fila = true;
 	c->emma_no_app = true;
+	c->segundo_plano = true;
 	c->subpastas = true;
 	c->buscar_auto = true;
 	c->letras_mostrar = true;
@@ -76,7 +77,7 @@ void mu_cfg_ler(mu_cfg *c) {
 			g_free(saida);
 		}
 		BOOL("normalizar", normalizar); BOOL("sem_intervalos", sem_intervalos); INT("transicao", transicao, 0, 12);
-		BOOL("restaurar_fila", restaurar_fila); BOOL("emma_no_app", emma_no_app); BOOL("subpastas", subpastas); BOOL("buscar_auto", buscar_auto);
+		BOOL("restaurar_fila", restaurar_fila); BOOL("emma_no_app", emma_no_app); BOOL("segundo_plano", segundo_plano); BOOL("subpastas", subpastas); BOOL("buscar_auto", buscar_auto);
 		BOOL("letras_mostrar", letras_mostrar); BOOL("letras_seguir", letras_seguir); INT("letras_tamanho", letras_tamanho, 0, 2);
 		BOOL("capas", capas); BOOL("fundo_capa", fundo_capa); INT("tam_capa", tam_capa, 120, 240);
 		INT("volume", volume, 0, 100); INT("repetir", repetir, 0, 2); BOOL("aleatorio", aleatorio); INT("vista_albuns", vista_albuns, 0, 1); INT("ordem_albuns", ordem_albuns, 0, 2); BOOL("fila_aberta", fila_aberta);
@@ -103,7 +104,7 @@ bool mu_cfg_gravar(const mu_cfg *c) {
 #define BOOL(k, f) g_key_file_set_boolean(kf, "musica", k, c->f)
 #define INT(k, f) g_key_file_set_integer(kf, "musica", k, c->f)
 	BOOL("normalizar", normalizar); BOOL("sem_intervalos", sem_intervalos); INT("transicao", transicao);
-	BOOL("restaurar_fila", restaurar_fila); BOOL("emma_no_app", emma_no_app); BOOL("subpastas", subpastas); BOOL("buscar_auto", buscar_auto);
+	BOOL("restaurar_fila", restaurar_fila); BOOL("emma_no_app", emma_no_app); BOOL("segundo_plano", segundo_plano); BOOL("subpastas", subpastas); BOOL("buscar_auto", buscar_auto);
 	BOOL("letras_mostrar", letras_mostrar); BOOL("letras_seguir", letras_seguir); INT("letras_tamanho", letras_tamanho);
 	BOOL("capas", capas); BOOL("fundo_capa", fundo_capa); INT("tam_capa", tam_capa);
 	INT("volume", volume); INT("repetir", repetir); BOOL("aleatorio", aleatorio); INT("vista_albuns", vista_albuns); INT("ordem_albuns", ordem_albuns); BOOL("fila_aberta", fila_aberta);

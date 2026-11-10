@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja
+all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -84,8 +84,8 @@ apps: exemplos/apps.c servicos/desktopenv.h libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/bateria.c servicos/bateria.h servicos/emmac.c servicos/emmac.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/bateria.c servicos/emmac.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
+barra: exemplos/barra.c servicos/mpris.c servicos/mpris.h servicos/bateria.c servicos/bateria.h servicos/emmac.c servicos/emmac.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/mpris.c servicos/bateria.c servicos/emmac.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a
@@ -184,6 +184,10 @@ MUSICA = exemplos/musica/principal.c exemplos/musica/barra.c exemplos/musica/bib
 musica: $(MUSICA) exemplos/musica/app.h servicos/musica.c servicos/musica.h servicos/musica_player.c servicos/musica_player.h servicos/musica_mpris.c servicos/musica_mpris.h servicos/json.c servicos/json.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -Iexemplos/musica $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(MUSICA) servicos/musica.c servicos/musica_player.c servicos/musica_mpris.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
 
+# os widgets da área de trabalho (lumna-widgets)
+widgets: exemplos/widgets.c servicos/mpris.c servicos/mpris.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/widgets.c servicos/mpris.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0) -lm -lpthread
+
 # a loja de aplicativos (lumna-loja)
 LOJA = exemplos/loja/principal.c exemplos/loja/barra.c exemplos/loja/telas.c exemplos/loja/drivers.c
 loja: $(LOJA) exemplos/loja/app.h servicos/loja.c servicos/loja.h servicos/loja_hw.c servicos/loja_hw.h servicos/json.c servicos/json.h libgravity.a
@@ -206,7 +210,7 @@ instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h se
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 

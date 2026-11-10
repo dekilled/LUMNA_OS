@@ -11,6 +11,8 @@
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
+void gv__app_fechar(gv_app *app);   /* o pedido de fechar: o app trata (esconde) ou sai */
+
 #endif
 
 /* ---- memória do quadro: textos e dados dos elementos, apagada a cada quadro ---- */

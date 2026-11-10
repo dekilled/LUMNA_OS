@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "bandeja.h"
+#include "mpris.h"
 #include "bateria.h"
 #include "bluetooth.h"
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -62,6 +63,7 @@ static void menu_alternar(Clay_ElementId id) {
 	gv_popup_fechar(CLAY_ID("menu-tray"));
 	gv_popup_fechar(CLAY_ID("menu-emma"));
 	gv_popup_fechar(CLAY_ID("menu-copiados"));
+	gv_popup_fechar(CLAY_ID("menu-musica"));
 	if (!estava) {
 		gv_popup_abrir(id);
 	}
@@ -128,6 +130,14 @@ static void servico_mudou(gv_app *app, int fd, void *dados) {
 	uint64_t v;
 	if (read(fd, &v, sizeof(v)) < 0) {
 	}
+	gv_app_redesenhar(app);
+}
+
+/* o que toca (MPRIS): a barra mostra o ícone de música e, tocando nele, o painel */
+static struct mpris_estado musica;
+
+static void musica_mudou(gv_app *app, int fd, void *dados) {
+	mpris_ler(&musica);
 	gv_app_redesenhar(app);
 }
 
@@ -595,6 +605,59 @@ static void copiados_ler(void) {
 	json_liberar(j);
 }
 
+static const char *tempo_texto(int64_t us) {
+	int s = (int)(us / 1000000);
+	return gv_fmt("%d:%02d", s / 60, s % 60).chars;
+}
+
+static void menu_musica(void) {
+	GV_POPUP(CLAY_ID("menu-musica"), CLAY_ID("musica"), .alinhar = GV_ALINHAR_FIM, .largura = 380, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
+		if (musica.tem) {
+			gv_acordar_em(0.5); /* aberto, a barra de tempo anda */
+		}
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 16, 16, 14, 8 }, .childGap = 4 } }) {
+			gv_texto(CLAY_STRING("Tocando agora"), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			CLAY(CLAY_ID("mu-titulo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+				gv_texto(gv_str(musica.titulo[0] ? musica.titulo : "(sem título)"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+			}
+			CLAY(CLAY_ID("mu-artista"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+				gv_texto(gv_str(musica.artista[0] ? musica.artista : musica.lumna_music ? "LUMNA Music" : musica.player), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
+		}
+		int64_t pos = mpris_posicao(&musica);
+		float frac = musica.duracao_us > 0 ? CLAMP((float)((double)pos / (double)musica.duracao_us), 0.0f, 1.0f) : 0.0f;
+		CLAY(CLAY_ID("mu-tempo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 16, 16, 4, 4 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_texto(gv_str(tempo_texto(pos)), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+			CLAY(CLAY_ID("mu-trilho"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(4) } }, .backgroundColor = gv_t.borda_controle, .cornerRadius = CLAY_CORNER_RADIUS(2) }) {
+				CLAY(CLAY_ID("mu-trilho-cheio"), { .layout = { .sizing = { CLAY_SIZING_PERCENT(frac), CLAY_SIZING_FIXED(4) } }, .backgroundColor = gv_t.acento, .cornerRadius = CLAY_CORNER_RADIUS(2) }) {}
+			}
+			gv_texto(gv_str(musica.duracao_us > 0 ? tempo_texto(musica.duracao_us) : "--:--"), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		CLAY(CLAY_ID("mu-botoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 16, 16, 6, 6 }, .childGap = 12, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
+			if (gv_botao_redondo(CLAY_ID("mu-ant"), "skip-back", 44, false, false) && musica.pode_anterior) {
+				mpris_anterior();
+			}
+			if (gv_botao_redondo(CLAY_ID("mu-play"), musica.tocando ? "pause" : "play", 52, true, false)) {
+				mpris_tocar_pausar();
+			}
+			if (gv_botao_redondo(CLAY_ID("mu-prox"), "skip-forward", 44, false, false) && musica.pode_proxima) {
+				mpris_proxima();
+			}
+		}
+		if (musica.lumna_music) {
+			gv_separador(false, 0);
+			if (gv_menu_item(CLAY_ID("mu-abrir"), "music", "Abrir o LUMNA Music", NULL)) {
+				executar("lumna-music", NULL, NULL);
+				gv_popup_fechar(CLAY_ID("menu-musica"));
+			}
+			if (gv_menu_item(CLAY_ID("mu-sair"), "power", "Fechar o LUMNA Music", "para a música e encerra o app")) {
+				mpris_music_encerrar();
+				gv_popup_fechar(CLAY_ID("menu-musica"));
+			}
+		}
+	}
+}
+
 static void menu_copiados(void) {
 	GV_POPUP(CLAY_ID("menu-copiados"), CLAY_ID("copiados"), .alinhar = GV_ALINHAR_FIM, .largura = 440, .distancia = POPUP_GAP, .altura_max = popup_altura_max) {
 		if (gv_agora() - copiados_lido > 1.0) {
@@ -1006,8 +1069,41 @@ static bool icone_barra(Clay_ElementId id, const char *icone, bool aberto) {
 	return tocado;
 }
 
+/* em teste (LUMNA_BARRA_DEBUG): onde estão o ícone da música e os botões do painel, e o estado do que toca */
+static void depurar_musica(gv_app *app) {
+	static int ligado = -1;
+	if (ligado < 0) {
+		ligado = getenv("LUMNA_BARRA_DEBUG") != NULL;
+	}
+	if (!ligado) {
+		return;
+	}
+	static char antes[2048];
+	char linha[2048];
+	static const char *const nomes[] = { "musica", "mu-ant", "mu-play", "mu-prox", "mu-abrir", "mu-sair", "mu-trilho-cheio" };
+	char *p = linha;
+	p += snprintf(p, sizeof(linha), "estado mus_tem=%d mus_tocando=%d mus_player=%s mus_titulo=[%s] mus_lumna=%d mus_pop=%d", musica.tem, musica.tocando, musica.player, musica.titulo, musica.lumna_music,
+		gv_popup_aberto(CLAY_ID("menu-musica")));
+	for (size_t i = 0; i < G_N_ELEMENTS(nomes); i++) {
+		Clay_BoundingBox b = gv_caixa(Clay__HashString((Clay_String){ .length = (int)strlen(nomes[i]), .chars = nomes[i] }, 0));
+		p += snprintf(p, sizeof(linha) - (size_t)(p - linha), " %s=%.0f,%.0f,%.0f,%.0f", nomes[i], b.x, b.y, b.width, b.height);
+	}
+	static int extras;
+	if (strcmp(linha, antes)) {
+		printf("%s\n", linha);
+		fflush(stdout);
+		snprintf(antes, sizeof(antes), "%s", linha);
+		extras = 3;   /* as caixas são as do quadro anterior: mais uns quadros e o log fica com o layout de agora */
+	}
+	if (extras > 0) {
+		extras--;
+		gv_app_redesenhar(app);
+	}
+}
+
 static void desenhar_barra(gv_app *app, void *dados) {
 	(void)dados;
+	depurar_musica(app);
 	saida_propria_ler(app);
 	/* um popup que pede para digitar (o PIN do perfil, a senha do Wi-Fi) precisa do teclado: a barra, que não o usa, o pede enquanto ele está aberto
 	 * (sai quando o popup fecha: tocar fora, Esc ou entrar) */
@@ -1180,6 +1276,19 @@ static void desenhar_barra(gv_app *app, void *dados) {
 				}
 				gv_acordar_em(bat_lida + 30 - gv_agora() + 0.05);
 			}
+			if (musica.tem) {   /* um player no ar (o LUMNA Music, em segundo plano ou não): o ícone acende tocando */
+				Clay_ElementId id = CLAY_ID("musica");
+				bool tocado = gv_tocado(id);
+				bool aberto = gv_popup_aberto(CLAY_ID("menu-musica"));
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(32) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = aberto ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+					tocado |= gv_focavel(id, gv_t.raio_pequeno);
+					gv_icone("music", 20, musica.tocando ? gv_t.acento : gv_t.icone);
+				}
+				if (tocado) {
+					menu_alternar(CLAY_ID("menu-musica"));
+				}
+			}
 			if (modos_est.orbit && icone_barra(CLAY_ID("copiados"), "clipboard", gv_popup_aberto(CLAY_ID("menu-copiados")))) {
 				copiados_ler();
 				menu_alternar(CLAY_ID("menu-copiados"));
@@ -1241,6 +1350,7 @@ static void desenhar_barra(gv_app *app, void *dados) {
 	menu_tray();
 	menu_emma();
 	menu_copiados();
+	menu_musica();
 	struct tm hoje;
 	time_t agora2 = time(NULL);
 	localtime_r(&agora2, &hoje);
@@ -1387,6 +1497,10 @@ int main(int argc, char **argv) {
 	modos_fd = modos_assinar();
 	if (modos_fd >= 0) {
 		gv_app_vigiar(app, modos_fd, modo_mudou, NULL);
+	}
+	int mpris_fd = mpris_iniciar();
+	if (mpris_fd >= 0) {
+		gv_app_vigiar(app, mpris_fd, musica_mudou, NULL);
 	}
 	char *ini = barra_ini();
 	char *pasta = g_path_get_dirname(ini);

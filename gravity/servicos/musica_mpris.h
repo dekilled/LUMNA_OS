@@ -35,6 +35,7 @@ typedef struct mm_acoes {
 	void (*abrir_janela)(void *);
 	void (*abrir_uri)(void *, const char *uri);
 	void *dados;
+	void (*sair)(void *);   /* Quit: encerrar o app (NULL: o app não aceita) */
 } mm_acoes;
 
 typedef struct mm_mpris mm_mpris;

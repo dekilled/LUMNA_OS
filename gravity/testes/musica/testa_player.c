@@ -231,6 +231,23 @@ int main(int argc, char **argv) {
 
 	mp_liberar(p);
 	g_usleep(300000);
+	/* a primeira faixa vai na linha de comando do mpv; avisar logo a seguinte (ou que não há) não pode derrubá-la (um playlist-clear enquanto ela carrega a deixava ociosa) */
+	for (int i = 0; i < 10; i++) {
+		mp_player *n = mp_criar(evento, NULL);
+		mp_ajustes(n, "", true, true, 0);
+		mp_tocar(n, t1, 0, false);
+		mp_proxima(n, i % 2 ? t2 : NULL);
+		mp_estado e2;
+		bool ok = false;
+		for (int k = 0; k < 30 && !ok; k++) {
+			g_usleep(50000);
+			mp_estado_ler(n, &e2);
+			ok = e2.vivo && e2.dur > 2 && e2.pos > 0.2;
+		}
+		CONFERE(ok, "a primeira faixa toca mesmo com a próxima anunciada logo em seguida (volta %d: dur %.1f pos %.2f)", i, e2.dur, e2.pos);
+		mp_liberar(n);
+	}
+
 	/* um mpv órfão (o socket é de um app que já não existe) é derrubado quando o próximo player sobe */
 	{
 		const char *rt = g_get_user_runtime_dir();

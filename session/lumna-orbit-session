@@ -10,6 +10,6 @@ export ORBIT_TERMINAL=lumna-pulse
 # Os portais (escolher arquivo, compartilhar tela) são ativados pelo D-Bus: precisam saber qual é a tela e o desktop.
 # O Orbit só cria o WAYLAND_DISPLAY depois de subir, então o -s empurra o ambiente para o D-Bus antes das peças.
 exec dbus-run-session -- orbit -s 'dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP
-	lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-ocioso & lumna-inicio & lumna-polkit & lumna-luz & lumna-teclado & lumna-discos & lumna-connect &
+	lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-widgets & lumna-ocioso & lumna-inicio & lumna-polkit & lumna-luz & lumna-teclado & lumna-discos & lumna-connect &
 	{ mkdir -p ~/.local/state/lumna; lumna-emma 2>>~/.local/state/lumna/emma.log; } &
 	lumna-midia servico &'

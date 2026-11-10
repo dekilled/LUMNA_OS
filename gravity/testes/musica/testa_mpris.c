@@ -100,7 +100,7 @@ static bool cham(GDBusConnection *c, const char *m, GVariant *par, const char *e
 }
 
 int main(void) {
-	mm_acoes a = { a_tocar, a_pausar, a_alt, a_parar, a_prox, a_ant, a_buscar, a_pos, a_vol, a_alea, a_rep, a_janela, NULL, NULL };
+	mm_acoes a = { a_tocar, a_pausar, a_alt, a_parar, a_prox, a_ant, a_buscar, a_pos, a_vol, a_alea, a_rep, a_janela, NULL, NULL, NULL };
 	mm_mpris *m = mm_iniciar(&a, "lumnateste");
 	CONFERE(m != NULL, "o serviço sobe (precisa de dbus-run-session)");
 	if (!m) {

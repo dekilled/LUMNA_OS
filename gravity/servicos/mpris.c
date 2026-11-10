@@ -49,6 +49,8 @@ static bool tocando(const char *nome) {
 static void ler_player(const char *nome, struct mpris_estado *e) {
 	memset(e, 0, sizeof(*e));
 	e->tem = true;
+	g_strlcpy(e->player, g_str_has_prefix(nome, PREFIXO) ? nome + strlen(PREFIXO) : nome, sizeof(e->player));
+	e->lumna_music = !strcmp(e->player, "lumna_music");
 	e->tocando = tocando(nome);
 	GVariant *meta = prop(nome, "org.mpris.MediaPlayer2.Player", "Metadata");
 	if (meta && g_variant_is_of_type(meta, G_VARIANT_TYPE_VARDICT)) {
@@ -143,7 +145,7 @@ static gboolean rever(gpointer dados) {
 	g_mutex_lock(&trinco);
 	/* avisa quando muda o que se vê (a posição anda sozinha; um salto de mais de 2 s também conta) */
 	int64_t esperada = estado.posicao_us + (estado.tocando ? novo.lida_us - estado.lida_us : 0);
-	bool mudou = novo.tem != estado.tem || novo.tocando != estado.tocando || strcmp(novo.titulo, estado.titulo) ||
+	bool mudou = novo.tem != estado.tem || strcmp(novo.player, estado.player) || novo.tocando != estado.tocando || strcmp(novo.titulo, estado.titulo) ||
 		strcmp(novo.artista, estado.artista) || strcmp(novo.capa, estado.capa) || novo.duracao_us != estado.duracao_us ||
 		llabs(novo.posicao_us - esperada) > 2000000;
 	estado = novo;
@@ -195,7 +197,7 @@ int64_t mpris_posicao(const struct mpris_estado *e) {
 }
 
 struct pedido_mpris {
-	char nome[256], metodo[32];
+	char nome[256], metodo[32], iface[64];
 	GVariant *params;
 };
 
@@ -222,7 +224,7 @@ static gboolean chamar_na_linha(gpointer dados) {
 	struct pedido_mpris *p = dados;
 	GVariant *params = p->params;
 	p->params = NULL;
-	g_dbus_connection_call(ligacao, p->nome, CAMINHO, "org.mpris.MediaPlayer2.Player", p->metodo, params, NULL, G_DBUS_CALL_FLAGS_NONE,
+	g_dbus_connection_call(ligacao, p->nome, CAMINHO, p->iface[0] ? p->iface : "org.mpris.MediaPlayer2.Player", p->metodo, params, NULL, G_DBUS_CALL_FLAGS_NONE,
 		1500, NULL, chamada_pronta, p);
 	return G_SOURCE_REMOVE;
 }
@@ -280,4 +282,15 @@ void mpris_buscar(int64_t delta_us) {
 	snprintf(nome, sizeof(nome), "%s", nome_atual);
 	g_mutex_unlock(&trinco);
 	chamar_em(nome, "Seek", g_variant_new("(x)", delta_us));
+}
+
+void mpris_music_encerrar(void) {
+	if (!ligacao || !contexto) {
+		return;
+	}
+	struct pedido_mpris *p = g_new0(struct pedido_mpris, 1);
+	snprintf(p->nome, sizeof(p->nome), "%slumna_music", PREFIXO);
+	snprintf(p->metodo, sizeof(p->metodo), "Quit");
+	snprintf(p->iface, sizeof(p->iface), "org.mpris.MediaPlayer2");
+	g_main_context_invoke(contexto, chamar_na_linha, p);
 }

@@ -317,6 +317,19 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.243 | Abra o Music pelo menu/lançador estando com ele aberto | Só traz a janela que já existe | ☐ |
 | 2.244 | `ps aux | grep mpv` depois de fechar o Music | Nenhum mpv sobra | ☐ |
 
+### 2i. Music em segundo plano, topbar e widget
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.245 | Toque uma música no Music e feche a janela (o X) | A janela some, a música **continua**; na topbar, à direita, aparece o ícone de música aceso | ☐ |
+| 2.246 | Toque no ícone da topbar | Abre um painel com o título, o tempo e anterior, tocar/pausar e próxima; eles mandam na música | ☐ |
+| 2.247 | Olhe a área de trabalho | O cartão do Music (capa, título, botões) aparece no canto de cima, **atrás** das janelas que você abrir | ☐ |
+| 2.248 | Toque no cartão (fora dos botões) | O Music abre de volta e o cartão some | ☐ |
+| 2.249 | No painel da topbar, "Fechar o LUMNA Music" | Encerra o app e a música; o ícone e o cartão somem | ☐ |
+| 2.250 | Pause e feche a janela | Encerra o app (não fica um app invisível parado) | ☐ |
+| 2.251 | Music > Configurações > Reprodução: desligue "Continuar tocando ao fechar"; toque e feche | Fechar encerra o app | ☐ |
+| 2.252 | Clique no desktop onde fica o cartão (com ele escondido) | Nada é bloqueado (o widget não pega cliques fora do cartão) | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

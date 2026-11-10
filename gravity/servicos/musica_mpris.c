@@ -89,7 +89,7 @@ static const char *loop_texto(int r) {
 static GVariant *propriedade(mm_mpris *m, const char *iface, const char *nome) {
 	const mm_estado *e = &m->e;
 	if (!strcmp(iface, "org.mpris.MediaPlayer2")) {
-		if (!strcmp(nome, "CanQuit")) return g_variant_new_boolean(FALSE);
+		if (!strcmp(nome, "CanQuit")) return g_variant_new_boolean(m->acoes.sair != NULL);
 		if (!strcmp(nome, "CanRaise")) return g_variant_new_boolean(TRUE);
 		if (!strcmp(nome, "HasTrackList")) return g_variant_new_boolean(FALSE);
 		if (!strcmp(nome, "Identity")) return g_variant_new_string("LUMNA Music");
@@ -145,6 +145,8 @@ static void ao_metodo(GDBusConnection *c, const char *rem, const char *obj, cons
 	if (!strcmp(iface, "org.mpris.MediaPlayer2")) {
 		if (!strcmp(metodo, "Raise") && a->abrir_janela) {
 			a->abrir_janela(a->dados);
+		} else if (!strcmp(metodo, "Quit") && a->sair) {
+			a->sair(a->dados);
 		}
 	} else if (!strcmp(metodo, "Next") && a->proxima) {
 		a->proxima(a->dados);

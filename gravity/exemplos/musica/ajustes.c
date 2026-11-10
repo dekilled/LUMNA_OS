@@ -133,6 +133,12 @@ static void aba_reproducao(void) {
 			salvar_cfg();
 		}
 	}
+	secao("Janela");
+	CARTAO(CLAY_ID("mu-cartao-segplano")) {
+		if (linha_interruptor(CLAY_IDI("mu-cfg", 30), "Continuar tocando ao fechar", "Fechar a janela com uma música tocando deixa o Music em segundo plano (o ícone da topbar e o widget da área de trabalho controlam). Desligado, fechar encerra o app.", &M.cfg.segundo_plano, NULL)) {
+			salvar_cfg();
+		}
+	}
 	secao("Assistente");
 	CARTAO(CLAY_ID("mu-cartao-emma")) {
 		if (linha_interruptor(CLAY_IDI("mu-cfg", 4), "Emma neste app", "Ativa a assistente Emma apenas no LUMNA Music.", &M.cfg.emma_no_app, "emma")) {

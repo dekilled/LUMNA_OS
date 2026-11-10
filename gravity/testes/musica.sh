@@ -18,5 +18,9 @@ if [ -n "${1:-}" ]; then
 	make -s musica
 	sh testes/musica/teste_ui.sh "$1" "$AQUI"
 	sh testes/musica/teste_abrir.sh "$1" "$AQUI"
+	make -s barra widgets
+	sh testes/musica/teste_segundo_plano.sh "$1" "$AQUI"
+	sh testes/musica/teste_barra.sh "$1" "$AQUI"
+	sh testes/musica/teste_widget.sh "$1" "$AQUI"
 fi
 rm -rf "$T"

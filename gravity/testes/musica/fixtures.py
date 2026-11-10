@@ -49,3 +49,6 @@ audio(f"{raiz}/Solto/coletanea2.mp3", 247, tags={"title": "Dois", "artist": "Bel
 open(f"{raiz}/notas.txt", "w").write("não é música")
 open(f"{raiz}/.oculta.mp3", "wb").write(b"x")
 open(f"{raiz}/quebrada.mp3", "wb").write(b"ID3\x03\x00\x00\x00\x00\x00\x00 isto nao e audio" * 5)
+
+# uma faixa longa FORA da biblioteca (os testes de segundo plano precisam de uma música que continue tocando)
+audio(os.path.join(os.path.dirname(raiz), "longa.mp3"), 300, seg=240, tags={"title": "Faixa longa", "artist": "LUMNA Sessions", "album": "Testes"}, fmt="mp3")

@@ -606,8 +606,10 @@ static void mp_proxima_i(mp_player *p, const char *caminho) {
 	bool gapless = p->sem_intervalos && p->transicao == 0;
 	bool tinha = a && a->proxima_anexada[0];
 	if (a && a->vivo && a->carregada && (gapless || tinha)) {
-		comando(a, "\"playlist-clear\"");
-		a->proxima_anexada[0] = 0;
+		if (tinha) {   /* só limpa o que a gente anexou: um playlist-clear com o primeiro arquivo (o da linha de comando) ainda carregando derruba a faixa e o mpv fica ocioso */
+			comando(a, "\"playlist-clear\"");
+			a->proxima_anexada[0] = 0;
+		}
 		if (gapless && caminho && *caminho) {
 			g_strlcpy(a->proxima_anexada, caminho, sizeof(a->proxima_anexada));
 			char *c = js(caminho);

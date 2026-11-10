@@ -719,6 +719,10 @@ static void abrir_uri_na_principal(void *d) {
 }
 
 static void abrir_janela_na_principal(void *d) {
+	if (gv_app_escondida(M.app)) {   /* estava em segundo plano: a janela volta */
+		gv_app_mostrar(M.app);
+		return;
+	}
 	const gv_janela *js[64];
 	int n = gv_janelas(js, 64);
 	for (int i = 0; i < n; i++) {
@@ -731,6 +735,14 @@ static void abrir_janela_na_principal(void *d) {
 
 static void m_abrir_janela(void *d) {
 	gv_na_linha_principal(abrir_janela_na_principal, NULL);
+}
+
+static void sair_na_principal(void *d) {
+	gv_app_sair(M.app);
+}
+
+static void m_sair(void *d) {
+	gv_na_linha_principal(sair_na_principal, NULL);
 }
 
 typedef struct {
@@ -1080,11 +1092,11 @@ static void depurar(void) {
 	}
 	char *estado = g_strdup_printf("vista=%d carregando=%d nfaixas=%d nalbuns=%d nartistas=%d npastas=%d nplaylists=%d nfila=%d atual=%d tocando=%d carregada=%d pos=%.1f dur=%.1f titulo=%s "
 		"aleatorio=%d repetir=%d volume=%d fila_aberta=%d busca=[%s] nbusca=%d det_tipo=%d det_n=%d letra_n=%d letra_sinc=%d letra_linha=%d seguir=%d saida=%s normalizar=%d gapless=%d transicao=%d "
-		"restaurar=%d emma=%d aba=%d fav=%d mpris=%d vivo=%d fila=[%s] npastas_cfg=%d subpastas=%d farr=%d dlg=%d",
+		"restaurar=%d emma=%d aba=%d fav=%d mpris=%d vivo=%d esc=%d segplano=%d fila=[%s] npastas_cfg=%d subpastas=%d farr=%d dlg=%d",
 		M.vista, M.carregando, M.ac.n, M.albuns.n, M.artistas.n, M.pastas.n, M.playlists ? (int)M.playlists->len : 0, M.nfila, M.atual, M.est.tocando, M.est.carregada, M.est.pos, M.est.dur, titulo,
 		M.cfg.aleatorio, M.cfg.repetir, M.cfg.volume, M.cfg.fila_aberta, busca, M.busca_n, M.det_tipo, M.det_n, M.letra.n, M.letra.sincronizada, M.letra_linha, M.letra_seguir,
 		M.cfg.saida[0] ? M.cfg.saida : "padrao", M.cfg.normalizar, M.cfg.sem_intervalos, M.cfg.transicao, M.cfg.restaurar_fila, M.cfg.emma_no_app, M.ajustes_aba,
-		f ? eh_favorita(f->caminho) : 0, M.mm != NULL, M.est.vivo, ordem->str, M.cfg.npastas, M.cfg.subpastas, musica_fila_arrasto(), dialogo_aberto());
+		f ? eh_favorita(f->caminho) : 0, M.mm != NULL, M.est.vivo, gv_app_escondida(M.app), M.cfg.segundo_plano, ordem->str, M.cfg.npastas, M.cfg.subpastas, musica_fila_arrasto(), dialogo_aberto());
 	g_string_free(ordem, TRUE);
 	g_free(titulo);
 	g_free(busca);
@@ -1137,6 +1149,32 @@ static gpointer dispositivos_thread(gpointer d) {
 	return NULL;
 }
 
+/* fechar a janela tocando (e com a opção ligada): a janela some e o app segue tocando; a topbar e o widget da área de trabalho o controlam */
+static bool ao_fechar_janela(void *d) {
+	if (!M.cfg.segundo_plano || !M.est.tocando) {
+		return false;
+	}
+	gv_app_esconder(M.app);
+	return true;
+}
+
+/* sem janela não há quadro: este é o passo do que precisa seguir (o estado do motor, o MPRIS, a fila salva, a biblioteca) */
+static void passo_em_segundo_plano(void *d) {
+	mp_estado_ler(M.mp, &M.est);
+	double agora = gv_agora();
+	if (M.est.tocando && agora - ultimo_salvar > 10 && M.atual >= 0) {
+		ultimo_salvar = agora;
+		salvar_fila(M.est.pos);
+	}
+	if (M.cfg.buscar_auto && !M.carregando && prox_varredura > 0 && agora >= prox_varredura) {
+		prox_varredura = agora + 90;
+		recarregar_biblioteca();
+	}
+	mpris_atualizar();
+	gv_acordar_em(M.est.tocando ? 0.5 : 2.0);
+	depurar();
+}
+
 int main(int argc, char **argv) {
 	/* instância única: se o LUMNA Music já está aberto, os arquivos vão para ele, a janela dele sobe e este processo sai */
 	char **entradas = g_new0(char *, (gsize)argc + 1);
@@ -1165,8 +1203,10 @@ int main(int argc, char **argv) {
 	if (!M.app) {
 		return 1;
 	}
-	mm_acoes acoes = { m_tocar, m_pausar, m_alternar, m_parar, m_proxima, m_anterior, m_buscar, m_posicionar, m_volume, m_aleatorio, m_repetir, m_abrir_janela, m_abrir_uri, NULL };
+	mm_acoes acoes = { m_tocar, m_pausar, m_alternar, m_parar, m_proxima, m_anterior, m_buscar, m_posicionar, m_volume, m_aleatorio, m_repetir, m_abrir_janela, m_abrir_uri, NULL, m_sair };
 	M.mm = mm_iniciar(&acoes, NULL);
+	gv_app_ao_fechar(M.app, ao_fechar_janela, NULL);
+	gv_app_segundo_plano(M.app, passo_em_segundo_plano, NULL);
 	gv_arraste_aceitar(MIME_URIS);
 	aplicar_cfg();
 	listar_playlists();

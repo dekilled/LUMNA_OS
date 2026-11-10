@@ -12,7 +12,7 @@ for pkg in lumna-orbit lumna-gravity lumna-session; do
   bsdtar -xf "$arquivo" -C "$check"
 done
 faltou=0
-for f in usr/bin/orbit usr/bin/orbit-msg usr/bin/lumna-painel usr/bin/lumna-barra usr/bin/lumna-dock usr/bin/lumna-lancador usr/bin/lumna-avisos \
+for f in usr/bin/orbit usr/bin/orbit-msg usr/bin/lumna-painel usr/bin/lumna-barra usr/bin/lumna-dock usr/bin/lumna-lancador usr/bin/lumna-avisos usr/bin/lumna-widgets \
          usr/bin/lumna-bloqueio usr/bin/lumna-entrada usr/bin/lumna-emma usr/bin/lumna-emma-app usr/bin/lumna-captura \
          usr/bin/lumna-polkit usr/bin/lumna-polkit-janela usr/bin/lumna-instalador usr/bin/lumna-pulse usr/bin/lumna-teclado usr/bin/lumna-atlas usr/bin/lumna-discos etc/skel/.config/lumna/dock etc/xdg/fastfetch/config.jsonc usr/share/lumna/fastfetch/logo.txt usr/share/lumna/pulse/integracao.bash \
          usr/bin/lumna-orbit-session usr/bin/lumna-entrada-greeter usr/share/wayland-sessions/lumna-orbit.desktop \

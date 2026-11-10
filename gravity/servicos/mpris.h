@@ -23,6 +23,8 @@ struct mpris_estado {
 	int64_t posicao_us;    /* a posição quando se leu (ver mpris_posicao) */
 	int64_t lida_us;       /* quando se leu (g_get_monotonic_time) */
 	bool pode_anterior, pode_proxima;
+	char player[64];    /* o nome no D-Bus sem o prefixo: "lumna_music", "firefox.instance123"… */
+	bool lumna_music;   /* é o LUMNA Music (aceita Raise e Quit) */
 };
 
 int mpris_iniciar(void);
@@ -34,5 +36,7 @@ void mpris_proxima(void);
 void mpris_anterior(void);
 /* anda (ou volta, se negativo) a posição, em microssegundos */
 void mpris_buscar(int64_t delta_us);
+/* só para o LUMNA Music (o que a barra mostra com o menu dele): trazer a janela e encerrar o app (que pode estar sem janela, em segundo plano) */
+void mpris_music_encerrar(void);
 
 #endif

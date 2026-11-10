@@ -514,7 +514,7 @@ void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const ch
 			gv_app_maximizar(app);
 		}
 		if (botao_janela(Clay__HashStringWithOffset(id.stringId, 4000003u, id.baseId), "close", true)) {
-			gv_app_sair(app);
+			gv__app_fechar(app);
 		}
 	}
 	/* arrastar a barra move a janela (o compositor faz o resto) */
