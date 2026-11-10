@@ -50,7 +50,7 @@ Arquivos: `gravity/servicos/edicao.[ch]` (a conta: luz, cor, filtros, geometria,
 Abre com **uma mídia de vídeo selecionada + a tecla `E`**, ou por "Editar" no menu (botão direito) do vídeo. Tela do esboço: Voltar à galeria, o nome, Cancelar e **Exportar cópia** em cima; a prévia com Play e o tempo (`00:14 / 00:42`); a **faixa do tempo** com miniaturas do vídeo, régua, as duas alças do recorte e o ponto da prévia; o painel **Editar vídeo** à direita.
 
 - **Recorte**: arraste as alças da faixa (início e fim), ou use os campos **Início** e **Fim** (▲▼ de 1 em 1 s); **Duração final** mostra o que sobra. O trecho nunca fica menor que 0,5 s. Clicar ou arrastar na faixa leva o ponto da prévia. Teclas: `I` e `O` marcam o início e o fim no ponto de agora; ←/→ andam 1 s; Espaço toca/pausa.
-- **Prévia tocando**: Play toca o trecho **na própria janela** (quadros reduzidos, 15 por segundo, em tempo real, **sem som**); para sozinho no fim do trecho.
+- **Prévia tocando**: Play toca o trecho **na própria janela** (quadros reduzidos, 15 por segundo, em tempo real, **com o som**, por um mpv só de áudio do mesmo trecho (mudo e volume valem na hora; o som pode atrasar um instante em relação à imagem)); para sozinho no fim do trecho.
 - **Áudio**: **Silenciar áudio** e **Volume** (0 a 200%; o 100% gruda). Valem na cópia (a prévia é muda).
 - **Girar vídeo**: um quarto de volta à direita por clique (a prévia e a faixa giram).
 - **Exportar cópia**: grava **ao lado do original** como `video-editado.mp4` (`-editado-2`...), H.264 + AAC (CRF 20), só do trecho escolhido, com o áudio e o giro pedidos, e a **data do original**. O botão mostra o progresso (`Exportando 43%`); **Cancelar exportação** aborta e não deixa arquivo. **O original nunca é alterado.**
@@ -58,7 +58,7 @@ Abre com **uma mídia de vídeo selecionada + a tecla `E`**, ou por "Editar" no 
 
 Escolhas minhas (o esboço não mostrava): o atalho `E`, as teclas, os limites do volume, o MP4 como saída. Sai sempre H.264/AAC em MP4, mesmo que o original seja outro formato (recodifica: leva o tempo do trecho).
 
-**Não faz** (ainda): som na prévia (para ouvir com som, abra o vídeo no player da Galeria), cortar o meio do vídeo/juntar trechos, velocidade, filtros de imagem, legendas, escolher a qualidade da saída.
+**Não faz** (ainda): cortar o meio do vídeo/juntar trechos, velocidade, filtros de imagem, legendas, escolher a qualidade da saída.
 
 Arquivos: `gravity/servicos/edicao_video.[ch]` (ffprobe/ffmpeg: sondar, quadro, tocar, exportar; sem interface) e `gravity/exemplos/galeria/editor_video.c` (a tela, a faixa e as threads).
 

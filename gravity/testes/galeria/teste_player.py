@@ -162,7 +162,9 @@ confere(lambda: tela() == "5", "P volta (e o player continua aberto)")
 # 9b. tela cheia: F liga (o título e os controles somem sem mexer), Esc sai da tela cheia sem fechar o player
 tecla("f")
 confere(lambda: estado().get("pl_tc") == "1", "F põe em tela cheia")
+confere(lambda: not existe("barra"), "em tela cheia a barra de título some")
 tecla("Escape")
+confere(lambda: existe("barra"), "ao sair da tela cheia a barra de título volta")
 confere(lambda: estado().get("pl_tc") == "0" and tela() == "5", "Esc sai da tela cheia e o player continua")
 
 # 10. favoritar

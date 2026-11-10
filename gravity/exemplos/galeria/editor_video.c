@@ -3,6 +3,7 @@
 #include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <math.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -182,7 +183,55 @@ static void pedir_tiras(void) {
 	g_thread_unref(g_thread_new("galeria-video-tiras", t_thread, j));
 }
 
-/* ---- tocar a prévia (sem som) ---- */
+/* ---- o som da prévia: um mpv só de áudio, do mesmo trecho, que nasce e morre com o Play ---- */
+
+static GPid aud_pid;
+static int aud_vol = -1;
+static bool aud_mudo;
+
+static void aud_acabou(GPid pid, gint estado, gpointer d) {
+	g_spawn_close_pid(pid);
+	if (aud_pid == pid) {
+		aud_pid = 0;
+	}
+}
+
+static void audio_parar(void) {
+	if (aud_pid) {
+		kill(aud_pid, SIGTERM);
+		aud_pid = 0;
+	}
+}
+
+static void audio_iniciar(double t0) {
+	audio_parar();
+	aud_vol = V.p.volume;
+	aud_mudo = V.p.mudo;
+	if (!V.info.audio || V.p.mudo || V.p.volume <= 0) {
+		return;
+	}
+	char *mpv = g_find_program_in_path("mpv");
+	if (!mpv) {
+		return;
+	}
+	char ini[32], fim[32], vol[32], *ao = NULL;
+	g_snprintf(ini, sizeof(ini), "--start=%.3f", t0);
+	g_snprintf(fim, sizeof(fim), "--end=%.3f", V.p.fim);
+	g_snprintf(vol, sizeof(vol), "--volume=%d", V.p.volume);
+	if (g_getenv("LUMNA_GALERIA_AO")) {
+		ao = g_strdup_printf("--ao=%s", g_getenv("LUMNA_GALERIA_AO"));
+	}
+	char *argv[] = { mpv, "--no-video", "--no-terminal", "--really-quiet", "--no-config", "--volume-max=200", ini, fim, vol, ao ? ao : "--idle=no", "--", V.caminho, NULL };
+	GPid pid = 0;
+	if (g_spawn_async(NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &pid, NULL)) {
+		aud_pid = pid;
+		g_child_watch_add(pid, aud_acabou, NULL);
+	}
+	g_free(ao);
+	g_free(mpv);
+}
+
+/* ---- tocar a prévia (com som: o ffmpeg dá os quadros, o mpv o áudio) ---- */
 
 typedef struct {
 	gint refs;
@@ -207,6 +256,7 @@ static void toca_unref(toca *c) {
 }
 
 static void tocar_parar(void) {
+	audio_parar();
 	if (T) {
 		ev_toque_parar(T->t);
 		toca_unref(T);
@@ -312,6 +362,7 @@ static void tocar_iniciar(void) {
 	}
 	T = c;
 	V.tocando = true;
+	audio_iniciar(V.t);
 	g_thread_unref(g_thread_new("galeria-video-tocar", toca_thread, c));
 }
 
@@ -756,7 +807,7 @@ static void painel(void) {
 	if (V.p.giro) {
 		gv_texto(gv_fmt("Girado %d° para a direita", V.p.giro * 90), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 	}
-	gv_texto(CLAY_STRING("A prévia toca sem som. O volume e o recorte valem na cópia exportada."), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
+	gv_texto(CLAY_STRING("A prévia toca com o som (o volume e o mudo valem nela e na cópia). O som pode atrasar um instante em relação à imagem."), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
 }
 
 static void barra_do_alto(void) {
@@ -849,6 +900,9 @@ void editor_video_desenhar(void) {
 		return;
 	}
 	teclado();
+	if (V.tocando && (aud_vol != V.p.volume || aud_mudo != V.p.mudo)) {
+		audio_iniciar(V.t);   /* mexeu no volume ou no mudo tocando: o som recomeça daqui */
+	}
 	barra_do_alto();
 	if (V.carregando || V.info.duracao <= 0) {
 		CLAY(CLAY_ID("vd-aguarde"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } } }) {
@@ -909,7 +963,7 @@ void editor_video_estado(GString *s) {
 		tiras += V.tiras[i] != NULL;
 	}
 	g_string_append_printf(s, " ev=1 ev_t=%.2f ev_ini=%.2f ev_fim=%.2f ev_dur=%.2f ev_mudo=%d ev_vol=%d ev_giro=%d ev_play=%d ev_quadro=%dx%d ev_tiras=%d ev_px=%s ev_exp=%d ev_alt=%d"
-		" ev_dlg=%d ev_carregando=%d ev_audio=%d ev_busy=%d",
+		" ev_dlg=%d ev_carregando=%d ev_audio=%d ev_busy=%d ev_aud=%d",
 		V.t, V.p.inicio, V.p.fim, V.info.duracao, V.p.mudo, V.p.volume, V.p.giro, V.tocando, V.fw, V.fh, tiras, px, exp_permil, ev_alterado(&V.p, V.info.duracao),
-		V.dlg_sair, V.carregando, V.info.audio, V.qrodando);
+		V.dlg_sair, V.carregando, V.info.audio, V.qrodando, aud_pid != 0);
 }

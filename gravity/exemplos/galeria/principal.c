@@ -1415,8 +1415,10 @@ static void desenhar(gv_app *a, void *dados) {
 	op_rever();
 	soltar_rever();
 	CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
-		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-		gv_barra_janela(a, CLAY_ID("barra"), "image", "LUMNA Galeria");
+		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(player_tela_cheia() ? 0 : gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(player_tela_cheia() ? 0 : 1) } }) {
+		if (!player_tela_cheia()) {   /* em tela cheia o vídeo ocupa tudo: sem barra de título */
+			gv_barra_janela(a, CLAY_ID("barra"), "image", "LUMNA Galeria");
+		}
 		switch (G.tela) {
 		case T_VISUALIZADOR: visualizador_desenhar(); break;
 		case T_AJUSTES: ajustes_desenhar(); break;
@@ -1471,7 +1473,7 @@ static void depurar(void) {
 	F("ed-restaurar"); F("ed-recorte-restaurar"); F("ed-girar-restaurar"); F("ed-inverter"); F("ed-girar-e"); F("ed-girar-d"); F("ed-esp-h"); F("ed-esp-v");
 	F("ed-dlg-continuar"); F("ed-dlg-descartar"); F("ed-sec-luz"); F("ed-sec-cor"); F("ed-painel-rol");
 	F("vd-voltar"); F("vd-cancelar"); F("vd-exportar"); F("vd-play"); F("vd-faixa"); F("vd-previa"); F("vd-mudo"); F("vd-vol"); F("vd-girar"); F("vd-dlg-continuar"); F("vd-dlg-descartar");
-	F("pl-voltar"); F("pl-editar"); F("pl-fav"); F("pl-mais"); F("pl-area"); F("pl-central"); F("pl-ant"); F("pl-play"); F("pl-prox"); F("pl-vol-icone"); F("pl-vol"); F("pl-seek"); F("pl-vel"); F("pl-faixas"); F("pl-repetir"); F("pl-tela"); F("pl-erro-mpv"); F("pl-m-mpv"); F("pl-m-lixeira");
+	F("barra"); F("pl-voltar"); F("pl-editar"); F("pl-fav"); F("pl-mais"); F("pl-area"); F("pl-central"); F("pl-ant"); F("pl-play"); F("pl-prox"); F("pl-vol-icone"); F("pl-vol"); F("pl-seek"); F("pl-vel"); F("pl-faixas"); F("pl-repetir"); F("pl-tela"); F("pl-erro-mpv"); F("pl-m-mpv"); F("pl-m-lixeira");
 	SERIE("pl-vel-i", 6); SERIE("pl-leg-i", 4); SERIE("pl-aud-i", 4);
 	SERIE("vd-mais", 2); SERIE("vd-menos", 2);
 	SERIE("ed-aba", 4); SERIE("ed-sl", 8); SERIE("ed-chip", 8); SERIE("ed-prop", 9); SERIE("ed-filtro", 9);
@@ -1481,11 +1483,12 @@ static void depurar(void) {
 #undef ADD
 	for (guint i = 0; i < nomes->len; i++) {
 		Clay_BoundingBox b = gv_caixa((Clay_ElementId){ .id = g_array_index(ids, uint32_t, i) });
-		if (b.width <= 0) {
+		char *ant0 = g_hash_table_lookup(antes, nomes->pdata[i]);
+		if (b.width <= 0 && !ant0) {
 			continue;
 		}
-		char *linha = g_strdup_printf("%.0f %.0f %.0f %.0f", b.x, b.y, b.width, b.height);
-		char *ant = g_hash_table_lookup(antes, nomes->pdata[i]);
+		char *linha = b.width > 0 ? g_strdup_printf("%.0f %.0f %.0f %.0f", b.x, b.y, b.width, b.height) : g_strdup("0 0 0 0");   /* o que some imprime zeros */
+		char *ant = ant0;
 		if (!ant || strcmp(ant, linha)) {
 			printf("pos %s %s\n", (char *)nomes->pdata[i], linha);
 			g_hash_table_insert(antes, g_strdup(nomes->pdata[i]), linha);
