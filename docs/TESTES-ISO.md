@@ -181,7 +181,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.138 | Abra um app (o Firefox), vá para o modo Mídia (Super+Tab), volte ao Desktop (mais de uma vez, e também depressa) | O app volta inteiro na tela, no lugar onde estava (antes, com a troca interrompida por outro arranjo, ele constava como ativo mas sumia da tela, parecia minimizado, e clicar nele na dock não fazia nada). Se algo ainda sumir: `orbit-msg janelas` diz `visivel` e `recortada` de cada janela, e o journal tem `dock: toque em` e `a dock pediu ativar` | ☐ |
 | 2.132 | Deixar o Atlas, a dock e a barra parados por uns 30 s e olhar o uso de CPU (`top`) | Perto de 0 % (antes, cada app Gravity gastava 15 a 50 % de um núcleo redesenhando à toa) | ☐ |
 
-### 2d. Galeria (`lumna-galeria`, fases 1 e 2)
+### 2d. Galeria (`lumna-galeria`, fases 1 a 3)
 
 | # | O que fazer | O que deve acontecer | OK? |
 |---|---|---|---|
@@ -216,6 +216,16 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.167 | Uma foto de celular "deitada" (com orientação no EXIF) | O editor mostra em pé e a cópia sai em pé | ☐ |
 | 2.168 | Editar um PNG com transparência | A cópia PNG mantém a transparência | ☐ |
 | 2.169 | Foto enorme (ex.: 9000×9000) | Abre ("Abrindo a foto…"), edita, salva sem a Galeria cair (a cópia pode levar alguns segundos) | ☐ |
+| 2.170 | Biblioteca: selecionar um vídeo e apertar `E` (ou botão direito > Editar) | Abre o editor de vídeo com o quadro, a faixa com miniaturas e o painel Editar vídeo | ☐ |
+| 2.171 | Arrastar as alças da faixa; usar os ▲▼ de Início e Fim; clicar na faixa | O trecho muda (mín. 0,5 s), a Duração final acompanha, o ponto da prévia vai junto | ☐ |
+| 2.172 | Play, Pausa, Espaço, tocar até o fim do trecho | Toca na janela em tempo real, **sem som**; para sozinho no fim | ☐ |
+| 2.173 | Silenciar áudio, Volume, Girar vídeo | Os controles respondem; Girar vira a prévia e a faixa | ☐ |
+| 2.174 | Exportar cópia (trecho, mudo e girado) | O botão mostra o progresso; sai `nome-editado.mp4` ao lado do original, **só o trecho**, mudo e girado; o original não muda; a Galeria volta e a cópia está na biblioteca | ☐ |
+| 2.175 | Exportar com volume 50% e abrir a cópia num player | Soa mais baixo (cerca de 6 dB) | ☐ |
+| 2.176 | Durante a exportação, apertar "Cancelar exportação" (num vídeo longo) | Cancela, avisa e não deixa arquivo (nem `.lumna-tmp`) na pasta | ☐ |
+| 2.177 | Mexer e apertar Cancelar, Voltar ou Esc | Pergunta "Descartar as alterações?"; Descartar sai sem exportar nada | ☐ |
+| 2.178 | Um vídeo grande (1080p, vários minutos) e um de celular na vertical | Abre sem travar (as miniaturas chegam em segundos), a prévia sai na orientação certa e a cópia também | ☐ |
+| 2.179 | Um vídeo sem áudio e um que não é MP4 (MKV, WebM) | O painel diz que não tem áudio; o MKV/WebM exporta como MP4 | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

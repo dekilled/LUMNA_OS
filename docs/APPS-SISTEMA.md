@@ -8,7 +8,7 @@ Cada app segue o molde do Atlas: serviço em `servicos/` (sem interface, com tes
 
 ## 1. Galeria (fotos e vídeos)
 
-Esboço recebido (biblioteca, editor de fotos, editor de vídeos, configurações). Em fases: **1. biblioteca + visualizador + configurações (pronta, aguardando seu teste)**, **2. editor de fotos (pronto, aguardando seu teste)**, 3. editor de vídeos. Tudo está em [GALERIA.md](GALERIA.md). O `vitrine.c` do Gravity (antes `galeria.c`) é a vitrine dos componentes, não este app.
+Esboço recebido (biblioteca, editor de fotos, editor de vídeos, configurações). Em fases: **1. biblioteca + visualizador + configurações (pronta, aguardando seu teste)**, **2. editor de fotos (pronto, aguardando seu teste)**, **3. editor de vídeos (pronto, aguardando seu teste)**. Tudo está em [GALERIA.md](GALERIA.md). O `vitrine.c` do Gravity (antes `galeria.c`) é a vitrine dos componentes, não este app.
 
 ## 2. Player de música
 

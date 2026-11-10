@@ -109,7 +109,7 @@ static float prop_atual(void) {
 
 /* ---- da pixbuf para o cairo ---- */
 
-static cairo_surface_t *superficie_de(GdkPixbuf *pb) {
+cairo_surface_t *superficie_de(GdkPixbuf *pb) {
 	int w = gdk_pixbuf_get_width(pb), h = gdk_pixbuf_get_height(pb), nc = gdk_pixbuf_get_n_channels(pb), rs = gdk_pixbuf_get_rowstride(pb);
 	cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
 	if (cairo_surface_status(s) != CAIRO_STATUS_SUCCESS) {

@@ -6,7 +6,7 @@ A galeria do LUMNA OS, em Gravity (C/Clay), feita sobre o seu esboço (bibliotec
 |---|---|---|
 | 1 | Biblioteca, visualizador com zoom, álbuns, favoritos, lixeira, importar, configurações | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
 | 2 | Editor de fotos (Ajustar, Recortar, Girar, Filtros; salva sempre uma cópia) | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
-| 3 | Editor de vídeos (recorte, áudio, girar, exportar) | falta |
+| 3 | Editor de vídeos (recorte, áudio, girar, exportar) | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
 
 ## Fase 1: o que tem
 
@@ -44,19 +44,37 @@ Escolhas minhas (o esboço mostrava só a aba Ajustar): os painéis de Recortar,
 
 Arquivos: `gravity/servicos/edicao.[ch]` (a conta: luz, cor, filtros, geometria, recorte, abrir com a orientação do EXIF e salvar a cópia; sem interface) e `gravity/exemplos/galeria/editor.c` (a tela, o desfazer e as threads).
 
+## Fase 3: o editor de vídeos
+
+Abre com **uma mídia de vídeo selecionada + a tecla `E`**, ou por "Editar" no menu (botão direito) do vídeo. Tela do esboço: Voltar à galeria, o nome, Cancelar e **Exportar cópia** em cima; a prévia com Play e o tempo (`00:14 / 00:42`); a **faixa do tempo** com miniaturas do vídeo, régua, as duas alças do recorte e o ponto da prévia; o painel **Editar vídeo** à direita.
+
+- **Recorte**: arraste as alças da faixa (início e fim), ou use os campos **Início** e **Fim** (▲▼ de 1 em 1 s); **Duração final** mostra o que sobra. O trecho nunca fica menor que 0,5 s. Clicar ou arrastar na faixa leva o ponto da prévia. Teclas: `I` e `O` marcam o início e o fim no ponto de agora; ←/→ andam 1 s; Espaço toca/pausa.
+- **Prévia tocando**: Play toca o trecho **na própria janela** (quadros reduzidos, 15 por segundo, em tempo real, **sem som**); para sozinho no fim do trecho.
+- **Áudio**: **Silenciar áudio** e **Volume** (0 a 200%; o 100% gruda). Valem na cópia (a prévia é muda).
+- **Girar vídeo**: um quarto de volta à direita por clique (a prévia e a faixa giram).
+- **Exportar cópia**: grava **ao lado do original** como `video-editado.mp4` (`-editado-2`...), H.264 + AAC (CRF 20), só do trecho escolhido, com o áudio e o giro pedidos, e a **data do original**. O botão mostra o progresso (`Exportando 43%`); **Cancelar exportação** aborta e não deixa arquivo. **O original nunca é alterado.**
+- Cancelar, Voltar e Esc, com alterações, perguntam "Descartar as alterações?".
+
+Escolhas minhas (o esboço não mostrava): o atalho `E`, as teclas, os limites do volume, o MP4 como saída. Sai sempre H.264/AAC em MP4, mesmo que o original seja outro formato (recodifica: leva o tempo do trecho).
+
+**Não faz** (ainda): som na prévia (para ouvir, o vídeo abre no mpv pela galeria), cortar o meio do vídeo/juntar trechos, velocidade, filtros de imagem, legendas, escolher a qualidade da saída.
+
+Arquivos: `gravity/servicos/edicao_video.[ch]` (ffprobe/ffmpeg: sondar, quadro, tocar, exportar; sem interface) e `gravity/exemplos/galeria/editor_video.c` (a tela, a faixa e as threads).
+
 ## O que ainda não faz
 
-Editor de vídeos (fase 3), zoom por pinça e deslizar para trocar de foto no toque (hoje: duplo toque e os botões dos lados), reconhecimento de rostos/lugares, mapa, vídeo tocando **dentro** da janela (hoje abre o mpv), RAW, HEIC.
+zoom por pinça e deslizar para trocar de foto no toque (hoje: duplo toque e os botões dos lados), reconhecimento de rostos/lugares, mapa, vídeo tocando **com som dentro** da janela (o editor toca sem som; a galeria abre o mpv), RAW, HEIC.
 
 ## Arquivos
 
 - `gravity/servicos/galeria.[ch]`: o serviço (varredura, EXIF, filtros, grupos, favoritos, álbuns, lixeira, miniaturas, cache), sem interface.
 - `gravity/exemplos/galeria/`: `principal.c` (janela, barra lateral, seleção, operações, depuração para teste), `grade.c`, `visualizador.c`, `ajustes.c`, `app.h`.
 - `gravity/exemplos/vitrine.c`: a vitrine dos componentes do Gravity (antes chamada `galeria.c`; `make vitrine`).
-- Testes: `sh gravity/testes/galeria.sh [PASTA_DO_ORBIT]`: o serviço da galeria e o do editor (`testa_edicao.c`) em C e, se der a pasta do build do Orbit, o app inteiro num Orbit headless (`testes/galeria/teste_ui.sh` para a biblioteca; `TESTE=teste_editor.py sh testes/galeria/teste_ui.sh ...` para o editor).
+- Testes: `sh gravity/testes/galeria.sh [PASTA_DO_ORBIT]`: o serviço da galeria e os dos editores (`testa_edicao.c`, `testa_edicao_video.c`) em C e, se der a pasta do build do Orbit, o app inteiro num Orbit headless (`testes/galeria/teste_ui.sh` para a biblioteca; `TESTE=teste_editor.py ...` para o editor de fotos e `TESTE=teste_editor_video.py ...` para o de vídeos).
 
 ## Como foi testado (e o que não foi)
 
 Testado aqui: o serviço (EXIF, ordem, filtros, grupos, favoritos, álbuns, lixeira, miniaturas, arquivo quebrado, foto enorme), com ASAN, UBSAN e TSAN; o app inteiro num Orbit sem tela (clicar, selecionar, favoritar, álbuns, apagar e restaurar, visualizador com zoom, configurações, importar), com ASAN e UBSAN sem relatório (o TSAN só acusa falsos positivos de dentro do GLib).
 Editor: a conta de cada ajuste (valores conhecidos), giros e espelhos em 300 sequências ao acaso contra a conta direta, o recorte (20 mil arrastos ao acaso: sempre dentro da foto, 16 px no mínimo, proporção mantida), EXIF, salvar a cópia (original intacto, nome, formato, qualidade, data, transparência, arquivo quebrado) e a interface inteira (arrastar deslizantes, desfazer, comparar, zoom, recortar arrastando as alças, girar, filtros, salvar, descartar), com ASAN/UBSAN sem relatório. Uma prévia de 1600×1200 com tudo ligado leva ~50 ms (fora do quadro).
+Editor de vídeos: com vídeos de verdade feitos pelo ffmpeg, o serviço (sondar, quadros, tocar em tempo real, exportar recorte/áudio mudo/volume medido em dB/giro, progresso crescente, cancelar sem deixar arquivo, arquivo ruim) e a interface inteira (alças da faixa, campos, clicar na faixa, Play/Pausa/Espaço, áudio, girar, exportar e conferir a cópia com o ffprobe, descartar), com ASAN/UBSAN sem relatório.
 **Não testado**: o seu hardware (disco NTFS lento, tela de verdade, toque), vídeo tocando no mpv e compartilhar com um celular de verdade (no teste, o mpv e o Connect são de mentira). Roteiro no `docs/TESTES-ISO.md`, seção 2d.

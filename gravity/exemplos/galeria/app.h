@@ -4,19 +4,22 @@
  *   grade.c         as mídias por data (grade e lista), com seleção
  *   visualizador.c  uma foto ou um vídeo em tela cheia (zoom, deslizar, detalhes)
  *   ajustes.c       a engrenagem: Biblioteca, Visualização, Edição, Reprodução e Privacidade
+ *   editor_video.c  o editor de vídeos: recorte na linha do tempo, áudio e giro (a conta é de servicos/edicao_video.c)
  *   editor.c        o editor de fotos: Ajustar, Recortar, Girar e Filtros (a conta é de servicos/edicao.c)
  * O que sabe de arquivos, EXIF, álbuns e miniaturas fica em servicos/galeria.c.
  */
 #ifndef LUMNA_GALERIA_APP_H
 #define LUMNA_GALERIA_APP_H
 
+#include <cairo.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <glib.h>
 
 #include "galeria.h"
 #include "gravity.h"
 
 enum vista { V_TODAS, V_FOTOS, V_VIDEOS, V_FAVORITOS, V_RECENTES, V_LIXEIRA, V_ALBUM };
-enum tela { T_BIBLIOTECA, T_VISUALIZADOR, T_AJUSTES, T_EDITOR };
+enum tela { T_BIBLIOTECA, T_VISUALIZADOR, T_AJUSTES, T_EDITOR, T_EDITOR_VIDEO };
 
 typedef struct estado {
 	gv_app *app;
@@ -81,6 +84,12 @@ bool visualizador_reposicionar(void); /* a lista mudou com uma foto aberta: ela 
 void editor_abrir(const gl_midia *m, int voltar_para); /* voltar_para: a tela de onde veio (T_VISUALIZADOR ou T_BIBLIOTECA) */
 void editor_desenhar(void);
 void editor_estado(GString *s); /* para os testes */
+cairo_surface_t *superficie_de(GdkPixbuf *pb); /* ARGB32 do pixbuf (para o cairo) */
+
+/* editor_video.c */
+void editor_video_abrir(const gl_midia *m);
+void editor_video_desenhar(void);
+void editor_video_estado(GString *s); /* para os testes */
 
 /* ajustes.c */
 void ajustes_abrir(int pagina);

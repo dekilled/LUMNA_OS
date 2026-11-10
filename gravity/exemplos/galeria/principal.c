@@ -1356,6 +1356,17 @@ static void teclado_da_biblioteca(void) {
 				mover_para_lixeira((char *const *)s->pdata, (int)s->len);
 				g_ptr_array_free(s, TRUE);
 			}
+		} else if ((t == 'e' || t == 'E') && !(mods & GV_MOD_CTRL) && sel_n() == 1 && G.vista != V_LIXEIRA) { /* editar a mídia selecionada */
+			for (int k = 0; k < G.nvis; k++) {
+				if (g_hash_table_contains(G.sel, midia_vis(k)->caminho)) {
+					if (midia_vis(k)->tipo == GL_FOTO) {
+						editor_abrir(midia_vis(k), T_BIBLIOTECA);
+					} else {
+						editor_video_abrir(midia_vis(k));
+					}
+					break;
+				}
+			}
 		} else if (t == 0xff0d && sel_n() == 1) {
 			for (int k = 0; k < G.nvis; k++) {
 				if (g_hash_table_contains(G.sel, midia_vis(k)->caminho)) {
@@ -1402,6 +1413,7 @@ static void desenhar(gv_app *a, void *dados) {
 		case T_VISUALIZADOR: visualizador_desenhar(); break;
 		case T_AJUSTES: ajustes_desenhar(); break;
 		case T_EDITOR: editor_desenhar(); break;
+		case T_EDITOR_VIDEO: editor_video_desenhar(); break;
 		default:
 			teclado_da_biblioteca();
 			biblioteca();
@@ -1449,6 +1461,8 @@ static void depurar(void) {
 	F("ed-voltar"); F("ed-cancelar"); F("ed-salvar"); F("ed-undo"); F("ed-redo"); F("ed-comparar"); F("ed-zoom-menos"); F("ed-zoom-mais"); F("ed-zoom-lista"); F("ed-canvas");
 	F("ed-restaurar"); F("ed-recorte-restaurar"); F("ed-girar-restaurar"); F("ed-inverter"); F("ed-girar-e"); F("ed-girar-d"); F("ed-esp-h"); F("ed-esp-v");
 	F("ed-dlg-continuar"); F("ed-dlg-descartar"); F("ed-sec-luz"); F("ed-sec-cor"); F("ed-painel-rol");
+	F("vd-voltar"); F("vd-cancelar"); F("vd-exportar"); F("vd-play"); F("vd-faixa"); F("vd-previa"); F("vd-mudo"); F("vd-vol"); F("vd-girar"); F("vd-dlg-continuar"); F("vd-dlg-descartar");
+	SERIE("vd-mais", 2); SERIE("vd-menos", 2);
 	SERIE("ed-aba", 4); SERIE("ed-sl", 8); SERIE("ed-chip", 8); SERIE("ed-prop", 9); SERIE("ed-filtro", 9);
 	SERIE("aj-pasta", 8); SERIE("aj-pasta-mais", 8); SERIE("g-am-i", 8); SERIE("g-cm-c", 4);
 #undef F
@@ -1475,6 +1489,7 @@ static void depurar(void) {
 	}
 	GString *ed = g_string_new(NULL);
 	editor_estado(ed);
+	editor_video_estado(ed);
 	char *estado = g_strdup_printf("tela=%d vista=%d album=%d nvis=%d nsel=%d busca=[%s] ordem=%d vista_cfg=%d agrupar=%d ngrupos=%d carregando=%d aberta=%d tam=%d albuns=%d cache=%d primeiro_grupo=[%s] itens=[%s]%s",
 		G.tela, G.vista, G.album, G.nvis, sel_n(), G.busca, G.cfg.ordem, G.cfg.vista, G.cfg.agrupar, G.ngrupos, G.carregando, G.aberta, G.cfg.tam, G.albuns.n, G.cfg.cache,
 		G.ngrupos ? G.grupos[0].rotulo : "", ordem->str, ed->str);
