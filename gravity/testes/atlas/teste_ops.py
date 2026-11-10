@@ -73,8 +73,15 @@ def centro(nome):
     return ox + p[0] + p[2] // 2, oy + p[1] + p[3] // 2
 
 
+def aponta(x, y):
+    """o ponteiro chega ao alvo antes de apertar, como uma pessoa faz: dá ao app um quadro para assentar o estado (menu que fecha, página que volta)"""
+    msg("mouse", "mover", x, y)
+    time.sleep(0.15)
+
+
 def toca(nome, espera_s=0.4):
     x, y = centro(nome)
+    aponta(x, y)
     msg("toque", "baixo", 1, x, y)
     time.sleep(0.08)
     msg("toque", "cima", 1)
@@ -100,6 +107,7 @@ def segura_sel(nome):
 
 def segura(nome):
     x, y = centro(nome)
+    aponta(x, y)
     msg("toque", "baixo", 1, x, y)
     time.sleep(0.9)
     msg("toque", "cima", 1)
@@ -292,6 +300,7 @@ time.sleep(0.6)
 # 10. o menu do espaço vazio (botão direito/dedo parado fora dos itens): nova pasta, ordenar, git clone, cor e ícone
 def segura_xy(x, y):
     ox, oy = origem()
+    aponta(ox + x, oy + y)
     msg("toque", "baixo", 1, ox + x, oy + y)
     time.sleep(0.9)
     msg("toque", "cima", 1)

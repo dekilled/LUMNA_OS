@@ -228,9 +228,7 @@ static int comparar_naturais(const char *a, const char *b) {
 
 static bool pastas_primeiro = true;
 void ar_ordenar_pastas_primeiro(bool sim) { pastas_primeiro = sim; }
-
-static enum ar_ordem ordem_atual;
-static bool desc_atual;
+bool ar_pastas_primeiro(void) { return pastas_primeiro; }
 
 /* a entrada com a chave de comparação do nome já calculada: a chave (normalizar, tirar acentos) é cara, e calculada a cada comparação dava
  * milhões de normalizações numa pasta de 20 mil arquivos (segundos de CPU parado). Agora é uma por entrada. */
@@ -239,10 +237,21 @@ struct chaveada {
 	char *k;
 };
 
-static int cmp_entrada(const void *pa, const void *pb) {
+/* o que a ordenação precisa saber, por argumento (não por variável global): a listagem de uma pasta grande ordena numa thread, enquanto a linha principal
+ * pode estar ordenando outra lista */
+struct ordem_ctx {
+	enum ar_ordem ordem;
+	bool decrescente;
+	bool pastas_primeiro;
+};
+
+static int cmp_entrada(const void *pa, const void *pb, void *arg) {
+	const struct ordem_ctx *cx = arg;
+	const enum ar_ordem ordem_atual = cx->ordem;
+	const bool desc_atual = cx->decrescente;
 	const struct chaveada *ca = pa, *cb = pb;
 	const ar_entrada *a = ca->e, *b = cb->e;
-	if (pastas_primeiro && a->pasta != b->pasta) {
+	if (cx->pastas_primeiro && a->pasta != b->pasta) {
 		return a->pasta ? -1 : 1; /* as pastas vêm primeiro (a menos que a pessoa tenha desligado) */
 	}
 	int r = 0;
@@ -262,17 +271,20 @@ static int cmp_entrada(const void *pa, const void *pb) {
 }
 
 void ar_ordenar(ar_lista *l, enum ar_ordem ordem, bool decrescente) {
+	ar_ordenar_com(l, ordem, decrescente, pastas_primeiro);
+}
+
+void ar_ordenar_com(ar_lista *l, enum ar_ordem ordem, bool decrescente, bool pastas_antes) {
 	if (l->n < 2 || !l->v) {
 		return;
 	}
-	ordem_atual = ordem;
-	desc_atual = decrescente;
+	struct ordem_ctx cx = { ordem, decrescente, pastas_antes };
 	struct chaveada *c = g_new(struct chaveada, (gsize)l->n);
 	for (int i = 0; i < l->n; i++) {
 		c[i].e = &l->v[i];
 		c[i].k = chave_nome(l->v[i].nome);
 	}
-	qsort(c, (size_t)l->n, sizeof(*c), cmp_entrada);
+	qsort_r(c, (size_t)l->n, sizeof(*c), cmp_entrada, &cx);
 	ar_entrada *novo = g_new(ar_entrada, (gsize)l->cap > (gsize)l->n ? (gsize)l->cap : (gsize)l->n);
 	for (int i = 0; i < l->n; i++) {
 		novo[i] = *c[i].e;
@@ -321,6 +333,10 @@ int ar_contar_itens(const char *pasta, bool ocultos) {
 }
 
 bool ar_tamanho_pasta(const char *pasta, int teto, int64_t *bytes, int *itens) {
+	return ar_tamanho_pasta_ate(pasta, teto, bytes, itens, NULL, 0);
+}
+
+bool ar_tamanho_pasta_ate(const char *pasta, int teto, int64_t *bytes, int *itens, const volatile int *geracao, int esperada) {
 	*bytes = 0;
 	*itens = 0;
 	GQueue *fila = g_queue_new();
@@ -331,7 +347,7 @@ bool ar_tamanho_pasta(const char *pasta, int teto, int64_t *bytes, int *itens) {
 		GDir *dir = g_dir_open(atual, 0, NULL);
 		const char *nome;
 		while (dir && (nome = g_dir_read_name(dir))) {
-			if (*itens >= teto) {
+			if (*itens >= teto || (geracao && g_atomic_int_get(geracao) != esperada)) {
 				completo = false;
 				break;
 			}

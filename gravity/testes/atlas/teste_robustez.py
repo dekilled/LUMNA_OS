@@ -55,6 +55,10 @@ time.sleep(1.5)
 a = ticks(p0)
 time.sleep(3.0)
 usado = ticks(p0) - a  # em centésimos de segundo de CPU, em 3 s
+err = open(f"{run}/ar.err", encoding="utf-8", errors="replace").read()
+if "avisa que mudou mas nada mudou" in err:
+    # o watch do inotify era tirado e posto a cada recarga e o IN_IGNORED do antigo parecia "a pasta mudou": recarga a cada 0,3 s, para sempre
+    falha("o Atlas ficou relendo a pasta sem que nada mudasse (loop de recarga): " + [l for l in err.splitlines() if "avisa que mudou mas nada mudou" in l][0][:160])
 if usado > 30:  # mais de 10 % de um núcleo
     falha(f"parado, o Atlas gastou {usado} centésimos de CPU em 3 s (devia ficar perto de zero: ele está redesenhando à toa)")
 

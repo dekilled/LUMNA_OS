@@ -175,6 +175,8 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.131 | Atlas: montar um pendrive velho (nomes com acento de outro sistema, de FAT/NTFS antigo) | Abre a pasta; os nomes ruins aparecem com um "�" no lugar do byte inválido, e nada cai | ☐ |
 | 2.133 | Atlas: abrir uma pasta lotada de subpastas (cada uma com muitos arquivos) e ficar olhando as miniaturas coloridas dentro das pastas | As pastas aparecem na hora (sem congelar) e os pontinhos entram depois, sempre das mesmas cores e na mesma ordem (a dos nomes); não mudam sozinhos | ☐ |
 | 2.134 | Atlas: se ele cair, abrir `~/.cache/lumna/crash/atlas.log` | O arquivo existe com o sinal, a pilha e o mapa; mande-o para mim (ou `coredumpctl info lumna-atlas`) | ☐ |
+| 2.135 | Atlas, num disco grande (o NTFS de 1 TB): abrir uma pasta lotada e, em seguida, clicar, clicar, clicar em várias pastas | O Atlas não congela nem fecha: a pasta nova mostra "Abrindo…" se demorar, o painel de detalhes mostra "calculando…" e depois o tamanho | ☐ |
+| 2.136 | Atlas: deixar uma pasta aberta por um minuto sem mexer; procurar `nada mudou` em `journalctl --user -b` | Nenhuma linha (se aparecer, a pasta está mesmo mudando por fora e o log diz qual evento) | ☐ |
 | 2.132 | Deixar o Atlas, a dock e a barra parados por uns 30 s e olhar o uso de CPU (`top`) | Perto de 0 % (antes, cada app Gravity gastava 15 a 50 % de um núcleo redesenhando à toa) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

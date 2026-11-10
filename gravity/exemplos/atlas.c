@@ -182,27 +182,185 @@ static void nomear_caminhos(void) {
 	}
 }
 
+/* A pasta vigiada agora. Só troca o watch quando a pasta é outra: tirar e pôr de novo a cada recarga fazia o kernel mandar um IN_IGNORED (o watch antigo
+ * saindo), o Atlas lia isso como "a pasta mudou", recarregava, tirava e punha o watch... uma recarga a cada 0,3 s para sempre, em toda pasta: era o "carregando"
+ * eterno, as miniaturas recalculadas (e piscando) e o CPU gasto à toa. */
+static char inotify_pasta[4096];
+
 static void vigiar_pasta(void) {
 	if (inotify_fd < 0) {
+		return;
+	}
+	const char *alvo = vista == V_PASTA ? pasta : "";
+	if (inotify_wd >= 0 && !strcmp(inotify_pasta, alvo)) {
 		return;
 	}
 	if (inotify_wd >= 0) {
 		inotify_rm_watch(inotify_fd, inotify_wd);
 		inotify_wd = -1;
 	}
+	inotify_pasta[0] = '\0';
 	if (vista == V_PASTA) {
-		inotify_wd = inotify_add_watch(inotify_fd, pasta, IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_CLOSE_WRITE | IN_ATTRIB | IN_DELETE_SELF);
+		inotify_wd = inotify_add_watch(inotify_fd, pasta, IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_CLOSE_WRITE | IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
+		if (inotify_wd >= 0) {
+			g_strlcpy(inotify_pasta, pasta, sizeof(inotify_pasta));
+		}
 	}
 }
 
 /* Recarregar a lista (libera e refaz lista, cam, sel e vis) no MEIO do desenho deixava a grade, a lista e os menus lendo memória liberada: um
  * Enter no renome, um clique que abre uma pasta, "mostrar ocultos"... e o Atlas caía (visto com o ASAN). Enquanto se desenha, o pedido só fica
  * anotado; a recarga roda no começo do quadro seguinte, quando nada está segurando ponteiros para a lista. */
+void previas_limpar(void);
+static void pinfo_limpar(void);
 static int recarga_bloqueada;
 static bool recarga_pendente, recarga_preservar;
 
+/* A listagem de uma pasta de verdade lê (e dá lstat em) cada entrada: num disco NTFS/exFAT de 1 TB ou numa pasta de dezenas de milhares de arquivos isso leva
+ * segundos, e um app que passa segundos sem ler os eventos do Wayland é derrubado pelo compositor (o mouse enche o buffer dele). Por isso a leitura roda
+ * numa thread: carregar() espera até LISTA_ESPERA s (uma pasta normal chega antes e tudo segue como se fosse síncrono) e, se passar disso, volta com
+ * "Abrindo…" na tela e o resultado entra quando chegar. */
+static void lento_para_teste(void);
+#define LISTA_ESPERA 0.12
+
+typedef struct {
+	char *pasta;
+	bool ocultos, pastas_antes, decrescente, so_se_mudou;
+	int ordem;
+	unsigned geracao;
+	ar_lista lista;
+	char *erro;
+	bool ok;
+	GMutex m;
+	GCond c;
+	bool pronto;
+	bool abandonado;   /* quem esperava desistiu de esperar: a thread entrega pela linha principal */
+} listagem;
+
+static unsigned lst_geracao;       /* a de agora: o que chega de outra geração foi superado por uma pasta mais nova */
+static listagem *lst_chegada;      /* um resultado que chegou e espera o começo do próximo quadro para entrar */
+static bool carregando;            /* uma listagem lenta em andamento */
+static GPtrArray *lst_nomes;       /* os caminhos selecionados a manter quando ela chegar */
+static bool lst_preservar;
+
+static void lst_liberar(listagem *l) {
+	ar_liberar(&l->lista);
+	g_free(l->pasta);
+	g_free(l->erro);
+	g_mutex_clear(&l->m);
+	g_cond_clear(&l->c);
+	g_free(l);
+}
+
+static void lst_chegou(void *dados) {
+	listagem *l = dados;
+	if (l->geracao != lst_geracao) { /* já se pediu outra pasta depois desta */
+		lst_liberar(l);
+		return;
+	}
+	if (lst_chegada) {
+		lst_liberar(lst_chegada);
+	}
+	lst_chegada = l;
+	gv_app_redesenhar(app);
+}
+
+static gpointer lst_thread(gpointer dados) {
+	listagem *l = dados;
+	lento_para_teste();
+	l->ok = ar_listar(l->pasta, l->ocultos, &l->lista, &l->erro);
+	ar_ordenar_com(&l->lista, (enum ar_ordem)l->ordem, l->decrescente, l->pastas_antes);
+	g_mutex_lock(&l->m);
+	l->pronto = true;
+	bool entregar = l->abandonado;
+	g_cond_signal(&l->c);
+	g_mutex_unlock(&l->m);
+	if (entregar) {
+		gv_na_linha_principal(lst_chegou, l);
+	}
+	return NULL;
+}
+
+static bool listas_iguais(const ar_lista *x, const ar_lista *y) {
+	if (x->n != y->n) {
+		return false;
+	}
+	for (int i = 0; i < x->n; i++) {
+		const ar_entrada *a = &x->v[i], *b = &y->v[i];
+		if (strcmp(a->nome, b->nome) || a->tamanho != b->tamanho || a->mtime != b->mtime || a->modo != b->modo || a->pasta != b->pasta || a->link != b->link) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static double ino_iguais_em[6];  /* quando foram as últimas releituras seguidas que não mudaram nada */
+static int ino_iguais;           /* quantas estão guardadas */
+static double ino_espera;        /* o mínimo entre releituras agora (0: sem freio) */
+static char ino_evento[300];     /* o último evento visto, para o log */
+static bool lst_so_se_mudou;      /* a recarga pedida pelo inotify: se a pasta ficou igual, nada muda na tela */
+
+/* põe a listagem pronta no lugar da lista de agora (só na linha principal, fora do desenho) */
+static void lst_aplicar(listagem *l) {
+	if (l->so_se_mudou && l->ok && !erro_pasta[0] && l->lista.pasta && lista.pasta && !strcmp(l->lista.pasta, lista.pasta) && listas_iguais(&l->lista, &lista)) {
+		/* o aviso não mudou nada que se veja: a lista, as miniaturas e a rolagem ficam como estão */
+		/* uma operação do próprio Atlas (colar, apagar) também faz o inotify avisar de algo que ele já releu: isso é normal. O que não é: seis
+		 * releituras sem mudança nenhuma em 5 s, que é o laço de avisos (a pasta avisa e nada muda). */
+		double agora = gv_agora();
+		if (ino_iguais == 6) {
+			memmove(ino_iguais_em, ino_iguais_em + 1, sizeof(ino_iguais_em) - sizeof(ino_iguais_em[0]));
+			ino_iguais--;
+		}
+		ino_iguais_em[ino_iguais++] = agora;
+		if (ino_iguais == 6 && agora - ino_iguais_em[0] < 5 && ino_espera < 8) {
+			ino_espera = ino_espera ? ino_espera * 2 : 2;
+			fprintf(stderr, "atlas: %s avisa que mudou mas nada mudou (%s); relendo no máximo a cada %.0f s\n", pasta, ino_evento, ino_espera);
+		}
+		if (lst_nomes) {
+			g_ptr_array_free(lst_nomes, TRUE);
+			lst_nomes = NULL;
+		}
+		carregando = false;
+		return;
+	}
+	if (l->so_se_mudou) { /* mudou de verdade: sem freio */
+		ino_iguais = 0;
+		ino_espera = 0;
+	}
+	liberar_lista();
+	erro_pasta[0] = '\0';
+	if (l->ok) {
+		lista = l->lista;
+		memset(&l->lista, 0, sizeof(l->lista));
+	} else {
+		snprintf(erro_pasta, sizeof(erro_pasta), "%s", l->erro ? l->erro : "Não consegui abrir esta pasta");
+		memset(&lista, 0, sizeof(lista));
+	}
+	nomear_caminhos();
+	sel = g_new0(bool, lista.n > 0 ? lista.n : 1);
+	if (lst_nomes) {
+		for (guint k = 0; k < lst_nomes->len; k++) {
+			for (int i = 0; i < lista.n; i++) {
+				if (!strcmp(lst_nomes->pdata[k], cam[i] ? cam[i] : lista.v[i].nome)) {
+					sel[i] = true;
+				}
+			}
+		}
+		g_ptr_array_free(lst_nomes, TRUE);
+		lst_nomes = NULL;
+	}
+	refiltrar();
+	if (!lst_preservar) {
+		ancora = foco = ultimo_item = -1;
+	} else if (foco >= lista.n) {
+		foco = -1;
+	}
+	carregando = false;
+	vigiar_pasta();
+	gv_app_redesenhar(app);
+}
+
 static void carregar(bool preservar) {
-	extern void previas_limpar(void);
 	if (recarga_bloqueada) {
 		recarga_preservar = recarga_pendente ? recarga_preservar && preservar : preservar;
 		recarga_pendente = true;
@@ -211,6 +369,7 @@ static void carregar(bool preservar) {
 	}
 	if (!preservar) {
 		previas_limpar();
+		pinfo_limpar();
 	}
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
 	if (preservar && sel) {
@@ -220,18 +379,63 @@ static void carregar(bool preservar) {
 			}
 		}
 	}
+	lst_geracao++; /* o que estiver chegando de antes já não vale */
+	if (lst_chegada) {
+		lst_liberar(lst_chegada);
+		lst_chegada = NULL;
+	}
+	if (vista == V_PASTA) {
+		listagem *l = g_new0(listagem, 1);
+		g_mutex_init(&l->m);
+		g_cond_init(&l->c);
+		l->pasta = g_strdup(pasta);
+		l->ocultos = cfg.ocultos;
+		l->ordem = cfg.ordem;
+		l->decrescente = cfg.decrescente;
+		l->pastas_antes = ar_pastas_primeiro();
+		l->geracao = lst_geracao;
+		l->so_se_mudou = lst_so_se_mudou;
+		lst_so_se_mudou = false;
+		if (lst_nomes) {
+			g_ptr_array_free(lst_nomes, TRUE);
+		}
+		lst_nomes = nomes;
+		lst_preservar = preservar;
+		g_thread_unref(g_thread_new("atlas-listar", lst_thread, l));
+		gint64 fim = g_get_monotonic_time() + (gint64)(LISTA_ESPERA * 1e6);
+		g_mutex_lock(&l->m);
+		while (!l->pronto && g_cond_wait_until(&l->c, &l->m, fim)) {
+		}
+		bool veio = l->pronto;
+		if (!veio) {
+			l->abandonado = true; /* a thread entrega sozinha */
+		}
+		g_mutex_unlock(&l->m);
+		if (veio) {
+			carregando = false;
+			lst_aplicar(l);
+			lst_liberar(l);
+		} else {
+			carregando = true;
+			if (!preservar) { /* outra pasta: some com a anterior em vez de mostrar a pasta velha sob o nome da nova */
+				liberar_lista();
+				erro_pasta[0] = '\0';
+				sel = g_new0(bool, 1);
+				cam = g_new0(char *, 1);
+				lista.v = g_new(ar_entrada, 1);
+				lista.cap = 1;
+				refiltrar();
+				ancora = foco = ultimo_item = -1;
+			}
+			vigiar_pasta();
+			gv_app_redesenhar(app);
+		}
+		return;
+	}
+	carregando = false;
 	liberar_lista();
 	erro_pasta[0] = '\0';
-	if (vista == V_PASTA) {
-		char *erro = NULL;
-		if (!ar_listar(pasta, cfg.ocultos, &lista, &erro)) {
-			snprintf(erro_pasta, sizeof(erro_pasta), "%s", erro ? erro : "Não consegui abrir esta pasta");
-			g_free(erro);
-			memset(&lista, 0, sizeof(lista));
-		}
-		ar_ordenar(&lista, cfg.ordem, cfg.decrescente);
-		nomear_caminhos();
-	} else if (VISTA_CARTOES) {
+	if (VISTA_CARTOES) {
 		lista.v = g_new(ar_entrada, 1);
 		lista.cap = 1;
 		cam = g_new0(char *, 1);
@@ -425,12 +629,27 @@ static void abrir_item(int i) {
  * último, e no máximo 1,5 s depois do primeiro se não para de chegar. */
 static bool ino_pendente;
 static double ino_primeiro, ino_ultimo;
+/* Uma pasta que avisa sem parar (um disco NTFS/exFAT que registra cada leitura como mudança, um programa escrevendo lá) fazia o Atlas reler e
+ * redesenhar a pasta inteira o tempo todo: tudo "carregando", sem sossego. Duas defesas: só troca a lista se de fato mudou (nome, tamanho, data,
+ * permissão) e, se avisos seguidos não mudam nada, espaça as releituras (até 8 s), anotando no log o evento que as causa. Mudanças de verdade (arquivos
+ * chegando) nunca são atrasadas: só os avisos que não mudaram nada contam. */
 
 static void inotify_pronto(gv_app *a, int fd, void *dados) {
-	char buf[4096];
+	char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
 	bool mudou = false;
-	while (read(fd, buf, sizeof(buf)) > 0) {
-		mudou = true;
+	ssize_t n;
+	while ((n = read(fd, buf, sizeof(buf))) > 0) {
+		for (char *p = buf; p < buf + n;) {
+			const struct inotify_event *ev = (const struct inotify_event *)p;
+			if (!(ev->mask & IN_IGNORED)) { /* o watch antigo saindo (nós o tiramos): não é mudança na pasta */
+				mudou = true;
+			}
+			if (ev->mask & (IN_DELETE_SELF | IN_MOVE_SELF)) {
+				inotify_wd = -1; /* o kernel já soltou o watch: o próximo vigiar_pasta põe outro */
+			}
+			snprintf(ino_evento, sizeof(ino_evento), "evento 0x%x em \"%.200s\"", ev->mask, ev->len ? ev->name : "(a própria pasta)");
+			p += sizeof(*ev) + ev->len;
+		}
 	}
 	if (mudou && vista == V_PASTA) {
 		double agora = gv_agora();
@@ -450,13 +669,17 @@ static void ino_rever(void) {
 		return;
 	}
 	double agora = gv_agora();
-	if (agora - ino_ultimo >= 0.3 || agora - ino_primeiro >= 1.5) {
+	double quieto = ino_espera > 0.3 ? ino_espera : 0.3;
+	if (agora - ino_ultimo >= quieto || agora - ino_primeiro >= (ino_espera > 1.5 ? ino_espera : 1.5)) {
 		ino_pendente = false;
-		if (vista == V_PASTA) {
-			carregar(true);
+		if (vista != V_PASTA) {
+			return;
 		}
+		lst_so_se_mudou = true;
+		carregar(true);
+		lst_so_se_mudou = false;
 	} else {
-		gv_acordar_em(0.32 - (agora - ino_ultimo));
+		gv_acordar_em((quieto - (agora - ino_ultimo)) > 0.05 ? quieto - (agora - ino_ultimo) : 0.05);
 	}
 }
 
@@ -1138,6 +1361,7 @@ static void previa_chegou(void *dados) {
 
 static void previa_ler(gpointer dados, gpointer usuario) {
 	previa_pedido *p = dados;
+	lento_para_teste();
 	p->n = ar_previa_pasta(p->caminho, p->t, 4);
 	gv_na_linha_principal(previa_chegou, p);
 }
@@ -1176,6 +1400,157 @@ static int previa_da_pasta(const char *caminho, time_t mtime, enum ar_tipo *said
 	}
 	memcpy(saida, c->t, sizeof(c->t));
 	return c->n;
+}
+
+/* Só em teste (LUMNA_ATLAS_DEBUG): se existir ~/.atlas_lento_ms com um número n, cada leitura de pasta (listagem, contagem, tamanho, prévia) demora n ms, como
+ * num disco lento. Lido a cada vez, para o teste ligar e desligar com o app já aberto. */
+static void lento_para_teste(void) {
+	if (!getenv("LUMNA_ATLAS_DEBUG")) {
+		return;
+	}
+	char *arq = g_build_filename(g_get_home_dir(), ".atlas_lento_ms", NULL);
+	char *txt = NULL;
+	if (g_file_get_contents(arq, &txt, NULL, NULL)) {
+		int ms = atoi(txt);
+		if (ms > 0) {
+			g_usleep((gulong)ms * 1000);
+		}
+		g_free(txt);
+	}
+	g_free(arq);
+}
+
+/* ---- o que custa ler de uma pasta, fora da linha principal ----
+ * Quantos itens ela tem e quanto ocupa. Antes isso rodava no meio do desenho: cada pasta à vista era aberta e contada, e a pasta selecionada tinha o
+ * tamanho somado (até 20 mil lstat) e os itens recontados A CADA QUADRO. Num disco NTFS/exFAT de 1 TB isso levava segundos com o app parado, sem ler
+ * os eventos do mouse; o compositor derruba o cliente que não lê ("Data too big for buffer") e o Atlas "travava e fechava" ao clicar em pastas.
+ * Agora threads leem, o resultado fica guardado (pela data da pasta) e o desenho só olha o que já chegou. */
+typedef struct {
+	int itens;           /* -1: não se sabe (ainda, ou a pasta não abre) */
+	bool itens_ok, itens_pedido;
+	int64_t bytes;
+	int n_rec;
+	bool completo, tam_ok, tam_pedido;
+} pinfo_t;
+typedef struct {
+	char *chave, *caminho;
+	bool ocultos, tamanho;
+	int geracao;
+	int itens, n_rec;
+	int64_t bytes;
+	bool completo;
+} pinfo_job;
+
+static GHashTable *pinfo_cache;
+static GThreadPool *pinfo_fila_itens, *pinfo_fila_tam;
+static int pinfo_pendentes_itens;
+static volatile int pinfo_tam_geracao; /* sobe a cada pedido de tamanho novo: o que está somando outra pasta desiste */
+#define PINFO_MAX_PENDENTES 64
+
+static void pinfo_limpar(void) {
+	if (pinfo_cache) {
+		g_hash_table_remove_all(pinfo_cache);
+	}
+}
+
+static void pinfo_chegou(void *dados) {
+	pinfo_job *j = dados;
+	if (!j->tamanho) {
+		pinfo_pendentes_itens--;
+	}
+	pinfo_t *c = pinfo_cache ? g_hash_table_lookup(pinfo_cache, j->chave) : NULL;
+	if (c) { /* (a pasta pode ter saído do cache enquanto a thread lia: o resultado se perde, sem problema) */
+		if (j->tamanho) {
+			if (j->geracao == pinfo_tam_geracao) { /* uma soma abandonada no meio não vale */
+				c->bytes = j->bytes;
+				c->n_rec = j->n_rec;
+				c->completo = j->completo;
+				c->tam_ok = true;
+			}
+			c->tam_pedido = false;
+		} else {
+			c->itens = j->itens;
+			c->itens_ok = true;
+			c->itens_pedido = false;
+		}
+		gv_app_redesenhar(app);
+	}
+	g_free(j->chave);
+	g_free(j->caminho);
+	g_free(j);
+}
+
+static void pinfo_ler(gpointer dados, gpointer usuario) {
+	pinfo_job *j = dados;
+	lento_para_teste();
+	if (j->tamanho) {
+		j->completo = ar_tamanho_pasta_ate(j->caminho, 20000, &j->bytes, &j->n_rec, &pinfo_tam_geracao, j->geracao);
+	} else {
+		j->itens = ar_contar_itens(j->caminho, j->ocultos);
+	}
+	gv_na_linha_principal(pinfo_chegou, j);
+}
+
+static pinfo_t *pinfo_entrada(const char *chave) {
+	if (!pinfo_cache) {
+		pinfo_cache = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		pinfo_fila_itens = g_thread_pool_new(pinfo_ler, NULL, 1, FALSE, NULL);
+		pinfo_fila_tam = g_thread_pool_new(pinfo_ler, NULL, 1, FALSE, NULL);
+	}
+	pinfo_t *c = g_hash_table_lookup(pinfo_cache, chave);
+	if (!c) {
+		if (g_hash_table_size(pinfo_cache) > 4000) {
+			g_hash_table_remove_all(pinfo_cache);
+		}
+		c = g_new0(pinfo_t, 1);
+		c->itens = -1;
+		g_hash_table_insert(pinfo_cache, g_strdup(chave), c);
+	}
+	return c;
+}
+
+/* quantos itens há na pasta: -1 enquanto a thread não leu (ou se ela não abre) */
+static int pasta_itens(const char *caminho, bool ocultos, time_t mtime) {
+	char *chave = g_strdup_printf("i%d|%lld|%s", ocultos, (long long)mtime, caminho);
+	pinfo_t *c = pinfo_entrada(chave);
+	if (!c->itens_ok && !c->itens_pedido) {
+		if (pinfo_pendentes_itens >= PINFO_MAX_PENDENTES) {
+			gv_acordar_em(0.25); /* fila cheia (rolagem rápida): tenta de novo logo, com o que estiver à vista então */
+		} else {
+			pinfo_job *j = g_new0(pinfo_job, 1);
+			j->chave = g_strdup(chave);
+			j->caminho = g_strdup(caminho);
+			j->ocultos = ocultos;
+			c->itens_pedido = true;
+			pinfo_pendentes_itens++;
+			g_thread_pool_push(pinfo_fila_itens, j, NULL);
+		}
+	}
+	int n = c->itens_ok ? c->itens : -1;
+	g_free(chave);
+	return n;
+}
+
+/* o tamanho (somando até 20 mil entradas) da pasta: verdadeiro quando já chegou */
+static bool pasta_tamanho(const char *caminho, time_t mtime, int64_t *bytes, bool *completo) {
+	char *chave = g_strdup_printf("t|%lld|%s", (long long)mtime, caminho);
+	pinfo_t *c = pinfo_entrada(chave);
+	if (!c->tam_ok && !c->tam_pedido) {
+		pinfo_job *j = g_new0(pinfo_job, 1);
+		j->chave = g_strdup(chave);
+		j->caminho = g_strdup(caminho);
+		j->tamanho = true;
+		j->geracao = g_atomic_int_add(&pinfo_tam_geracao, 1) + 1; /* o que somava outra pasta desiste */
+		c->tam_pedido = true;
+		g_thread_pool_push(pinfo_fila_tam, j, NULL);
+	}
+	bool pronto = c->tam_ok;
+	if (pronto) {
+		*bytes = c->bytes;
+		*completo = c->completo;
+	}
+	g_free(chave);
+	return pronto;
 }
 
 /* O ícone de uma entrada: uma imagem mostra a miniatura (o Gravity descodifica numa thread); o resto é desenhado. */
@@ -2013,8 +2388,8 @@ static Clay_String nome_em_uma_linha(Clay_ElementId coluna, const char *nome, fl
 static void celula_grade(int idx, float tam, float cw, float ch) {
 	Clay_ElementId id = CLAY_IDI("cel", (uint32_t)idx);
 	const ar_entrada *e = &lista.v[idx];
-	if (e->pasta && e->itens < -1 + 1 && e->itens == -1) {
-		lista.v[idx].itens = ar_contar_itens(cam[idx], cfg.ocultos);
+	if (e->pasta && e->itens == -1) {
+		lista.v[idx].itens = pasta_itens(cam[idx], cfg.ocultos, e->mtime); /* -1 até a thread ler: pede de novo no próximo quadro */
 	}
 	bool pediu = gv_menu_no_ponteiro(id, CLAY_ID("menu-item"));
 	if (pediu && ponteiro_em(gv_caixa(id))) {
@@ -2063,7 +2438,7 @@ static void linha_lista(int idx, int linha_par) {
 	Clay_ElementId id = CLAY_IDI("lin", (uint32_t)idx);
 	const ar_entrada *e = &lista.v[idx];
 	if (e->pasta && e->itens == -1) {
-		lista.v[idx].itens = ar_contar_itens(cam[idx], cfg.ocultos);
+		lista.v[idx].itens = pasta_itens(cam[idx], cfg.ocultos, e->mtime);
 	}
 	bool pediu = gv_menu_no_ponteiro(id, CLAY_ID("menu-item"));
 	if (pediu && ponteiro_em(gv_caixa(id))) {
@@ -2181,7 +2556,7 @@ static void cabecalho_conteudo(void) {
 		} else if (n_arquivos) {
 			sub = gv_fmt("%d %s", n_arquivos, n_arquivos == 1 ? "arquivo" : "arquivos").chars;
 		} else {
-			sub = "Vazia";
+			sub = carregando ? "Abrindo…" : "Vazia";
 		}
 		gv_texto(gv_str(sub), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
 		if (em_lixeira() && nvis > 0) {
@@ -2265,7 +2640,7 @@ static void conteudo(void) {
 					.childAlignment = { .x = CLAY_ALIGN_X_CENTER } } }) {
 					gv_icone(busca[0] ? "search" : vista == V_FAVORITOS ? "star" : vista == V_RECENTES ? "clock" : "folder", 44, gv_t.texto_suave);
 					gv_texto(busca[0] ? CLAY_STRING("Nada com esse nome aqui") : vista == V_FAVORITOS ? CLAY_STRING("Nenhum favorito ainda") :
-						vista == V_RECENTES ? CLAY_STRING("Nada aberto recentemente") : CLAY_STRING("Esta pasta está vazia"), gv_t.tamanho_destaque, gv_t.texto_secundario, GV_PESO_NORMAL);
+						vista == V_RECENTES ? CLAY_STRING("Nada aberto recentemente") : (carregando ? CLAY_STRING("Abrindo a pasta…") : CLAY_STRING("Esta pasta está vazia")), gv_t.tamanho_destaque, gv_t.texto_secundario, GV_PESO_NORMAL);
 					if (vista == V_FAVORITOS) {
 						gv_texto(CLAY_STRING("Clique com o botão direito num item e escolha Favoritar"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 					}
@@ -2344,10 +2719,6 @@ static void tratar_cliques_conteudo(void) {
 
 /* ---- painel de detalhes ---- */
 
-static char det_caminho[4096];
-static int64_t det_bytes;
-static int det_itens;
-static bool det_completo;
 static bool permissoes_abertas;
 
 static void linha_detalhe(const char *rotulo, const char *valor) {
@@ -2431,15 +2802,18 @@ static void painel_detalhes(void) {
 			CLAY(CLAY_ID("det-linhas"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 6 } }) {
 				linha_detalhe("Tipo", ar_tipo_nome(e));
 				if (e->pasta && caminho) {
-					if (strcmp(det_caminho, caminho)) {
-						snprintf(det_caminho, sizeof(det_caminho), "%s", caminho);
-						det_completo = ar_tamanho_pasta(caminho, 20000, &det_bytes, &det_itens);
+					/* nada disso roda aqui: as threads leem e o painel mostra "…" até chegar */
+					int itens = pasta_itens(caminho, cfg.ocultos, e->mtime);
+					linha_detalhe("Itens", itens >= 0 ? gv_fmt("%d %s", itens, itens == 1 ? "item" : "itens").chars : "…");
+					int64_t bytes_pasta = 0;
+					bool tam_completo = true;
+					if (pasta_tamanho(caminho, e->mtime, &bytes_pasta, &tam_completo)) {
+						char t[32];
+						ar_tamanho_humano(bytes_pasta, t, sizeof(t));
+						linha_detalhe("Tamanho", tam_completo ? t : gv_fmt("mais de %s", t).chars);
+					} else {
+						linha_detalhe("Tamanho", "calculando…");
 					}
-					int itens = ar_contar_itens(caminho, cfg.ocultos);
-					linha_detalhe("Itens", itens >= 0 ? gv_fmt("%d %s", itens, itens == 1 ? "item" : "itens").chars : "—");
-					char t[32];
-					ar_tamanho_humano(det_bytes, t, sizeof(t));
-					linha_detalhe("Tamanho", det_completo ? t : gv_fmt("mais de %s", t).chars);
 				} else {
 					char t[32];
 					ar_tamanho_humano(e->tamanho, t, sizeof(t));
@@ -4076,6 +4450,12 @@ static void disc_ejetar(const char *ponto) {
 	g_thread_unref(g_thread_new("atlas-ejetar", disc_ejetar_thread, e));
 }
 
+/* um texto de cartão numa linha só, com "…" se passar da largura (o nome de um disco pode ser um UUID de 36 letras sem espaço, que passava do cartão) */
+static Clay_String cabe_no_cartao(const char *texto, float larg, float tamanho, enum gv_peso peso) {
+	Clay_String linha;
+	return gv_texto_ajustar(texto, larg, tamanho, peso, 1, &linha) ? linha : gv_str(texto);
+}
+
 /* um disco ligado que ainda não está montado: tocar monta e abre */
 static bool cartao_disco(Clay_ElementId id, const struct disco *d, float larg) {
 	bool sobre = gv_por_cima(id);
@@ -4086,8 +4466,9 @@ static bool cartao_disco(Clay_ElementId id, const struct disco *d, float larg) {
 		.backgroundColor = sobre ? gv_t.sob_cursor : gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
 		gv_icone(d->removivel ? "usb" : "drive", 40, gv_t.texto_secundario);
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
-			gv_texto(gv_str(d->nome), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
-			gv_texto(gv_fmt("%s · %s · não montado", d->fs, tam), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			float lt = larg - 28 - 40 - 12 - 12 - 82; /* o cartão menos o enchimento, o ícone, os vãos e o botão Montar */
+			gv_texto(cabe_no_cartao(d->nome, lt, gv_t.tamanho_corpo, GV_PESO_MEDIO), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(cabe_no_cartao(gv_fmt("%s · %s · não montado", d->fs, tam).chars, lt, gv_t.tamanho_legenda + 1, GV_PESO_NORMAL), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
 		}
 		CLAY_AUTO_ID({ .layout = { .padding = { 12, 12, 6, 6 } }, .backgroundColor = montando ? gv_t.selecionado : gv_t.acento, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
 			gv_texto(gv_str(montando ? "Montando…" : "Montar"), gv_t.tamanho_corpo - 1, montando ? gv_t.texto : gv_t.sobre_acento, GV_PESO_MEDIO);
@@ -4106,8 +4487,9 @@ static bool cartao_unidade(Clay_ElementId id, const ar_unidade *u, float larg) {
 		.backgroundColor = sobre ? gv_t.sob_cursor : gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
 		gv_icone(u->removivel ? "usb" : "drive", 40, gv_t.texto_secundario);
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
-			gv_texto(gv_str(u->rotulo), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
-			gv_texto(gv_str(u->ponto), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			float lt = larg - 28 - 40 - 12; /* o cartão menos o enchimento, o ícone e o vão */
+			gv_texto(cabe_no_cartao(u->rotulo, lt, gv_t.tamanho_corpo, GV_PESO_MEDIO), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(cabe_no_cartao(u->ponto, lt, gv_t.tamanho_legenda + 1, GV_PESO_NORMAL), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(6) } }, .backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(3) }) {
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_PERCENT(prop < 0.02f ? 0.02f : prop > 1 ? 1 : prop), CLAY_SIZING_GROW(0) } }, .backgroundColor = prop > 0.9f ? gv_t.perigo : gv_t.acento,
 					.cornerRadius = CLAY_CORNER_RADIUS(3) }) {}
@@ -4353,7 +4735,7 @@ static void previa_exibicao(void) {
 		ar_entrada_de(it->caminho, &e);
 		char data[48], tam[32] = "";
 		ar_data_humana(e.mtime, time(NULL), data, sizeof(data));
-		int itens = ar_contar_itens(it->caminho, cfg_edit.ocultos);
+		int itens = pasta_itens(it->caminho, cfg_edit.ocultos, e.mtime);
 		CLAY(CLAY_IDI("pv-l", (uint32_t)k), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(grande ? 64 : 38) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
 			CLAY(CLAY_IDI("pv-li", (uint32_t)k), gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(grande ? 50 : 26), CLAY_SIZING_FIXED(grande ? 50 : 26) } } })) {}
@@ -5763,6 +6145,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = modo_lista ? "lin" : "cel", .length = 3 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)idx, 0).id));
 	}
+	bool mudou_algo = false;
 	for (guint i = 0; i < nomes->len; i++) {
 		Clay_BoundingBox b = gv_caixa((Clay_ElementId){ .id = GPOINTER_TO_UINT(ids->pdata[i]) });
 		if (b.width <= 0) {
@@ -5771,22 +6154,28 @@ static void debug_posicoes(void) {
 		char *linha = g_strdup_printf("%.0f %.0f %.0f %.0f", b.x, b.y, b.width, b.height);
 		char *antigo = g_hash_table_lookup(antes, nomes->pdata[i]);
 		if (!antigo || strcmp(antigo, linha)) {
+			mudou_algo = true;
 			printf("pos %s %s\n", (char *)nomes->pdata[i], linha);
 			g_hash_table_insert(antes, g_strdup(nomes->pdata[i]), linha);
 		} else {
 			g_free(linha);
 		}
 	}
-	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
-		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")));
+	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d carregando=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
+		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")), carregando);
 	static char *estado_antes;
 	if (!estado_antes || strcmp(estado_antes, estado)) {
+		mudou_algo = true;
 		printf("estado %s\n", estado);
 		g_free(estado_antes);
 		estado_antes = estado;
 	} else {
 		g_free(estado);
 	}
+	if (mudou_algo) { /* as caixas são as do quadro anterior: mais um quadro e o log fica com o layout de agora (o teste clica no que o log diz) */
+		gv_app_redesenhar(app);
+	}
+
 	/* a ordem em que os itens aparecem */
 	GString *ordem_txt = g_string_new("ordem");
 	for (int k = 0; k < nvis && k < 40; k++) {
@@ -5826,6 +6215,12 @@ static void desenhar(gv_app *a, void *dados) {
 	if (recarga_pendente) { /* pedida no quadro anterior, durante o desenho */
 		recarga_pendente = false;
 		carregar(recarga_preservar);
+	}
+	if (lst_chegada) { /* uma listagem lenta que terminou: entra agora, com nada segurando ponteiros para a lista */
+		listagem *l = lst_chegada;
+		lst_chegada = NULL;
+		lst_aplicar(l);
+		lst_liberar(l);
 	}
 	ino_rever();
 	texto_aplicar(true);
@@ -5916,6 +6311,9 @@ static bool montagem_de_teste(ar_conexao *c, const char *uri, char *erro, size_t
 }
 
 int main(int argc, char **argv) {
+	if (getenv("LUMNA_ATLAS_DEBUG")) { /* o log vai para um arquivo e o stdout dele é cheio de buffer: o teste lia posições e estados atrasados */
+		setvbuf(stdout, NULL, _IOLBF, 0);
+	}
 	if (getenv("LUMNA_ATLAS_DEBUG") && getenv("LUMNA_ATLAS_FALSO_DIR")) {
 		ar_rede_usar_montagem_falsa(montagem_de_teste);
 	}

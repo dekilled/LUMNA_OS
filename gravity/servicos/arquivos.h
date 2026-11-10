@@ -41,8 +41,11 @@ void ar_liberar(ar_lista *l);
 bool ar_entrada_de(const char *caminho, ar_entrada *e);
 /* As pastas vêm antes dos arquivos? (padrão: sim; vale para as próximas ar_ordenar) */
 void ar_ordenar_pastas_primeiro(bool sim);
+bool ar_pastas_primeiro(void);
 /* Pastas primeiro, depois pela ordem pedida (o nome não distingue maiúsculas e acentos, e "arquivo2" vem antes de "arquivo10"). */
 void ar_ordenar(ar_lista *l, enum ar_ordem ordem, bool decrescente);
+/* O mesmo, com tudo por argumento: pode rodar numa thread enquanto outra ordena outra lista. */
+void ar_ordenar_com(ar_lista *l, enum ar_ordem ordem, bool decrescente, bool pastas_antes);
 /* Os índices (em l->v) do que passa no filtro e na busca (parte do nome, sem distinguir maiúsculas e acentos); devolve quantos. indices tem l->n lugares. */
 int ar_filtrar(const ar_lista *l, const char *busca, enum ar_filtro filtro, int *indices);
 bool ar_no_filtro(const ar_entrada *e, enum ar_filtro filtro);
@@ -54,6 +57,8 @@ void ar_selo(const ar_entrada *e, char *saida, size_t tam); /* o rótulo curto d
 int ar_contar_itens(const char *pasta, bool ocultos);    /* quantos itens há dentro (-1 se não abre) */
 /* O tamanho de uma pasta e dos itens dentro dela, sem passar de `teto` entradas (devolve falso se parou antes de acabar). */
 bool ar_tamanho_pasta(const char *pasta, int teto, int64_t *bytes, int *itens);
+/* O mesmo, e para (devolvendo falso) quando *geracao deixa de valer `esperada`: quem pediu já não quer. Pode rodar numa thread. */
+bool ar_tamanho_pasta_ate(const char *pasta, int teto, int64_t *bytes, int *itens, const volatile int *geracao, int esperada);
 
 void ar_tamanho_humano(int64_t bytes, char *saida, size_t tam);           /* "1,8 GB", "320 KB" */
 void ar_data_humana(time_t t, time_t agora, char *saida, size_t tam);     /* "Hoje, 15:24", "Ontem, 09:10", "12 mar, 09:10", "3 jun 2024" */
