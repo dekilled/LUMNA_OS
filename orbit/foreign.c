@@ -15,8 +15,11 @@
 static void handle_activate(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, foreign_activate);
 	if (!view->mapped) {
+		wlr_log(WLR_INFO, "a dock pediu ativar uma janela que não está mapeada: ignorado");
 		return;
 	}
+	wlr_log(WLR_INFO, "a dock pediu ativar \"%s\" (minimizada=%d, espaço=%d, espaço da saída=%d, saída=%s)", view->toplevel->title ? view->toplevel->title : "",
+		view->minimized, view->tag, view->output ? view->output->tag : -1, view->output ? view->output->wlr->name : "nenhuma");
 	if (view->output) {
 		view->output->tag = view->tag;
 	}

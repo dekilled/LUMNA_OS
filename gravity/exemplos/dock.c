@@ -343,6 +343,9 @@ static void tocar(const char *app_id, const char *comando, const gv_janela **jan
 			delas[k++] = janelas[i];
 		}
 	}
+	if (!k && !(comando && *comando)) {
+		fprintf(stderr, "dock: toque em %s ignorado: nenhuma janela dele e sem comando para abrir (%d janelas no total)\n", app_id, n);
+	}
 	if (!k) {
 		if (comando && *comando) {
 			printf("abrir %s: %s\n", app_id, comando);
@@ -354,7 +357,9 @@ static void tocar(const char *app_id, const char *comando, const gv_janela **jan
 		}
 		return;
 	}
-	gv_janela_ativar(delas[(ativa + 1) % k]->id);
+	const gv_janela *alvo = delas[(ativa + 1) % k];
+	fprintf(stderr, "dock: toque em %s: %d janela(s), ativando \"%s\"%s%s\n", app_id, k, alvo->titulo, alvo->minimizada ? " (minimizada)" : "", alvo->ativa ? " (já ativa)" : "");
+	gv_janela_ativar(alvo->id);
 }
 
 static bool tem_icone_lumna(const char *nome) {
@@ -512,6 +517,7 @@ static void previa_desenhar(const gv_janela **janelas, int n) {
 		CLAY(CLAY_ID("previa-topo"), { .layout = { .padding = { 12, 12, 8, 6 } } }) {
 			gv_texto(gv_str(previa.nome), gv_t.tamanho_legenda + 1, gv_t.texto_secundario, GV_PESO_MEDIO);
 		}
+		char linhas_dbg[512] = "";
 		for (int k = 0; k < n; k++) {
 			const gv_janela *j = janelas[k];
 			if (!do_app(j, previa.app_id)) {
@@ -520,6 +526,22 @@ static void previa_desenhar(const gv_janela **janelas, int n) {
 			Clay_ElementId linha = CLAY_IDI("previa-janela", (int)j->id);
 			Clay_ElementId fechar = CLAY_IDI("previa-fechar", (int)j->id);
 			bool tocou = gv_tocado(linha) && !gv_por_cima(fechar);
+			if (getenv("LUMNA_DOCK_DEBUG")) { /* em teste: a linha da lista sob o ponteiro e onde está cada linha */
+				static int ultimo_hover = -1;
+				int agora_hover = gv_por_cima(linha) ? (int)j->id : -1;
+				if (agora_hover >= 0 && agora_hover != ultimo_hover) {
+					printf("previa: hover na janela %d\n", agora_hover);
+					fflush(stdout);
+				}
+				if (agora_hover >= 0 || ultimo_hover == (int)j->id) {
+					ultimo_hover = agora_hover;
+				}
+				Clay_BoundingBox bl = gv_caixa(linha);
+				if (bl.width > 0) {
+					size_t u = strlen(linhas_dbg);
+					snprintf(linhas_dbg + u, sizeof(linhas_dbg) - u, "%d:%d,%d,%d,%d ", (int)j->id, (int)bl.x, (int)bl.y, (int)bl.width, (int)bl.height);
+				}
+			}
 			char buf[160];
 			CLAY(linha, {
 				.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 10, 4, 0, 0 }, .childGap = 12,
@@ -546,6 +568,14 @@ static void previa_desenhar(const gv_janela **janelas, int n) {
 				printf("ir para a janela \"%s\"\n", j->titulo);
 				gv_janela_ativar(j->id);
 				gv_popup_fechar(CLAY_ID("previa"));
+			}
+		}
+		if (getenv("LUMNA_DOCK_DEBUG")) {
+			static char antes[512];
+			if (strcmp(antes, linhas_dbg)) {
+				snprintf(antes, sizeof(antes), "%s", linhas_dbg);
+				printf("previa-linhas: %s\n", linhas_dbg);
+				fflush(stdout);
 			}
 		}
 	}

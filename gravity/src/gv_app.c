@@ -822,6 +822,13 @@ static void ponteiro_entrou(void *dados, struct wl_pointer *p, uint32_t serial, 
 
 static void ponteiro_saiu(void *dados, struct wl_pointer *p, uint32_t serial, struct wl_surface *s) {
 	gv_app *app = dados;
+	if (app->ponteiro_sup == s) {
+		/* a superfície que o ponteiro deixou pode ser um popup que vai ser destruído: o endereço dela pode ser reaproveitado por outro popup, e o
+		 * deslocamento dele passaria a valer para o ponteiro na dock */
+		app->ponteiro_sup = NULL;
+		app->ponteiro_dx = app->ponteiro_dy = 0;
+		app->ponteiro_no_popup = false;
+	}
 	if (gv_arrastando_daqui()) {
 		/* um arraste nosso começou: o compositor leva o ponteiro e o soltar vai para o destino, não para cá */
 		gv__entrada.baixo = false;
@@ -897,6 +904,10 @@ static void ponteiro_moveu(void *dados, struct wl_pointer *p, uint32_t t, wl_fix
 	if (app->bloqueio && app->ponteiro_sup != app->superficie && !bloqueio_seguir(app)) {
 		return; /* numa tela sem a interface: tenta levá-la para cá (o intervalo mínimo evita ir e voltar na divisa) */
 	}
+	/* O deslocamento do popup onde o ponteiro está muda quando o compositor o reposiciona (uma lista que encolhe porque se fechou uma janela, um menu
+	 * que o compositor empurra): calculado só no enter, o ponteiro ficava mapeado com a posição antiga e o hover e o clique caíam ~48 px fora, até o
+	 * mouse sair da superfície e voltar. Recalcula a cada movimento. */
+	popup_deslocamento(app, app->ponteiro_sup, &app->ponteiro_dx, &app->ponteiro_dy, &app->ponteiro_no_popup);
 	gv__entrada.x = wl_fixed_to_double(x) + app->ponteiro_dx;
 	gv__entrada.y = wl_fixed_to_double(y) + app->ponteiro_dy;
 	gv__entrada.toque = false;
@@ -2104,6 +2115,9 @@ static void popup_configurar(void *dados, struct xdg_popup *x, int32_t px, int32
 	struct gv_popup *pai = popup_pai(p);
 	p->x = px + (pai ? pai->x : 0);
 	p->y = py + (pai ? pai->y : 0);
+	if (getenv("GRAVITY_DEBUG_POPUP")) {
+		fprintf(stderr, "popup configure: x=%d y=%d w=%d h=%d (p->w=%d p->h=%d)\n", px, py, w, h, p->w, p->h);
+	}
 }
 
 static void popup_acabou(void *dados, struct xdg_popup *x) {
@@ -2228,6 +2242,9 @@ static void popups_rever(gv_app *app) {
 		} else if ((w != p->w || h != p->h) && app->xdg_versao >= 3) {
 			p->w = w;
 			p->h = h;
+			if (getenv("GRAVITY_DEBUG_POPUP")) {
+				fprintf(stderr, "popup reposition: w=%d h=%d ancora y=%.0f\n", w, h, p->ancora.y);
+			}
 			struct xdg_positioner *pos = popup_posicionador(app, p);
 			xdg_surface_set_window_geometry(p->xdg_sup, GV_POPUP_MARGEM, GV_POPUP_MARGEM, w, h);
 			xdg_popup_reposition(p->xdg_popup, pos, ++p->token);
