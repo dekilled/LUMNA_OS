@@ -6,7 +6,7 @@ cat > "$d/bin/pacman" <<'P'
 echo "pacman $*" >> "$FALSO_LOG"
 M="$FALSO_LOG.mais"; F="$FALSO_LOG.fora"
 atual() {
-	{ printf 'mesa 24.2.1-1\nlinux 6.10.8.arch1-1\nvlc 3.0.20-1\nhtop 3.3.0-1\nmeu-app-aur 1.0-1\n'; [ -n "$FALSO_EXTRA" ] && echo "$FALSO_EXTRA 1-1"; cat "$M" 2>/dev/null; } | while read n v; do grep -qx "$n" "$F" 2>/dev/null || echo "$n $v"; done
+	{ printf 'mesa 24.2.1-1\nlinux 6.10.8.arch1-1\nvlc 3.0.20-1\nhtop 3.3.0-1\nmeu-app-aur 1.0-1\n'; for e in $FALSO_EXTRA; do echo "$e 1-1"; done; cat "$M" 2>/dev/null; } | while read n v; do grep -qx "$n" "$F" 2>/dev/null || echo "$n $v"; done
 }
 case "$1" in
 -Si) cat <<'S'
@@ -112,12 +112,13 @@ Groups          : None
 Download Size   : 200.00 KiB
 Installed Size  : 400.00 KiB
 S
+for n in $FALSO_CATALOGO_EXTRA; do printf '\nRepository      : extra\nName            : %s\nVersion         : 1-1\nDescription     : %s falso\nURL             : None\nLicenses        : MIT\nGroups          : None\nDownload Size   : 10.00 MiB\nInstalled Size  : 40.00 MiB\n' "$n" "$n"; done
 ;;
 -Q) atual;;
 -Qe) atual | while read n v; do case "$n" in linux|vlc|meu-app-aur) echo "$n $v";; *) grep -q "^$n " "$M" 2>/dev/null && echo "$n $v";; esac; done;;
 -Qm) { printf 'meu-app-aur 1.0-1\n'; cat "$FALSO_LOG.aur" 2>/dev/null; };;
--S) echo "resolvendo dependências..."; echo "instalando $*"; for a in "$@"; do ult=$a; done; { [ -n "$FALSO_FALHA" ] || [ "$ult" = linux-lts ]; } && { echo "error: target not found: $ult" >&2; exit 1; }; echo "$ult 1-1" >> "$FALSO_LOG.mais"; echo "(1/1) instalando";;
--Rns) for a in "$@"; do ult=$a; done; echo "removendo $*"; if grep -q "^$ult " "$M" 2>/dev/null; then sed -i "/^$ult /d" "$M"; else echo "$ult" >> "$F"; fi;;
+-S) echo "resolvendo dependências..."; echo "instalando $*"; for a in "$@"; do ult=$a; done; { [ -n "$FALSO_FALHA" ] || [ "$ult" = linux-lts ]; } && { echo "error: target not found: $ult" >&2; exit 1; }; for a in "$@"; do case "$a" in -*) ;; *) echo "$a 1-1" >> "$FALSO_LOG.mais"; case "$a" in linux|linux-lts|linux-zen|linux-hardened) [ -n "$LUMNA_BOOT" ] && { echo k > "$LUMNA_BOOT/vmlinuz-$a"; echo i > "$LUMNA_BOOT/initramfs-$a.img"; };; esac;; esac; done; echo "(1/1) instalando";;
+-Rns) echo "removendo $*"; for a in "$@"; do case "$a" in -*) ;; *) if grep -q "^$a " "$M" 2>/dev/null; then sed -i "/^$a /d" "$M"; else echo "$a" >> "$F"; fi;; esac; done;;
 -Syu) echo "sincronizando"; echo "atualizando tudo";;
 -Qu) printf 'vlc 3.0.20-1 -> 3.0.21-1\n';;
 esac
@@ -125,6 +126,10 @@ P
 cat > "$d/bin/checkupdates" <<'P'
 #!/bin/sh
 printf 'vlc 3.0.20-1 -> 3.0.21-1\nhtop 3.2.0-1 -> 3.3.0-1\n'
+P
+cat > "$d/bin/lspci" <<'P'
+#!/bin/sh
+[ -n "$FALSO_LSPCI" ] && cat "$FALSO_LSPCI"
 P
 cat > "$d/bin/curl" <<'P'
 #!/bin/sh

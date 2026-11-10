@@ -6,7 +6,7 @@
 
 /* ---------------- peças ---------------- */
 
-static bool selo(Clay_ElementId id, const char *texto, bool ativo, bool clicavel) {
+bool selo(Clay_ElementId id, const char *texto, bool ativo, bool clicavel) {
 	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIT(0), CLAY_SIZING_FIXED(30) }, .padding = { 14, 14, 0, 0 }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = ativo ? gv_t.acento : (clicavel && gv_por_cima(id)) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(15),
 		.border = { .color = ativo ? gv_t.acento : gv_t.borda_controle, .width = GV_BORDA(1) } }) {
@@ -65,7 +65,7 @@ bool botao_acao(Clay_ElementId id, const lj_pacote *p) {
 	return tocou;
 }
 
-static void titulo_pagina(const char *titulo, const char *sub) {
+void titulo_pagina(const char *titulo, const char *sub) {
 	CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 4 } }) {
 		gv_texto(gv_str(titulo), gv_t.tamanho_titulo + 4, gv_t.texto, GV_PESO_NEGRITO);
 		if (sub && *sub) {
@@ -172,7 +172,7 @@ void tela_explorar(void) {
 
 /* ---------------- linhas das listas ---------------- */
 
-static const char *tamanho_texto(int64_t b) {
+const char *tamanho_texto(int64_t b) {
 	if (b >= 1024LL * 1024 * 1024) {
 		return gv_fmt("%.1f GB", (double)b / (1024.0 * 1024 * 1024)).chars;
 	}
@@ -458,21 +458,6 @@ void tela_atualizacoes(void) {
 	}
 }
 
-/* ---------------- Drivers e kernels (fase 2) ---------------- */
-
-void tela_drivers(void) {
-	CLAY(CLAY_ID("lj-drv"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 28, 28, 0, 20 }, .childGap = 16 } }) {
-		titulo_pagina("Drivers e kernels", "Pacotes para o hardware deste computador");
-		CLAY(CLAY_ID("lj-drv-aviso"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(20), .childGap = 8 },
-			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } }) {
-			gv_texto(CLAY_STRING("Esta parte chega na próxima fase."), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
-			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				gv_texto(CLAY_STRING("Ela vai detectar a sua placa de vídeo e o processador, mostrar só os drivers e kernels compatíveis e checar se cada um serve antes de instalar. Por ora, dá para achar pacotes de driver e kernel na aba Pacotes, filtrando por Tipo."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
-			}
-		}
-	}
-}
-
 /* ---------------- Configurações ---------------- */
 
 void tela_config(void) {
@@ -491,6 +476,12 @@ void tela_config(void) {
 		if (gv_linha(CLAY_ID("lj-cfg-confirmar"), "shield", "Perguntar antes de instalar ou remover", "Instalar do AUR sempre pergunta, aconteça o que acontecer", &v)) {
 			L.cfg.confirmar = v;
 			gravar_cfg();
+		}
+		v = L.cfg.avancado;
+		if (gv_linha(CLAY_ID("lj-cfg-avancado"), "bolt", "Modo avançado", "Deixa instalar driver ou kernel que a checagem marcou como incompatível. Pode deixar o sistema sem vídeo ou sem boot", &v)) {
+			L.cfg.avancado = v;
+			gravar_cfg();
+			marcar_sujo();
 		}
 		CLAY(CLAY_ID("lj-cfg-helper-lin"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0) }, .padding = { 16, 16, 12, 12 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {

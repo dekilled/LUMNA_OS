@@ -16,12 +16,14 @@ static char *arquivo_cfg(void) {
 static void ler_cfg(void) {
 	L.cfg.aur = true;
 	L.cfg.confirmar = true;
+	L.cfg.avancado = false;
 	L.cfg.helper[0] = '\0';
 	GKeyFile *kf = g_key_file_new();
 	char *a = arquivo_cfg();
 	if (g_key_file_load_from_file(kf, a, G_KEY_FILE_NONE, NULL)) {
 		L.cfg.aur = g_key_file_get_boolean(kf, "loja", "aur", NULL) || !g_key_file_has_key(kf, "loja", "aur", NULL);
 		L.cfg.confirmar = g_key_file_get_boolean(kf, "loja", "confirmar", NULL) || !g_key_file_has_key(kf, "loja", "confirmar", NULL);
+		L.cfg.avancado = g_key_file_get_boolean(kf, "loja", "avancado", NULL);
 		char *h = g_key_file_get_string(kf, "loja", "helper", NULL);
 		if (h && (!strcmp(h, "paru") || !strcmp(h, "yay"))) {
 			g_strlcpy(L.cfg.helper, h, sizeof(L.cfg.helper));
@@ -37,6 +39,7 @@ void gravar_cfg(void) {
 	GKeyFile *kf = g_key_file_new();
 	g_key_file_set_boolean(kf, "loja", "aur", L.cfg.aur);
 	g_key_file_set_boolean(kf, "loja", "confirmar", L.cfg.confirmar);
+	g_key_file_set_boolean(kf, "loja", "avancado", L.cfg.avancado);
 	g_key_file_set_string(kf, "loja", "helper", L.cfg.helper);
 	char *a = arquivo_cfg(), *dir = g_path_get_dirname(a);
 	g_mkdir_with_parents(dir, 0700);
@@ -64,6 +67,7 @@ static void refazer_lista(void) {
 	static const enum lj_ordem ORDEM[] = { LJ_RELEVANCIA, LJ_NOME, LJ_TAMANHO, LJ_NOTA };
 	static const double NOTA[] = { 0, 4, 3 };
 	L.natualiz = lj_contar_atualizaveis(L.cat);
+	drivers_atualizar();
 	L.f.texto = L.busca;
 	L.f.por = POR[CLAMP(L.por_idx, 0, 2)];
 	L.f.cat = CLAMP(L.cat_idx, 0, LJ_NCATS - 1);
@@ -107,11 +111,13 @@ static void refazer_lista(void) {
 
 typedef struct {
 	lj_catalogo *c;
+	lh_hw *hw;
 } carga;
 
 static void carga_pronta(void *d) {
 	carga *k = d;
 	L.cat = k->c;
+	L.hw = k->hw;
 	L.carregando = false;
 	if (!k->c) {
 		g_strlcpy(L.erro_carga, "Não consegui ler os repositórios (o pacman está instalado e a lista sincronizada?).", sizeof(L.erro_carga));
@@ -123,6 +129,7 @@ static void carga_pronta(void *d) {
 static gpointer carga_thread(gpointer d) {
 	carga *k = g_new0(carga, 1);
 	k->c = lj_catalogo_ler();
+	k->hw = lh_detectar();
 	if (k->c) {
 		lj_marcar_atualizacoes(k->c, L.helper);
 	}
@@ -196,6 +203,11 @@ void buscar_aur_agora(void) {
 
 typedef struct {
 	int acao;
+	char nomes[4][96];
+	int nn;
+	bool kernel;
+	lh_checagem checks[4];
+	int nchecks;
 	lj_pacote p;
 	bool tem_p;
 	int codigo;
@@ -221,11 +233,13 @@ static void acao_pronta(void *d) {
 	g_strlcpy(L.ag_erro, t->erro, sizeof(L.ag_erro));
 	g_mutex_unlock(&L.ag_mutex);
 	L.agindo = false;
+	L.ag_nchecks = t->nchecks;
+	memcpy(L.ag_checks, t->checks, sizeof(t->checks));
 	if (t->ins) {
 		ins_pendente = t->ins;
 		aplicar_instalados();
 	}
-	if (t->codigo == 0 && L.cat) {
+	if (t->codigo == 0 && L.cat && t->nn == 0) {
 		lj_marcar_atualizado(L.cat, t->acao == LJ_ATUALIZAR_TUDO ? NULL : t->p.nome);
 	}
 	g_free(t);
@@ -241,8 +255,25 @@ static void linha_da_acao(void *dados, const char *linha) {
 
 static gpointer acao_thread(gpointer d) {
 	trabalho *t = d;
-	t->codigo = lj_executar((enum lj_acao)t->acao, t->tem_p ? &t->p : NULL, L.helper, linha_da_acao, NULL, t->erro, sizeof(t->erro));
+	if (t->nn > 0) {
+		const char *nomes[4];
+		for (int i = 0; i < t->nn; i++) {
+			nomes[i] = t->nomes[i];
+		}
+		t->codigo = lj_executar_nomes((enum lj_acao)t->acao, nomes, t->nn, linha_da_acao, NULL, t->erro, sizeof(t->erro));
+	} else {
+		t->codigo = lj_executar((enum lj_acao)t->acao, t->tem_p ? &t->p : NULL, L.helper, linha_da_acao, NULL, t->erro, sizeof(t->erro));
+	}
 	t->ins = lj_instalados_ler();
+	if (t->kernel && t->acao == LJ_INSTALAR && t->codigo == 0 && L.hw) {
+		/* o pacman terminou: a Loja confere o que ficou em /boot e no gerenciador de boot, e avisa (não mexe no boot) */
+		t->nchecks = lh_verificar_kernel(L.hw, t->nomes[0], t->checks, 4);
+		for (int i = 0; i < t->nchecks; i++) {
+			char *l = g_strdup_printf("%s %s", t->checks[i].ok ? "✓" : "⚠", t->checks[i].texto);
+			linha_da_acao(NULL, l);
+			g_free(l);
+		}
+	}
 	gv_na_linha_principal(acao_pronta, t);
 	return NULL;
 }
@@ -267,8 +298,38 @@ void iniciar_acao(int acao, const char *nome) {
 	L.ag_fim = L.ag_ok = false;
 	L.ag_erro[0] = '\0';
 	g_mutex_unlock(&L.ag_mutex);
+	L.ag_nchecks = 0;
 	L.ag_painel = true;
 	L.conf_aberta = false;
+	L.det_aberto = false;
+	g_thread_unref(g_thread_new("loja-acao", acao_thread, t));
+	gv_app_redesenhar(L.app);
+}
+
+void iniciar_acao_nomes(int acao, const char *const *nomes, int n, const char *exibicao, bool kernel) {
+	if (L.agindo || !L.cat || n <= 0 || n > 4) {
+		return;
+	}
+	trabalho *t = g_new0(trabalho, 1);
+	t->acao = acao;
+	t->nn = n;
+	t->kernel = kernel;
+	for (int i = 0; i < n; i++) {
+		g_strlcpy(t->nomes[i], nomes[i], sizeof(t->nomes[i]));
+	}
+	L.agindo = true;
+	L.ag_acao = acao;
+	g_strlcpy(L.ag_nome, nomes[0], sizeof(L.ag_nome));
+	g_strlcpy(L.ag_exibicao, exibicao, sizeof(L.ag_exibicao));
+	g_mutex_lock(&L.ag_mutex);
+	g_ptr_array_set_size(L.ag_linhas, 0);
+	L.ag_fim = L.ag_ok = false;
+	L.ag_erro[0] = '\0';
+	g_mutex_unlock(&L.ag_mutex);
+	L.ag_nchecks = 0;
+	L.ag_painel = true;
+	L.d_conf_aberta = false;
+	L.d_det_aberto = false;   /* o painel do andamento fica por cima de tudo, sem um detalhe aberto tapando */
 	g_thread_unref(g_thread_new("loja-acao", acao_thread, t));
 	gv_app_redesenhar(L.app);
 }
@@ -338,8 +399,8 @@ static void depurar(void) {
 	F("lj-busca"); F("lj-rolagem"); F("lj-limpar"); F("lj-ordem"); F("lj-por"); F("lj-cat"); F("lj-nota"); F("lj-sem-aval"); F("lj-repo-core"); F("lj-repo-extra"); F("lj-repo-multilib"); F("lj-repo-aur");
 	F("lj-mais"); F("lj-atualizar-tudo"); F("lj-ver-deps"); F("lj-recarregar"); F("lj-aur-erro");
 	F("lj-ex-ordem"); F("lj-det-fechar"); F("lj-det-acao"); F("lj-det-remover"); F("lj-det-url");
-	F("lj-conf-ok"); F("lj-tentar"); F("lj-conf-cancelar"); F("lj-ag-fechar"); F("lj-ag-painel"); F("lj-cfg-aur"); F("lj-cfg-confirmar"); F("lj-cfg-helper");
-	SERIE("lj-nav", 6); SERIE("lj-tipo", 6);
+	F("lj-conf-ok"); F("lj-tentar"); F("lj-d-compat"); F("lj-d-hw"); F("lj-hw-fechar"); F("lj-dd-fechar"); F("lj-dd-instalar"); F("lj-dd-remover"); F("lj-dc-ok"); F("lj-dc-cancelar"); F("lj-cfg-avancado"); F("lj-conf-cancelar"); F("lj-ag-fechar"); F("lj-ag-painel"); F("lj-cfg-aur"); F("lj-cfg-confirmar"); F("lj-cfg-helper");
+	SERIE("lj-nav", 6); SERIE("lj-d-aba", 2); SERIE("lj-d-ver", 24); SERIE("lj-d-linha", 24); SERIE("lj-tipo", 6);
 	{ Clay_ElementId base_ = CLAY_ID("lj-abas"); for (int i_ = 0; i_ < 7; i_++) { g_ptr_array_add(nomes, g_strdup_printf("lj-aba/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(base_.stringId, base_.offset * 64 + 3000017u + (uint32_t)i_, base_.baseId); g_array_append_val(ids, e_.id); } }
 	 SERIE("lj-linha", 120); SERIE("lj-acao", 120); SERIE("lj-cartao", 60); SERIE("lj-cacao", 60);
 #undef F
@@ -368,13 +429,28 @@ static void depurar(void) {
 		g_string_append_printf(it, "%s%s", k ? "," : "", p ? p->nome : "?");
 	}
 	int natual = L.natualiz;
+	int ckok = 0;
+	for (int i = 0; i < L.ag_nchecks; i++) {
+		ckok += L.ag_checks[i].ok;
+	}
+	int drn = 0;
+	for (int i = 0; i < L.nitens_hw; i++) {
+		const lh_item *x = &L.itens_hw[i];
+		bool aba = L.d_aba == 1 ? x->grupo == LH_KERNEL : x->grupo != LH_KERNEL;
+		drn += aba && (!L.d_so_compat || x->instalado || (!x->nao_aplica && x->compat != LH_INCOMPATIVEL));
+	}
+	GString *hwtxt = g_string_new(NULL);
+	for (int i = 0; L.hw && i < L.hw->ngpu; i++) {
+		g_string_append_printf(hwtxt, "%s%s/%s", i ? "," : "", L.hw->gpus[i].vendor, L.hw->gpus[i].nome);
+	}
 	g_mutex_lock(&L.ag_mutex);
 	guint nl = L.ag_linhas->len;
 	g_mutex_unlock(&L.ag_mutex);
-	char *estado = g_strdup_printf("tela=%d carregando=%d npkg=%d nres=%d busca=[%s] aur_ocupado=%d aur_erro=[%s] agindo=%d ag_fim=%d ag_ok=%d ag_linhas=%u ag_nome=[%s] ag_painel=%d det=[%s] conf=%d natual=%d helper=[%s] cfg_aur=%d cfg_conf=%d cfg_helper=[%s] tipo=%d cat=%d ordem=%d ex_cat=%d inst_todos=%d mostrar=%d ninst=%d itens=[%s]",
+	char *estado = g_strdup_printf("tela=%d carregando=%d npkg=%d nres=%d busca=[%s] aur_ocupado=%d aur_erro=[%s] agindo=%d ag_fim=%d ag_ok=%d ag_linhas=%u ag_nome=[%s] ag_painel=%d det=[%s] conf=%d natual=%d helper=[%s] cfg_aur=%d cfg_conf=%d cfg_helper=[%s] tipo=%d cat=%d ordem=%d ex_cat=%d inst_todos=%d mostrar=%d ninst=%d dr_n=%d dr_aba=%d dr_compat=%d dr_det=[%s] dr_conf=%d hw=[%s] avancado=%d checks=%d checks_ok=%d itens=[%s]",
 		L.tela, L.carregando, L.cat ? lj_n(L.cat) : 0, L.nres, L.busca, L.aur_ocupado, L.aur_erro, L.agindo, L.ag_fim, L.ag_ok, nl, L.ag_nome, L.ag_painel, L.det_aberto ? L.det : "", L.conf_aberta, natual,
-		L.helper ? L.helper : "", L.cfg.aur, L.cfg.confirmar, L.cfg.helper, L.f.tipo, L.cat_idx, L.ordem_idx, L.ex_cat, L.inst_todos, L.mostrar, ninst, it->str);
+		L.helper ? L.helper : "", L.cfg.aur, L.cfg.confirmar, L.cfg.helper, L.f.tipo, L.cat_idx, L.ordem_idx, L.ex_cat, L.inst_todos, L.mostrar, ninst, drn, L.d_aba, L.d_so_compat, L.d_det_aberto ? L.d_det : "", L.d_conf_aberta, L.hw ? hwtxt->str : "", L.cfg.avancado, L.ag_nchecks, ckok, it->str);
 	g_string_free(it, TRUE);
+	g_string_free(hwtxt, TRUE);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("estado %s\n", estado);
 		g_free(estado_antes);
@@ -444,6 +520,7 @@ int main(int argc, char **argv) {
 	L.ag_linhas = g_ptr_array_new_with_free_func(g_free);
 	ler_cfg();
 	lj_filtro_padrao(&L.f);
+	L.d_so_compat = true;   /* por padrão a página mostra só o que serve a este computador */
 	L.mostrar = 100;
 	L.app = gv_app_criar(&(gv_opcoes){ .titulo = "Loja LUMNA", .app_id = "lumna-loja", .largura = 1280, .altura = 800 });
 	if (!L.app) {

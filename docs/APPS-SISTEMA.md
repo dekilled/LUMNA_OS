@@ -20,11 +20,11 @@ Virou a **fase 4 da Galeria** (combinado: a Galeria já edita vídeo e mostra as
 
 ## 4. Loja de apps
 
-Esboço recebido (Explorar, Pacotes com busca e filtros, Drivers e kernels), e a Loja ficou **expandida**: apps dos repositórios do Arch e do **AUR (paru/yay)**, mais drivers e kernels com checagem de compatibilidade. Em duas fases: **1. apps (pronta, aguardando seu teste)** e **2. Drivers e kernels (não começada)**. Tudo em [LOJA.md](LOJA.md). Decidido com você: o AUR usa o paru ou o yay que estiver instalado (escolhido em Configurações); as avaliações da comunidade LUMNA ficam com a interface pronta e sem dados até existir um servidor.
+Esboço recebido (Explorar, Pacotes com busca e filtros, Drivers e kernels), e a Loja ficou **expandida**: apps dos repositórios do Arch e do **AUR (paru/yay)**, mais drivers e kernels com checagem de compatibilidade. Em duas fases: **1. apps (pronta, aguardando seu teste)** e **2. Drivers e kernels (pronta, aguardando seu teste)**. Tudo em [LOJA.md](LOJA.md). Decidido com você: o AUR usa o paru ou o yay que estiver instalado (escolhido em Configurações); as avaliações da comunidade LUMNA ficam com a interface pronta e sem dados até existir um servidor.
 
 ## 5. Instalador de drivers
 
-**Virou a fase 2 da Loja** (a página Drivers e kernels do esboço). O texto abaixo é o plano antigo.
+**Virou a fase 2 da Loja** (a página Drivers e kernels do esboço): pronta, aguardando seu teste, em [LOJA.md](LOJA.md). O texto abaixo é o plano antigo.
 
 Detecta a placa de vídeo (e o que mais precisar de driver) e instala o pacote certo (NVIDIA, AMD, Intel) pelo pacman, com a senha pelo polkit do LUMNA. Sem esboço ainda. Em aberto: onde ele mora (app próprio, uma página do Painel, ou os dois) e se roda sozinho no pré-configuração.
 

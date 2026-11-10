@@ -122,6 +122,17 @@ void painel_andamento(void) {
 				gv_texto(CLAY_STRING("Esperando o pacman…"), gv_t.tamanho_legenda, gv_t.texto_suave, GV_PESO_NORMAL);
 			}
 		}
+		if (fim && ok && L.ag_nchecks > 0) {
+			CLAY(CLAY_ID("lj-ag-checks"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(10), .childGap = 6 },
+				.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno) }) {
+				gv_texto(CLAY_STRING("O que a Loja conferiu do boot:"), gv_t.tamanho_corpo - 1, gv_t.texto, GV_PESO_MEDIO);
+				for (int i = 0; i < L.ag_nchecks; i++) {
+					CLAY(CLAY_IDI("lj-ag-ck", (uint32_t)i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						gv_texto(gv_fmt("%s %s", L.ag_checks[i].ok ? "✓" : "⚠", L.ag_checks[i].texto), gv_t.tamanho_corpo - 2, L.ag_checks[i].ok ? gv_t.sucesso : gv_t.aviso, GV_PESO_NORMAL);
+					}
+				}
+			}
+		}
 		if (fim && !ok && erro[0]) {
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
 				gv_texto(gv_str(erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
@@ -180,6 +191,7 @@ static void corpo_confirmar(void *d) {
 void detalhe_dialogo(void);
 
 void dialogos(void) {
+	drivers_dialogos();
 	if (L.det_aberto && !L.conf_aberta) {
 		detalhe_dialogo();
 	}

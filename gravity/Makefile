@@ -185,9 +185,9 @@ musica: $(MUSICA) exemplos/musica/app.h servicos/musica.c servicos/musica.h serv
 	$(CC) $(CFLAGS) -Iservicos -Iexemplos/musica $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(MUSICA) servicos/musica.c servicos/musica_player.c servicos/musica_mpris.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
 
 # a loja de aplicativos (lumna-loja)
-LOJA = exemplos/loja/principal.c exemplos/loja/barra.c exemplos/loja/telas.c
-loja: $(LOJA) exemplos/loja/app.h servicos/loja.c servicos/loja.h servicos/json.c servicos/json.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos -Iexemplos/loja $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(LOJA) servicos/loja.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
+LOJA = exemplos/loja/principal.c exemplos/loja/barra.c exemplos/loja/telas.c exemplos/loja/drivers.c
+loja: $(LOJA) exemplos/loja/app.h servicos/loja.c servicos/loja.h servicos/loja_hw.c servicos/loja_hw.h servicos/json.c servicos/json.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -Iexemplos/loja $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(LOJA) servicos/loja.c servicos/loja_hw.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
 
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a

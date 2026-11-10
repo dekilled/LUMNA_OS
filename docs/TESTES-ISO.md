@@ -291,6 +291,21 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.227 | Com o catálogo carregado, digite uma letra | Não trava (vários milhares de pacotes) | ☐ |
 | 2.228 | Se o app cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-loja-<número>.log`; mande-o para mim | ☐ |
 
+### 2g. Loja: drivers e kernels (fase 2)
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.229 | Loja > Drivers e kernels | Mostra o hardware detectado (a sua placa de vídeo e x86_64); "Ver hardware" lista processador, memória, kernel em uso, UEFI e o gerenciador de boot | ☐ |
+| 2.230 | Confira a lista de Drivers de vídeo | Só o que serve à sua placa aparece; o `mesa` aparece como Instalado | ☐ |
+| 2.231 | Desligue "Mostrar só compatíveis" e abra "Ver detalhes" de um driver de outra marca | Aparece Incompatível com o motivo ("não tem placa NVIDIA") e o Instalar bloqueado | ☐ |
+| 2.232 | Se a sua placa é NVIDIA: abra o `nvidia-open` e o `nvidia-dkms` | Dizem se servem à geração da sua placa; o dkms avisa que leva os headers | ☐ |
+| 2.233 | Aba Kernels: abra o `linux` (em uso) | Diz que é o kernel em uso e não oferece Remover | ☐ |
+| 2.234 | Instale o `linux-lts` | Pergunta; pede a senha; instala o kernel e os headers; o painel mostra o que foi conferido em `/boot` e no menu do boot | ☐ |
+| 2.235 | Se o painel disser que o GRUB (ou systemd-boot) não tem o kernel: rode o comando que ele mostrou | O kernel aparece no menu do boot ao reiniciar; escolha o linux-lts, entre e volte ao linux | ☐ |
+| 2.236 | Remova o `linux-lts` (estando no `linux`) | Remove o kernel e os headers; o `linux` em uso nunca tem Remover | ☐ |
+| 2.237 | Configurações > Modo avançado | Liga (e grava); um item Incompatível passa a ter "Instalar mesmo assim", com a confirmação em vermelho | ☐ |
+| 2.238 | **Não instale** nada incompatível de verdade. Só confira os motivos | Os motivos fazem sentido para o seu computador (se algo estiver errado, me diga o modelo da placa) | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

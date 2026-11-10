@@ -376,6 +376,10 @@ int lj_contar_atualizaveis(const lj_catalogo *c) {
 	return n;
 }
 
+const char *lj_versao_instalada(const lj_catalogo *c, const char *nome) {
+	return g_hash_table_lookup(c->instalados, nome);
+}
+
 void lj_marcar_atualizado(lj_catalogo *c, const char *nome) {
 	for (int a = 0; a < 2; a++) {
 		GArray *v = a ? c->aur : c->v;
@@ -786,4 +790,33 @@ int lj_executar(enum lj_acao acao, const lj_pacote *p, const char *helper, lj_li
 	}
 	g_strlcpy(erro, "ação sem pacote", tam);
 	return -1;
+}
+
+int lj_executar_nomes(enum lj_acao acao, const char *const *nomes, int n, lj_linha_fn linha, void *dados, char *erro, size_t tam) {
+	erro[0] = '\0';
+	if ((acao != LJ_INSTALAR && acao != LJ_REMOVER) || n <= 0 || n > 8) {
+		g_strlcpy(erro, "ação sem pacotes", tam);
+		return -1;
+	}
+	const char *sem = g_getenv("LUMNA_SEM_PKEXEC");
+	GPtrArray *a = g_ptr_array_new();
+	if (!(sem && *sem)) {
+		g_ptr_array_add(a, "pkexec");
+	}
+	g_ptr_array_add(a, "pacman");
+	if (acao == LJ_INSTALAR) {
+		g_ptr_array_add(a, "-S");
+		g_ptr_array_add(a, "--noconfirm");
+		g_ptr_array_add(a, "--needed");
+	} else {
+		g_ptr_array_add(a, "-Rns");
+		g_ptr_array_add(a, "--noconfirm");
+	}
+	for (int i = 0; i < n; i++) {
+		g_ptr_array_add(a, (gpointer)nomes[i]);
+	}
+	g_ptr_array_add(a, NULL);
+	int r = rodar_fluxo((char **)a->pdata, linha, dados, erro, tam);
+	g_ptr_array_free(a, TRUE);
+	return r;
 }

@@ -56,6 +56,9 @@ const lj_pacote *lj_achar(const lj_catalogo *c, const char *nome);   /* reposit�
 
 int lj_contar_atualizaveis(const lj_catalogo *c);
 
+/* a versão instalada de um pacote pelo nome (NULL se não está instalado) */
+const char *lj_versao_instalada(const lj_catalogo *c, const char *nome);
+
 /* depois de atualizar: tira a marca de atualização de um pacote (nome) ou de todos (NULL) */
 void lj_marcar_atualizado(lj_catalogo *c, const char *nome);
 
@@ -104,5 +107,7 @@ void lj_aur_limpar(lj_catalogo *c);
 enum lj_acao { LJ_INSTALAR, LJ_REMOVER, LJ_ATUALIZAR_TUDO };
 typedef void (*lj_linha_fn)(void *dados, const char *linha);
 int lj_executar(enum lj_acao acao, const lj_pacote *p, const char *helper, lj_linha_fn linha, void *dados, char *erro, size_t tam);
+/* vários pacotes dos repositórios oficiais numa transação só (um kernel e os headers dele): LJ_INSTALAR ou LJ_REMOVER */
+int lj_executar_nomes(enum lj_acao acao, const char *const *nomes, int n, lj_linha_fn linha, void *dados, char *erro, size_t tam);
 
 #endif
