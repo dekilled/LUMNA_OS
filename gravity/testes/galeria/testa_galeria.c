@@ -72,6 +72,23 @@ int main(int argc, char **argv) {
 	gl_cfg_gravar(&l);
 	gl_cfg_ler(&l);
 	CONFERE(l.tam == 260 && l.npastas == 0, "fora da faixa vira o limite e uma lista vazia de pastas vale (%d, %d)", l.tam, l.npastas);
+	/* o player: o padrão é o da Galeria; o ajuste antigo (video_mpv) migra; o novo vale */
+	gl_cfg_padrao(&c);
+	CONFERE(c.video_com == GL_VIDEO_GALERIA, "o vídeo abre no player da Galeria por padrão (%d)", c.video_com);
+	{
+		char *ini = g_build_filename(g_get_user_config_dir(), "lumna", "galeria", "config.ini", NULL);
+		const char *v[][2] = { { "video_mpv=true", "" }, { "video_mpv=false", "" }, { "video_mpv=true\nvideo_com=0", "" }, { "video_com=2", "" }, { "video_com=9", "" } };
+		int esperado[] = { GL_VIDEO_MPV, GL_VIDEO_PADRAO, GL_VIDEO_GALERIA, GL_VIDEO_PADRAO, GL_VIDEO_PADRAO };
+		for (int i = 0; i < 5; i++) {
+			char *txt = g_strdup_printf("[galeria]\n%s\n", v[i][0]);
+			g_file_set_contents(ini, txt, -1, NULL);
+			g_free(txt);
+			gl_cfg x;
+			gl_cfg_ler(&x);
+			CONFERE(x.video_com == esperado[i] || (i == 4 && x.video_com == GL_VIDEO_PADRAO), "migração/leitura do ajuste de vídeo %s → %d (esperado %d)", v[i][0], x.video_com, esperado[i]);
+		}
+		g_free(ini);
+	}
 	gl_cfg_ler(&c); /* de novo com as pastas vazias */
 	gl_cfg_padrao(&c);
 	c.npastas = 2;

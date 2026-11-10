@@ -58,7 +58,7 @@ void gl_cfg_padrao(gl_cfg *c) {
 	c->ajustar_tela = true;
 	c->formato = GL_FORMATO_ORIGINAL;
 	c->qualidade_jpeg = 90;
-	c->video_mpv = true;
+	c->video_com = GL_VIDEO_GALERIA;
 	c->volume = 80;
 	c->repetir = false;
 	c->cache = true;
@@ -106,7 +106,10 @@ void gl_cfg_ler(gl_cfg *c) {
 	BOOL("ajustar_tela", ajustar_tela);
 	INT("formato", formato, 0, 2);
 	INT("qualidade_jpeg", qualidade_jpeg, 50, 100);
-	BOOL("video_mpv", video_mpv);
+	INT("video_com", video_com, 0, 2);
+	if (!g_key_file_has_key(kf, "galeria", "video_com", NULL) && g_key_file_has_key(kf, "galeria", "video_mpv", NULL)) { /* o ajuste de antes: mpv ou o padrão */
+		c->video_com = g_key_file_get_boolean(kf, "galeria", "video_mpv", NULL) ? GL_VIDEO_MPV : GL_VIDEO_PADRAO;
+	}
 	INT("volume", volume, 0, 100);
 	BOOL("repetir", repetir);
 	BOOL("cache", cache);
@@ -139,7 +142,7 @@ bool gl_cfg_gravar(const gl_cfg *c) {
 	BOOL("ajustar_tela", ajustar_tela);
 	INT("formato", formato);
 	INT("qualidade_jpeg", qualidade_jpeg);
-	BOOL("video_mpv", video_mpv);
+	INT("video_com", video_com);
 	INT("volume", volume);
 	BOOL("repetir", repetir);
 	BOOL("cache", cache);

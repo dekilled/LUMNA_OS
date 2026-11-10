@@ -1,7 +1,7 @@
 #!/bin/sh
 # A Galeria: o serviço (biblioteca, EXIF, ordem, filtros, grupos, favoritos, álbuns, miniaturas) e os dos editores de fotos e de vídeos (servicos/edicao.c e edicao_video.c), cada um
 # numa biblioteca de mentira e, com a pasta do build do Orbit (sh galeria.sh PASTA_DO_ORBIT), o app inteiro num Orbit headless
-# (testes/galeria/teste_ui.sh: a biblioteca e, com TESTE=teste_editor.py, o editor de fotos e, com TESTE=teste_editor_video.py, o de vídeos).
+# (testes/galeria/teste_ui.sh: a biblioteca e, com TESTE=teste_editor.py, o editor de fotos e, com TESTE=teste_editor_video.py, o de vídeos e, com TESTE=teste_player.py, o player de vídeo).
 set -e
 AQUI=$(cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d)
@@ -18,9 +18,13 @@ cc $CF -O2 -o "$T/testa_edicao" testes/galeria/testa_edicao.c servicos/edicao.c 
 mkdir -p "$T/video"
 cc $CF -O2 -o "$T/testa_edicao_video" testes/galeria/testa_edicao_video.c servicos/edicao_video.c $(pkg-config --libs glib-2.0 gdk-pixbuf-2.0) -lm
 "$T/testa_edicao_video" "$T/video"
+mkdir -p "$T/vp"
+cc $CF -O1 $(pkg-config --cflags mpv) -o "$T/testa_video_player" testes/galeria/testa_video_player.c servicos/video_player.c $(pkg-config --libs glib-2.0 mpv) -lm -lpthread
+"$T/testa_video_player" "$T/vp"
 if [ -n "${1:-}" ]; then
 	sh testes/galeria/teste_ui.sh "$1" "$AQUI"
 	TESTE=teste_editor.py sh testes/galeria/teste_ui.sh "$1" "$AQUI"
 	TESTE=teste_editor_video.py sh testes/galeria/teste_ui.sh "$1" "$AQUI"
+	TESTE=teste_player.py sh testes/galeria/teste_ui.sh "$1" "$AQUI"
 fi
 rm -rf "$T"

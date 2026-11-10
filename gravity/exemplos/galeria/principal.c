@@ -127,6 +127,9 @@ void refiltrar(void) {
 	if (G.ancora >= G.nvis) {
 		G.ancora = -1;
 	}
+	if (G.tela == T_PLAYER && !visualizador_reposicionar_video()) {
+		player_fechar();
+	}
 	if (G.tela == T_VISUALIZADOR) { /* a lista mudou com uma foto aberta: ela segue onde estiver, ou o visualizador fecha */
 		if (!visualizador_reposicionar()) {
 			visualizador_fechar();
@@ -139,7 +142,7 @@ static void reordenar(void) {
 	refiltrar();
 }
 
-static void gravar_cfg(void) {
+void gravar_cfg(void) {
 	gl_cfg_gravar(&G.cfg);
 }
 
@@ -633,8 +636,9 @@ static void compartilhar_com(int c) {
 
 /* ---------------- abrir ---------------- */
 
-void abrir_no_player(const gl_midia *m) {
-	char *mpv = G.cfg.video_mpv ? g_find_program_in_path("mpv") : NULL;
+/* Fora da Galeria: no mpv (janela separada) ou no aplicativo padrão do sistema. */
+void abrir_no_player_externo(const gl_midia *m) {
+	char *mpv = G.cfg.video_com == GL_VIDEO_PADRAO ? NULL : g_find_program_in_path("mpv");
 	char *volume = g_strdup_printf("--volume=%d", G.cfg.volume);
 	if (mpv) {
 		char *argv[] = { mpv, volume, G.cfg.repetir ? "--loop=inf" : "--loop=no", "--force-window=yes", "--", (char *)m->caminho, NULL };
@@ -653,7 +657,11 @@ void abrir_midia(int k) {
 	}
 	const gl_midia *m = midia_vis(k);
 	if (m->tipo == GL_VIDEO) {
-		abrir_no_player(m);
+		if (G.cfg.video_com == GL_VIDEO_GALERIA) {
+			player_abrir(k);
+		} else {
+			abrir_no_player_externo(m);
+		}
 	} else {
 		visualizador_abrir(k);
 	}
@@ -1414,6 +1422,7 @@ static void desenhar(gv_app *a, void *dados) {
 		case T_AJUSTES: ajustes_desenhar(); break;
 		case T_EDITOR: editor_desenhar(); break;
 		case T_EDITOR_VIDEO: editor_video_desenhar(); break;
+		case T_PLAYER: player_desenhar(); break;
 		default:
 			teclado_da_biblioteca();
 			biblioteca();
@@ -1462,6 +1471,8 @@ static void depurar(void) {
 	F("ed-restaurar"); F("ed-recorte-restaurar"); F("ed-girar-restaurar"); F("ed-inverter"); F("ed-girar-e"); F("ed-girar-d"); F("ed-esp-h"); F("ed-esp-v");
 	F("ed-dlg-continuar"); F("ed-dlg-descartar"); F("ed-sec-luz"); F("ed-sec-cor"); F("ed-painel-rol");
 	F("vd-voltar"); F("vd-cancelar"); F("vd-exportar"); F("vd-play"); F("vd-faixa"); F("vd-previa"); F("vd-mudo"); F("vd-vol"); F("vd-girar"); F("vd-dlg-continuar"); F("vd-dlg-descartar");
+	F("pl-voltar"); F("pl-editar"); F("pl-fav"); F("pl-mais"); F("pl-area"); F("pl-central"); F("pl-ant"); F("pl-play"); F("pl-prox"); F("pl-vol-icone"); F("pl-vol"); F("pl-seek"); F("pl-vel"); F("pl-faixas"); F("pl-repetir"); F("pl-tela"); F("pl-erro-mpv"); F("pl-m-mpv"); F("pl-m-lixeira");
+	SERIE("pl-vel-i", 6); SERIE("pl-leg-i", 4); SERIE("pl-aud-i", 4);
 	SERIE("vd-mais", 2); SERIE("vd-menos", 2);
 	SERIE("ed-aba", 4); SERIE("ed-sl", 8); SERIE("ed-chip", 8); SERIE("ed-prop", 9); SERIE("ed-filtro", 9);
 	SERIE("aj-pasta", 8); SERIE("aj-pasta-mais", 8); SERIE("g-am-i", 8); SERIE("g-cm-c", 4);
@@ -1490,6 +1501,7 @@ static void depurar(void) {
 	GString *ed = g_string_new(NULL);
 	editor_estado(ed);
 	editor_video_estado(ed);
+	player_estado(ed);
 	char *estado = g_strdup_printf("tela=%d vista=%d album=%d nvis=%d nsel=%d busca=[%s] ordem=%d vista_cfg=%d agrupar=%d ngrupos=%d carregando=%d aberta=%d tam=%d albuns=%d cache=%d primeiro_grupo=[%s] itens=[%s]%s",
 		G.tela, G.vista, G.album, G.nvis, sel_n(), G.busca, G.cfg.ordem, G.cfg.vista, G.cfg.agrupar, G.ngrupos, G.carregando, G.aberta, G.cfg.tam, G.albuns.n, G.cfg.cache,
 		G.ngrupos ? G.grupos[0].rotulo : "", ordem->str, ed->str);
@@ -1546,5 +1558,7 @@ int main(int argc, char **argv) {
 	recarregar_biblioteca();
 	(void)argc;
 	(void)argv;
-	return gv_app_correr(G.app, desenhar, NULL);
+	int r = gv_app_correr(G.app, desenhar, NULL);
+	player_encerrar();
+	return r;
 }

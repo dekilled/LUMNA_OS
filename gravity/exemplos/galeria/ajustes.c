@@ -184,11 +184,8 @@ static void corpo_edicao(void) {
 }
 
 static void corpo_reproducao(void) {
-	static const char *const P[] = { "O player do LUMNA (mpv)", "O aplicativo padrão do sistema" };
-	int p = G.edit.video_mpv ? 0 : 1;
-	if (linha_suspensa(CLAY_ID("aj-player"), "Abrir os vídeos com", P, 2, &p)) {
-		G.edit.video_mpv = p == 0;
-	}
+	static const char *const P[] = { "O player da Galeria", "O mpv, numa janela separada", "O aplicativo padrão do sistema" };
+	linha_suspensa(CLAY_ID("aj-player"), "Abrir os vídeos com", P, 3, &G.edit.video_com);
 	linha_deslizante(CLAY_ID("aj-volume"), "Volume", &G.edit.volume, 0, 100, "%");
 	linha_interruptor(CLAY_ID("aj-repetir"), "Repetir o vídeo", &G.edit.repetir);
 }
@@ -215,7 +212,7 @@ static void restaurar_pagina(void) {
 		break;
 	case 1: G.edit.vista = p.vista; G.edit.ajustar_tela = p.ajustar_tela; G.edit.nomes = p.nomes; break;
 	case 2: G.edit.formato = p.formato; G.edit.qualidade_jpeg = p.qualidade_jpeg; break;
-	case 3: G.edit.video_mpv = p.video_mpv; G.edit.volume = p.volume; G.edit.repetir = p.repetir; break;
+	case 3: G.edit.video_com = p.video_com; G.edit.volume = p.volume; G.edit.repetir = p.repetir; break;
 	default: G.edit.cache = p.cache; G.edit.lixeira_na_barra = p.lixeira_na_barra; G.edit.confirmar_apagar = p.confirmar_apagar; break;
 	}
 }

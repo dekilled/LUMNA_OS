@@ -28,6 +28,7 @@ enum { GL_VISTA_GRADE, GL_VISTA_LISTA };
 enum { GL_QUAL_RAPIDA, GL_QUAL_EQUILIBRADA, GL_QUAL_ALTA };
 enum { GL_DUP_PERGUNTAR, GL_DUP_SUBSTITUIR, GL_DUP_MANTER_AMBOS, GL_DUP_PULAR };
 enum { GL_FORMATO_ORIGINAL, GL_FORMATO_JPEG, GL_FORMATO_PNG };
+enum { GL_VIDEO_GALERIA, GL_VIDEO_MPV, GL_VIDEO_PADRAO }; /* o player da Galeria; o mpv numa janela separada; o aplicativo padrão do sistema */
 
 typedef struct gl_cfg {
 	/* biblioteca */
@@ -49,7 +50,7 @@ typedef struct gl_cfg {
 	int formato;             /* GL_FORMATO_*: o da cópia salva pelo editor */
 	int qualidade_jpeg;      /* 50..100 */
 	/* reprodução */
-	bool video_mpv;          /* abrir vídeos no mpv (senão no aplicativo padrão) */
+	int video_com;           /* GL_VIDEO_*: com que se abre um vídeo */
 	int volume;              /* 0..100 */
 	bool repetir;
 	/* privacidade */

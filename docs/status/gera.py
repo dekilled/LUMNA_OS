@@ -72,7 +72,7 @@ areas = [
  ("Telas e monitores", "sim", "Estender, por modo, espelhar, só a da esquerda ou da direita, topbar por monitor e o botão de tela cheia.",
   "Num KDE falso. Você confirmou só as janelas, a tela cheia e o mouse."),
  ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
- ("Vídeo", "falta", "Ainda não há player de vídeo do LUMNA. O mpv vem com o Arch e, na sua máquina, não abre (a investigar).", "—"),
+ ("Vídeo", "sim", "O player de vídeo é parte da Galeria (libmpv dentro da janela, com os controles do LUMNA); o mpv separado continua como opção.", "Provado num Orbit sem tela, com o libmpv de verdade e som nulo. Falta você ver no PC: som, vídeos pesados, tela cheia."),
  ("Apps que ainda não existem", "falta", "bloco de notas, Code, Reminders, StoryTeller, Loja, Telefone e o navegador. O LUMNA antigo (Vue) está descartado por desempenho e espaço; o que ele tinha serve só de referência.", "—"),
 ]
 lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("Em andamento", "and"), "falta": ("Não existe", "sk")}
@@ -89,7 +89,7 @@ timeline = [
  ("A Mídia de verdade", "Firefox Developer Edition escolhido sozinho, perfil por Firefox, extensão validada, voltar que sai do serviço, nunca dois vídeos juntos e o YouTube em formato de TV.", "feito"),
  ("A ISO nova", "Auditoria do shell antigo, pacotes do Orbit e do Gravity, agente da senha de administrador, instalador em Gravity, sessão live, GRUB em UEFI e BIOS, atualizações pelo GitHub com snapshot e a ISO de teste no canal teste-orbit. O live já rodou num monitor de verdade, de um pendrive.", "feito"),
  ("Os apps do sistema começam", "Teclado na tela, o terminal Pulse com a Emma por dentro, a barra de título do lado do Orbit e o Atlas no lugar do Thunar, com abas, Rede e nuvem e arrastar e soltar entre apps.", "feito"),
- ("Agora", "Instalar numa máquina real (BIOS e UEFI) e passar pelos apps novos. Depois: o menu de contexto do Atlas, o mpv que não abre e o player de vídeo, o Gaming e os apps que faltam (Música, Navegador).", "agora"),
+ ("Agora", "Instalar numa máquina real (BIOS e UEFI) e passar pelos apps novos. Depois: o menu de contexto do Atlas, o Gaming e os apps que faltam (Música, Navegador).", "agora"),
 ]
 
 # ---------------------------------------------------------------------------------------- O QUE AINDA NÃO TEMOS (backlog)
@@ -137,8 +137,7 @@ backlog = [
   ("testar", "Terminal (Pulse)", "O comando por linguagem natural (Ctrl+E) você confirmou. Falta a correção de erro, a explicação antes de executar e a memória. Detalhes em docs/PULSE.md."),
   ("feito", "Captura de tela", "Imagem e vídeo confirmados por você. Falta o áudio da gravação."),
   ("testar", "Player de música (LUMNA Music)", "Pronto pelo seu esboço: biblioteca local com tags e capas, Álbuns, Artistas, Pastas, playlists e Favoritas, fila (arrastar para reordenar), letra sincronizada, busca, gapless, transição entre faixas, escolha da saída de áudio, MPRIS (tela de bloqueio, celular e Mídia controlam) e as configurações. Testado num Orbit sem tela com o mpv e o D-Bus de verdade (saída de áudio nula, ASAN/UBSAN sem relatório); falta você ouvir no PC: o som, sua biblioteca grande, a troca de saída e o toque. O Qobuz fica para depois. Roteiro: TESTES-ISO 2.180 a 2.199. Detalhes em docs/MUSICA.md."),
-  ("falta", "Player de vídeo", "O mpv por baixo, com os controles do LUMNA. O mpv abre (ele exigia um arquivo para abrir, você já confirmou). Espera o seu esboço; em aberto: o mpv em janela própria com os controles numa camada, ou o vídeo dentro da nossa janela."),
-  ("testar", "Galeria de fotos e vídeos (fases 1, 2 e 3)", "Pronta pelos seus esboços: biblioteca por data, álbuns, busca, seleção, visualizador com zoom, importar, compartilhar e configurações; o editor de fotos (Ajustar, Recortar, Girar, Filtros) e o editor de vídeos (faixa do tempo com recorte, prévia tocando sem som, áudio, girar e Exportar cópia em MP4). As cópias saem ao lado do original, que nunca é alterado. Testada só num Orbit sem tela (com ASAN/UBSAN); falta você ver no PC: disco lento, toque, fotos e vídeos grandes. Roteiro: TESTES-ISO 2.139 a 2.179. Detalhes em docs/GALERIA.md."),
+  ("testar", "Galeria de fotos e vídeos (fases 1 a 4)", "Pronta pelos seus esboços: biblioteca por data, álbuns, busca, seleção, visualizador com zoom, importar, compartilhar e configurações; o editor de fotos (Ajustar, Recortar, Girar, Filtros), o editor de vídeos (faixa do tempo com recorte, prévia tocando sem som, áudio, girar e Exportar cópia em MP4) e o player de vídeo dentro da janela (libmpv: buscar, volume, velocidade, legendas, áudio, tela cheia, MPRIS; o mpv separado continua como opção). As cópias saem ao lado do original, que nunca é alterado. Testada só num Orbit sem tela (com ASAN/UBSAN); falta você ver no PC: disco lento, toque, fotos e vídeos grandes. Roteiro: TESTES-ISO 2.139 a 2.179 e 2.200 a 2.214 (o player). Detalhes em docs/GALERIA.md."),
  ("falta", "Loja de apps", "Esboço: docs/visual/02-loja.jpg (Descobrir, Instalados, Atualizações, categorias, Essenciais para começar). Base: o serviço de pacotes do Painel. Em aberto: só pacman ou também Flatpak e AUR."),
  ("falta", "Instalador de drivers", "Detectar a placa de vídeo e instalar o driver certo pelo pacman, com a senha pelo polkit. Espera o seu esboço; em aberto: app próprio, página do Painel ou os dois."),
  ("falta", "Menu de pré-configuração (pós-instalação)", "O que aparece quando o sistema acaba de ser instalado: idioma e teclado, rede, tema, drivers, Emma, apps essenciais, Connect (a confirmar). Espera o seu esboço."),
@@ -269,12 +268,11 @@ simulado = [
 proximos = [
  ("Instalar numa máquina real, em BIOS e em UEFI", "Você faz hoje. O que falhar, me mande com o log (Painel > Sistema > Diagnóstico junta os relatórios)."),
  ("Ver as correções de hoje no notebook", "Dock (soltar fora), tema claro, pendrives no Atlas e a montagem automática, depois de atualizar pelo Painel. O NetworkManager só na próxima ISO."),
- ("Descobrir por que o mpv não abre", "Preciso do que aparece quando você roda mpv num terminal. É o pré-requisito do player de vídeo do LUMNA."),
  ("Passar pelos apps novos", "O que sobrou da lista \"Para você testar\": Atlas (abas, Cor e Ícone, Propriedades, arrastar, Rede e nuvem), Pulse, teclado na tela, Sair da conta e o arrastar e soltar. O que falhar eu corrijo antes de começar coisa nova."),
  ("Testar a Mídia, os avisos do PC e a captura de áudio", "O YouTube TV, a Netflix, um aviso do PC chegando no celular e a gravação com áudio."),
  ("O Início do Gaming (a biblioteca)", "É a maior parte visível que falta e o antigo já tem a referência."),
  ("Senhas e confirmações do PC no celular (polkit)", "O último pedaço do Connect completo."),
- ("Os apps que faltam, um por vez", "Player de vídeo, Música e Navegador primeiro; os que você ainda não descreveu esperam a sua resposta."),
+ ("Os apps que faltam, um por vez", "Navegador primeiro; os que você ainda não descreveu esperam a sua resposta."),
  ("Depois da ISO validada: tirar o shell antigo", "Só com o seu \"pode apagar\". Depois vem a interface do celular (um desenho juntos antes de qualquer código)."),
 ]
 

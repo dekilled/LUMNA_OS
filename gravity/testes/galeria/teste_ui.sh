@@ -1,4 +1,7 @@
 #!/bin/sh
+# (o player de vídeo fala MPRIS: precisa de um D-Bus de sessão; o mpv toca sem som, LUMNA_GALERIA_AO=null)
+[ -n "$LUMNA_GALERIA_DBUS" ] || { LUMNA_GALERIA_DBUS=1 exec dbus-run-session -- sh "$0" "$@"; }
+export LUMNA_GALERIA_AO=null
 # A Galeria inteira num Orbit headless. sh teste_ui.sh PASTA_DO_ORBIT PASTA_DO_GRAVITY (com o `make galeria` feito)
 orbit_dir=${1:?}; gravity=${2:?}
 aqui=$(cd "$(dirname "$0")" && pwd)

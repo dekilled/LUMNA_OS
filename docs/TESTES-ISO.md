@@ -252,6 +252,26 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.198 | Arrastar uma pasta de músicas e alguns arquivos do Atlas para a janela | A pasta entra na biblioteca; os arquivos vão para a fila | ☐ |
 | 2.199 | Se o app cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-music-<número>.log` com a pilha; mande-o para mim | ☐ |
 
+### 2e. Galeria: o player de vídeo (fase 4)
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.200 | Abra a Galeria e toque num vídeo | Abre o player dentro da janela, o vídeo toca com som | ☐ |
+| 2.201 | Toque no vídeo, aperte Espaço | Pausa e retoma (o botão grande do meio aparece pausado) | ☐ |
+| 2.202 | Clique no meio da barra de tempo; use as setas ← e → | Pula para o ponto; as setas andam 5 s (Shift, 30 s) | ☐ |
+| 2.203 | Mexa no volume, no mudo e nas setas ↑↓ | O volume muda e fica salvo na próxima vez | ☐ |
+| 2.204 | Velocidade (0,5× a 2×) | O vídeo acelera e desacelera, o som acompanha | ☐ |
+| 2.205 | Legendas e áudio: ponha um `.srt` com o nome do vídeo e abra o menu | A legenda aparece na lista e liga e desliga; um vídeo com dois áudios deixa trocar | ☐ |
+| 2.206 | Tela cheia (`F` ou duplo toque); fique parado uns segundos | Fica em tela cheia e os controles somem; mexer o mouse os traz de volta; Esc sai | ☐ |
+| 2.207 | `N` e `P`; os botões de anterior e próximo | Passam para os outros vídeos da lista que estava na tela | ☐ |
+| 2.208 | Deixe o vídeo chegar ao fim; toque no botão do meio | Para no fim; tocar recomeça do começo | ☐ |
+| 2.209 | Em Editar (ou `E`) | Abre o editor de vídeos com este vídeo | ☐ |
+| 2.210 | Menu "…" > Abrir no mpv | O mpv abre numa janela separada | ☐ |
+| 2.211 | Configurações > Reprodução > "Abrir os vídeos com" > mpv; toque num vídeo | Abre no mpv, não no player da Galeria; volte para "O player da Galeria" | ☐ |
+| 2.212 | Toque num vídeo pesado (4K ou 60 fps) | Toca; se engasgar, diga o vídeo e o PC (é a renderização por software) | ☐ |
+| 2.213 | Com o vídeo tocando, tela de bloqueio ou celular (controle de mídia) | Mostra o vídeo e os botões funcionam | ☐ |
+| 2.214 | Se o app cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-galeria-<número>.log` com a pilha; mande-o para mim | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

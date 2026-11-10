@@ -4,6 +4,7 @@
  *   grade.c         as mídias por data (grade e lista), com seleção
  *   visualizador.c  uma foto ou um vídeo em tela cheia (zoom, deslizar, detalhes)
  *   ajustes.c       a engrenagem: Biblioteca, Visualização, Edição, Reprodução e Privacidade
+ *   player.c        o player de vídeo (libmpv dentro da janela, com os controles do LUMNA)
  *   editor_video.c  o editor de vídeos: recorte na linha do tempo, áudio e giro (a conta é de servicos/edicao_video.c)
  *   editor.c        o editor de fotos: Ajustar, Recortar, Girar e Filtros (a conta é de servicos/edicao.c)
  * O que sabe de arquivos, EXIF, álbuns e miniaturas fica em servicos/galeria.c.
@@ -19,7 +20,7 @@
 #include "gravity.h"
 
 enum vista { V_TODAS, V_FOTOS, V_VIDEOS, V_FAVORITOS, V_RECENTES, V_LIXEIRA, V_ALBUM };
-enum tela { T_BIBLIOTECA, T_VISUALIZADOR, T_AJUSTES, T_EDITOR, T_EDITOR_VIDEO };
+enum tela { T_BIBLIOTECA, T_VISUALIZADOR, T_AJUSTES, T_EDITOR, T_EDITOR_VIDEO, T_PLAYER };
 
 typedef struct estado {
 	gv_app *app;
@@ -66,7 +67,8 @@ void sel_intervalo(int de, int ate);
 void alternar_favorita(const gl_midia *m);
 void mover_para_lixeira(char *const *caminhos, int n);
 void abrir_midia(int k);
-void abrir_no_player(const gl_midia *m);
+void abrir_no_player_externo(const gl_midia *m);
+void gravar_cfg(void);
 void aplicar_ajustes(const gl_cfg *novos);
 void menu_da_midia(int k);
 
@@ -85,6 +87,15 @@ void editor_abrir(const gl_midia *m, int voltar_para); /* voltar_para: a tela de
 void editor_desenhar(void);
 void editor_estado(GString *s); /* para os testes */
 cairo_surface_t *superficie_de(GdkPixbuf *pb); /* ARGB32 do pixbuf (para o cairo) */
+
+/* player.c */
+void player_abrir(int k);              /* o vídeo k da vista (posição em vis) */
+void player_desenhar(void);
+void player_estado(GString *s);        /* para os testes */
+bool player_tela_cheia(void);          /* a janela está em tela cheia por causa do player (o título some) */
+void player_fechar(void);
+void player_encerrar(void);            /* ao sair do app */
+bool visualizador_reposicionar_video(void); /* a lista mudou com o player aberto: ele segue o vídeo (verdadeiro) ou já não existe */
 
 /* editor_video.c */
 void editor_video_abrir(const gl_midia *m);

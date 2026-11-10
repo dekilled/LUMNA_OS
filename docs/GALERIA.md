@@ -7,6 +7,7 @@ A galeria do LUMNA OS, em Gravity (C/Clay), feita sobre o seu esboço (bibliotec
 | 1 | Biblioteca, visualizador com zoom, álbuns, favoritos, lixeira, importar, configurações | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
 | 2 | Editor de fotos (Ajustar, Recortar, Girar, Filtros; salva sempre uma cópia) | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
 | 3 | Editor de vídeos (recorte, áudio, girar, exportar) | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
+| 4 | Player de vídeo dentro da janela (libmpv): tocar, buscar, volume, velocidade, legendas, áudio, tela cheia, MPRIS | **pronta** (testada num Orbit sem tela, com som nulo; falta o seu teste no PC de verdade) |
 
 ## Fase 1: o que tem
 
@@ -16,7 +17,7 @@ A galeria do LUMNA OS, em Gravity (C/Clay), feita sobre o seu esboço (bibliotec
 - **Busca** pelo nome, sem precisar do acento.
 - **Seleção**: clique no quadradinho da miniatura, Ctrl+clique, Shift+clique (faixa), Ctrl+A, Esc limpa; com o dedo, segurar abre o menu. A barra de seleção tem Favoritar, Adicionar ao álbum, Compartilhar, Mover para a lixeira (ou Restaurar / Apagar para sempre, na Lixeira).
 - **Favoritos** e **álbuns** (criar, renomear, apagar, adicionar, tirar do álbum). Apagar um álbum **não apaga as fotos**. Guardados em `~/.config/lumna/galeria/`.
-- **Visualizador** (duplo clique ou Enter): zoom com a roda (em volta do ponteiro), `+`/`-` e duplo clique (alterna entre ajustada e 2,5×), `0` volta ao tamanho da tela; arrastar move a foto ampliada; as setas do teclado e os botões dos lados passam para a próxima; `I` mostra os detalhes (data, dimensões, tamanho, local); `F` favorita; Delete manda para a lixeira; Esc volta. **Vídeo** abre no player do LUMNA (mpv, com o volume e o repetir das configurações) ou no aplicativo padrão do sistema.
+- **Visualizador** (duplo clique ou Enter): zoom com a roda (em volta do ponteiro), `+`/`-` e duplo clique (alterna entre ajustada e 2,5×), `0` volta ao tamanho da tela; arrastar move a foto ampliada; as setas do teclado e os botões dos lados passam para a próxima; `I` mostra os detalhes (data, dimensões, tamanho, local); `F` favorita; Delete manda para a lixeira; Esc volta. **Vídeo** abre no player da própria Galeria (fase 4); em Configurações > Reprodução dá para trocar por o mpv numa janela separada ou o aplicativo padrão do sistema.
 - **Lixeira** do freedesktop, a mesma do Atlas: Delete manda para lá com **Desfazer**; Restaurar devolve ao lugar de origem; Apagar para sempre e Esvaziar pedem confirmação (dá para desligar). Nada é sobrescrito sem perguntar (Pular / Manter os dois / Substituir).
 - **Importar**: arrastar arquivos ou pastas para a janela, ou o botão Importar (procura numa pasta). Copia ou move (escolha em Configurações > Biblioteca > Ao importar) para a primeira pasta da biblioteca, em "Importadas".
 - **Compartilhar**: manda a mídia para um celular conectado pelo LUMNA Connect (em segundo plano). Menu: Abrir, Mostrar no Atlas, Copiar o caminho, Detalhes.
@@ -57,24 +58,41 @@ Abre com **uma mídia de vídeo selecionada + a tecla `E`**, ou por "Editar" no 
 
 Escolhas minhas (o esboço não mostrava): o atalho `E`, as teclas, os limites do volume, o MP4 como saída. Sai sempre H.264/AAC em MP4, mesmo que o original seja outro formato (recodifica: leva o tempo do trecho).
 
-**Não faz** (ainda): som na prévia (para ouvir, o vídeo abre no mpv pela galeria), cortar o meio do vídeo/juntar trechos, velocidade, filtros de imagem, legendas, escolher a qualidade da saída.
+**Não faz** (ainda): som na prévia (para ouvir com som, abra o vídeo no player da Galeria), cortar o meio do vídeo/juntar trechos, velocidade, filtros de imagem, legendas, escolher a qualidade da saída.
 
 Arquivos: `gravity/servicos/edicao_video.[ch]` (ffprobe/ffmpeg: sondar, quadro, tocar, exportar; sem interface) e `gravity/exemplos/galeria/editor_video.c` (a tela, a faixa e as threads).
 
+## Fase 4: o player de vídeo
+
+Tocar num vídeo (ou Enter) abre o player **dentro da janela da Galeria**: o libmpv desenha o quadro (renderização por software, vira uma imagem do cairo) e os controles são do LUMNA, por cima.
+
+- **Controles**: tocar/pausar (botão do meio, Espaço ou um toque no vídeo), a barra de tempo (clicar ou arrastar pula), anterior/próximo vídeo da lista que está na tela (`P`/`N`), volume e mudo (`M`, setas ↑↓), velocidade (0,5× a 2×), legendas e faixa de áudio (as legendas `.srt` com o mesmo nome do vídeo entram sozinhas), repetir, tela cheia (`F` ou duplo toque; Esc sai) e as setas ←/→ (5 s; com Shift, 30 s).
+- Os controles e a barra do alto somem depois de uns segundos sem mexer (com o vídeo tocando) e voltam ao mexer o mouse.
+- **Editar** (também `E`) abre o editor de vídeos; a estrela favorita; o menu "…": abrir no mpv (janela separada), mostrar no Atlas e mandar para a lixeira.
+- Um arquivo que o mpv não toca mostra o erro com o botão "Tentar no mpv".
+- No fim o vídeo para; tocar de novo recomeça do começo. O volume e o repetir ficam salvos nas Configurações.
+- **MPRIS** (`org.mpris.MediaPlayer2.lumna_galeria`): a tela de bloqueio, o controle do celular e as teclas de mídia veem o vídeo e o controlam (tocar, pausar, pular, buscar, volume).
+- Configurações > Reprodução > "Abrir os vídeos com": **O player da Galeria** (padrão), **O mpv, numa janela separada** ou **O aplicativo padrão do sistema**. O ajuste antigo (mpv ou padrão) migra sozinho.
+
+Arquivos: `gravity/servicos/video_player.[ch]` (o libmpv, sem interface) e `gravity/exemplos/galeria/player.c` (a tela). Depende do pacote `mpv` (que traz o libmpv).
+
+**Não faz** (ainda): aceleração por GPU (o quadro é por software: vídeos 4K podem engasgar; no PC antigo ou muito pesado, use "mpv, numa janela separada"), capítulos, miniatura ao passar na barra, abrir arquivo ou endereço de fora da biblioteca, lista de reprodução própria (a "lista" é a vista que está na tela).
+
 ## O que ainda não faz
 
-zoom por pinça e deslizar para trocar de foto no toque (hoje: duplo toque e os botões dos lados), reconhecimento de rostos/lugares, mapa, vídeo tocando **com som dentro** da janela (o editor toca sem som; a galeria abre o mpv), RAW, HEIC.
+zoom por pinça e deslizar para trocar de foto no toque (hoje: duplo toque e os botões dos lados), reconhecimento de rostos/lugares, mapa, RAW, HEIC.
 
 ## Arquivos
 
 - `gravity/servicos/galeria.[ch]`: o serviço (varredura, EXIF, filtros, grupos, favoritos, álbuns, lixeira, miniaturas, cache), sem interface.
 - `gravity/exemplos/galeria/`: `principal.c` (janela, barra lateral, seleção, operações, depuração para teste), `grade.c`, `visualizador.c`, `ajustes.c`, `app.h`.
 - `gravity/exemplos/vitrine.c`: a vitrine dos componentes do Gravity (antes chamada `galeria.c`; `make vitrine`).
-- Testes: `sh gravity/testes/galeria.sh [PASTA_DO_ORBIT]`: o serviço da galeria e os dos editores (`testa_edicao.c`, `testa_edicao_video.c`) em C e, se der a pasta do build do Orbit, o app inteiro num Orbit headless (`testes/galeria/teste_ui.sh` para a biblioteca; `TESTE=teste_editor.py ...` para o editor de fotos e `TESTE=teste_editor_video.py ...` para o de vídeos).
+- Testes: `sh gravity/testes/galeria.sh [PASTA_DO_ORBIT]`: o serviço da galeria e os dos editores e do player (`testa_edicao.c`, `testa_edicao_video.c`, `testa_video_player.c`) em C e, se der a pasta do build do Orbit, o app inteiro num Orbit headless (`testes/galeria/teste_ui.sh` para a biblioteca; `TESTE=teste_editor.py ...` para o editor de fotos e `TESTE=teste_editor_video.py ...` para o de vídeos e `TESTE=teste_player.py ...` para o player).
 
 ## Como foi testado (e o que não foi)
 
 Testado aqui: o serviço (EXIF, ordem, filtros, grupos, favoritos, álbuns, lixeira, miniaturas, arquivo quebrado, foto enorme), com ASAN, UBSAN e TSAN; o app inteiro num Orbit sem tela (clicar, selecionar, favoritar, álbuns, apagar e restaurar, visualizador com zoom, configurações, importar), com ASAN e UBSAN sem relatório (o TSAN só acusa falsos positivos de dentro do GLib).
 Editor: a conta de cada ajuste (valores conhecidos), giros e espelhos em 300 sequências ao acaso contra a conta direta, o recorte (20 mil arrastos ao acaso: sempre dentro da foto, 16 px no mínimo, proporção mantida), EXIF, salvar a cópia (original intacto, nome, formato, qualidade, data, transparência, arquivo quebrado) e a interface inteira (arrastar deslizantes, desfazer, comparar, zoom, recortar arrastando as alças, girar, filtros, salvar, descartar), com ASAN/UBSAN sem relatório. Uma prévia de 1600×1200 com tudo ligado leva ~50 ms (fora do quadro).
 Editor de vídeos: com vídeos de verdade feitos pelo ffmpeg, o serviço (sondar, quadros, tocar em tempo real, exportar recorte/áudio mudo/volume medido em dB/giro, progresso crescente, cancelar sem deixar arquivo, arquivo ruim) e a interface inteira (alças da faixa, campos, clicar na faixa, Play/Pausa/Espaço, áudio, girar, exportar e conferir a cópia com o ffprobe, descartar), com ASAN/UBSAN sem relatório.
-**Não testado**: o seu hardware (disco NTFS lento, tela de verdade, toque), vídeo tocando no mpv e compartilhar com um celular de verdade (no teste, o mpv e o Connect são de mentira). Roteiro no `docs/TESTES-ISO.md`, seção 2d.
+**Player de vídeo**: o serviço (libmpv de verdade, saída de áudio nula: abrir, tocar, pausar, buscar, volume, velocidade, faixas, fim, arquivo quebrado, recomeçar) e a interface inteira (tocar de verdade: o quadro tem cor e o tempo anda; Espaço, setas, barra, volume, velocidade, legendas, repetir, tela cheia, MPRIS por D-Bus, anterior/próximo, Editar, erro, lixeira, arquivo apagado de fora), com ASAN/UBSAN sem relatório e controle negativo (sem o pausar, o teste falha).
+**Não testado**: o seu hardware (disco NTFS lento, tela de verdade, toque), áudio de verdade saindo, vídeos grandes (4K) por software, tela cheia no compositor real e compartilhar com um celular de verdade (no teste, o mpv e o Connect são de mentira). Roteiro no `docs/TESTES-ISO.md`, seção 2d.

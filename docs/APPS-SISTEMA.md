@@ -16,7 +16,7 @@ Esboço recebido (Ouvir agora com a fila, Álbuns, Letra sincronizada, Configura
 
 ## 3. Player de vídeo
 
-O mpv por baixo, com os controles do LUMNA por cima. O bloqueio antigo ("o mpv não abre na minha máquina") era o mpv sem arquivo: resolvido pelo Eric. Em aberto para o esboço: o mpv numa janela própria com os controles numa camada, ou o vídeo dentro da nossa janela (libmpv com o render API).
+Virou a **fase 4 da Galeria** (combinado: a Galeria já edita vídeo e mostra as miniaturas, então também classifica e toca). O libmpv toca dentro da janela com os controles do LUMNA; o mpv numa janela separada continua como opção em Configurações > Reprodução. **Pronto, aguardando seu teste.** Tudo em [GALERIA.md](GALERIA.md#fase-4-o-player-de-vídeo).
 
 ## 4. Loja de apps
 

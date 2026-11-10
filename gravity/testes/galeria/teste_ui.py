@@ -105,13 +105,12 @@ toca("vz-ant")
 tecla("Escape")
 confere(lambda: estado().get("tela") == "0", "Esc volta à galeria")
 
-# 8. um vídeo não abre o visualizador (toca no player)
+# 8. um vídeo abre o player da Galeria (tela 5), não o visualizador de fotos; Esc volta (o player tem o teste dele: teste_player.py)
 vid_idx = nomes.index("clipe.mp4")
 toca(f"g-cel/{vid_idx}")
-time.sleep(0.5)
-if estado().get("tela") != "0":
-    falha("tocar num vídeo não devia abrir o visualizador")
-subprocess.run(["pkill", "-x", "mpv"])
+confere(lambda: estado().get("tela") == "5", "tocar num vídeo abre o player da Galeria")
+tecla("Escape")
+confere(lambda: estado().get("tela") == "0", "Esc fecha o player e volta à galeria")
 
 # 9. a lixeira: mandar, ver, restaurar
 marca(4)
