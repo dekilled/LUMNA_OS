@@ -2406,6 +2406,10 @@ static void desenhar_quadro(gv_app *app, gv_desenho desenhar, void *dados) {
 	gv__pontos_fim_do_quadro();
 	gv__quadro_limpar();
 
+	if (app->escondida) {
+		/* o pedido de esconder veio de dentro deste quadro (o X da barra): anexar o buffer agora remapearia uma superfície sem configure, e o compositor mata o app por erro de protocolo */
+		return;
+	}
 	wl_surface_attach(app->superficie, buffer->wl, 0, 0);
 	wl_surface_damage_buffer(app->superficie, 0, 0, INT32_MAX, INT32_MAX);
 	app->quadro_cb = wl_surface_frame(app->superficie);

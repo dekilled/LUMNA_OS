@@ -42,9 +42,21 @@ confere(lambda: len(da_musica()) == 1, f"há uma janela do Music ({len(da_musica
 pid1 = pids()[0]
 pos0 = float(e("pos") or 0)
 
-# 1. fechar a janela tocando: a janela some, o app e a música continuam
-j = da_musica()[0]
-msg("fechar", j["id"])
+def clica_x():
+    """o X da barra de título do próprio app (o caminho que a pessoa usa: o esconder acontece no meio do quadro)"""
+    v = e("mu-fechar-janela")
+    b = pos("mu-fechar-janela")
+    x, y = origem()
+    msg("mouse", "mover", x + b[0] + b[2] // 2, y + b[1] + b[3] // 2)
+    time.sleep(0.3)
+    msg("toque", "baixo", 1, x + b[0] + b[2] // 2, y + b[1] + b[3] // 2)
+    time.sleep(0.08)
+    msg("toque", "cima", 1)
+
+
+# 1. fechar a janela tocando pelo X da barra: a janela some, o app e a música continuam
+confere(lambda: pos("mu-fechar-janela") is not None, "o X da barra está na tela")
+clica_x()
 confere(lambda: len(da_musica()) == 0, "a janela some do compositor", 6)
 confere(lambda: pids() == [pid1], "o app continua vivo")
 confere(lambda: e("esc") == "1", "e sabe que está em segundo plano")

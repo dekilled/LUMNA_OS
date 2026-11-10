@@ -1037,6 +1037,7 @@ static void depurar(void) {
 #define ADD(nome_, id_) do { g_ptr_array_add(nomes, g_strdup(nome_)); Clay_ElementId e_ = (id_); g_array_append_val(ids, e_.id); } while (0)
 #define F(nome_) ADD(nome_, CLAY_ID(nome_))
 #define SERIE(base, n) for (int i_ = 0; i_ < (n); i_++) { g_ptr_array_add(nomes, g_strdup_printf("%s/%d", base, i_)); Clay_ElementId e_ = CLAY_IDI(base, (uint32_t)i_); g_array_append_val(ids, e_.id); }
+	{ Clay_ElementId b_ = CLAY_ID("barra"); ADD("mu-fechar-janela", Clay__HashStringWithOffset(b_.stringId, 4000003u, b_.baseId)); }   /* o X da barra de título */
 	F("mu-busca"); F("mu-perfil"); F("mu-emma"); F("mu-play"); F("mu-prox"); F("mu-ant"); F("mu-aleatorio"); F("mu-repetir"); F("mu-coracao"); F("mu-seek"); F("mu-volume");
 	F("mu-saida"); F("mu-letra-bt"); F("mu-fila-bt"); F("mu-capa-bar"); F("mu-vol-icone"); F("mu-nova-playlist"); F("mu-adicionar"); F("mu-config");
 	F("mu-reproduzir"); F("mu-aleatorio-bt"); F("mu-mais-det"); F("mu-seguir"); F("mu-fila-mais"); F("mu-fila-limpar"); F("mu-fila-salvar");
