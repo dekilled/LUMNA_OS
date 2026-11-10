@@ -1,7 +1,7 @@
 /*
- * A galeria do Gravity: os componentes e o tema mudando ao vivo. Os controlos de cima mexem no
+ * A vitrine do Gravity: os componentes e o tema mudando ao vivo. Os controlos de cima mexem no
  * gv_t (cor de acento, cantos, tamanho do texto, animações, curva) e tudo por baixo segue.
- *   ./galeria
+ *   ./vitrine   (não é o app de fotos: esse é o lumna-galeria, em exemplos/galeria/)
  */
 #include <math.h>
 #include <stdio.h>
@@ -174,7 +174,7 @@ static void desenhar(gv_app *app, void *dados) {
 }
 
 int main(void) {
-	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Gravity", .app_id = "gravity-galeria", .largura = 600, .altura = 760 });
+	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Gravity", .app_id = "gravity-vitrine", .largura = 600, .altura = 760 });
 	if (!app) {
 		return 1;
 	}

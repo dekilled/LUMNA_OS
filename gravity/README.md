@@ -136,7 +136,7 @@ cd gravity
 make
 ./mixer              # o mixer de áudio do LUMNA (som de verdade), numa janela
 ./mixer --camada     # como no celular: uma camada por cima de tudo
-./galeria            # os componentes, com o tema mudando ao vivo
+./vitrine            # os componentes, com o tema mudando ao vivo
 ./wifi               # conectar ao Wi-Fi: busca, lista e senha (os campos de texto)
 ./painel             # o Painel de controle das telas novas: abas, busca, atalhos em duas colunas
 ./apps               # os apps instalados (.desktop) com os ícones do tema, rolagem e busca; tocar abre

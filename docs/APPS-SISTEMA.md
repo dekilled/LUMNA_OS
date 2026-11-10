@@ -8,11 +8,7 @@ Cada app segue o molde do Atlas: serviço em `servicos/` (sem interface, com tes
 
 ## 1. Galeria (fotos e vídeos)
 
-Decidido: fotos **e** vídeos, por data e por álbuns, visualizador com zoom, sem edição na primeira versão.
-- Lê `~/Imagens`, `~/Vídeos` e as Capturas; grade por dia; álbuns; visualizador (zoom com roda e pinça, deslizar, toque duplo); detalhes; favoritar; lixeira (a do Atlas); mandar para o celular pelo Connect.
-- Referência: `shell/src/components/gallery/GalleryApp.vue` (descartado, só para olhar). O `galeria.c` do Gravity é a vitrine dos componentes, não este app.
-- Serviço: indexa por data (EXIF quando houver, senão a data do arquivo), em thread, com cache de miniaturas pelo pipeline de imagens do Gravity (`gv_imagem`, que já descodifica reduzido e limita a memória).
-- Em aberto para quando vier o esboço: o que é um "álbum" (pastas? as Capturas e a Câmera como automáticos?), onde fica o Favoritos.
+Esboço recebido (biblioteca, editor de fotos, editor de vídeos, configurações). Em fases: **1. biblioteca + visualizador + configurações (pronta, aguardando seu teste)**, 2. editor de fotos, 3. editor de vídeos. Tudo está em [GALERIA.md](GALERIA.md). O `vitrine.c` do Gravity (antes `galeria.c`) é a vitrine dos componentes, não este app.
 
 ## 2. Player de música
 

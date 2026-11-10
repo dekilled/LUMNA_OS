@@ -181,6 +181,27 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.138 | Abra um app (o Firefox), vá para o modo Mídia (Super+Tab), volte ao Desktop (mais de uma vez, e também depressa) | O app volta inteiro na tela, no lugar onde estava (antes, com a troca interrompida por outro arranjo, ele constava como ativo mas sumia da tela, parecia minimizado, e clicar nele na dock não fazia nada). Se algo ainda sumir: `orbit-msg janelas` diz `visivel` e `recortada` de cada janela, e o journal tem `dock: toque em` e `a dock pediu ativar` | ☐ |
 | 2.132 | Deixar o Atlas, a dock e a barra parados por uns 30 s e olhar o uso de CPU (`top`) | Perto de 0 % (antes, cada app Gravity gastava 15 a 50 % de um núcleo redesenhando à toa) | ☐ |
 
+### 2d. Galeria (`lumna-galeria`, fase 1)
+
+| # | O que fazer | O que deve acontecer | OK? |
+|---|---|---|---|
+| 2.139 | Abrir "Galeria" no lançador, com fotos em `~/Imagens` e vídeos em `~/Vídeos` | Mostra a grade por data (Hoje, Ontem...), a barra lateral (Todas, Recentes, Favoritos, Fotos, Vídeos, Lixeira, Álbuns) e a duração nos vídeos | ☐ |
+| 2.140 | Uma pasta com milhares de fotos (ou o disco NTFS): rolar depressa | Não congela nem fecha; as miniaturas da tela aparecem logo | ☐ |
+| 2.141 | Passar o mouse numa miniatura, clicar no quadradinho; Shift+clique em outra; Ctrl+A; Esc | Seleciona, faixa, tudo, limpa; a barra de seleção aparece com a contagem | ☐ |
+| 2.142 | Duplo clique numa foto; roda do mouse; `+`, `-`, `0`; duplo clique de novo; arrastar; setas; `I`; Esc | Abre grande, amplia até 12× (duplo clique alterna 2,5×), move, passa para a próxima, mostra os detalhes e volta | ☐ |
+| 2.143 | No toque: duplo toque na foto aberta, os botões ◀ ▶ dos lados, segurar numa miniatura | Amplia 2,5×, passa de foto, abre o menu (pinça e deslizar ainda não existem) | ☐ |
+| 2.144 | Duplo clique num vídeo | Abre no mpv com o volume das configurações; o vídeo toca | ☐ |
+| 2.145 | Favoritar (botão ou `F`), abrir "Favoritos"; desfavoritar | Entra e sai da lista | ☐ |
+| 2.146 | Novo álbum, adicionar 2 mídias, renomear, tirar uma do álbum, apagar o álbum | Tudo funciona e **as fotos continuam nas pastas** | ☐ |
+| 2.147 | Selecionar, Delete; Lixeira; Restaurar; depois Apagar para sempre | Vai para a lixeira com Desfazer; restaurar devolve; apagar pede confirmação; o Atlas vê a mesma lixeira | ☐ |
+| 2.148 | Soltar uma pasta de fotos de um pendrive na janela (e o botão Importar) | Copia (ou move, conforme a configuração) para "Importadas"; arquivo que já existe pergunta | ☐ |
+| 2.149 | Num terminal, `cp` uma foto para `~/Imagens` com a Galeria aberta | Aparece sozinha | ☐ |
+| 2.150 | Foto muito grande (ex.: 8000×6000) e um `.jpg` quebrado | A grande abre sem travar; a quebrada mostra o ícone de falha e nada cai | ☐ |
+| 2.151 | Menu "..." > Compartilhar, com o celular conectado pelo Connect | A mídia chega no celular; sem celular diz "Nenhum celular conectado" | ☐ |
+| 2.152 | Engrenagem: adicionar uma pasta, Aplicar; Cancelar numa outra mudança | A pasta entra na biblioteca e vai para `~/.config/lumna/galeria/config.ini`; Cancelar não muda nada | ☐ |
+| 2.153 | Configurações > Visualização > Limpar cache | O "Cache em uso" volta a zero e as miniaturas refazem | ☐ |
+| 2.154 | Se ela cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-galeria-<número>.log` com a pilha; mande-o para mim | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

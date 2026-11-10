@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos
+all: libgravity.a mixer vitrine galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -63,7 +63,8 @@ mixer: exemplos/mixer.c servicos/som.c servicos/som.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libpulse) -o $@ exemplos/mixer.c servicos/som.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs libpulse) -lpthread
 
-galeria: exemplos/galeria.c libgravity.a
+# a vitrine dos componentes (não é o app de fotos, que é o galeria)
+vitrine: exemplos/vitrine.c libgravity.a
 	$(CC) $(CFLAGS) -o $@ $< libgravity.a $(LDLIBS)
 
 wifi: exemplos/wifi.c libgravity.a
@@ -173,6 +174,11 @@ teclado_im_obj = input-method-unstable-v2-protocol.c virtual-keyboard-unstable-v
 teclado: exemplos/teclado.c servicos/teclado_im.c servicos/teclado_im.h servicos/teclado_layout.c servicos/teclado_layout.h servicos/teclado_cfg.c servicos/teclado_cfg.h servicos/modos.c input-method-unstable-v2-client-protocol.h virtual-keyboard-unstable-v1-client-protocol.h $(teclado_im_obj) libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 wayland-client xkbcommon) -o $@ exemplos/teclado.c servicos/teclado_im.c servicos/teclado_layout.c servicos/teclado_cfg.c servicos/modos.c $(teclado_im_obj) libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
 
+# a Galeria de fotos e vídeos (lumna-galeria): o serviço (galeria.c) mais as operações de arquivo do Atlas (lixeira, copiar) e o cliente do Connect
+GALERIA = exemplos/galeria/principal.c exemplos/galeria/grade.c exemplos/galeria/visualizador.c exemplos/galeria/ajustes.c
+galeria: $(GALERIA) exemplos/galeria/app.h servicos/galeria.c servicos/galeria.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/connectc.c servicos/connectc.h servicos/json.c servicos/json.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -Iexemplos/galeria $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(GALERIA) servicos/galeria.c servicos/arquivos.c servicos/arquivos_op.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
+
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0) -o $@ exemplos/atlas.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
@@ -190,7 +196,7 @@ instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h se
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a mixer vitrine galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 

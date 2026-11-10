@@ -73,7 +73,7 @@ areas = [
   "Num KDE falso. Você confirmou só as janelas, a tela cheia e o mouse."),
  ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
  ("Vídeo", "falta", "Ainda não há player de vídeo do LUMNA. O mpv vem com o Arch e, na sua máquina, não abre (a investigar).", "—"),
- ("Apps que ainda não existem", "falta", "Música, Galeria de fotos, bloco de notas, Code, Reminders, StoryTeller, Loja, Telefone e o navegador. O LUMNA antigo (Vue) está descartado por desempenho e espaço; o que ele tinha serve só de referência.", "—"),
+ ("Apps que ainda não existem", "falta", "Música, bloco de notas, Code, Reminders, StoryTeller, Loja, Telefone e o navegador. O LUMNA antigo (Vue) está descartado por desempenho e espaço; o que ele tinha serve só de referência.", "—"),
 ]
 lab = {"conf": ("Confirmado", "conf"), "sim": ("Só simulado", "sim"), "and": ("Em andamento", "and"), "falta": ("Não existe", "sk")}
 
@@ -138,7 +138,8 @@ backlog = [
   ("feito", "Captura de tela", "Imagem e vídeo confirmados por você. Falta o áudio da gravação."),
   ("falta", "Player de música", "Decidido: biblioteca local, fila, letras e saída de áudio primeiro; o Qobuz entra numa segunda fase. Referência: MusicApp.vue (antigo). Espera o seu esboço. Plano em docs/APPS-SISTEMA.md."),
   ("falta", "Player de vídeo", "O mpv por baixo, com os controles do LUMNA. O mpv abre (ele exigia um arquivo para abrir, você já confirmou). Espera o seu esboço; em aberto: o mpv em janela própria com os controles numa camada, ou o vídeo dentro da nossa janela."),
-  ("falta", "Galeria de fotos", "Decidido: fotos e vídeos, por data e álbuns, visualizador com zoom, sem edição na primeira versão. Referência: GalleryApp.vue (antigo). É o primeiro da fila e espera o seu esboço. (O \"galeria\" do Gravity é a vitrine dos componentes, não um app de fotos.)"),
+  ("testar", "Galeria de fotos (fase 1)", "Pronta pelo seu esboço: biblioteca por data, vistas (Todas, Recentes, Favoritos, Fotos, Vídeos, Lixeira), álbuns, busca, seleção, visualizador com zoom, importar, compartilhar com o celular e as configurações. Testada só num Orbit sem tela (com ASAN/UBSAN); falta você ver no PC: disco lento, toque, vídeo no mpv. Roteiro: TESTES-ISO 2.139 a 2.154. Detalhes em docs/GALERIA.md."),
+ ("falta", "Galeria: editor de fotos e de vídeos (fases 2 e 3)", "Estão no seu esboço (Ajustar, Recortar, Girar, Filtros; recorte, áudio e exportar de vídeo). Vêm depois da fase 1, uma de cada vez. A página Edição das configurações já existe, mas só vale quando o editor chegar."),
  ("falta", "Loja de apps", "Esboço: docs/visual/02-loja.jpg (Descobrir, Instalados, Atualizações, categorias, Essenciais para começar). Base: o serviço de pacotes do Painel. Em aberto: só pacman ou também Flatpak e AUR."),
  ("falta", "Instalador de drivers", "Detectar a placa de vídeo e instalar o driver certo pelo pacman, com a senha pelo polkit. Espera o seu esboço; em aberto: app próprio, página do Painel ou os dois."),
  ("falta", "Menu de pré-configuração (pós-instalação)", "O que aparece quando o sistema acaba de ser instalado: idioma e teclado, rede, tema, drivers, Emma, apps essenciais, Connect (a confirmar). Espera o seu esboço."),

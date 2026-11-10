@@ -4,6 +4,6 @@ Name=Galeria
 Comment=Fotos e vídeos
 Exec=lumna-galeria
 Icon=lumna-galeria
-StartupWMClass=gravity-galeria
+StartupWMClass=lumna-galeria
 Categories=Graphics;
 Keywords=fotos;imagens;videos;galeria;
