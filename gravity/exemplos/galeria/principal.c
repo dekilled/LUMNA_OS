@@ -1401,6 +1401,7 @@ static void desenhar(gv_app *a, void *dados) {
 		switch (G.tela) {
 		case T_VISUALIZADOR: visualizador_desenhar(); break;
 		case T_AJUSTES: ajustes_desenhar(); break;
+		case T_EDITOR: editor_desenhar(); break;
 		default:
 			teclado_da_biblioteca();
 			biblioteca();
@@ -1439,12 +1440,16 @@ static void depurar(void) {
 #define F(x) ADD(x, CLAY_ID(x))
 	F("g-busca"); F("g-importar"); F("g-vista-bt"); F("g-sel-album"); F("g-sel-fav"); F("g-sel-comp"); F("g-sel-fechar"); F("g-sel-todas"); F("g-config"); F("g-alb-novo");
 	F("g-rod-vista"); F("g-esvaziar"); F("g-sel-restaurar"); F("g-sel-apagar"); F("g-desfazer"); F("g-ordem"); F("g-zoom"); F("g-rolagem");
-	F("vz-voltar"); F("vz-ant"); F("vz-prox"); F("vz-fav"); F("vz-info"); F("vz-lixeira"); F("vz-mais"); F("vz-menos"); F("vz-foto"); F("vz-area");
+	F("vz-voltar"); F("vz-editar"); F("vz-ant"); F("vz-prox"); F("vz-fav"); F("vz-info"); F("vz-lixeira"); F("vz-mais"); F("vz-menos"); F("vz-foto"); F("vz-area");
 	F("cfg-voltar"); F("cfg-aplicar"); F("cfg-cancelar"); F("cfg-restaurar"); F("aj-add"); F("aj-limpar"); F("aj-add-campo"); F("aj-dlg-ok"); F("aj-dlg-cancelar");
 	F("dlg-ok"); F("dlg-cancelar"); F("dlg-campo");
-	F("menu-midia"); F("mm-abrir"); F("mm-fav"); F("mm-lixeira"); F("mm-album"); F("mm-comp"); F("mm-tirar"); F("mm-restaurar"); F("mm-apagar"); F("mm-atlas");
+	F("menu-midia"); F("mm-editar"); F("mm-abrir"); F("mm-fav"); F("mm-lixeira"); F("mm-album"); F("mm-comp"); F("mm-tirar"); F("mm-restaurar"); F("mm-apagar"); F("mm-atlas");
 	F("g-am-novo"); F("g-cm-copiar"); F("ma-renomear"); F("ma-apagar"); F("g-vm-grade"); F("g-vm-lista"); F("g-album-menu"); F("g-comp-menu");
 	SERIE("g-vista", 6); SERIE("cfg-pg", 5); SERIE("g-album", 12); SERIE("g-cel", 160); SERIE("g-chk", 160); SERIE("g-lin", 100); SERIE("g-lchk", 100);
+	F("ed-voltar"); F("ed-cancelar"); F("ed-salvar"); F("ed-undo"); F("ed-redo"); F("ed-comparar"); F("ed-zoom-menos"); F("ed-zoom-mais"); F("ed-zoom-lista"); F("ed-canvas");
+	F("ed-restaurar"); F("ed-recorte-restaurar"); F("ed-girar-restaurar"); F("ed-inverter"); F("ed-girar-e"); F("ed-girar-d"); F("ed-esp-h"); F("ed-esp-v");
+	F("ed-dlg-continuar"); F("ed-dlg-descartar"); F("ed-sec-luz"); F("ed-sec-cor"); F("ed-painel-rol");
+	SERIE("ed-aba", 4); SERIE("ed-sl", 8); SERIE("ed-chip", 8); SERIE("ed-prop", 9); SERIE("ed-filtro", 9);
 	SERIE("aj-pasta", 8); SERIE("aj-pasta-mais", 8); SERIE("g-am-i", 8); SERIE("g-cm-c", 4);
 #undef F
 #undef SERIE
@@ -1468,10 +1473,13 @@ static void depurar(void) {
 	for (int k = 0; k < G.nvis && k < 40; k++) {
 		g_string_append_printf(ordem, "%s%s", k ? "," : "", midia_vis(k)->nome);
 	}
-	char *estado = g_strdup_printf("tela=%d vista=%d album=%d nvis=%d nsel=%d busca=[%s] ordem=%d vista_cfg=%d agrupar=%d ngrupos=%d carregando=%d aberta=%d tam=%d albuns=%d cache=%d primeiro_grupo=[%s] itens=[%s]",
+	GString *ed = g_string_new(NULL);
+	editor_estado(ed);
+	char *estado = g_strdup_printf("tela=%d vista=%d album=%d nvis=%d nsel=%d busca=[%s] ordem=%d vista_cfg=%d agrupar=%d ngrupos=%d carregando=%d aberta=%d tam=%d albuns=%d cache=%d primeiro_grupo=[%s] itens=[%s]%s",
 		G.tela, G.vista, G.album, G.nvis, sel_n(), G.busca, G.cfg.ordem, G.cfg.vista, G.cfg.agrupar, G.ngrupos, G.carregando, G.aberta, G.cfg.tam, G.albuns.n, G.cfg.cache,
-		G.ngrupos ? G.grupos[0].rotulo : "", ordem->str);
+		G.ngrupos ? G.grupos[0].rotulo : "", ordem->str, ed->str);
 	g_string_free(ordem, TRUE);
+	g_string_free(ed, TRUE);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("estado %s\n", estado);
 		g_free(estado_antes);

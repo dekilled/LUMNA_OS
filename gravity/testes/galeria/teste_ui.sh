@@ -14,7 +14,7 @@ sleep 4
 export WAYLAND_DISPLAY=wayland-0
 LUMNA_GALERIA_DEBUG=1 "${GALERIA_BIN:-$gravity/galeria}" > "$run/g.out" 2> "$run/g.err" &
 sleep 3
-python3 "$aqui/teste_ui.py" "$orbit_dir" "$run" "$casa"
+python3 "$aqui/${TESTE:-teste_ui.py}" "$orbit_dir" "$run" "$casa"
 rc=$?
 pkill -x orbit; pkill -x galeria; pkill -x mpv
 [ $rc -eq 0 ] || { echo "(log em $run)"; tail -10 "$run/g.err"; }

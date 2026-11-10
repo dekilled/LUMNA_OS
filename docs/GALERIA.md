@@ -5,7 +5,7 @@ A galeria do LUMNA OS, em Gravity (C/Clay), feita sobre o seu esboço (bibliotec
 | Fase | O que | Estado |
 |---|---|---|
 | 1 | Biblioteca, visualizador com zoom, álbuns, favoritos, lixeira, importar, configurações | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
-| 2 | Editor de fotos (Ajustar, Recortar, Girar, Filtros; salva sempre uma cópia) | falta |
+| 2 | Editor de fotos (Ajustar, Recortar, Girar, Filtros; salva sempre uma cópia) | **pronta** (testada num Orbit sem tela; falta o seu teste no PC de verdade) |
 | 3 | Editor de vídeos (recorte, áudio, girar, exportar) | falta |
 
 ## Fase 1: o que tem
@@ -20,22 +20,43 @@ A galeria do LUMNA OS, em Gravity (C/Clay), feita sobre o seu esboço (bibliotec
 - **Lixeira** do freedesktop, a mesma do Atlas: Delete manda para lá com **Desfazer**; Restaurar devolve ao lugar de origem; Apagar para sempre e Esvaziar pedem confirmação (dá para desligar). Nada é sobrescrito sem perguntar (Pular / Manter os dois / Substituir).
 - **Importar**: arrastar arquivos ou pastas para a janela, ou o botão Importar (procura numa pasta). Copia ou move (escolha em Configurações > Biblioteca > Ao importar) para a primeira pasta da biblioteca, em "Importadas".
 - **Compartilhar**: manda a mídia para um celular conectado pelo LUMNA Connect (em segundo plano). Menu: Abrir, Mostrar no Atlas, Copiar o caminho, Detalhes.
-- **Configurações** (as 5 páginas do esboço): Biblioteca (pastas, importar, duplicados), Visualização (modo, tamanho, nomes nas miniaturas, cache em disco e "Limpar cache"), Edição (qualidade e formato da cópia; **só vale quando o editor da fase 2 chegar**), Reprodução (player, volume, repetir) e Privacidade (confirmar antes de apagar, mostrar a Lixeira). Aplicar grava em `~/.config/lumna/galeria/config.ini`; Cancelar descarta.
+- **Configurações** (as 5 páginas do esboço): Biblioteca (pastas, importar, duplicados), Visualização (modo, tamanho, nomes nas miniaturas, cache em disco e "Limpar cache"), Edição (qualidade e formato da cópia salva pelo editor), Reprodução (player, volume, repetir) e Privacidade (confirmar antes de apagar, mostrar a Lixeira). Aplicar grava em `~/.config/lumna/galeria/config.ini`; Cancelar descarta.
 
 > As páginas Visualização, Edição, Reprodução e Privacidade foram um desenho meu (o seu esboço trazia só os títulos). Diga se quiser outras opções.
 
+## Fase 2: o editor de fotos
+
+Abre pelo botão do lápis do visualizador, pela tecla `E` ou por "Editar" no menu da foto. A tela é a do esboço: em cima Voltar à galeria, o nome, Desfazer/Refazer, Cancelar e **Salvar cópia**; a prévia à esquerda com **Comparar original** (segure) e o zoom; as abas **Ajustar, Recortar, Girar, Filtros** embaixo; o painel à direita.
+
+- **Ajustar**: Luz (Exposição de −3 a +3 passos de luz, Contraste, Realces, Sombras) e Cor (Temperatura, Saturação), de −100 a +100. Tocar no número zera aquele ajuste. Restaurar ajustes zera luz e cor.
+- **Recortar**: arraste os cantos e as bordas na foto, ou por dentro para mover; a grade dos terços aparece. Proporções: Livre, Original, 1:1, 4:3, 3:2, 16:9, 3:4, 2:3, 9:16 e **Inverter** (deitada/em pé); com uma proporção escolhida ela se mantém ao arrastar. Mostra o tamanho final em pixels.
+- **Girar**: à esquerda, à direita (quartos de volta), espelhar na horizontal e na vertical. Girar ou espelhar **desfaz o recorte** (ele valia na foto de antes).
+- **Filtros**: Original, P&B, Sépia, Vívido, Frio, Quente, Desbotado, Dramático e Vintage, cada um numa miniatura da **sua** foto já com os ajustes; a Intensidade mistura o filtro com a foto.
+- **Desfazer/Refazer** (botões, Ctrl+Z, Ctrl+Shift+Z ou Ctrl+Y): até 100 passos; um ajuste novo depois de desfazer descarta o que se podia refazer. Um deslizante entra no histórico ao soltar.
+- **Zoom** da prévia: botões −/+, a lista (Ajustar à tela, 2×, 4×, 8×) e a roda em volta do ponteiro; arrastar anda quando passa da moldura. (É o zoom da **prévia**; a cópia sai sempre na resolução inteira.)
+- **Salvar cópia** (Ctrl+S): grava **ao lado do original** como `foto-editada.jpg` (`-editada-2`... se já existir), no formato de Configurações > Edição (o mesmo do original, JPEG ou PNG) e com a qualidade do JPEG de lá. WebP, GIF e BMP viram JPEG (ou PNG se tiverem transparência). A cópia leva a **data do original**, para ficar ao lado dele na galeria. **O original nunca é alterado.** Sai pela foto inteira (não pela prévia), numa thread.
+- Cancelar, Voltar e Esc, com alterações, perguntam "Descartar as alterações?".
+- A prévia é refeita numa thread (a mais recente vence); enquanto se arrasta um deslizante ela usa uma foto menor, e ao soltar volta à nítida.
+
+Escolhas minhas (o esboço mostrava só a aba Ajustar): os painéis de Recortar, Girar e Filtros, a lista de filtros, o "Inverter" e o "Restaurar giro/recorte". Diga se quiser outros.
+
+**Não faz** (ainda): girar em ângulo livre (endireitar o horizonte), o EXIF não vai para a cópia (a data sim, pelo arquivo), curvas, nitidez, vinheta, texto/desenho, editar vídeo (fase 3).
+
+Arquivos: `gravity/servicos/edicao.[ch]` (a conta: luz, cor, filtros, geometria, recorte, abrir com a orientação do EXIF e salvar a cópia; sem interface) e `gravity/exemplos/galeria/editor.c` (a tela, o desfazer e as threads).
+
 ## O que ainda não faz
 
-Editor de fotos e de vídeos (fases 2 e 3), zoom por pinça e deslizar para trocar de foto no toque (hoje: duplo toque e os botões dos lados), reconhecimento de rostos/lugares, mapa, vídeo tocando **dentro** da janela (hoje abre o mpv), RAW, HEIC.
+Editor de vídeos (fase 3), zoom por pinça e deslizar para trocar de foto no toque (hoje: duplo toque e os botões dos lados), reconhecimento de rostos/lugares, mapa, vídeo tocando **dentro** da janela (hoje abre o mpv), RAW, HEIC.
 
 ## Arquivos
 
 - `gravity/servicos/galeria.[ch]`: o serviço (varredura, EXIF, filtros, grupos, favoritos, álbuns, lixeira, miniaturas, cache), sem interface.
 - `gravity/exemplos/galeria/`: `principal.c` (janela, barra lateral, seleção, operações, depuração para teste), `grade.c`, `visualizador.c`, `ajustes.c`, `app.h`.
 - `gravity/exemplos/vitrine.c`: a vitrine dos componentes do Gravity (antes chamada `galeria.c`; `make vitrine`).
-- Testes: `sh gravity/testes/galeria.sh [PASTA_DO_ORBIT]` (serviço em C numa biblioteca de mentira e, se der a pasta do build do Orbit, o app inteiro num Orbit headless: `testes/galeria/teste_ui.sh`).
+- Testes: `sh gravity/testes/galeria.sh [PASTA_DO_ORBIT]`: o serviço da galeria e o do editor (`testa_edicao.c`) em C e, se der a pasta do build do Orbit, o app inteiro num Orbit headless (`testes/galeria/teste_ui.sh` para a biblioteca; `TESTE=teste_editor.py sh testes/galeria/teste_ui.sh ...` para o editor).
 
 ## Como foi testado (e o que não foi)
 
 Testado aqui: o serviço (EXIF, ordem, filtros, grupos, favoritos, álbuns, lixeira, miniaturas, arquivo quebrado, foto enorme), com ASAN, UBSAN e TSAN; o app inteiro num Orbit sem tela (clicar, selecionar, favoritar, álbuns, apagar e restaurar, visualizador com zoom, configurações, importar), com ASAN e UBSAN sem relatório (o TSAN só acusa falsos positivos de dentro do GLib).
+Editor: a conta de cada ajuste (valores conhecidos), giros e espelhos em 300 sequências ao acaso contra a conta direta, o recorte (20 mil arrastos ao acaso: sempre dentro da foto, 16 px no mínimo, proporção mantida), EXIF, salvar a cópia (original intacto, nome, formato, qualidade, data, transparência, arquivo quebrado) e a interface inteira (arrastar deslizantes, desfazer, comparar, zoom, recortar arrastando as alças, girar, filtros, salvar, descartar), com ASAN/UBSAN sem relatório. Uma prévia de 1600×1200 com tudo ligado leva ~50 ms (fora do quadro).
 **Não testado**: o seu hardware (disco NTFS lento, tela de verdade, toque), vídeo tocando no mpv e compartilhar com um celular de verdade (no teste, o mpv e o Connect são de mentira). Roteiro no `docs/TESTES-ISO.md`, seção 2d.

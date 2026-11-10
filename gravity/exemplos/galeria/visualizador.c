@@ -110,6 +110,7 @@ void visualizador_desenhar(void) {
 	}
 	gl_midia copia = *m; /* a lista pode mudar durante os cliques abaixo */
 	Clay_ElementId area = CLAY_ID("vz-area");
+	bool sair_agora = false; /* (um return dentro de um CLAY deixaria o layout aberto) */
 	CLAY(CLAY_ID("vz-topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(64) }, .padding = { 16, 16, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
 		if (gv_botao_ext(CLAY_ID("vz-voltar"), &(gv_botao_opcoes){ .icone = "arrow-left", .texto = "Voltar à galeria", .estilo = GV_BOTAO_SIMPLES, .altura = 42 })) {
@@ -127,6 +128,10 @@ void visualizador_desenhar(void) {
 				pan_x = pan_y = 0;
 			}
 		}
+		if (botao_do_topo(CLAY_ID("vz-editar"), "edit", false, false)) {
+			editor_abrir(&copia, T_VISUALIZADOR);
+			sair_agora = true;
+		}
 		if (botao_do_topo(CLAY_ID("vz-fav"), "star", copia.favorita, false)) {
 			alternar_favorita(&copia);
 		}
@@ -137,8 +142,11 @@ void visualizador_desenhar(void) {
 			char *c[] = { copia.caminho };
 			mover_para_lixeira(c, 1);
 			visualizador_fechar();
-			return;
+			sair_agora = true;
 		}
+	}
+	if (sair_agora) {
+		return;
 	}
 	CLAY(CLAY_ID("vz-corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 		CLAY(area, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } }, .clip = { .horizontal = true, .vertical = true },
@@ -240,6 +248,9 @@ void visualizador_desenhar(void) {
 			pan_x = pan_y = 0;
 		} else if (t == 'i' || t == 'I') {
 			detalhes = !detalhes;
+		} else if (t == 'e' || t == 'E') {
+			editor_abrir(&copia, T_VISUALIZADOR);
+			return;
 		} else if (t == 'f' || t == 'F') {
 			alternar_favorita(&copia);
 		} else if (t == 0xffff) {

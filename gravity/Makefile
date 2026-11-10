@@ -175,9 +175,9 @@ teclado: exemplos/teclado.c servicos/teclado_im.c servicos/teclado_im.h servicos
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 wayland-client xkbcommon) -o $@ exemplos/teclado.c servicos/teclado_im.c servicos/teclado_layout.c servicos/teclado_cfg.c servicos/modos.c $(teclado_im_obj) libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
 
 # a Galeria de fotos e vídeos (lumna-galeria): o serviço (galeria.c) mais as operações de arquivo do Atlas (lixeira, copiar) e o cliente do Connect
-GALERIA = exemplos/galeria/principal.c exemplos/galeria/grade.c exemplos/galeria/visualizador.c exemplos/galeria/ajustes.c
-galeria: $(GALERIA) exemplos/galeria/app.h servicos/galeria.c servicos/galeria.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/connectc.c servicos/connectc.h servicos/json.c servicos/json.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos -Iexemplos/galeria $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(GALERIA) servicos/galeria.c servicos/arquivos.c servicos/arquivos_op.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
+GALERIA = exemplos/galeria/principal.c exemplos/galeria/grade.c exemplos/galeria/visualizador.c exemplos/galeria/ajustes.c exemplos/galeria/editor.c
+galeria: $(GALERIA) exemplos/galeria/app.h servicos/galeria.c servicos/galeria.h servicos/edicao.c servicos/edicao.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/connectc.c servicos/connectc.h servicos/json.c servicos/json.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -Iexemplos/galeria $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(GALERIA) servicos/galeria.c servicos/edicao.c servicos/arquivos.c servicos/arquivos_op.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
 
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a

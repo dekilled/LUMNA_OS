@@ -181,7 +181,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.138 | Abra um app (o Firefox), vá para o modo Mídia (Super+Tab), volte ao Desktop (mais de uma vez, e também depressa) | O app volta inteiro na tela, no lugar onde estava (antes, com a troca interrompida por outro arranjo, ele constava como ativo mas sumia da tela, parecia minimizado, e clicar nele na dock não fazia nada). Se algo ainda sumir: `orbit-msg janelas` diz `visivel` e `recortada` de cada janela, e o journal tem `dock: toque em` e `a dock pediu ativar` | ☐ |
 | 2.132 | Deixar o Atlas, a dock e a barra parados por uns 30 s e olhar o uso de CPU (`top`) | Perto de 0 % (antes, cada app Gravity gastava 15 a 50 % de um núcleo redesenhando à toa) | ☐ |
 
-### 2d. Galeria (`lumna-galeria`, fase 1)
+### 2d. Galeria (`lumna-galeria`, fases 1 e 2)
 
 | # | O que fazer | O que deve acontecer | OK? |
 |---|---|---|---|
@@ -201,6 +201,21 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.152 | Engrenagem: adicionar uma pasta, Aplicar; Cancelar numa outra mudança | A pasta entra na biblioteca e vai para `~/.config/lumna/galeria/config.ini`; Cancelar não muda nada | ☐ |
 | 2.153 | Configurações > Visualização > Limpar cache | O "Cache em uso" volta a zero e as miniaturas refazem | ☐ |
 | 2.154 | Se ela cair: `ls ~/.cache/lumna/crash/` | Há um `lumna-galeria-<número>.log` com a pilha; mande-o para mim | ☐ |
+| 2.155 | Visualizador de uma foto: botão do lápis (ou tecla `E`); no menu "..." da foto, Editar | Abre o editor com a foto, as 4 abas embaixo e o painel Ajustar | ☐ |
+| 2.156 | Ajustar: arrastar Exposição, Contraste, Realces, Sombras, Temperatura, Saturação | A prévia acompanha (com a foto grande, de 20+ MP, sem travar o arrastar); tocar no número zera | ☐ |
+| 2.157 | Segurar "Comparar original" | Mostra a foto como abriu; soltar volta à editada | ☐ |
+| 2.158 | Desfazer/Refazer pelos botões e por Ctrl+Z / Ctrl+Shift+Z | Anda pelos passos; um ajuste novo depois de desfazer corta o refazer | ☐ |
+| 2.159 | Recortar: escolher 16:9, arrastar um canto, arrastar por dentro, Inverter, Livre | O recorte acompanha o dedo/mouse, mantém a proporção, fica dentro da foto; o "Tamanho final" confere | ☐ |
+| 2.160 | Girar à direita/esquerda e espelhar; depois Recortar | A foto gira/espelha; o recorte recomeça inteiro | ☐ |
+| 2.161 | Filtros: cada um, e a Intensidade | A miniatura é da sua foto; Original tira o filtro; a intensidade mistura | ☐ |
+| 2.162 | Zoom (−, +, lista, roda do mouse) e arrastar a foto ampliada | Dá zoom até 8×; arrastar anda; no Recortar o zoom fica desligado | ☐ |
+| 2.163 | Salvar cópia | Aparece `nome-editada.jpg` ao lado do original, **igual ao que se viu**, na resolução inteira; o original não muda; a Galeria volta e a cópia está na biblioteca | ☐ |
+| 2.164 | Salvar outra vez, sem mexer na foto | O botão não deixa (sem alterações); depois de mexer, a cópia vem como `-editada-2` | ☐ |
+| 2.165 | Configurações > Edição: PNG e Qualidade 60; salvar de novo | A cópia sai PNG; com JPEG e 60 o arquivo é bem menor | ☐ |
+| 2.166 | Mexer e apertar Cancelar, Voltar ou Esc | Pergunta "Descartar as alterações?"; Continuar mantém tudo; Descartar sai sem salvar nada | ☐ |
+| 2.167 | Uma foto de celular "deitada" (com orientação no EXIF) | O editor mostra em pé e a cópia sai em pé | ☐ |
+| 2.168 | Editar um PNG com transparência | A cópia PNG mantém a transparência | ☐ |
+| 2.169 | Foto enorme (ex.: 9000×9000) | Abre ("Abrindo a foto…"), edita, salva sem a Galeria cair (a cópia pode levar alguns segundos) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
