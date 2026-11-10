@@ -18,7 +18,13 @@ unset XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_MUSIC_DIR
 sleep 4
 export WAYLAND_DISPLAY=wayland-0
 export MUSICA_BIN=${MUSICA_BIN:-$gravity/musica}
-LUMNA_MUSICA_DEBUG=1 "$MUSICA_BIN" > "$run/g.out" 2> "$run/g.err" &
+# MUSICA_ARG: um arquivo de música dado ao app ao abrir, como faz o gerenciador de arquivos (@CASA@ vira a casa do teste)
+marg=$(printf %s "$MUSICA_ARG" | sed "s|@CASA@|$casa|")
+if [ -n "$marg" ]; then
+	LUMNA_MUSICA_DEBUG=1 "$MUSICA_BIN" "$marg" > "$run/g.out" 2> "$run/g.err" &
+else
+	LUMNA_MUSICA_DEBUG=1 "$MUSICA_BIN" > "$run/g.out" 2> "$run/g.err" &
+fi
 sleep 3
 python3 "$aqui/${TESTE:-teste_ui.py}" "$orbit_dir" "$run" "$casa"
 rc=$?

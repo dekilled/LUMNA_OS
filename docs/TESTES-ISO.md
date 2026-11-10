@@ -306,6 +306,17 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.237 | Configurações > Modo avançado | Liga (e grava); um item Incompatível passa a ter "Instalar mesmo assim", com a confirmação em vermelho | ☐ |
 | 2.238 | **Não instale** nada incompatível de verdade. Só confira os motivos | Os motivos fazem sentido para o seu computador (se algo estiver errado, me diga o modelo da placa) | ☐ |
 
+### 2h. Music: app padrão e instância única
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.239 | Painel > Aplicativos padrão: ponha o LUMNA Music para áudio; no Atlas, dê duplo clique numa música | O Music abre **e a música toca na hora** | ☐ |
+| 2.240 | Com o Music aberto e tocando, dê duplo clique em outra música no Atlas | Não abre outra janela: a mesma janela passa a tocar a nova música e vem para a frente | ☐ |
+| 2.241 | Dê duplo clique na mesma música várias vezes seguidas | Continua uma janela só e a música toca uma vez só (sem eco, sem duas por cima) | ☐ |
+| 2.242 | Selecione 3 músicas no Atlas e abra todas | Entram as 3 na fila e a primeira toca | ☐ |
+| 2.243 | Abra o Music pelo menu/lançador estando com ele aberto | Só traz a janela que já existe | ☐ |
+| 2.244 | `ps aux | grep mpv` depois de fechar o Music | Nenhum mpv sobra | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

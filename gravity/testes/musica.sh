@@ -17,5 +17,6 @@ dbus-run-session -- "$T/testa_mpris" 2>&1 | grep -v "fd limit\|erro na chamada"
 if [ -n "${1:-}" ]; then
 	make -s musica
 	sh testes/musica/teste_ui.sh "$1" "$AQUI"
+	sh testes/musica/teste_abrir.sh "$1" "$AQUI"
 fi
 rm -rf "$T"

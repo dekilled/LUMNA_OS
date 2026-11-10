@@ -47,4 +47,8 @@ void mm_atualizar(mm_mpris *m, const mm_estado *e);
 void mm_pulou(mm_mpris *m, int64_t pos_us);
 void mm_parar(mm_mpris *m);
 
+/* Instância única: se já há um player com esse nome no D-Bus da sessão, manda para ele os arquivos (OpenUri, um por um) e o Raise, e devolve verdadeiro:
+ * quem chamou deve sair sem abrir janela. Falso se não há outro (ou não há D-Bus): siga em frente. caminhos: caminhos ou URIs. */
+bool mm_encaminhar(const char *sufixo, char *const *caminhos, int n);
+
 #endif

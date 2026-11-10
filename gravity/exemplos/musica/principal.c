@@ -522,6 +522,7 @@ static void progresso(int f, int t, void *d) {
 }
 
 static bool primeira_carga = true;
+static bool veio_arquivo_de_fora;   /* aberto com arquivos: a fila salva não volta por cima */
 static double prox_varredura;
 
 static void restaurar_fila(void) {
@@ -573,7 +574,9 @@ static void carga_pronta(void *d) {
 	listar_playlists();
 	if (primeira_carga) {
 		primeira_carga = false;
-		restaurar_fila();
+		if (!veio_arquivo_de_fora) {
+			restaurar_fila();
+		}
 	}
 	recarregar_listas();
 	prox_varredura = gv_agora() + 90;
@@ -660,15 +663,86 @@ static void m_volume(void *d, double v) { mp_cmd(9, (int64_t)lround(v * 100000.0
 static void m_aleatorio(void *d, bool b) { mp_cmd(10, b); }
 static void m_repetir(void *d, int m) { mp_cmd(11, m); }
 
+/* abrir arquivos de fora (o gerenciador de arquivos, a linha de comando, o MPRIS): a fila passa a ser eles e o primeiro toca. Numa seleção de vários arquivos,
+ * o segundo em diante chega com a marca #lumna-anexar no URI e entra depois, em vez de trocar a fila de novo. */
+static void abrir_externos(char *const *caminhos, int n, bool anexar) {
+	bool somar = anexar && M.nfila > 0;
+	GArray *fs = g_array_new(FALSE, TRUE, sizeof(mu_faixa));
+	for (int i = 0; i < n; i++) {
+		if (g_file_test(caminhos[i], G_FILE_TEST_IS_DIR) || !mu_extensao_de_audio(caminhos[i])) {
+			continue;
+		}
+		mu_faixa f;
+		int k = acervo_indice(caminhos[i]);
+		if (k >= 0) {
+			mu_faixa_copiar(&f, &M.ac.v[k]);
+			g_array_append_val(fs, f);
+		} else if (mu_ler_faixa(caminhos[i], &f)) {
+			g_array_append_val(fs, f);
+		}
+	}
+	if (fs->len > 0) {
+		int antes = somar ? M.nfila : 0;
+		if (!somar) {
+			fila_esvaziar();
+		}
+		for (guint i = 0; i < fs->len; i++) {
+			fila_somar(&g_array_index(fs, mu_faixa, i), antes + (int)i);
+			mu_faixa_liberar(&g_array_index(fs, mu_faixa, i));
+		}
+		if (somar) {
+			anunciar_proxima();
+			salvar_fila(0);
+		} else {
+			tocar_indice(0);
+		}
+		gv_app_redesenhar(M.app);
+	}
+	g_array_free(fs, TRUE);
+}
+
 static void abrir_uri_na_principal(void *d) {
 	char *uri = d;
+	bool anexar = false;
+	char *marca = strstr(uri, "#lumna-anexar");
+	if (marca) {
+		*marca = '\0';
+		anexar = true;
+	}
 	char *c = g_filename_from_uri(uri, NULL, NULL);
 	if (c) {
 		char *v[] = { c, NULL };
-		tocar_arquivos(v);
+		abrir_externos(v, 1, anexar);
 		g_free(c);
 	}
 	g_free(uri);
+}
+
+static void abrir_janela_na_principal(void *d) {
+	const gv_janela *js[64];
+	int n = gv_janelas(js, 64);
+	for (int i = 0; i < n; i++) {
+		if (js[i]->app_id && !strcmp(js[i]->app_id, "lumna-music")) {
+			gv_janela_ativar(js[i]->id);
+			return;
+		}
+	}
+}
+
+static void m_abrir_janela(void *d) {
+	gv_na_linha_principal(abrir_janela_na_principal, NULL);
+}
+
+typedef struct {
+	char **v;
+	int n;
+} lote;
+
+static void abrir_lote_inicial(void *d) {
+	lote *l = d;
+	abrir_externos(l->v, l->n, false);
+	g_strfreev(l->v);
+	g_free(l);
 }
 
 static void m_abrir_uri(void *d, const char *uri) {
@@ -1064,6 +1138,17 @@ static gpointer dispositivos_thread(gpointer d) {
 }
 
 int main(int argc, char **argv) {
+	/* instância única: se o LUMNA Music já está aberto, os arquivos vão para ele, a janela dele sobe e este processo sai */
+	char **entradas = g_new0(char *, (gsize)argc + 1);
+	int nent = 0;
+	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] != '-') {
+			entradas[nent++] = strstr(argv[i], "://") ? g_filename_from_uri(argv[i], NULL, NULL) : g_canonicalize_filename(argv[i], NULL);
+		}
+	}
+	if (!g_getenv("LUMNA_MUSICA_MULTI") && mm_encaminhar(NULL, entradas, nent)) {
+		return 0;
+	}
 	if (getenv("LUMNA_MUSICA_DEBUG")) {
 		setvbuf(stdout, NULL, _IOLBF, 0);
 	}
@@ -1080,15 +1165,21 @@ int main(int argc, char **argv) {
 	if (!M.app) {
 		return 1;
 	}
-	mm_acoes acoes = { m_tocar, m_pausar, m_alternar, m_parar, m_proxima, m_anterior, m_buscar, m_posicionar, m_volume, m_aleatorio, m_repetir, NULL, m_abrir_uri, NULL };
+	mm_acoes acoes = { m_tocar, m_pausar, m_alternar, m_parar, m_proxima, m_anterior, m_buscar, m_posicionar, m_volume, m_aleatorio, m_repetir, m_abrir_janela, m_abrir_uri, NULL };
 	M.mm = mm_iniciar(&acoes, NULL);
 	gv_arraste_aceitar(MIME_URIS);
 	aplicar_cfg();
 	listar_playlists();
 	g_thread_unref(g_thread_new("musica-dispositivos", dispositivos_thread, NULL));
 	recarregar_biblioteca();
-	(void)argc;
-	(void)argv;
+	if (nent > 0) {   /* aberto com arquivos (o app padrão para áudio): toca o que veio, e a fila de antes não volta */
+		veio_arquivo_de_fora = true;
+		lote *l = g_new0(lote, 1);
+		l->v = g_strdupv(entradas);
+		l->n = nent;
+		gv_na_linha_principal(abrir_lote_inicial, l);
+	}
+	g_strfreev(entradas);
 	int r = gv_app_correr(M.app, desenhar, NULL);
 	if (M.atual >= 0) {
 		salvar_fila(M.est.pos);

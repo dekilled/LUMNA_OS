@@ -313,3 +313,47 @@ void mm_parar(mm_mpris *m) {
 	g_cond_clear(&m->c);
 	g_free(m);
 }
+
+bool mm_encaminhar(const char *sufixo, char *const *caminhos, int n) {
+	GError *e = NULL;
+	GDBusConnection *c = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &e);
+	if (!c) {
+		g_clear_error(&e);
+		return false;
+	}
+	char nome[128];
+	g_snprintf(nome, sizeof(nome), "org.mpris.MediaPlayer2.%s", sufixo && *sufixo ? sufixo : "lumna_music");
+	GVariant *r = g_dbus_connection_call_sync(c, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner", g_variant_new("(s)", nome), G_VARIANT_TYPE("(b)"),
+		G_DBUS_CALL_FLAGS_NONE, 1500, NULL, NULL);
+	gboolean tem = FALSE;
+	if (r) {
+		g_variant_get(r, "(b)", &tem);
+		g_variant_unref(r);
+	}
+	if (!tem) {
+		g_object_unref(c);
+		return false;
+	}
+	for (int i = 0; i < n; i++) {
+		char *base = strstr(caminhos[i], "://") ? g_strdup(caminhos[i]) : g_filename_to_uri(g_canonicalize_filename(caminhos[i], NULL), NULL, NULL);
+		if (!base) {
+			continue;
+		}
+		/* o primeiro arquivo troca a fila; os outros do mesmo pedido entram depois dele (a marca #lumna-anexar no fim do URI) */
+		char *uri = i == 0 ? base : g_strconcat(base, "#lumna-anexar", NULL);
+		if (i != 0) {
+			g_free(base);
+		}
+		GVariant *x = g_dbus_connection_call_sync(c, nome, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "OpenUri", g_variant_new("(s)", uri), NULL, G_DBUS_CALL_FLAGS_NONE, 4000, NULL, NULL);
+		if (x) {
+			g_variant_unref(x);
+		}
+		g_free(uri);
+	}
+	GVariant *x = g_dbus_connection_call_sync(c, nome, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2", "Raise", NULL, NULL, G_DBUS_CALL_FLAGS_NONE, 3000, NULL, NULL);
+	if (x) {
+		g_variant_unref(x);
+	}
+	g_object_unref(c);
+	return true;
+}

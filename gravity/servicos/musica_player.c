@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/prctl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -228,6 +229,67 @@ static gpointer ler_thread(gpointer arg) {
 
 /* ---- subir e derrubar um mpv ---- */
 
+/* o mpv morre junto com o app, aconteça o que acontecer com ele (queda, kill): sem isso sobrava um mpv invisível tocando */
+static void filho_morre_com_o_pai(gpointer d) {
+	pid_t pai = (pid_t)GPOINTER_TO_INT(d);
+	prctl(PR_SET_PDEATHSIG, SIGKILL);
+	if (getppid() != pai) {
+		_exit(1);
+	}
+}
+
+/* mpv órfãos de um app que caiu antes desta correção (ou sem o prctl): o socket tem o pid do dono, e se o dono já não existe o mpv sai */
+static void limpar_orfaos(void) {
+	const char *rt = g_get_user_runtime_dir();
+	const char *dir = rt && g_file_test(rt, G_FILE_TEST_IS_DIR) ? rt : "/tmp";
+	GDir *d = g_dir_open(dir, 0, NULL);
+	if (!d) {
+		return;
+	}
+	const char *nome;
+	while ((nome = g_dir_read_name(d))) {
+		int dono = 0, n = 0;
+		if (sscanf(nome, "lumna-musica-%d-%d.sock", &dono, &n) != 2 || dono == (int)getpid()) {
+			continue;
+		}
+		char *viva = g_strdup_printf("/proc/%d", dono);
+		bool existe = g_file_test(viva, G_FILE_TEST_IS_DIR);
+		g_free(viva);
+		if (existe) {
+			continue;
+		}
+		char *sock = g_build_filename(dir, nome, NULL);
+		GDir *proc = g_dir_open("/proc", 0, NULL);
+		const char *pn;
+		while (proc && (pn = g_dir_read_name(proc))) {
+			int pid = atoi(pn);
+			if (pid <= 1) {
+				continue;
+			}
+			char *cl = g_strdup_printf("/proc/%s/cmdline", pn), *txt = NULL;
+			gsize len = 0;
+			if (g_file_get_contents(cl, &txt, &len, NULL) && len > 0) {
+				for (gsize i = 0; i + 1 < len; i++) {
+					if (txt[i] == 0) {
+						txt[i] = ' ';
+					}
+				}
+				if (g_str_has_prefix(txt, "mpv ") && strstr(txt, sock)) {
+					kill(pid, SIGKILL);
+				}
+			}
+			g_free(txt);
+			g_free(cl);
+		}
+		if (proc) {
+			g_dir_close(proc);
+		}
+		unlink(sock);
+		g_free(sock);
+	}
+	g_dir_close(d);
+}
+
 static deck *deck_novo(mp_player *p, const char *arquivo_inicial, bool pausado, double inicio, int volume) {
 	deck *d = g_new0(deck, 1);
 	d->p = p;
@@ -263,7 +325,7 @@ static deck *deck_novo(mp_player *p, const char *arquivo_inicial, bool pausado, 
 #undef A
 	g_ptr_array_add(a, NULL);
 	GError *e = NULL;
-	if (!g_spawn_async(NULL, (char **)a->pdata, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &d->pid, &e)) {
+	if (!g_spawn_async(NULL, (char **)a->pdata, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, filho_morre_com_o_pai, GINT_TO_POINTER((int)getpid()), &d->pid, &e)) {
 		g_clear_error(&e);
 		g_ptr_array_free(a, TRUE);
 		g_free(d);
@@ -447,6 +509,7 @@ static gpointer monitor_thread(gpointer arg) {
 /* ---- a interface ---- */
 
 mp_player *mp_criar(void (*evento)(int, void *), void *dados) {
+	limpar_orfaos();
 	mp_player *p = g_new0(mp_player, 1);
 	g_mutex_init(&p->ctl);
 	g_mutex_init(&p->m);

@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -206,6 +208,21 @@ int main(int argc, char **argv) {
 	CONFERE(mp_tocar(p, t2, 0, false) && espera(tocando, p, 8), "tocar de novo levanta outro mpv");
 	g_free(out);
 
+	/* tocar a mesma música dezenas de vezes seguidas (clicar de novo na fila) não levanta mais de um mpv */
+	for (int i = 0; i < 30; i++) {
+		mp_tocar(p, t2, 0, false);
+		g_usleep(i % 3 ? 4000 : 120000);
+	}
+	g_usleep(800000);
+	CONFERE(processos_mpv() == 1, "30 cliques na mesma música: um mpv só (%d)", processos_mpv());
+	CONFERE(espera(tocando, p, 6), "e ela toca");
+	for (int i = 0; i < 12; i++) {
+		mp_tocar(p, i % 2 ? t1 : t3, 0, false);   /* e alternando entre faixas */
+		g_usleep(30000);
+	}
+	g_usleep(800000);
+	CONFERE(processos_mpv() == 1, "alternando entre faixas depressa: um mpv só (%d)", processos_mpv());
+
 	/* dispositivos */
 	GPtrArray *d = g_ptr_array_new_with_free_func(g_free);
 	mp_dispositivos(d);
@@ -214,6 +231,28 @@ int main(int argc, char **argv) {
 
 	mp_liberar(p);
 	g_usleep(300000);
+	/* um mpv órfão (o socket é de um app que já não existe) é derrubado quando o próximo player sobe */
+	{
+		const char *rt = g_get_user_runtime_dir();
+		char *sock = g_strdup_printf("%s/lumna-musica-999999-0.sock", rt && g_file_test(rt, G_FILE_TEST_IS_DIR) ? rt : "/tmp");
+		char *argv[] = { "mpv", "--no-config", "--idle=yes", "--no-video", "--no-terminal", "--ao=null", NULL, NULL };
+		char *opc = g_strdup_printf("--input-ipc-server=%s", sock);
+		argv[6] = opc;
+		GPid orfao;
+		CONFERE(g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &orfao, NULL), "sobe um mpv órfão");
+		for (int i = 0; i < 40 && !g_file_test(sock, G_FILE_TEST_EXISTS); i++) {
+			g_usleep(50000);
+		}
+		CONFERE(g_file_test(sock, G_FILE_TEST_EXISTS) && kill(orfao, 0) == 0, "o órfão está de pé");
+		mp_player *q = mp_criar(evento, NULL);
+		g_usleep(300000);
+		int st;
+		pid_t w = waitpid(orfao, &st, WNOHANG);
+		CONFERE(w == orfao && !g_file_test(sock, G_FILE_TEST_EXISTS), "o órfão foi derrubado e o socket limpo ao subir o player");
+		mp_liberar(q);
+		g_free(opc);
+		g_free(sock);
+	}
 	CONFERE(processos_mpv() == 0, "nenhum mpv sobra depois de liberar (%d)", processos_mpv());
 	g_free(t1); g_free(t2); g_free(t3);
 	if (falhas) {
