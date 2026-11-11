@@ -130,6 +130,26 @@ static struct orbit_output *mode_holder(struct orbit_server *server, struct orbi
 	return NULL;
 }
 
+/* as janelas de Gaming e Mídia vão para a tela que mostra o espaço delas (se nenhuma mostra, ficam onde estavam, escondidas) */
+static void special_views_follow(struct orbit_server *server) {
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->tag < ORBIT_TAGS || !view->mapped) {
+			continue;
+		}
+		struct orbit_output *output;
+		wl_list_for_each(output, &server->outputs, link) {
+			if (output->tag == view->tag && !output_is_phone(output->wlr)) {
+				if (view->output != output) {
+					orbit_split_release(server, view);
+					orbit_view_set_output(view, output, true);
+				}
+				break;
+			}
+		}
+	}
+}
+
 /* troca o modo da saída dada (a em foco, se NULL): só dela, as outras ficam como estão */
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode) {
 	if (mode < 0 || mode >= ORBIT_MODES) {
@@ -151,21 +171,35 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 		return;
 	}
 	/*
-	 * O Gaming e a Mídia existem uma vez só (a janela da Mídia é uma). Pedir um que outra tela já tem TROCA as duas telas de lugar: a Mídia
-	 * (com as janelas) vai para a tela pedida, e o que a pedida tinha (o Desktop dela, com as janelas) vai para a que tinha a Mídia.
+	 * O Gaming e a Mídia existem uma vez só. Pedir um que outra tela (holder) já tem MOVE o modo para a tela pedida, com as janelas dele:
+	 *  - a pedida estava no Desktop: a que tinha o modo volta ao Desktop DELA (as janelas de cada Desktop ficam onde estão);
+	 *  - a pedida estava no outro modo especial: as duas trocam de modo (o Gaming e a Mídia trocam de monitor).
 	 */
 	struct orbit_output *holder = mode_holder(server, from, mode);
-	if (holder) {
-		orbit_outputs_swap(server, from, holder);
+	int tag = tag_of_mode(from, mode);
+	if (holder && from->mode != ORBIT_MODE_DESKTOP) {
+		holder->tag = from->tag;
+		from->tag = tag;
 	} else {
-		int tag = tag_of_mode(from, mode);
+		if (holder) {
+			holder->tag = holder->desktop_tag;
+		}
 		if (from->tag != tag) {
 			if (from->tag < ORBIT_TAGS) {
 				from->desktop_tag = from->tag;
 			}
 			from->tag = tag;
 		}
-		orbit_arrange(server);
+	}
+	if (holder) {
+		holder->shown_tag = holder->tag; /* sem deslizar: o que muda é a tela, não o espaço */
+		from->shown_tag = from->tag;
+	}
+	special_views_follow(server);
+	orbit_arrange(server);
+	focus_top(server, from);
+	if (holder) {
+		focus_top(server, holder);
 		focus_top(server, from);
 	}
 	write_mode_file(from->mode);

@@ -476,6 +476,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.358 | Entrar na sessão, depois sair (logoff) e voltar à tela de login | NumLock aceso no login, na sessão e depois do logoff; se você desligar no meio, ele não religa sozinho | ☐ |
 | 2.359 | `~/.config/lumna/entrada.ini` com `[teclado]` `numlock=0`, reentrar | O NumLock começa apagado (a opção desliga o padrão) | ☐ |
 | 2.360 | Gaming: a barra de cima sobre um fundo claro (laranja, branco) | Os textos Gaming/Início/Biblioteca/Loja continuam legíveis, o degradê escuro cobre a barra | ☐ |
+| 2.361 | Dois monitores: Mídia no 1, depois pedir a Mídia no 2 (dropdown ou Super+Tab) | A Mídia vai pro 2 e o monitor 1 volta ao Desktop dele (barra diz Desktop, janelas dele no lugar) | ☐ |
+| 2.362 | Dois monitores: Gaming no 2 e Mídia no 1; pedir o Gaming no 1 | Os dois trocam de monitor, ninguém vai pro Desktop | ☐ |
+| 2.363 | Dois monitores no Desktop: pedir o Gaming no 1 pela primeira vez | A biblioteca aparece de primeira em tela cheia no monitor 1 | ☐ |
+| 2.364 | Pedir o Gaming no monitor 2 estando no 1 e depois voltar ao 1 | A janela acompanha o monitor, nunca fica escondida no antigo | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
