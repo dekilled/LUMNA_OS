@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""A Loja do Gaming: Destaques (do catálogo real gravado), gêneros, subabas, Buscar com filtros, a página do jogo, Comprar (abre a loja da Steam), Lista de desejos
+(local), instalar (a Steam sobe sem janela, local de instalação, progresso do download, instalado, desinstalar) e a chave da API (Configurações)."""
+import os, re, sys, time
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "galeria"))
+from comum import *
+
+
+def est(k, padrao=""):
+    return estado().get(k, padrao)
+
+
+def existe(nome):
+    p = pos(nome)
+    return p is not None and p[2] > 0
+
+
+_toca = toca
+
+
+def toca(nome, espera_s=0.45):
+    espera(lambda: existe(nome), 4)
+    _toca(nome, espera_s)
+
+
+def falso():
+    return le(f"{run}/falso.log")
+
+
+def pedidos():
+    return le(f"{run}/pedidos.log")
+
+
+def cfg(p):
+    return le(f"{casa}/.config/lumna/{p}")
+
+
+def manifesto(appid, flags, a_baixar=0, baixado=0):
+    pasta = f"{run}/steam/steamapps"
+    open(f"{pasta}/appmanifest_{appid}.acf", "w").write(
+        '"AppState"\n{\n\t"appid"\t\t"%d"\n\t"name"\t\t"Portal 2"\n\t"StateFlags"\t\t"%d"\n\t"installdir"\t\t"Portal 2"\n\t"SizeOnDisk"\t\t"1000"\n\t"buildid"\t\t"1"\n\t"BytesToDownload"\t\t"%d"\n\t"BytesDownloaded"\t\t"%d"\n}\n'
+        % (appid, flags, a_baixar, baixado))
+
+
+# 1. Destaques: o catálogo real carrega; o primeiro jogo manda no centro
+confere(lambda: est("tela") == "4" and int(est("lndest", "0")) >= 4, "a Loja abre nos Destaques com os mais vendidos do catálogo", 10)
+confere(lambda: existe("l-ver"), "o hero tem 'Ver jogo'")
+tecla("Right")
+confere(lambda: est("lsel") == "1", "a seta para a direita seleciona o próximo jogo da fila")
+tecla("Left")
+confere(lambda: est("lsel") == "0", "e para a esquerda volta")
+
+# 2. gêneros: o chip Ação refaz a lista pelo gênero (tag 19)
+toca("l-chip/1", 1.5)
+confere(lambda: "tags=19" in pedidos() and "filter=topsellers" in pedidos(), "o chip Ação pede o gênero Ação, os mais vendidos", 6)
+confere(lambda: int(est("lndest", "0")) >= 4, "e a fila continua com jogos")
+toca("l-chip/0", 1.2)
+
+# 3. subabas: Categorias, Ofertas, Lista de desejos
+toca("l-subabas/2", 1.5)
+confere(lambda: est("lsub") == "2", "a subaba Ofertas")
+toca("l-subabas/1", 0.8)
+confere(lambda: est("lsub") == "1", "a subaba Categorias")
+toca("l-subabas/3", 0.8)
+confere(lambda: est("lsub") == "3" and est("ldes") == "0", "a Lista de desejos começa vazia")
+toca("l-subabas/0", 0.8)
+
+# 4. Buscar: por texto e com filtros
+toca("l-busca")
+digita("portal")
+tecla("Return")
+confere(lambda: est("tela") == "5", "Enter na busca abre a tela Buscar", 5)
+confere(lambda: "term=portal" in pedidos() and int(est("lnres", "0")) >= 5 and int(est("ltotal", "0")) > 100, "a busca por 'portal' devolve resultados e o total", 8)
+toca("b-linux", 1.5)
+confere(lambda: "os=linux" in pedidos(), "o filtro Linux nativo vira os=linux", 6)
+toca("b-gratis", 1.5)
+confere(lambda: "maxprice=free" in pedidos(), "o filtro Só grátis vira maxprice=free", 6)
+toca("b-gen/3", 1.5)
+confere(lambda: "tags=122" in pedidos(), "o gênero RPG vira tags=122", 6)
+
+# 5. a página de um jogo (Portal 2, dados reais gravados)
+tecla("Escape")
+confere(lambda: est("tela") == "4", "Esc volta da busca para a Loja")
+os.system(f"pkill -x jogos")
+time.sleep(1.0)
+import subprocess
+env = dict(os.environ, LUMNA_JOGOS_DEBUG="1")
+subprocess.Popen([f"{sys.argv[4] if len(sys.argv) > 4 else os.path.dirname(os.path.abspath(__file__)) + '/../../'}jogos", "--loja-jogo", "620"], stdout=open(f"{run}/g.out", "w"), stderr=subprocess.DEVNULL, env=env)
+confere(lambda: est("tela") == "6" and est("ldet") == "1", "a página do jogo carrega os detalhes do Portal 2", 10)
+confere(lambda: existe("lj-comprar") and existe("lj-desejo") and not existe("lj-instalar"), "um jogo que a conta não tem: Comprar e Lista de desejos, sem Instalar")
+toca("lj-desejo", 1.0)
+confere(lambda: '"id":620' in cfg("jogos/desejos.json"), "a Lista de desejos guarda o jogo (localmente)")
+toca("lj-comprar", 1.0)
+confere(lambda: "steam steam://store/620" in falso(), "Comprar abre a loja da Steam (steam://store)", 5)
+toca("lj-desejo", 1.0)
+confere(lambda: '"id":620' not in cfg("jogos/desejos.json"), "tocar de novo tira da lista")
+
+# 6. a chave da API: Configurações > Steam
+toca("engrenagem", 1.0)
+toca("cfg-pg/4", 0.8)
+toca("st-chave")
+digita("curta")
+toca("st-salvar", 0.8)
+confere(lambda: not os.path.exists(f"{casa}/.config/lumna/jogos/steam.ini"), "uma chave curta é recusada")
+toca("st-chave")
+tecla("a", mod="ctrl")
+digita("ABCDEF0123456789ABCDEF0123456789")
+toca("st-id")
+digita("76561198000000000")
+toca("st-salvar", 1.0)
+confere(lambda: os.path.exists(f"{casa}/.config/lumna/jogos/steam.ini") and (os.stat(f"{casa}/.config/lumna/jogos/steam.ini").st_mode & 0o777) == 0o600, "a chave certa é guardada, com permissão 600", 5)
+confere(lambda: "ABCDEF0123456789" not in open(f"{run}/g.out", errors="replace").read(), "a chave nunca aparece na saída do app")
+
+# 7. com a chave, o jogo da conta vira "Na sua biblioteca" com Instalar (reabre a página)
+os.system("pkill -x jogos")
+time.sleep(1.0)
+subprocess.Popen([f"{sys.argv[4] if len(sys.argv) > 4 else os.path.dirname(os.path.abspath(__file__)) + '/../../'}jogos", "--loja-jogo", "620"], stdout=open(f"{run}/g.out", "w"), stderr=subprocess.DEVNULL, env=env)
+confere(lambda: est("ldet") == "1" and int(est("lpossui", "0")) == 2, "a conta tem 2 jogos (a chave funciona)", 10)
+confere(lambda: existe("lj-instalar") and not existe("lj-comprar"), "o jogo da conta mostra Instalar (e não Comprar)", 6)
+toca("lj-instalar", 1.0)
+confere(lambda: est("ldlg") == "1" and existe("li-ok") and existe("li-local"), "Instalar abre a janela de instalação com o local")
+toca("li-nao", 0.8)
+confere(lambda: est("ldlg") == "0", "Agora não fecha sem instalar")
+toca("lj-instalar", 1.0)
+toca("li-ok", 2.8)
+confere(lambda: "steam -silent -nochatui -nofriendsui" in falso() and "steam steam://install/620" in falso(), "Instalar sobe a Steam sem janela e pede steam://install/620", 8)
+# o download corre: a Steam escreve o manifesto e a barra anda
+manifesto(620, 1024, 10000000000, 2500000000)
+confere(lambda: est("lprog", "").startswith("1,25"), "o progresso do download aparece (25%)", 8)
+confere(lambda: int(est("lbaix", "0")) >= 1, "o download entra na conta do ícone de downloads", 5)
+manifesto(620, 1024, 10000000000, 7500000000)
+confere(lambda: est("lprog", "").startswith("1,75"), "e anda (75%)", 8)
+manifesto(620, 4, 0, 0)
+confere(lambda: est("lprog", "").startswith("0,100") and existe("lj-desinstalar"), "pronto: Instalado, com Desinstalar", 8)
+toca("lj-desinstalar", 1.5)
+confere(lambda: "steam steam://uninstall/620" in falso() or "steam steam://uninstall/" in falso(), "Desinstalar pede à Steam (steam://uninstall)", 8)
+
+sys.exit(1 if falhas else 0)

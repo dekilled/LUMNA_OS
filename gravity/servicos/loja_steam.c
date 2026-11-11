@@ -18,6 +18,11 @@ static const char *base_loja(void) {
 	return e && *e ? e : "https://store.steampowered.com";
 }
 
+static const char *base_img(void) {
+	const char *e = g_getenv("LUMNA_LOJA_IMG_URL");
+	return e && *e ? e : "https://cdn.akamai.steamstatic.com";
+}
+
 static const char *base_proton(void) {
 	const char *e = g_getenv("LUMNA_LOJA_PROTONDB_URL");
 	return e && *e ? e : "https://www.protondb.com";
@@ -138,8 +143,8 @@ static void preco_txt(int centavos, char *dest, size_t tam) {
 }
 
 static void imagens(int appid, struct ls_item *it) {
-	g_snprintf(it->capa, sizeof(it->capa), "https://cdn.akamai.steamstatic.com/steam/apps/%d/capsule_616x353.jpg", appid);
-	g_snprintf(it->fundo, sizeof(it->fundo), "https://cdn.akamai.steamstatic.com/steam/apps/%d/library_hero.jpg", appid);
+	g_snprintf(it->capa, sizeof(it->capa), "%s/steam/apps/%d/capsule_616x353.jpg", base_img(), appid);
+	g_snprintf(it->fundo, sizeof(it->fundo), "%s/steam/apps/%d/library_hero.jpg", base_img(), appid);
 }
 
 /* ---------------- destaques ---------------- */
@@ -304,8 +309,8 @@ bool ls_detalhes(int appid, struct ls_detalhe *d, char *erro, size_t tam) {
 	sem_html(json_chave_texto(x, "about_the_game"), d->sobre, sizeof(d->sobre));
 	g_strlcpy(d->desenvolvedor, json_item(json_chave(x, "developers"), 0) ? json_texto(json_item(json_chave(x, "developers"), 0)) : "", sizeof(d->desenvolvedor));
 	g_strlcpy(d->lancamento, json_chave_texto(json_chave(x, "release_date"), "date"), sizeof(d->lancamento));
-	g_snprintf(d->capa, sizeof(d->capa), "https://cdn.akamai.steamstatic.com/steam/apps/%d/capsule_616x353.jpg", appid);
-	g_snprintf(d->fundo, sizeof(d->fundo), "https://cdn.akamai.steamstatic.com/steam/apps/%d/library_hero.jpg", appid);
+	g_snprintf(d->capa, sizeof(d->capa), "%s/steam/apps/%d/capsule_616x353.jpg", base_img(), appid);
+	g_snprintf(d->fundo, sizeof(d->fundo), "%s/steam/apps/%d/library_hero.jpg", base_img(), appid);
 	GString *g = g_string_new(NULL);
 	const struct json *gs = json_chave(x, "genres");
 	for (int i = 0; gs && i < gs->nfilhos && i < 3; i++) {

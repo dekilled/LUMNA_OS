@@ -66,4 +66,30 @@ bool jogos_desinstalar(const struct jogo *j, bool apagar_arquivos, bool *saiu_da
 /* o que a desinstalação deste jogo faz, em uma frase (para a confirmação) */
 const char *jogos_desinstalar_texto(const struct jogo *j);
 
+/* ---- a Steam por dentro (para a Loja do Gaming) ---- */
+
+struct steam_lib {
+	char caminho[400];      /* a pasta da biblioteca (a que tem o steamapps) */
+	int64_t livre, total;   /* bytes */
+	bool padrao;            /* a da própria Steam */
+};
+/* as bibliotecas da Steam (a padrão e as de libraryfolders.vdf), com o espaço livre de cada uma */
+int jogos_steam_bibliotecas(struct steam_lib *l, int max);
+
+struct steam_prog {
+	bool instalado;         /* instalado por inteiro */
+	bool no_manifesto;      /* há appmanifest (instalado, baixando ou na fila) */
+	bool baixando;          /* instalando ou atualizando agora */
+	bool atualizacao;       /* instalado, com atualização pendente */
+	int64_t total, baixado; /* bytes do download em curso */
+	int pct;                /* 0 a 100 */
+};
+bool jogos_steam_progresso(int appid, struct steam_prog *p);
+
+/* o cliente da Steam em segundo plano (sem janela) e o pedido de instalar: na biblioteca padrão pelo steam://install; em outra, deixando antes um
+ * appmanifest na pasta escolhida para a Steam baixar lá. nome serve ao nome da pasta do jogo. erro recebe o motivo se falhar. */
+bool jogos_steam_instalar(int appid, const char *nome, const char *biblioteca, char *erro, size_t tam);
+/* abre a página de compra na loja da Steam (a janela da loja, na hora) */
+bool jogos_steam_comprar(int appid, char *erro, size_t tam);
+
 #endif

@@ -24,8 +24,10 @@
 #include "json.h"
 #include "modos.h"
 
-enum { T_INICIO, T_BIBLIOTECA, T_DETALHES, T_CONFIG };
-enum { CP_CONTROLES, CP_AJUSTES, CP_GUIA, CP_GAMING, CP_N };
+enum { T_INICIO, T_BIBLIOTECA, T_DETALHES, T_CONFIG, T_LOJA, T_BUSCA, T_LOJA_JOGO };
+enum { CP_CONTROLES, CP_AJUSTES, CP_GUIA, CP_GAMING, CP_STEAM, CP_N };
+enum { LS_SUB_DEST, LS_SUB_CATEG, LS_SUB_OFERTAS, LS_SUB_DESEJOS, LS_SUB_N };
+static int l_sub;
 enum { ABA_PRINCIPAL, ABA_PROPRIEDADES };
 enum { F_TODOS, F_FAVORITOS, F_STEAM, F_LUTRIS, F_HEROIC, F_AVULSOS, F_N };
 
@@ -181,6 +183,9 @@ static void abrir_detalhes(const struct jogo *j) {
 }
 
 static void abrir_config(void);
+static void l_abrir_loja(void);
+static void l_abrir_busca(int genero);
+static int l_downloads(void);
 
 static void abrir(const struct jogo *j) {
 	char erro[200] = "";
@@ -330,22 +335,44 @@ static void barra_cima(void) {
 		gv_texto(CLAY_STRING("LUMNA"), U(26), gv_t.texto, GV_PESO_MEDIO);
 		gv_texto(CLAY_STRING("Gaming"), U(22), gv_t.texto_secundario, GV_PESO_NORMAL);
 		for (int i = 0; i < 3; i++) {
-			bool ativa = (tela == T_INICIO && i == 0) || ((tela == T_BIBLIOTECA || tela == T_DETALHES) && i == 1);
+			bool ativa = (tela == T_INICIO && i == 0) || ((tela == T_BIBLIOTECA || tela == T_DETALHES) && i == 1) || ((tela == T_LOJA || tela == T_BUSCA || tela == T_LOJA_JOGO) && i == 2);
 			Clay_ElementId id = CLAY_IDI("nav", (uint32_t)i);
 			CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .padding = { U(14), U(14), U(8), U(8) }, .childGap = U(4), .childAlignment = { .x = CLAY_ALIGN_X_CENTER } } }) {
-				bool ativou = i == 2 ? false : gv_focavel(id, U(8));
-				gv_texto(gv_str(abas[i]), U(20), i == 2 ? gv_t.texto_suave : ativa ? gv_t.texto : gv_t.texto_secundario, ativa ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				bool ativou = gv_focavel(id, U(8));
+				gv_texto(gv_str(abas[i]), U(20), ativa ? gv_t.texto : gv_t.texto_secundario, ativa ? GV_PESO_MEDIO : GV_PESO_NORMAL);
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(U(3)) } }, .backgroundColor = ativa ? roxo(1) : (Clay_Color){ 0 } }) {}
-				if (i != 2 && (gv_tocado(id) || ativou)) {
-					tela = i == 0 ? T_INICIO : T_BIBLIOTECA;
+				if (gv_tocado(id) || ativou) {
 					confirmando = false;
 					adicionando = false;
+					if (i == 2) {
+						l_abrir_loja();
+					} else {
+						tela = i == 0 ? T_INICIO : T_BIBLIOTECA;
+					}
 				}
 			}
 		}
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
 		if (aviso[0] && gv_agora() < aviso_ate) {
 			gv_texto(gv_str(aviso), U(18), gv_t.aviso, GV_PESO_NORMAL);
+		}
+		if (gv_botao_redondo(CLAY_ID("n-busca"), "search", U(44), tela == T_BUSCA, false)) {
+			l_abrir_busca(0);
+		}
+		{
+			int nd = l_downloads();
+			CLAY(CLAY_ID("n-dl"), { .layout = { .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } } }) {
+				if (gv_botao_redondo(CLAY_ID("n-dl-b"), "download", U(44), nd > 0, false)) {
+					l_abrir_loja();
+					l_sub = LS_SUB_DEST;
+				}
+				if (nd > 0) {
+					CLAY(CLAY_ID("n-dl-n"), { .floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { CLAY_ATTACH_POINT_RIGHT_TOP, CLAY_ATTACH_POINT_RIGHT_TOP }, .zIndex = 5 },
+						.layout = { .padding = { U(6), U(6), U(1), U(1) } }, .backgroundColor = roxo(1), .cornerRadius = CLAY_CORNER_RADIUS(U(8)) }) {
+						gv_texto(gv_fmt("%d", nd), U(13), (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_MEDIO);
+					}
+				}
+			}
 		}
 		if (gv_botao_redondo(CLAY_ID("engrenagem"), "settings", U(44), tela == T_CONFIG, false)) {
 			abrir_config();
@@ -898,6 +925,8 @@ static void t_detalhes(void) {
 	}
 }
 
+#include "jogos_loja.h"
+
 /* ---------------- Configurações do Gaming ---------------- */
 
 static void pad_ler(void) {
@@ -1218,9 +1247,28 @@ static void cfg_gaming(void) {
 	g_free(mango);
 }
 
+/* quantos downloads da Steam estão em curso (os que esta sessão pediu) */
+static int l_downloads(void) {
+	static double lido_em;
+	static int n;
+	if (gv_agora() - lido_em < 1.5) {
+		return n;
+	}
+	lido_em = gv_agora();
+	int vivos = 0;
+	for (int i = 0; i < l_nbaixando; i++) {
+		struct steam_prog p;
+		if (jogos_steam_progresso(l_baixando[i], &p) && p.baixando) {
+			vivos++;
+		}
+	}
+	n = vivos;
+	return n;
+}
+
 static void t_config(void) {
-	static const char *const paginas[CP_N] = { "Controles", "Ajustes do controle", "Botão Guia", "Gaming" };
-	static const char *const icones[CP_N] = { "gamepad", "sliders", "lumna", "settings" };
+	static const char *const paginas[CP_N] = { "Controles", "Ajustes do controle", "Botão Guia", "Gaming", "Steam" };
+	static const char *const icones[CP_N] = { "gamepad", "sliders", "lumna", "settings", "bag" };
 	if (gv_agora() - pad_lido_em > 1.5) {
 		pad_ler();
 	}
@@ -1248,6 +1296,7 @@ static void t_config(void) {
 			case CP_CONTROLES: cfg_controles(); break;
 			case CP_AJUSTES: cfg_ajustes(); break;
 			case CP_GUIA: cfg_guia(); break;
+			case CP_STEAM: cfg_steam(); break;
 			default: cfg_gaming(); break;
 			}
 		}
@@ -1272,6 +1321,44 @@ static void navegar_teclado(void) {
 		}
 		if (seta_vai) {
 			gv_foco_pedir(1);
+		}
+		return;
+	}
+	if (tela == T_LOJA || tela == T_BUSCA || tela == T_LOJA_JOGO) {
+		if (tecla(XKB_KEY_Escape)) {
+			tela = tela == T_LOJA ? T_INICIO : T_LOJA;
+			return;
+		}
+		if (tecla(XKB_KEY_Up)) {
+			gv_foco_pedir(-1);
+		}
+		if (tecla(XKB_KEY_Down)) {
+			gv_foco_pedir(1);
+		}
+		if (tela == T_LOJA && l_sub == LS_SUB_DEST) {
+			if (tecla(XKB_KEY_Right) && l_sel < (l_ndest < 5 ? l_ndest : 5) - 1) {
+				l_sel++;
+			}
+			if (tecla(XKB_KEY_Left) && l_sel > 0) {
+				l_sel--;
+			}
+			if ((tecla(XKB_KEY_Return) || tecla(XKB_KEY_KP_Enter)) && l_ndest && l_sel < l_ndest && !l_busca_txt[0]) { /* com algo digitado na busca, o Enter é dela */
+				l_abrir_jogo(l_dest[l_sel].appid);
+			}
+		} else {
+			if (tecla(XKB_KEY_Left)) {
+				gv_foco_pedir(-1);
+			}
+			if (tecla(XKB_KEY_Right)) {
+				gv_foco_pedir(1);
+			}
+		}
+		int passo = pagina_depois ? 1 : pagina_antes ? -1 : 0;
+		if (passo && tela == T_LOJA) {
+			l_sub = (l_sub + passo + LS_SUB_N) % LS_SUB_N;
+			l_sel = 0;
+		} else if (passo && tela == T_LOJA_JOGO) {
+			l_aba = (l_aba + passo + LJ_ABA_N) % LJ_ABA_N;
 		}
 		return;
 	}
@@ -1322,7 +1409,7 @@ static void navegar_teclado(void) {
 		if (tela == T_INICIO) {
 			tela = T_BIBLIOTECA;
 		} else {
-			abrir_config();
+			l_abrir_loja();
 		}
 	} else if (pagina_antes) {
 		if (tela == T_BIBLIOTECA) {
@@ -1341,9 +1428,14 @@ static void desenhar(gv_app *a, void *dados) {
 	navegar_teclado();
 	struct jogo *d = tela == T_DETALHES ? por_id(det_id) : tela == T_INICIO ? selecionado_inicio() : NULL;
 	const char *fundo = tela == T_BIBLIOTECA ? papel_arquivo() : tela == T_CONFIG ? "" : d ? d->fundo : "";
+	if (tela == T_LOJA && l_sub == LS_SUB_DEST && l_ndest) {
+		fundo = l_img(l_dest[l_sel < l_ndest ? l_sel : 0].fundo) ? l_img(l_dest[l_sel < l_ndest ? l_sel : 0].fundo) : "";
+	} else if (tela == T_LOJA_JOGO && l_det_ok) {
+		fundo = l_img(l_det.fundo) ? l_img(l_det.fundo) : "";
+	}
 	Clay_ElementDeclaration base = { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = (Clay_Color){ 12, 9, 26, 255 } };
 	Clay_ElementDeclaration cena = { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } };
-	void (*degrade)(cairo_t *, Clay_BoundingBox, void *) = tela == T_INICIO ? draw_inicio : tela == T_BIBLIOTECA && fundo[0] ? draw_biblioteca : NULL;
+	void (*degrade)(cairo_t *, Clay_BoundingBox, void *) = tela == T_INICIO || (tela == T_LOJA && l_sub == LS_SUB_DEST) ? draw_inicio : (tela == T_BIBLIOTECA || tela == T_BUSCA) && fundo[0] ? draw_biblioteca : NULL;
 	Clay_ElementDeclaration janela = fundo[0] ? gv_imagem(CLAY_ID("janela"), fundo, GV_AJUSTE_COBRIR, base) : base;
 	CLAY(CLAY_ID("janela"), janela) {
 		CLAY(CLAY_ID("cena"), degrade ? gv_livre(degrade, NULL, cena) : cena) {
@@ -1354,6 +1446,12 @@ static void desenhar(gv_app *a, void *dados) {
 				t_biblioteca();
 			} else if (tela == T_CONFIG) {
 				t_config();
+			} else if (tela == T_LOJA) {
+				t_loja();
+			} else if (tela == T_BUSCA) {
+				t_busca();
+			} else if (tela == T_LOJA_JOGO) {
+				t_loja_jogo();
 			} else {
 				t_detalhes();
 			}
@@ -1384,8 +1482,9 @@ static void depurar(void) {
 #define S(base, n) for (int i_ = 0; i_ < (n); i_++) { g_ptr_array_add(nomes, g_strdup_printf("%s/%d", base, i_)); Clay_ElementId e_ = CLAY_IDI(base, (uint32_t)i_); g_array_append_val(ids, e_.id); }
 	F("continuar"); F("sobre"); F("mais"); F("ver-bib"); F("det-voltar"); F("det-continuar"); F("det-fav"); F("det-mais"); F("add"); F("add-nome"); F("add-exec"); F("add-ok"); F("add-cancelar");
 	F("abrir-pasta"); F("gerenciar"); F("verificar"); F("config-ini"); F("desinstalar"); F("des-ok"); F("des-cancelar"); F("apagar-arquivos");
-	F("engrenagem"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("gm-papel"); F("gm-papel-img"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
-	S("nav", 3); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 4); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
+	F("engrenagem"); F("l-ver"); F("l-preco"); F("l-busca"); F("b-campo"); F("b-gratis"); F("b-linux"); F("b-um"); F("b-coop"); F("lj-comprar"); F("lj-desejo"); F("lj-instalar"); F("li-ok"); F("li-nao"); F("li-local"); F("lj-desinstalar"); F("lj-jogar"); F("lj-atualizar"); F("lj-voltar"); F("n-busca"); F("n-dl-b"); F("st-chave"); F("st-id"); F("st-salvar"); F("lj-trailer"); F("l-tentar"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("gm-papel"); F("gm-papel-img"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
+	S("nav", 3); S("l-chip", LS_GEN_N); S("b-gen", LS_GEN_N); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 4); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
+	{ Clay_ElementId b_ = CLAY_ID("l-subabas"); for (int i_ = 0; i_ < LS_SUB_N; i_++) { g_ptr_array_add(nomes, g_strdup_printf("l-subabas/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	{ Clay_ElementId b_ = CLAY_ID("det-aba"); for (int i_ = 0; i_ < 2; i_++) { g_ptr_array_add(nomes, g_strdup_printf("det-aba/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	g_ptr_array_add(nomes, g_strdup("p-exec")); { Clay_ElementId e_ = CLAY_SID(CLAY_STRING("p-exec")); g_array_append_val(ids, e_.id); }
 	g_ptr_array_add(nomes, g_strdup("p-opcoes")); { Clay_ElementId e_ = CLAY_SID(CLAY_STRING("p-opcoes")); g_array_append_val(ids, e_.id); }
@@ -1407,10 +1506,11 @@ static void depurar(void) {
 	}
 	int idx[JOGOS_MAX];
 	struct jogo *d = por_id(det_id);
-	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d papel=%d",
+	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d papel=%d lsub=%d lndest=%d lnres=%d ltotal=%d lappid=%d ldet=%d ldes=%d ldlg=%d lprog=%d,%d lpossui=%d lbaix=%d lsel=%d",
 		tela, aba, filtro, njogos, visiveis(idx), sel, det_id[0] ? det_id : "-", d ? d->favorito : 0, confirmando, adicionando, ed_suja,
 		aviso[0] && gv_agora() < aviso_ate ? aviso : "-", d && d->opcoes[0] ? d->opcoes : "-", d ? d->nenv : 0,
-		cfg_pg, nctl, servico_pad, gcfg.zona_morta, gcfg.trocar_ab, gcfg.vibracao, gcfg.guia, gcfg.energia, gcfg.fps, dnd_gaming, papel.modo);
+		cfg_pg, nctl, servico_pad, gcfg.zona_morta, gcfg.trocar_ab, gcfg.vibracao, gcfg.guia, gcfg.energia, gcfg.fps, dnd_gaming, papel.modo,
+		l_sub, l_ndest, l_nres, l_total, l_appid, l_det_ok, l_ndesejos, l_instalando_dialogo, l_prog.baixando, l_prog.pct, l_npossui, l_nbaixando, l_sel);
 	for (char *c = est; *c; c++) {
 		if (*c == '\n') {
 			*c = ' ';
@@ -1497,18 +1597,27 @@ int main(int argc, char **argv) {
 		setvbuf(stdout, NULL, _IOLBF, 0);
 	}
 	const char *ir_jogo = NULL;
-	int aba_ini = 0;
+	int aba_ini = 0, loja_jogo_ini = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--tela") && i + 1 < argc) {
-			{ const char *t_ = argv[++i]; tela = !strcmp(t_, "biblioteca") ? T_BIBLIOTECA : !strcmp(t_, "config") ? T_CONFIG : T_INICIO; }
+			{ const char *t_ = argv[++i]; tela = !strcmp(t_, "biblioteca") ? T_BIBLIOTECA : !strcmp(t_, "config") ? T_CONFIG : !strcmp(t_, "loja") ? T_LOJA : T_INICIO; }
 		} else if (!strcmp(argv[i], "--jogo") && i + 1 < argc) {
 			ir_jogo = argv[++i];
+		} else if (!strcmp(argv[i], "--loja-jogo") && i + 1 < argc) {
+			loja_jogo_ini = atoi(argv[++i]);
 		} else if (!strcmp(argv[i], "--aba") && i + 1 < argc) {
 			aba_ini = atoi(argv[++i]);
 		}
 	}
 	relistar();
 	gp_cfg_ler(&gcfg);
+	if (tela == T_LOJA) {
+		l_abrir_loja();
+	}
+	if (loja_jogo_ini) {
+		l_abrir_loja();
+		l_abrir_jogo(loja_jogo_ini);
+	}
 	if (ir_jogo && por_id(ir_jogo)) {
 		abrir_detalhes(por_id(ir_jogo));
 		aba = aba_ini ? ABA_PROPRIEDADES : ABA_PRINCIPAL;

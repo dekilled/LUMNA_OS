@@ -8,7 +8,7 @@
  *   proton     protondb.com/api/v1/reports/summaries (o "Via Proton")
  *   possuidos  IPlayerService/GetOwnedGames (precisa da chave em ~/.config/lumna/jogos/steam.ini, 0600)
  *
- * Para testar sem a internet: $LUMNA_LOJA_STEAM_URL, $LUMNA_LOJA_PROTONDB_URL e $LUMNA_LOJA_API_URL apontam para um servidor local com respostas gravadas.
+ * Para testar sem a internet: $LUMNA_LOJA_STEAM_URL, $LUMNA_LOJA_PROTONDB_URL, $LUMNA_LOJA_IMG_URL e $LUMNA_LOJA_API_URL apontam para um servidor local com respostas gravadas.
  */
 #ifndef LUMNA_LOJA_STEAM_H
 #define LUMNA_LOJA_STEAM_H

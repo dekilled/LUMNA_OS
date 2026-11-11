@@ -31,7 +31,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/appdetails":
             ids = q.get("appids", [""])[0]
             if ids == "620":
-                return self.resp(arq("appdetails_620.json"))
+                corpo = arq("appdetails_620.json")
+                # o teste não pode depender do espaço livre da máquina: o Portal 2 pede 8 GB de verdade; aqui, 100 MB (a janela de instalação trata o "não cabe" à parte)
+                return self.resp(corpo.replace("Requer 8 GB de espaço livre".encode(), "Requer 100 MB de espaço livre".encode()))
             return self.resp(json.dumps({ids: {"success": False}}))
         if u.path == "/search/results/":
             if q.get("term", [""])[0] == "nada-existe":
@@ -46,7 +48,19 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self.resp("Forbidden", 403, "text/plain")
             return self.resp(json.dumps({"response": {"game_count": 2, "games": [{"appid": 620}, {"appid": 730}]}}))
         if u.path.endswith(".jpg"):
-            return self.resp(b"\x89PNG\r\n\x1a\nfalsa", 200, "image/jpeg")
+            # uma imagem de verdade (um degradê na cor do jogo), para o app poder desenhar
+            import io, re
+            from PIL import Image
+            m = re.search(r"/apps/(\d+)/", u.path)
+            n = int(m.group(1)) if m else 1
+            cor = ((n * 53) % 200 + 30, (n * 97) % 200 + 30, (n * 31) % 200 + 30)
+            img = Image.new("RGB", (160, 90), cor)
+            for y in range(90):
+                for x in range(160):
+                    img.putpixel((x, y), (min(255, cor[0] + x // 4), cor[1], max(0, cor[2] - y)))
+            b = io.BytesIO()
+            img.save(b, "PNG")
+            return self.resp(b.getvalue(), 200, "image/jpeg")
         return self.resp("nao", 404, "text/plain")
 
 

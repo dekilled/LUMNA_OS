@@ -50,7 +50,7 @@ Ele **não captura** o controle (sem `EVIOCGRAB`): o jogo continua lendo o dele.
 
 - **Navegação:** com o LUMNA Jogos em foco, o direcional e o analógico esquerdo viram as setas (e repetem enquanto seguram), A é Enter, B é Esc, LB e RB são Page Up e Page Down (trocam de aba) e Home leva ao Início. Isso é feito pelo `wtype`. **Com um jogo em foco o serviço não manda tecla nenhuma.**
 - **Botão Guia:** em qualquer janela. Abre a biblioteca, vai ao Início, chama a Emma (se estiver ligada) ou não faz nada, conforme a configuração.
-- **Configurações** (a engrenagem do topo, ou RB a partir da Biblioteca):
+- **Configurações** (a engrenagem do topo):
   - *Controles:* a lista (nome, USB/Bluetooth, bateria quando o controle informa), testar vibração, renomear (apelido), ignorar e voltar a usar; e **Adicionar um controle (Bluetooth)**: procurar, parear, conectar e remover (pelo BlueZ).
   - *Ajustes do controle:* zona morta dos analógicos, vibração, trocar A e B (estilo Nintendo) e o mapa dos botões na navegação.
   - *Botão Guia:* o que ele faz.

@@ -1,6 +1,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <sqlite3.h>
+#include <sys/statvfs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -785,4 +786,183 @@ bool jogos_desinstalar(const struct jogo *j, bool apagar_arquivos, bool *saiu_da
 	}
 	g_free(cmd);
 	return ok;
+}
+
+/* ---------------- a Steam por dentro ---------------- */
+
+static GPtrArray *bibliotecas_steam(char **raiz_out) {
+	char *raiz = steam_raiz();
+	GPtrArray *pastas = g_ptr_array_new_with_free_func(g_free);
+	g_ptr_array_add(pastas, g_strdup(raiz));
+	char *lf = g_build_filename(raiz, "steamapps", "libraryfolders.vdf", NULL), *t = NULL;
+	if (g_file_get_contents(lf, &t, NULL, NULL)) {
+		struct vdf *r = vdf_ler(t);
+		const struct vdf *libs = vdf_no(r, "libraryfolders");
+		for (guint i = 0; libs && libs->f && i < libs->f->len; i++) {
+			const char *p = vdf_val(libs->f->pdata[i], "path");
+			bool dup = !*p;
+			for (guint k = 0; k < pastas->len; k++) {
+				dup |= !strcmp(pastas->pdata[k], p);
+			}
+			if (!dup) {
+				g_ptr_array_add(pastas, g_strdup(p));
+			}
+		}
+		vdf_liberar(r);
+		g_free(t);
+	}
+	g_free(lf);
+	if (raiz_out) {
+		*raiz_out = raiz;
+	} else {
+		g_free(raiz);
+	}
+	return pastas;
+}
+
+int jogos_steam_bibliotecas(struct steam_lib *l, int max) {
+	char *raiz = NULL;
+	GPtrArray *p = bibliotecas_steam(&raiz);
+	int n = 0;
+	for (guint i = 0; i < p->len && n < max; i++) {
+		struct statvfs v;
+		const char *c = p->pdata[i];
+		if (!g_file_test(c, G_FILE_TEST_IS_DIR) || statvfs(c, &v) != 0) {
+			continue; /* um disco que não está montado */
+		}
+		memset(&l[n], 0, sizeof(l[n]));
+		g_strlcpy(l[n].caminho, c, sizeof(l[n].caminho));
+		l[n].total = (int64_t)v.f_blocks * (int64_t)v.f_frsize;
+		l[n].livre = (int64_t)v.f_bavail * (int64_t)v.f_frsize;
+		l[n].padrao = i == 0;
+		n++;
+	}
+	g_ptr_array_free(p, TRUE);
+	g_free(raiz);
+	return n;
+}
+
+bool jogos_steam_progresso(int appid, struct steam_prog *pr) {
+	memset(pr, 0, sizeof(*pr));
+	GPtrArray *p = bibliotecas_steam(NULL);
+	for (guint i = 0; i < p->len; i++) {
+		char nome[64], *a;
+		g_snprintf(nome, sizeof(nome), "appmanifest_%d.acf", appid);
+		a = g_build_filename(p->pdata[i], "steamapps", nome, NULL);
+		char *t = NULL;
+		if (g_file_get_contents(a, &t, NULL, NULL)) {
+			struct vdf *r = vdf_ler(t);
+			const struct vdf *st = vdf_no(r, "AppState");
+			int flags = atoi(vdf_val(st, "StateFlags"));
+			pr->no_manifesto = true;
+			pr->instalado = (flags & 4) != 0;
+			/* 2: atualização na fila · 256: atualizando · 1024: baixando · 512: confirmando; e o que a Steam ainda deve baixar */
+			int64_t a_baixar = g_ascii_strtoll(vdf_val(st, "BytesToDownload"), NULL, 10), baixado = g_ascii_strtoll(vdf_val(st, "BytesDownloaded"), NULL, 10);
+			pr->baixando = (flags & (2 | 256 | 1024 | 512 | 1)) != 0 && !((flags & 4) && !(flags & (256 | 1024 | 512)) && a_baixar == 0) ;
+			pr->atualizacao = pr->instalado && (flags & 2) != 0;
+			pr->total = a_baixar;
+			pr->baixado = baixado;
+			pr->pct = a_baixar > 0 ? (int)(baixado * 100 / a_baixar) : (pr->instalado ? 100 : 0);
+			pr->pct = pr->pct > 100 ? 100 : pr->pct;
+			vdf_liberar(r);
+			g_free(t);
+			g_free(a);
+			g_ptr_array_free(p, TRUE);
+			return true;
+		}
+		g_free(a);
+	}
+	g_ptr_array_free(p, TRUE);
+	return false;
+}
+
+static bool processo_existe(const char *nome) {
+	int estado = 0;
+	char *pg[] = { "pgrep", "-x", (char *)nome, NULL };
+	g_spawn_sync(NULL, pg, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, &estado, NULL);
+	return estado == 0;
+}
+
+static bool steam_rodar(char **argv, GError **ge) {
+	return g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, ge);
+}
+
+bool jogos_steam_instalar(int appid, const char *nome, const char *biblioteca, char *erro, size_t tam) {
+	GError *ge = NULL;
+	if (!processo_existe("steam")) {
+		/* o cliente sobe sem janela: só o que precisa para baixar */
+		char *sobe[] = { "steam", "-silent", "-nochatui", "-nofriendsui", NULL };
+		if (!steam_rodar(sobe, &ge)) {
+			g_strlcpy(erro, "A Steam não está instalada (pacman -S steam).", tam);
+			g_clear_error(&ge);
+			return false;
+		}
+		g_usleep(1500000);
+	}
+	GPtrArray *libs = bibliotecas_steam(NULL);
+	bool padrao = !biblioteca || !*biblioteca || (libs->len && !strcmp(biblioteca, libs->pdata[0]));
+	g_ptr_array_free(libs, TRUE);
+	if (!padrao) {
+		/* outra biblioteca: um appmanifest deixado lá faz a Steam baixar naquela pasta */
+		char dir[128] = "";
+		for (const char *c = nome ? nome : ""; *c && strlen(dir) < sizeof(dir) - 1; c++) {
+			if (g_ascii_isalnum(*c) || *c == ' ' || *c == '-' || *c == '_') {
+				dir[strlen(dir)] = *c;
+			}
+		}
+		if (!dir[0]) {
+			g_snprintf(dir, sizeof(dir), "app_%d", appid);
+		}
+		char *pasta = g_build_filename(biblioteca, "steamapps", NULL), nomeacf[64];
+		g_snprintf(nomeacf, sizeof(nomeacf), "appmanifest_%d.acf", appid);
+		char *acf = g_build_filename(pasta, nomeacf, NULL);
+		if (g_mkdir_with_parents(pasta, 0755) != 0 && !g_file_test(pasta, G_FILE_TEST_IS_DIR)) {
+			g_strlcpy(erro, "Não consegui escrever na biblioteca escolhida.", tam);
+			g_free(pasta);
+			g_free(acf);
+			return false;
+		}
+		if (!g_file_test(acf, G_FILE_TEST_EXISTS)) {
+			char *t = g_strdup_printf("\"AppState\"\n{\n\t\"appid\"\t\t\"%d\"\n\t\"Universe\"\t\t\"1\"\n\t\"installdir\"\t\t\"%s\"\n\t\"StateFlags\"\t\t\"1026\"\n}\n", appid, dir);
+			bool ok = g_file_set_contents(acf, t, -1, NULL);
+			g_free(t);
+			if (!ok) {
+				g_strlcpy(erro, "Não consegui escrever na biblioteca escolhida.", tam);
+				g_free(pasta);
+				g_free(acf);
+				return false;
+			}
+		}
+		g_free(pasta);
+		g_free(acf);
+	}
+	char url[64];
+	g_snprintf(url, sizeof(url), "steam://install/%d", appid);
+	char *ab[] = { "steam", url, NULL };
+	if (!steam_rodar(ab, &ge)) {
+		g_strlcpy(erro, ge ? ge->message : "Não consegui falar com a Steam.", tam);
+		g_clear_error(&ge);
+		return false;
+	}
+	return true;
+}
+
+bool jogos_steam_comprar(int appid, char *erro, size_t tam) {
+	GError *ge = NULL;
+	char url[64];
+	g_snprintf(url, sizeof(url), "steam://store/%d", appid);
+	char *ab[] = { "steam", url, NULL };
+	if (steam_rodar(ab, &ge)) {
+		return true;
+	}
+	g_clear_error(&ge);
+	char web[96];
+	g_snprintf(web, sizeof(web), "https://store.steampowered.com/app/%d", appid);
+	char *xo[] = { "xdg-open", web, NULL };
+	if (steam_rodar(xo, &ge)) {
+		return true;
+	}
+	g_strlcpy(erro, "Não consegui abrir a loja da Steam.", tam);
+	g_clear_error(&ge);
+	return false;
 }

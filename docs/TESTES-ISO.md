@@ -385,7 +385,7 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 |---|---|---|---|
 | 2.292 | Ligue um controle por USB (Xbox, PlayStation ou genérico) e abra o LUMNA Jogos | O direcional e o analógico esquerdo movem o card; A abre os Detalhes; B volta | ☐ |
 | 2.293 | Segure o direcional | Repete (anda sem parar), e para ao soltar | ☐ |
-| 2.294 | LB e RB | Trocam de aba (Início ↔ Biblioteca ↔ Configurações; nos Detalhes, Principal ↔ Propriedades) | ☐ |
+| 2.294 | LB e RB | Trocam de aba (Início ↔ Biblioteca ↔ Loja; na Loja, as subabas; nos Detalhes, Principal ↔ Propriedades) | ☐ |
 | 2.295 | Abra um jogo e mexa no controle dentro dele | O jogo recebe o controle normalmente; o Gaming não reage | ☐ |
 | 2.296 | Com o jogo aberto, aperte o botão Guia | Traz a biblioteca por cima (guia=biblioteca); o jogo continua rodando | ☐ |
 | 2.297 | Configurações > Controles | O controle aparece com o nome, USB/Bluetooth e a bateria (se ele informa) | ☐ |
@@ -412,6 +412,28 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.313 | Olhe a barra de baixo (dicas dos botões) | De uma cor só, sem arte por trás | ☐ |
 | 2.314 | Biblioteca | Um papel de parede (a arte do jogo mais recente) escurecido atrás da grade | ☐ |
 | 2.315 | Configurações > Gaming > Papel de parede: "Uma imagem minha" com um caminho; depois "Nenhum" | A Biblioteca usa a sua imagem (em até 5 s); com "Nenhum" fica só o fundo escuro | ☐ |
+
+### 2n. Loja do Gaming (Steam)
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.316 | Gaming > Loja (com internet) | Destaques com os mais vendidos da Steam, em reais, com capas; o jogo selecionado dá o nome e o fundo | ☐ |
+| 2.317 | Chips Ação, Aventura, RPG, Corrida, Estratégia, Indie | A fila de jogos muda para o gênero | ☐ |
+| 2.318 | Subabas Categorias, Ofertas e Lista de desejos | Ofertas mostra o desconto e o preço; Categorias leva à busca do gênero | ☐ |
+| 2.319 | Buscar: um nome, depois "Linux nativo", "Só grátis", "Cooperativo" e a ordem | Os resultados acompanham; "Linux nativo" só traz jogos com versão para Linux | ☐ |
+| 2.320 | Abra um jogo | Visão geral (prints e trailer), Sobre e Requisitos; "Via Proton" mostra o nível do ProtonDB | ☐ |
+| 2.321 | "Ver o trailer" | O mpv abre e toca | ☐ |
+| 2.322 | Em um jogo que você não tem: "Lista de desejos" | Entra na lista local (subaba Lista de desejos); tocar de novo tira | ☐ |
+| 2.323 | "Comprar" | A loja da Steam abre naquele jogo (a única janela da Steam que aparece) | ☐ |
+| 2.324 | Configurações > Steam: cole a chave de API (e o id, se pedir) | "Chave guardada"; os jogos da conta passam a mostrar "Na biblioteca" | ☐ |
+| 2.325 | Num jogo da sua conta: "Instalar" | A janela mostra as bibliotecas da Steam com o espaço livre e o espaço necessário | ☐ |
+| 2.326 | Confirme "Instalar" **com a Steam fechada** | A Steam sobe **sem abrir janela** e o download começa; a barra de progresso anda na página do jogo | ☐ |
+| 2.327 | Troque o local por outra biblioteca (outro disco) e instale | O jogo baixa na pasta escolhida (se não, me diga o que a Steam fez) | ☐ |
+| 2.328 | O ícone de download da barra | Mostra o número de downloads em curso | ☐ |
+| 2.329 | Quando termina | "Instalado", com "Ver na biblioteca"; o jogo aparece na Biblioteca | ☐ |
+| 2.330 | "Desinstalar" | A Steam desinstala (e o jogo some da Biblioteca) | ☐ |
+| 2.331 | Um jogo grátis (ex. um free-to-play) | Mostra "Grátis" e "Instalar" (sem Comprar) | ☐ |
+| 2.332 | Desligue a internet e abra a Loja | Mostra a mensagem e "Tentar de novo"; o que já foi visto continua (cache) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

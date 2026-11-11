@@ -25,4 +25,5 @@ if [ -n "$1" ]; then
 	mkdir -p "$HOME"
 	sh "$aqui/jogos/teste_ui.sh" "$1" "$g" "$run"
 	rm -rf "$run"
+	sh "$aqui/jogos/teste_loja.sh" "$1" "$g"
 fi

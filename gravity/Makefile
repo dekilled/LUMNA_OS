@@ -203,8 +203,8 @@ gamepad: exemplos/gamepad.c servicos/gamepad.c servicos/gamepad.h servicos/gamep
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 gio-unix-2.0) -o $@ exemplos/gamepad.c servicos/gamepad.c servicos/gamepadc.c servicos/emma_ativa.c servicos/json.c servicos/modos.c $(shell pkg-config --libs glib-2.0 gio-2.0 gio-unix-2.0) -lm
 
 # o modo Gaming: a biblioteca de jogos (lumna-jogos)
-jogos: exemplos/jogos.c servicos/jogos.c servicos/jogos.h servicos/json.c servicos/json.h servicos/modos.c servicos/modos.h servicos/gamepad.c servicos/gamepad.h servicos/gamepadc.c servicos/gamepadc.h servicos/bluetooth.c servicos/bluetooth.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 sqlite3) -o $@ exemplos/jogos.c servicos/jogos.c servicos/json.c servicos/modos.c servicos/gamepad.c servicos/gamepadc.c servicos/bluetooth.c libgravity.a $(LDLIBS) $(shell pkg-config --libs glib-2.0 gio-2.0 sqlite3) -lpthread
+jogos: exemplos/jogos.c servicos/jogos.c servicos/jogos.h servicos/json.c servicos/json.h servicos/modos.c servicos/modos.h servicos/gamepad.c servicos/gamepad.h servicos/gamepadc.c servicos/gamepadc.h servicos/bluetooth.c servicos/bluetooth.h servicos/loja_steam.c servicos/loja_steam.h exemplos/jogos_loja.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 sqlite3) -o $@ exemplos/jogos.c servicos/jogos.c servicos/json.c servicos/modos.c servicos/gamepad.c servicos/gamepadc.c servicos/bluetooth.c servicos/loja_steam.c libgravity.a $(LDLIBS) $(shell pkg-config --libs glib-2.0 gio-2.0 sqlite3) -lpthread
 
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a

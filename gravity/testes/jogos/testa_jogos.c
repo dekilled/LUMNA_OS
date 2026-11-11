@@ -153,6 +153,48 @@ int main(void) {
 	g_free(so_casa);
 	g_free(pasta);
 
+
+	/* a Steam por dentro: bibliotecas, progresso, instalar e comprar */
+	{
+		struct steam_lib libs[8];
+		int nl = jogos_steam_bibliotecas(libs, 8);
+		CONFERE(nl >= 1 && libs[0].padrao && libs[0].total > 0 && libs[0].livre > 0 && libs[0].livre <= libs[0].total, "as bibliotecas da Steam, a padrão primeiro, com o espaço");
+		bool achou_outra = false;
+		for (int i = 0; i < nl; i++) {
+			achou_outra |= strstr(libs[i].caminho, "/outra") != NULL;
+		}
+		CONFERE(achou_outra, "a biblioteca de libraryfolders.vdf entra");
+		struct steam_prog pr;
+		CONFERE(jogos_steam_progresso(1001, &pr) && pr.instalado && !pr.baixando && pr.pct == 100, "Terras Distantes: instalado, sem download");
+		CONFERE(jogos_steam_progresso(1003, &pr) && !pr.instalado && pr.baixando && pr.no_manifesto, "Ainda Baixando: no manifesto, baixando");
+		CONFERE(!jogos_steam_progresso(424242, &pr) && !pr.no_manifesto, "um jogo sem manifesto");
+		/* instalar na biblioteca padrão: sobe a Steam sem janela e manda o steam://install */
+		CONFERE(jogos_steam_instalar(777, "Jogo Novo", NULL, erro, sizeof(erro)), "pede a instalação na biblioteca padrão");
+		g_usleep(2200000);
+		char *lg2 = le(g_getenv("FALSO_LOG"));
+		CONFERE(strstr(lg2, "steam -silent -nochatui -nofriendsui") != NULL, "a Steam sobe em segundo plano, sem janela");
+		CONFERE(strstr(lg2, "steam steam://install/777") != NULL, "e recebe o steam://install");
+		g_free(lg2);
+		/* em outra biblioteca: o appmanifest fica lá */
+		char *outra = NULL;
+		for (int i = 0; i < nl; i++) {
+			if (strstr(libs[i].caminho, "/outra")) {
+				outra = libs[i].caminho;
+			}
+		}
+		CONFERE(outra && jogos_steam_instalar(888, "Outro: Jogo/Estranho!", outra, erro, sizeof(erro)), "pede a instalação na outra biblioteca");
+		char *acf = g_strdup_printf("%s/steamapps/appmanifest_888.acf", outra ? outra : "/x");
+		char *conteudo = le(acf);
+		CONFERE(strstr(conteudo, "\"appid\"\t\t\"888\"") && strstr(conteudo, "\"StateFlags\"\t\t\"1026\"") && strstr(conteudo, "installdir\"\t\t\"Outro JogoEstranho\""), "um appmanifest na pasta escolhida (o nome do jogo sem caracteres perigosos)");
+		CONFERE(!strstr(conteudo, "/") , "e sem barras no nome da pasta");
+		g_free(conteudo);
+		g_free(acf);
+		CONFERE(jogos_steam_comprar(777, erro, sizeof(erro)), "comprar abre a loja da Steam");
+		g_usleep(300000);
+		lg2 = le(g_getenv("FALSO_LOG"));
+		CONFERE(strstr(lg2, "steam steam://store/777") != NULL, "pelo steam://store");
+		g_free(lg2);
+	}
 	if (falhas) {
 		fprintf(stderr, "%d falha(s)\n", falhas);
 		return 1;
