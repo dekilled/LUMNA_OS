@@ -71,7 +71,7 @@ void gp_cfg_ler(struct gp_cfg *c) {
 	c->trocar_ab = sim(kf, "geral", "trocar_ab", false);
 	c->fps = sim(kf, "gaming", "fps", false);
 	char *g = g_key_file_get_string(kf, "geral", "guia", NULL), *e = g_key_file_get_string(kf, "gaming", "energia", NULL);
-	static const char *const guias[] = { "biblioteca", "inicio", "emma", "nada", NULL };
+	static const char *const guias[] = { "biblioteca", "inicio", "emma", "processos", "nada", NULL };
 	static const char *const energias[] = { "performance", "balanced", "power-saver", "nao", NULL };
 	if (valor_ok(g, guias)) {
 		g_strlcpy(c->guia, g, sizeof(c->guia));

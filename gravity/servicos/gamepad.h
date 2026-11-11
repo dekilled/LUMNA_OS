@@ -4,7 +4,7 @@
  * captura o controle (EVIOCGRAB): o jogo continua lendo o dele. Quem usa é o serviço lumna-gamepad (exemplos/gamepad.c).
  *
  * Configurações em ~/.config/lumna/gamepad.ini:
- *   [geral]   zona_morta=15 (% do curso do analógico)  vibracao=sim|nao  trocar_ab=sim|nao (estilo Nintendo)  guia=biblioteca|inicio|emma|nada
+ *   [geral]   zona_morta=15 (% do curso do analógico)  vibracao=sim|nao  trocar_ab=sim|nao (estilo Nintendo)  guia=biblioteca|inicio|emma|processos|nada
  *   [gaming]  energia=performance|balanced|power-saver|nao  fps=sim|nao (MangoHud nos jogos que o Gaming abre)
  *   [apelidos] ID=Nome        [ignorados] ID=sim
  *

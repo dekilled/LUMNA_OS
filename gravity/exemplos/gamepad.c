@@ -118,6 +118,12 @@ static void guia(void) {
 		}
 		return;
 	}
+	if (!strcmp(cfg.guia, "processos")) {
+		/* o gerenciador de processos (alterna: aperta de novo e fecha); é uma camada por cima de qualquer jogo */
+		char *argv[] = { "lumna-processos", NULL };
+		g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+		return;
+	}
 	/* biblioteca ou início: traz o LUMNA Jogos (abre se não estiver aberto); "início" ainda manda a tecla Home */
 	int estado = 0;
 	char *pg[] = { "pgrep", "-x", "lumna-jogos", NULL };

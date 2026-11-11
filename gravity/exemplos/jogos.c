@@ -1195,13 +1195,13 @@ static void cfg_ajustes(void) {
 }
 
 static void cfg_guia(void) {
-	static const char *const ids[4] = { "biblioteca", "inicio", "emma", "nada" };
-	static const char *const nomes[4] = { "Abrir a biblioteca de jogos", "Ir ao Início do Gaming", "Chamar a Emma", "Não fazer nada" };
-	static const char *const subs[4] = { "Traz o LUMNA Jogos para a frente (abre se estiver fechado).", "Traz o LUMNA Jogos e volta ao Início.", "Abre ou fecha o chat da Emma por cima do jogo.", "O botão Guia fica só para o jogo." };
+	static const char *const ids[5] = { "biblioteca", "inicio", "emma", "processos", "nada" };
+	static const char *const nomes[5] = { "Abrir a biblioteca de jogos", "Ir ao Início do Gaming", "Chamar a Emma", "Abrir o gerenciador de processos", "Não fazer nada" };
+	static const char *const subs[5] = { "Traz o LUMNA Jogos para a frente (abre se estiver fechado).", "Traz o LUMNA Jogos e volta ao Início.", "Abre ou fecha o chat da Emma por cima do jogo.", "Por cima do jogo: fecha um jogo travado, muda prioridades.", "O botão Guia fica só para o jogo." };
 	CLAY(CLAY_ID("cfg-gu"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(12) } }) {
 		gv_texto(CLAY_STRING("Botão Guia"), U(28), gv_t.texto, GV_PESO_MEDIO);
 		gv_texto(CLAY_STRING("O que o botão do meio do controle faz, em qualquer janela (inclusive por cima de um jogo)."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 5; i++) {
 			bool sel_ = !strcmp(gcfg.guia, ids[i]);
 			Clay_ElementId id = CLAY_IDI("guia", (uint32_t)i);
 			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(U(16)), .childGap = U(14), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
@@ -1537,7 +1537,7 @@ static void depurar(void) {
 	F("continuar"); F("sobre"); F("mais"); F("ver-bib"); F("det-voltar"); F("det-continuar"); F("det-fav"); F("det-mais"); F("add"); F("add-nome"); F("add-exec"); F("add-ok"); F("add-cancelar");
 	F("abrir-pasta"); F("gerenciar"); F("verificar"); F("config-ini"); F("desinstalar"); F("des-ok"); F("des-cancelar"); F("apagar-arquivos");
 	F("engrenagem"); F("ep-abrir"); F("ep-codigo"); F("ep-entrar"); F("ep-sair"); F("l-epic-recarregar"); F("gg-abrir"); F("gg-codigo"); F("gg-entrar"); F("gg-sair"); F("li-pasta"); F("l-loja"); F("l-ver"); F("l-preco"); F("l-busca"); F("b-campo"); F("b-gratis"); F("b-linux"); F("b-um"); F("b-coop"); F("lj-comprar"); F("lj-desejo"); F("lj-instalar"); F("li-ok"); F("li-nao"); F("li-local"); F("lj-desinstalar"); F("lj-jogar"); F("lj-atualizar"); F("lj-voltar"); F("n-busca"); F("n-dl-b"); F("st-chave"); F("st-id"); F("st-salvar"); F("lj-trailer"); F("l-tentar"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("gm-papel"); F("gm-papel-img"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
-	S("nav", 3); S("l-chip", LS_GEN_N); S("b-gen", LS_GEN_N); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 4); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
+	S("nav", 3); S("l-chip", LS_GEN_N); S("b-gen", LS_GEN_N); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 5); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
 	{ Clay_ElementId b_ = CLAY_ID("l-subabas"); for (int i_ = 0; i_ < LS_SUB_N; i_++) { g_ptr_array_add(nomes, g_strdup_printf("l-subabas/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	{ Clay_ElementId b_ = CLAY_ID("det-aba"); for (int i_ = 0; i_ < 2; i_++) { g_ptr_array_add(nomes, g_strdup_printf("det-aba/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	g_ptr_array_add(nomes, g_strdup("p-exec")); { Clay_ElementId e_ = CLAY_SID(CLAY_STRING("p-exec")); g_array_append_val(ids, e_.id); }

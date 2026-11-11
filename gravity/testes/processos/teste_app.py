@@ -165,6 +165,17 @@ toca("encerrar", 0.8)
 toca("confirmar-sim", 1.5)
 confere(lambda: infra.poll() is not None, "confirmar devia encerrar o processo da sessão", 6)
 novo.kill()
+# "Fechar jogo": um jogo de mentira (SteamGameId no ambiente) filho de um "steam" de mentira; fecha só o jogo
+shutil.copy("/bin/sleep", f"{run}/jogofalso")
+steam = subprocess.Popen(["sh", "-c", 'SteamGameId=730 "$0" 600; sleep 60', f"{run}/jogofalso"])
+confere(lambda: estado().get("jogo") == "730" and pos("fechar-jogo") is not None, "um processo com SteamGameId devia aparecer como 'Jogo em execução'", 6)
+gpid = int(subprocess.run(["pgrep", "-f", f"{run}/jogofalso 600"], capture_output=True, text=True).stdout.split()[0])
+toca("fechar-jogo", 1.5)
+confere(lambda: not viva(gpid), "'Fechar jogo' devia encerrar o jogo na hora", 6)
+if steam.poll() is not None:
+    falha("'Fechar jogo' não devia derrubar o 'steam' (o pai do jogo)")
+confere(lambda: estado().get("jogo") == "0", "depois de fechar, o aviso do jogo devia sumir", 6)
+steam.kill()
 # Desempenho: a aba abre os gráficos (cpu, memória, gpu, disco, rede) e volta para Processos
 toca("aba/desempenho", 1.0)
 confere(lambda: estado().get("tela") == "1", "a aba Desempenho devia abrir")

@@ -146,6 +146,8 @@ confere(lambda: est("tela") == "0", "o Guia (guia=inicio) traz o Início, de den
 toca("engrenagem", 0.8)
 toca("cfg-pg/2", 0.8)
 toca("guia/3", 1.0)
+confere(lambda: "guia=processos" in ini("gamepad.ini"), "escolher 'Abrir o gerenciador de processos' grava")
+toca("guia/4", 1.0)
 confere(lambda: "guia=nada" in ini("gamepad.ini"), "escolher 'Não fazer nada' grava")
 aperta("GUIA")
 confere(lambda: est("tela") == "3", "com guia=nada o Guia não muda nada")

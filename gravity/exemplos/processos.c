@@ -498,13 +498,105 @@ static void guardar_amostra(void) {
 	}
 }
 
+static void achar_jogo(void);
 static void ler_tudo(void) {
 	pr_liberar(&lista);
 	pr_listar(&lista);
 	ler_sistema();
 	guardar_amostra();
+	achar_jogo();
 	montar_linhas();
 	ultima_leitura = gv_agora();
+}
+
+/* ---- o jogo em execução: a Steam marca todo processo de um jogo (nativo ou Proton) com SteamGameId no ambiente ---- */
+struct jogo_atual {
+	bool ativo;
+	int appid, pid, nproc;
+	uint64_t inicio;
+	char nome[80];
+};
+static struct jogo_atual jogo;
+
+static int steam_id_de(int pid) {
+	char arq[48];
+	snprintf(arq, sizeof(arq), "/proc/%d/environ", pid);
+	FILE *f = fopen(arq, "r");
+	if (!f) {
+		return 0;
+	}
+	static char buf[131072];
+	size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+	fclose(f);
+	buf[n] = '\0';
+	for (size_t i = 0; i < n;) {
+		if (!strncmp(buf + i, "SteamGameId=", 12)) {
+			return atoi(buf + i + 12);
+		}
+		i += strlen(buf + i) + 1;
+	}
+	return 0;
+}
+
+static void achar_jogo(void) {
+	memset(&jogo, 0, sizeof(jogo));
+	int n = lista.n;
+	if (n <= 0) {
+		return;
+	}
+	int *gid = g_new0(int, n);
+	for (int i = 0; i < n; i++) {
+		const struct pr_proc *p = &lista.v[i];
+		if (!p->kernel && p->uid == (uid_t)meu_uid) {
+			gid[i] = steam_id_de(p->pid);
+		}
+	}
+	/* o jogo com mais memória (se houver mais de um); a raiz dele é o processo cujo pai não é do mesmo jogo */
+	int melhor_id = 0;
+	int64_t melhor_mem = -1;
+	for (int i = 0; i < n; i++) {
+		if (gid[i] <= 0) {
+			continue;
+		}
+		int64_t mem = 0;
+		for (int k = 0; k < n; k++) {
+			if (gid[k] == gid[i]) {
+				mem += lista.v[k].memoria_kb;
+			}
+		}
+		if (mem > melhor_mem) {
+			melhor_mem = mem;
+			melhor_id = gid[i];
+		}
+	}
+	if (!melhor_id) {
+		g_free(gid);
+		return;
+	}
+	int64_t maior = -1;
+	for (int i = 0; i < n; i++) {
+		if (gid[i] != melhor_id) {
+			continue;
+		}
+		jogo.nproc++;
+		if (lista.v[i].memoria_kb > maior) {
+			maior = lista.v[i].memoria_kb;
+			g_strlcpy(jogo.nome, lista.v[i].nome, sizeof(jogo.nome));
+		}
+		bool pai_do_jogo = false;
+		for (int k = 0; k < n; k++) {
+			if (lista.v[k].pid == lista.v[i].ppid && gid[k] == melhor_id) {
+				pai_do_jogo = true;
+			}
+		}
+		if (!pai_do_jogo && (!jogo.pid || lista.v[i].memoria_kb > 0)) {
+			jogo.pid = lista.v[i].pid;
+			jogo.inicio = lista.v[i].inicio;
+		}
+	}
+	jogo.ativo = jogo.pid > 0;
+	jogo.appid = melhor_id;
+	g_free(gid);
 }
 
 /* ---- as ações ---- */
@@ -595,17 +687,10 @@ static bool pedir_priv_forcado(void) {
 	return e && *e;
 }
 
-static void encerrar(int pid, bool forcar, bool arvore) {
-	const struct linha *l = linha_de(pid);
-	if (!l) {
-		return;
-	}
+static void encerrar_alvo(int pid, uint64_t inicio, const char *nome, char estado, bool forcar, bool arvore) {
 	char erro[200] = "";
 	int quantos = 0;
-	enum pr_resultado r = pedir_priv_forcado() ? PR_PRECISA_PRIV : pr_encerrar(pid, l->inicio, arvore, forcar, &quantos, erro, sizeof(erro));
-	char nome[80];
-	g_strlcpy(nome, l->nome, sizeof(nome));
-	char estado = l->estado;
+	enum pr_resultado r = pedir_priv_forcado() ? PR_PRECISA_PRIV : pr_encerrar(pid, inicio, arvore, forcar, &quantos, erro, sizeof(erro));
 	if (r == PR_OK) {
 		avisar("%s: %s (%d %s)", forcar ? "Encerrado na hora" : "Pedido de encerramento enviado", nome, quantos, quantos == 1 ? "processo" : "processos");
 		if (estado == 'D') {
@@ -614,13 +699,33 @@ static void encerrar(int pid, bool forcar, bool arvore) {
 	} else if (r == PR_PRECISA_PRIV) {
 		char s_pid[16], s_ini[24];
 		snprintf(s_pid, sizeof(s_pid), "%d", pid);
-		snprintf(s_ini, sizeof(s_ini), "%llu", (unsigned long long)l->inicio);
+		snprintf(s_ini, sizeof(s_ini), "%llu", (unsigned long long)inicio);
 		char *args[] = { "encerrar", s_pid, s_ini, arvore ? "arvore" : "um", forcar ? "forcar" : "pedir", NULL };
 		pedir_ao_ajudante(args, forcar ? "Encerrado na hora." : "Pedido de encerramento enviado.");
 	} else {
 		avisar("%s", erro[0] ? erro : "Não consegui encerrar.");
 	}
 	ler_tudo();
+}
+
+static void encerrar(int pid, bool forcar, bool arvore) {
+	const struct linha *l = linha_de(pid);
+	if (!l) {
+		return;
+	}
+	char nome[80];
+	g_strlcpy(nome, l->nome, sizeof(nome));
+	encerrar_alvo(pid, l->inicio, nome, l->estado, forcar, arvore);
+}
+
+/* fecha o jogo (e só ele: a Steam, o Orbit e o resto ficam) na hora: SIGKILL na árvore do jogo, sem confirmação (é para isso que se abre o gerenciador com o jogo travado) */
+static void fechar_jogo(void) {
+	if (!jogo.ativo) {
+		return;
+	}
+	char nome[80];
+	g_strlcpy(nome, jogo.nome, sizeof(nome));
+	encerrar_alvo(jogo.pid, jogo.inicio, nome, 'R', true, true);
 }
 
 static void pedir_encerrar(bool forcar) {
@@ -720,7 +825,7 @@ static void debug_posicoes(void) {
 	}
 	n_regs = 0;
 	static char *estado_antes;
-	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, mensagem);
+	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, mensagem);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("%s\n", estado);
 		g_free(estado_antes);
@@ -889,6 +994,21 @@ static void tela_processos(void) {
 			gv_popup_alternar(CLAY_ID("menu-acoes"));
 		}
 		reg("mais", CLAY_ID("p-mais"));
+	}
+	/* o jogo em execução: fechar na hora, sem procurar na lista */
+	if (jogo.ativo) {
+		CLAY(CLAY_ID("p-jogo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(60) }, .padding = { 16, 12, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_alfa(gv_t.acento, 0.14f), .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_alfa(gv_t.acento, 0.5f), .width = GV_BORDA(1) } }) {
+			gv_icone("gamepad", 26, gv_t.acento);
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+				gv_texto(gv_str(gv_fmt("Jogo em execução: %s", jogo.nome).chars), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+				gv_texto(gv_str(gv_fmt("Steam %d · %d %s", jogo.appid, jogo.nproc, jogo.nproc == 1 ? "processo" : "processos").chars), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+			if (gv_botao_ext(CLAY_ID("p-fechar-jogo"), &(gv_botao_opcoes){ .texto = "Fechar jogo", .icone = "close", .estilo = GV_BOTAO_CHEIO, .altura = 44, .desativado = ocupado })) {
+				fechar_jogo();
+			}
+			reg("fechar-jogo", CLAY_ID("p-fechar-jogo"));
+		}
 	}
 	/* os números do sistema */
 	CLAY(CLAY_ID("p-resumo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(58) }, .padding = { 16, 16, 0, 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = gv_t.elevada,

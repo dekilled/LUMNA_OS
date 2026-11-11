@@ -17,7 +17,7 @@ make gamepad >/dev/null
 mkdir -p "$run/bin"
 printf '#!/bin/sh\necho "$*" >> "%s/teclas.log"\n' "$run" > "$run/bin/wtype"
 printf '#!/bin/sh\nexit 1\n' > "$run/bin/pgrep"
-for p in lumna-jogos lumna-emma-chat; do printf '#!/bin/sh\necho "%s" >> "%s/chamadas.log"\n' "$p" "$run" > "$run/bin/$p"; done
+for p in lumna-jogos lumna-emma-chat lumna-processos; do printf '#!/bin/sh\necho "%s" >> "%s/chamadas.log"\n' "$p" "$run" > "$run/bin/$p"; done
 printf '#!/bin/sh\nexit 1\n' > "$run/bin/pkill"
 chmod +x "$run/bin"/*
 rm -rf "$HOME/.config/lumna"  # a configuração que o teste de cima gravou
