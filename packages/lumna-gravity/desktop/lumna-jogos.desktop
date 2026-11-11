@@ -7,5 +7,7 @@ Exec=lumna-jogos
 Icon=lumna-painel
 StartupWMClass=lumna-jogos
 Terminal=false
+NoDisplay=true
+X-LUMNA-Modo=gaming
 Categories=Game;
 Keywords=jogos;games;steam;lutris;heroic;gaming;biblioteca;
