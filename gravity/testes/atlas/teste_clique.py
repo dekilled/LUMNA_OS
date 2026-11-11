@@ -74,13 +74,13 @@ caixas = {n: caixa("item/" + n) for n in nomes if pos("item/" + n)}
 if len(caixas) < 6:
     falha(f"poucos itens à vista para testar a área de seleção: {len(caixas)}")
 else:
-    # começa na margem vazia à direita das colunas (a grade de teste cobre a janela de cima a baixo) e anda até o meio do segundo item
+    # começa no recuo vazio à esquerda das colunas (o conteúdo tem 16 px de margem, em qualquer largura de janela), na altura do meio da segunda linha, e anda até o
+    # meio do segundo item da primeira linha
     ordenados = sorted(caixas.items(), key=lambda kv: (kv[1][1], kv[1][0]))
-    direita = max(c[0] + c[2] for c in caixas.values())
-    linha2 = ordenados[3][1]
-    x_ini, y_ini = direita + 40, linha2[1] + linha2[3] // 2
+    esquerda = min(c[0] for c in caixas.values())
+    linha2 = [v for k, v in ordenados if v[1] > ordenados[0][1][1]][0]
+    x_ini, y_ini = esquerda - 8, linha2[1] + linha2[3] // 2
     alvo = ordenados[1][1]
-    print("GEO", origem(), "ini", x_ini, y_ini, "alvo", alvo, "itens", {n: c for n, c in list(caixas.items())[:20]}, flush=True)
     msg("mouse", "mover", x_ini, y_ini)
     time.sleep(0.15)
     msg("mouse", "botao", "baixo")
