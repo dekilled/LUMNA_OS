@@ -2,7 +2,7 @@
 
 Esboços: Destaques (hero, "Descubra sua próxima aventura" com gêneros), Buscar (filtros de preço, compatibilidade e jogadores), a página do jogo (Visão geral, Sobre, Requisitos, Avaliações, com Comprar e Lista de desejos), o jogo na biblioteca (Atualizar, Desinstalar) e a janela "Instalar" (local, espaço).
 
-Decisões: catálogo unificado (Steam e GOG misturadas, cada jogo com o selo da loja, e um filtro "Todas as lojas / Só Steam / Só GOG"), depois a Epic. Instalar, atualizar, desinstalar e acompanhar o download são feitos **dentro do Gaming**, sem abrir a janela da Steam; só **Comprar** abre a loja da empresa, na hora.
+Decisões: catálogo unificado (Steam e GOG misturadas, cada jogo com o selo da loja, e um filtro "Todas as lojas / Só Steam / Só GOG"), e a Epic em uma subaba própria (sem busca pública). Instalar, atualizar, desinstalar e acompanhar o download são feitos **dentro do Gaming**, sem abrir a janela da Steam; só **Comprar** abre a loja da empresa, na hora.
 
 ## Estado
 
@@ -19,7 +19,7 @@ Decisões: catálogo unificado (Steam e GOG misturadas, cada jogo com o selo da 
   - **Configurações > Steam:** a chave de API e o id (a chave fica num arquivo 600 e nunca aparece).
 - O instalador (`gravity/servicos/jogos.[ch]`): sobe a Steam **sem janela** (`steam -silent -nochatui -nofriendsui`) e pede `steam://install/ID`; em outra biblioteca deixa antes um `appmanifest` lá. **Comprar** abre a loja da Steam (`steam://store/ID`), a única exceção.
 
-**Falta:** a aba **Avaliações** do esboço, o "Conectado" do topo, a **Epic** e as conquistas.
+**Falta:** a aba **Avaliações** do esboço, o "Conectado" do topo e as conquistas.
 
 **Não testado com a Steam de verdade** (aqui não há cliente): se `steam://install` abre mesmo um diálogo na janela da Steam, se o `appmanifest` deixado em outra biblioteca faz a Steam baixar lá, e se os flags do manifesto (progresso, atualização) batem. O roteiro 2.316 em diante confere.
 
@@ -35,6 +35,17 @@ Mesmas telas da Steam, com o selo **GOG** nos cards e o filtro de loja ao lado d
 - **Comprar:** abre a página do jogo na GOG, no navegador (a exceção, como na Steam).
 
 **Não testado com a GOG de verdade** (sem conta nem `gogdl` aqui): o formato do `auth.json` do gogdl, a linha de progresso dele, o login pela URL colada e se o token que ele guarda serve para a lista de jogos da conta. O roteiro 2.333 em diante confere. O `gogdl` precisa estar instalado (AUR).
+
+## Epic
+
+A Epic **não tem catálogo público pesquisável** (a busca da loja fica atrás de um desafio do Cloudflare e é uma API sem documentação), então a Epic **não entra na busca unificada**. Ela tem uma subaba própria na Loja, **Epic**:
+
+- **Sua biblioteca** (com login): os jogos da conta, pelo `legendary list`; Instalar, Instalado, Ver na biblioteca e Desinstalar, como nas outras lojas. O `legendary` (o motor de linha de comando do Heroic) cuida da instalação e de abrir o jogo, sem janela, num processo à parte, com o progresso na página do jogo.
+- **Grátis e ofertas:** o que a própria Epic publica (`freeGamesPromotions`): os grátis agora, os que ficam grátis em breve e as ofertas, em reais. **Resgatar grátis** e **Comprar** abrem a página do jogo na loja da Epic, no navegador (resgatar pede a conta da Epic no site; depois o jogo aparece na biblioteca). Testado contra **respostas reais gravadas**.
+- **Entrar:** Configurações > Epic: abre `legendary.gl/epiclogin`, e você cola o texto que a Epic mostra depois do login (`{"authorizationCode":"..."}`). O login e a lista de jogos instalados ficam em `~/.config/lumna/jogos/epic` (o `LEGENDARY_CONFIG_PATH` do legendary), separados do Heroic.
+- **Na Biblioteca:** os jogos da Epic instalados entram com o filtro Epic; abrem pelo `legendary launch`. As Propriedades são do legendary (só leitura). Desinstalar pede dois toques e o legendary apaga a pasta.
+
+**Não testado com a Epic de verdade** (sem conta nem legendary aqui): `legendary auth --code`, o formato do `list --json` e do `installed.json`, a linha de progresso ("Progress: NN%") e o `launch` (que pede o login do jogo na primeira vez). O roteiro 2.346 em diante confere. Precisa do `legendary` (`pacman -S legendary` ou AUR).
 
 ## A chave de API da Steam (opcional)
 

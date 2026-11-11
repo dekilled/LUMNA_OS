@@ -455,6 +455,24 @@ Antes: `yay -S gogdl` (o motor do Heroic, de linha de comando).
 | 2.344 | "Desinstalar" na página do jogo (toque duas vezes) | Apaga a pasta do jogo e ele some da Biblioteca | ☐ |
 | 2.345 | Configurações > GOG > "Sair da conta" | Volta a "Sem login"; "Instalar" pede para entrar | ☐ |
 
+### 2p. Loja do Gaming (Epic)
+
+Antes: `sudo pacman -S legendary` (ou AUR).
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.346 | Gaming > Loja > subaba "Epic" | Grátis agora, os que ficam grátis em breve e as ofertas, em reais, com capas | ☐ |
+| 2.347 | Abra um jogo grátis agora | "Grátis agora" e "Resgatar grátis" | ☐ |
+| 2.348 | "Resgatar grátis" | A página do jogo abre na loja da Epic, no navegador | ☐ |
+| 2.349 | Configurações > Epic > "Abrir a página de login", entre e cole o texto com `authorizationCode` | "Conectado à Epic" (se o legendary recusar, me mande a mensagem) | ☐ |
+| 2.350 | Subaba Epic > Atualizar | "Sua biblioteca" mostra os jogos da conta | ☐ |
+| 2.351 | Abra um jogo seu e "Instalar" | Pede a pasta (padrão ~/Jogos) e mostra o espaço livre | ☐ |
+| 2.352 | Confirme | O download começa sem janela; a barra de progresso anda e o contador de downloads da barra sobe | ☐ |
+| 2.353 | Ao terminar | "Instalado"; o jogo aparece na Biblioteca (filtro Epic) | ☐ |
+| 2.354 | Abra o jogo pela Biblioteca | Abre pelo legendary (por Wine/Proton) | ☐ |
+| 2.355 | "Desinstalar" (dois toques) | O legendary apaga o jogo e ele some da Biblioteca | ☐ |
+| 2.356 | Configurações > Epic > "Sair da conta" | Volta a "Sem login" | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

@@ -141,7 +141,7 @@ static bool gravar_arquivo(const char *caminho, const char *texto) {
 }
 
 const char *jogos_origem_nome(enum jogo_origem o) {
-	static const char *const n[ORIGEM_N] = { "Steam", "Lutris", "Heroic", "Avulso", "GOG" };
+	static const char *const n[ORIGEM_N] = { "Steam", "Lutris", "Heroic", "Avulso", "GOG", "Epic" };
 	return o >= 0 && o < ORIGEM_N ? n[o] : "";
 }
 
@@ -489,6 +489,67 @@ static int ler_gog(struct jogo *lista, int n, int max) {
 	return n;
 }
 
+/* ---------------- a Epic (instalada pelo legendary do Gaming: ~/.config/lumna/jogos/epic/installed.json) ---------------- */
+
+static char *dir_epic(void) {
+	return g_build_filename(g_get_user_config_dir(), "lumna", "jogos", "epic", NULL);
+}
+
+static bool epic_app_ok(const char *s) {
+	size_t n = s ? strlen(s) : 0;
+	for (size_t i = 0; i < n; i++) {
+		if (!g_ascii_isalnum(s[i]) && s[i] != '-' && s[i] != '_') {
+			return false;
+		}
+	}
+	return n >= 2 && n < 72 && g_ascii_isalnum(s[0]);
+}
+
+static int ler_epic(struct jogo *lista, int n, int max) {
+	char *d = dir_epic(), *a = g_build_filename(d, "installed.json", NULL);
+	struct json *j = json_arquivo(a);
+	for (int i = 0; j && i < j->nfilhos && n < max; i++) {
+		const struct json *g = j->filhos[i];
+		const char *app = g->chave ? g->chave : "";
+		const char *pasta = json_chave_texto(g, "install_path");
+		if (!epic_app_ok(app) || !*pasta || !g_file_test(pasta, G_FILE_TEST_IS_DIR)) {
+			continue;
+		}
+		struct jogo *o = &lista[n++];
+		memset(o, 0, sizeof(*o));
+		g_snprintf(o->id, sizeof(o->id), "epic:%s", app);
+		g_strlcpy(o->nome, *json_chave_texto(g, "app_title") ? json_chave_texto(g, "app_title") : app, sizeof(o->nome));
+		o->origem = ORIGEM_EPIC;
+		g_strlcpy(o->ref, app, sizeof(o->ref));
+		g_strlcpy(o->pasta, pasta, sizeof(o->pasta));
+		g_strlcpy(o->versao, json_chave_texto(g, "version"), sizeof(o->versao));
+		o->compat = true;
+		g_strlcpy(o->janela, "cheia", sizeof(o->janela));
+	}
+	json_liberar(j);
+	g_free(a);
+	g_free(d);
+	return n;
+}
+
+/* roda o legendary desta sessão (a configuração do Gaming) */
+static bool epic_legendary(const char **args, bool esperar) {
+	char *cfg = dir_epic();
+	char **env = g_get_environ();
+	env = g_environ_setenv(env, "LEGENDARY_CONFIG_PATH", cfg, TRUE);
+	g_free(cfg);
+	GError *ge = NULL;
+	bool ok;
+	if (esperar) {
+		ok = g_spawn_sync(NULL, (char **)args, env, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, NULL, &ge);
+	} else {
+		ok = g_spawn_async(NULL, (char **)args, env, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, &ge);
+	}
+	g_strfreev(env);
+	g_clear_error(&ge);
+	return ok;
+}
+
 /* ---------------- as propriedades (props.json) ---------------- */
 
 static struct json *props_ler(void) {
@@ -606,6 +667,7 @@ int jogos_listar(struct jogo *lista, int max) {
 	n = ler_heroic(lista, n, max);
 	n = ler_avulsos(lista, n, max);
 	n = ler_gog(lista, n, max);
+	n = ler_epic(lista, n, max);
 	struct json *p = props_ler();
 	for (int i = 0; i < n; i++) {
 		completar_estado_salvo(&lista[i], p);
@@ -778,6 +840,19 @@ static void anotar_sessao(const struct jogo *j) {
 }
 
 bool jogos_lancar(const struct jogo *j, char *erro, size_t tam) {
+	if (j->origem == ORIGEM_EPIC) {
+		if (!epic_app_ok(j->ref)) {
+			g_strlcpy(erro, "Esse jogo da Epic tem um nome inválido.", tam);
+			return false;
+		}
+		const char *args[] = { "legendary", "launch", j->ref, NULL };
+		if (!epic_legendary(args, false)) {
+			g_strlcpy(erro, "O legendary não está instalado.", tam);
+			return false;
+		}
+		anotar_sessao(j);
+		return true;
+	}
 	char *cmd = jogos_comando(j);
 	const char *dir = (j->origem == ORIGEM_AVULSO || j->origem == ORIGEM_GOG) && j->dir[0] && g_file_test(j->dir, G_FILE_TEST_IS_DIR) ? j->dir : NULL;
 	GError *ge = NULL;
@@ -800,6 +875,7 @@ const char *jogos_desinstalar_texto(const struct jogo *j) {
 	case ORIGEM_STEAM: return "A Steam desinstala o jogo e cuida dos arquivos dele. Os saves na nuvem da Steam continuam.";
 	case ORIGEM_LUTRIS: return "O Lutris abre para desinstalar este jogo; ele cuida dos arquivos e do prefixo.";
 	case ORIGEM_HEROIC: return "O Heroic abre para desinstalar este jogo; ele cuida dos arquivos.";
+	case ORIGEM_EPIC: return "O legendary desinstala o jogo e apaga a pasta dele. Os saves na nuvem da Epic continuam.";
 	case ORIGEM_GOG: return "O jogo é removido do Gaming e a pasta dele (instalada pela GOG) é apagada. Os saves na nuvem da GOG continuam.";
 	default: return "O jogo sai da biblioteca. Os arquivos só são apagados se você marcar a opção abaixo; os saves nunca.";
 	}
@@ -844,6 +920,22 @@ bool jogos_desinstalar(const struct jogo *j, bool apagar_arquivos, bool *saiu_da
 			*saiu_da_lista = true;
 		}
 		return true;
+	}
+	if (j->origem == ORIGEM_EPIC) {
+		if (!epic_app_ok(j->ref)) {
+			g_strlcpy(erro, "Esse jogo da Epic tem um nome inválido.", tam);
+			return false;
+		}
+		const char *args[] = { "legendary", "uninstall", j->ref, "-y", NULL };
+		bool ok = epic_legendary(args, true);
+		if (saiu_da_lista) {
+			*saiu_da_lista = ok;
+		}
+		if (!ok) {
+			g_strlcpy(erro, "O legendary não conseguiu desinstalar.", tam);
+		}
+		props_regravar(j->id, NULL, 0, 0);
+		return ok;
 	}
 	if (j->origem == ORIGEM_GOG) {
 		char *a = arq_gog_registro();

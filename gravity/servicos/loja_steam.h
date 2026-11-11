@@ -20,11 +20,13 @@
 #define LS_MAX 60
 #define LS_TELAS 16
 
-enum { LS_LOJA_STEAM, LS_LOJA_GOG };
+enum { LS_LOJA_STEAM, LS_LOJA_GOG, LS_LOJA_EPIC };
 
 struct ls_item {
 	int loja;             /* LS_LOJA_* */
-	int appid;            /* o id na loja (Steam: appid; GOG: o id numérico do produto) */
+	int appid;            /* o id na loja (Steam: appid; GOG: o id numérico do produto; Epic: um número tirado do id de texto) */
+	char gid[72];         /* Epic: o id de texto (o app_name do legendary na biblioteca, o id da oferta no catálogo) */
+	char slug[96];        /* Epic: o endereço da página na loja */
 	char nome[128];
 	char capa[400];       /* a imagem de cápsula (URL) */
 	char fundo[400];      /* o fundo largo (URL) */
@@ -40,6 +42,7 @@ struct ls_item {
 struct ls_detalhe {
 	int loja;
 	int appid;
+	char gid[72];
 	char nome[128];
 	char resumo[512];
 	char sobre[2048];     /* "sobre o jogo", sem HTML */

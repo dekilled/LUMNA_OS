@@ -43,6 +43,8 @@ class H(http.server.BaseHTTPRequestHandler):
             if u.path.endswith("/620.json"):
                 return self.resp(arq("proton_620.json"))
             return self.resp("", 404)
+        if u.path == "/freeGamesPromotions":
+            return self.resp(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "epic_api", "gratis.json"), "rb").read())
         gog = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gog_api")
         if u.path == "/v1/catalog":
             termo = q.get("query", [""])[0]
@@ -62,7 +64,7 @@ class H(http.server.BaseHTTPRequestHandler):
             if q.get("key", [""])[0] != CHAVE:
                 return self.resp("Forbidden", 403, "text/plain")
             return self.resp(json.dumps({"response": {"game_count": 2, "games": [{"appid": 620}, {"appid": 730}]}}))
-        if u.path.endswith(".jpg") or u.path.endswith(".png") or "/images" in u.path or "_" in u.path.split("/")[-1]:
+        if u.path.endswith(".jpg") or u.path.endswith(".png") or "spt-assets" in u.path or u.path.endswith(".jpeg") or "/images" in u.path or "_" in u.path.split("/")[-1]:
             # uma imagem de verdade (um degradê na cor do jogo), para o app poder desenhar
             import io, re
             from PIL import Image

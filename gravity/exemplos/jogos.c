@@ -25,11 +25,11 @@
 #include "modos.h"
 
 enum { T_INICIO, T_BIBLIOTECA, T_DETALHES, T_CONFIG, T_LOJA, T_BUSCA, T_LOJA_JOGO };
-enum { CP_CONTROLES, CP_AJUSTES, CP_GUIA, CP_GAMING, CP_STEAM, CP_GOG, CP_N };
-enum { LS_SUB_DEST, LS_SUB_CATEG, LS_SUB_OFERTAS, LS_SUB_DESEJOS, LS_SUB_N };
+enum { CP_CONTROLES, CP_AJUSTES, CP_GUIA, CP_GAMING, CP_STEAM, CP_GOG, CP_EPIC, CP_N };
+enum { LS_SUB_DEST, LS_SUB_CATEG, LS_SUB_OFERTAS, LS_SUB_DESEJOS, LS_SUB_EPIC, LS_SUB_N };
 static int l_sub;
 enum { ABA_PRINCIPAL, ABA_PROPRIEDADES };
-enum { F_TODOS, F_FAVORITOS, F_STEAM, F_LUTRIS, F_HEROIC, F_AVULSOS, F_GOG, F_N };
+enum { F_TODOS, F_FAVORITOS, F_STEAM, F_LUTRIS, F_HEROIC, F_AVULSOS, F_GOG, F_EPIC, F_N };
 
 static float K = 1.0f;
 #define U(n) ((float)(n) * K)
@@ -64,7 +64,7 @@ static bool bt_ligado;
 static char renomeando[64], apelido_ed[48], remover_bt[96], teste_msg[160];
 static bool dnd_gaming;
 
-static const char *const filtros_nome[F_N] = { "Todos", "Favoritos", "Steam", "Lutris", "Heroic", "Avulsos", "GOG" };
+static const char *const filtros_nome[F_N] = { "Todos", "Favoritos", "Steam", "Lutris", "Heroic", "Avulsos", "GOG", "Epic" };
 
 /* ---------------- o que aparece ---------------- */
 
@@ -76,6 +76,7 @@ static bool passa_filtro(const struct jogo *j) {
 	case F_HEROIC: return j->origem == ORIGEM_HEROIC;
 	case F_AVULSOS: return j->origem == ORIGEM_AVULSO;
 	case F_GOG: return j->origem == ORIGEM_GOG;
+	case F_EPIC: return j->origem == ORIGEM_EPIC;
 	default: return true;
 	}
 }
@@ -1268,13 +1269,19 @@ static int l_downloads(void) {
 			vivos++;
 		}
 	}
+	for (int i = 0; i < l_nbaixando_epic; i++) {
+		struct le_prog ep;
+		if (le_progresso(l_baixando_epic[i], &ep) && ep.baixando) {
+			vivos++;
+		}
+	}
 	n = vivos;
 	return n;
 }
 
 static void t_config(void) {
-	static const char *const paginas[CP_N] = { "Controles", "Ajustes do controle", "Botão Guia", "Gaming", "Steam", "GOG" };
-	static const char *const icones[CP_N] = { "gamepad", "sliders", "lumna", "settings", "bag", "bag" };
+	static const char *const paginas[CP_N] = { "Controles", "Ajustes do controle", "Botão Guia", "Gaming", "Steam", "GOG", "Epic" };
+	static const char *const icones[CP_N] = { "gamepad", "sliders", "lumna", "settings", "bag", "bag", "bag" };
 	if (gv_agora() - pad_lido_em > 1.5) {
 		pad_ler();
 	}
@@ -1304,6 +1311,7 @@ static void t_config(void) {
 			case CP_GUIA: cfg_guia(); break;
 			case CP_STEAM: cfg_steam(); break;
 			case CP_GOG: cfg_gog(); break;
+			case CP_EPIC: cfg_epic(); break;
 			default: cfg_gaming(); break;
 			}
 		}
@@ -1497,7 +1505,7 @@ static void depurar(void) {
 #define S(base, n) for (int i_ = 0; i_ < (n); i_++) { g_ptr_array_add(nomes, g_strdup_printf("%s/%d", base, i_)); Clay_ElementId e_ = CLAY_IDI(base, (uint32_t)i_); g_array_append_val(ids, e_.id); }
 	F("continuar"); F("sobre"); F("mais"); F("ver-bib"); F("det-voltar"); F("det-continuar"); F("det-fav"); F("det-mais"); F("add"); F("add-nome"); F("add-exec"); F("add-ok"); F("add-cancelar");
 	F("abrir-pasta"); F("gerenciar"); F("verificar"); F("config-ini"); F("desinstalar"); F("des-ok"); F("des-cancelar"); F("apagar-arquivos");
-	F("engrenagem"); F("gg-abrir"); F("gg-codigo"); F("gg-entrar"); F("gg-sair"); F("li-pasta"); F("l-loja"); F("l-ver"); F("l-preco"); F("l-busca"); F("b-campo"); F("b-gratis"); F("b-linux"); F("b-um"); F("b-coop"); F("lj-comprar"); F("lj-desejo"); F("lj-instalar"); F("li-ok"); F("li-nao"); F("li-local"); F("lj-desinstalar"); F("lj-jogar"); F("lj-atualizar"); F("lj-voltar"); F("n-busca"); F("n-dl-b"); F("st-chave"); F("st-id"); F("st-salvar"); F("lj-trailer"); F("l-tentar"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("gm-papel"); F("gm-papel-img"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
+	F("engrenagem"); F("ep-abrir"); F("ep-codigo"); F("ep-entrar"); F("ep-sair"); F("l-epic-recarregar"); F("gg-abrir"); F("gg-codigo"); F("gg-entrar"); F("gg-sair"); F("li-pasta"); F("l-loja"); F("l-ver"); F("l-preco"); F("l-busca"); F("b-campo"); F("b-gratis"); F("b-linux"); F("b-um"); F("b-coop"); F("lj-comprar"); F("lj-desejo"); F("lj-instalar"); F("li-ok"); F("li-nao"); F("li-local"); F("lj-desinstalar"); F("lj-jogar"); F("lj-atualizar"); F("lj-voltar"); F("n-busca"); F("n-dl-b"); F("st-chave"); F("st-id"); F("st-salvar"); F("lj-trailer"); F("l-tentar"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("gm-papel"); F("gm-papel-img"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
 	S("nav", 3); S("l-chip", LS_GEN_N); S("b-gen", LS_GEN_N); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 4); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
 	{ Clay_ElementId b_ = CLAY_ID("l-subabas"); for (int i_ = 0; i_ < LS_SUB_N; i_++) { g_ptr_array_add(nomes, g_strdup_printf("l-subabas/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	{ Clay_ElementId b_ = CLAY_ID("det-aba"); for (int i_ = 0; i_ < 2; i_++) { g_ptr_array_add(nomes, g_strdup_printf("det-aba/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
@@ -1521,12 +1529,13 @@ static void depurar(void) {
 	}
 	int idx[JOGOS_MAX];
 	struct jogo *d = por_id(det_id);
-	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d papel=%d lsub=%d lndest=%d lnres=%d ltotal=%d lappid=%d ldet=%d ldes=%d ldlg=%d lprog=%d,%d lpossui=%d lbaix=%d lsel=%d lgog=%d lgogin=%d lgprog=%d,%d lgpossui=%d",
+	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d papel=%d lsub=%d lndest=%d lnres=%d ltotal=%d lappid=%d ldet=%d ldes=%d ldlg=%d lprog=%d,%d lpossui=%d lbaix=%d lsel=%d lgog=%d lgogin=%d lgprog=%d,%d lgpossui=%d lepic=%d,%d lepicin=%d leprog=%d,%d lloja=%d",
 		tela, aba, filtro, njogos, visiveis(idx), sel, det_id[0] ? det_id : "-", d ? d->favorito : 0, confirmando, adicionando, ed_suja,
 		aviso[0] && gv_agora() < aviso_ate ? aviso : "-", d && d->opcoes[0] ? d->opcoes : "-", d ? d->nenv : 0,
 		cfg_pg, nctl, servico_pad, gcfg.zona_morta, gcfg.trocar_ab, gcfg.vibracao, gcfg.guia, gcfg.energia, gcfg.fps, dnd_gaming, papel.modo,
 		l_sub, l_ndest, l_nres, l_total, l_appid, l_det_ok, l_ndesejos, l_instalando_dialogo, l_prog.baixando, l_prog.pct, l_npossui, l_nbaixando, l_sel,
-		l_gog_contar(), l_gog_logado, l_prog_gog.baixando, l_prog_gog.pct, l_npossui_gog);
+		l_gog_contar(), l_gog_logado, l_prog_gog.baixando, l_prog_gog.pct, l_npossui_gog,
+		l_nepic_lib, l_nepic_promo, l_epic_logado, l_prog_epic.baixando, l_prog_epic.pct, l_loja);
 	for (char *c = est; *c; c++) {
 		if (*c == '\n') {
 			*c = ' ';
@@ -1609,6 +1618,10 @@ int main(int argc, char **argv) {
 	if (argc > 1 && !strcmp(argv[1], "vigia")) {
 		return vigia();
 	}
+	if (argc > 4 && !strcmp(argv[1], "epic-instalar")) {
+		/* o instalador da Epic, num processo à parte: epic-instalar APP_NAME TITULO PASTA */
+		return le_instalar_agora(argv[2], argv[3], argv[4]);
+	}
 	if (argc > 5 && !strcmp(argv[1], "gog-instalar")) {
 		/* o instalador da GOG, num processo à parte: gog-instalar ID TITULO PASTA linux|windows */
 		return lg_instalar_agora(atoi(argv[2]), argv[3], argv[4], !strcmp(argv[5], "linux"));
@@ -1618,6 +1631,7 @@ int main(int argc, char **argv) {
 	}
 	const char *ir_jogo = NULL;
 	int aba_ini = 0, loja_jogo_ini = 0;
+	const char *loja_epic_ini = NULL;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--tela") && i + 1 < argc) {
 			{ const char *t_ = argv[++i]; tela = !strcmp(t_, "biblioteca") ? T_BIBLIOTECA : !strcmp(t_, "config") ? T_CONFIG : !strcmp(t_, "loja") ? T_LOJA : T_INICIO; }
@@ -1625,6 +1639,8 @@ int main(int argc, char **argv) {
 			ir_jogo = argv[++i];
 		} else if (!strcmp(argv[i], "--loja-jogo") && i + 1 < argc) {
 			loja_jogo_ini = atoi(argv[++i]);
+		} else if (!strcmp(argv[i], "--loja-epic") && i + 1 < argc) {
+			loja_epic_ini = argv[++i];
 		} else if (!strcmp(argv[i], "--aba") && i + 1 < argc) {
 			aba_ini = atoi(argv[++i]);
 		}
@@ -1633,6 +1649,19 @@ int main(int argc, char **argv) {
 	gp_cfg_ler(&gcfg);
 	if (tela == T_LOJA) {
 		l_abrir_loja();
+	}
+	if (loja_epic_ini) {
+		/* --loja-epic APP[:lib]: abre a página de um jogo da Epic (com :lib, o da biblioteca) */
+		struct ls_item it = { .loja = LS_LOJA_EPIC };
+		g_strlcpy(it.gid, loja_epic_ini, sizeof(it.gid));
+		char *dp = strchr(it.gid, ':');
+		if (dp) {
+			*dp = '\0';
+			it.possui = true;
+		}
+		it.appid = (int)(g_str_hash(it.gid) & 0x7fffffff);
+		l_abrir_loja();
+		l_abrir_item(&it);
 	}
 	if (loja_jogo_ini) {
 		l_abrir_loja();

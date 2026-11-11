@@ -63,6 +63,8 @@ os.chmod(f"{raiz}/bin/xdg-open", 0o755)
 import shutil
 shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gogdl_falso.sh"), f"{raiz}/bin/gogdl")
 os.chmod(f"{raiz}/bin/gogdl", 0o755)
+shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "legendary_falso.sh"), f"{raiz}/bin/legendary")
+os.chmod(f"{raiz}/bin/legendary", 0o755)
 os.makedirs(f"{raiz}/avulso/Jogo", exist_ok=True)
 open(f"{raiz}/avulso/Jogo/jogo.sh", "w").write('#!/bin/sh\necho "avulso rodou $* em $PWD $MEUVAR" >> "$FALSO_LOG"\n')
 os.chmod(f"{raiz}/avulso/Jogo/jogo.sh", 0o755)

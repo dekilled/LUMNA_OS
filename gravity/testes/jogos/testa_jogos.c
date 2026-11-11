@@ -236,6 +236,37 @@ int main(void) {
 		CONFERE(!acha(l, n, "gog:111") && acha(l, n, "gog:222"), "o outro jogo continua");
 		g_free(base); g_free(nat); g_free(win); g_free(sumiu); g_free(s1); g_free(i1); g_free(regs); g_free(rg);
 	}
+
+	/* a Epic: os jogos que o legendary do Gaming instalou */
+	{
+		char *cfg = g_strdup_printf("%s/.config/lumna/jogos/epic", g_getenv("HOME"));
+		char *pasta = g_strdup_printf("%s/EpicJogos/Sugar", g_getenv("RAIZ_TESTE"));
+		g_mkdir_with_parents(cfg, 0755);
+		g_mkdir_with_parents(pasta, 0755);
+		char *jogo = g_strdup_printf("%s/jogo.sh", pasta), *sh = g_strdup_printf("#!/bin/sh\necho \"epic jogo rodou\" >> \"%s\"\n", g_getenv("FALSO_LOG"));
+		g_file_set_contents(jogo, sh, -1, NULL);
+		chmod(jogo, 0755);
+		char *inst = g_strdup_printf("%s/installed.json", cfg), *conteudo = g_strdup_printf("{\"Sugar\":{\"app_name\":\"Sugar\",\"app_title\":\"Rocket League\",\"install_path\":\"%s\",\"version\":\"1.0\",\"executable\":\"jogo.sh\"},\"Sumiu\":{\"app_title\":\"Sumiu\",\"install_path\":\"/nao/existe/mesmo\"},\"x y\":{\"app_title\":\"Mau\",\"install_path\":\"%s\"}}", pasta, pasta);
+		g_file_set_contents(inst, conteudo, -1, NULL);
+		n = jogos_listar(l, JOGOS_MAX);
+		struct jogo *ep2 = acha(l, n, "epic:Sugar");
+		CONFERE(ep2 && ep2->origem == ORIGEM_EPIC && !strcmp(ep2->nome, "Rocket League") && !strcmp(jogos_origem_nome(ORIGEM_EPIC), "Epic"), "o jogo da Epic instalado pelo legendary entra");
+		CONFERE(!acha(l, n, "epic:Sumiu") && !acha(l, n, "epic:x y"), "o de pasta apagada e o de nome inválido não entram");
+		CONFERE(ep2 && !jogos_props_editaveis(ep2), "as propriedades da Epic são do legendary (só leitura)");
+		CONFERE(ep2 && jogos_lancar(ep2, erro, sizeof(erro)), "abre pelo legendary launch");
+		g_usleep(800000);
+		char *lgl = le(g_getenv("FALSO_LOG"));
+		CONFERE(strstr(lgl, "legendary launch Sugar") && strstr(lgl, "epic jogo rodou") != NULL, "o legendary launch rodou, com a configuração do Gaming");
+		g_free(lgl);
+		bool saiu3 = false;
+		CONFERE(ep2 && jogos_desinstalar(ep2, false, &saiu3, erro, sizeof(erro)) && saiu3, "desinstalar chama o legendary uninstall");
+		lgl = le(g_getenv("FALSO_LOG"));
+		CONFERE(strstr(lgl, "legendary uninstall Sugar -y") != NULL, "legendary uninstall Sugar -y");
+		g_free(lgl);
+		n = jogos_listar(l, JOGOS_MAX);
+		CONFERE(!acha(l, n, "epic:Sugar") && !g_file_test(pasta, G_FILE_TEST_EXISTS), "e o jogo some (o legendary apaga a pasta)");
+		g_free(cfg); g_free(pasta); g_free(jogo); g_free(sh); g_free(inst); g_free(conteudo);
+	}
 	if (falhas) {
 		fprintf(stderr, "%d falha(s)\n", falhas);
 		return 1;
