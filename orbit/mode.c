@@ -341,6 +341,11 @@ struct orbit_output *orbit_output_for_layer(struct orbit_server *server, const c
 	return NULL;
 }
 
+/* a biblioteca do Gaming é uma tela do modo (como um console), não um app: abre em tela cheia, sem barra de título nem tela flutuante */
+bool orbit_app_is_gaming_shell(const char *app_id) {
+	return app_id && (!strncasecmp(app_id, "lumna-jogos", 11) || !strncasecmp(app_id, "lumna-gaming", 12));
+}
+
 struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id) {
 	struct orbit_output *cursor = cursor_output(server);
 	int mode = family_mode(app_id);

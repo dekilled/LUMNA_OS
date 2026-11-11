@@ -605,6 +605,7 @@ bool orbit_view_isolated(const struct orbit_view *view);
 /* onde abre uma janela nova: as da Mídia e dos jogos vão para a tela do modo delas; as outras não entram numa tela
  * em Gaming ou Mídia (vão para a de Desktop mais à mão), a não ser que seja a única */
 struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id);
+bool orbit_app_is_gaming_shell(const char *app_id);
 /* troca os espaços de trabalho (e as janelas deles) entre duas telas */
 bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, struct orbit_output *b);
 /* "trocar as telas" a partir de uma (a do cursor): com a vizinha, ou a única outra */

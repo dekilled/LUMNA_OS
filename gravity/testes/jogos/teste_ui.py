@@ -207,6 +207,14 @@ def tem_jogos():
 confere(lambda: not tem_jogos(), "antes de entrar no Gaming a biblioteca não está aberta", 2)
 msg("modo", "gaming")
 confere(lambda: tem_jogos(), "entrar no modo Gaming abre a biblioteca sozinho", 8)
+def jogos_janela():
+    try:
+        return next(j for j in json.loads(msg("janelas"))["janelas"] if "jogos" in (j.get("app_id") or ""))
+    except Exception:
+        return {}
+confere(lambda: jogos_janela().get("ecra") is True and jogos_janela().get("flutuante") is False, "no modo Gaming a biblioteca abre em tela cheia (como uma tela do modo, não como um app flutuante)", 6)
+saida = json.loads(msg("saidas"))
+confere(lambda: jogos_janela().get("w", 0) >= 1200 and jogos_janela().get("x", 99) <= 1, "e ocupa a tela inteira, sem margem", 4)
 confere(lambda: "powerprofilesctl set performance" in falso(), "entrar no Gaming põe o perfil de energia em Desempenho", 6)
 msg("modo", "desktop")
 confere(lambda: "powerprofilesctl set balanced" in falso(), "sair do Gaming devolve o perfil que estava (Equilibrado)", 6)

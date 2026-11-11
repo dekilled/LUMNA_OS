@@ -236,6 +236,12 @@ static void xdg_map(struct wl_listener *listener, void *data) {
 	view->y = box.y + view->server->gap + 48;
 	view->w = box.width / 2;
 	view->h = box.height / 2;
+	if (orbit_app_is_gaming_shell(view->toplevel->app_id)) {
+		view->fullscreen = true; /* a biblioteca do Gaming ocupa a tela inteira do modo */
+		view->floating = false;
+		wlr_xdg_toplevel_set_fullscreen(view->toplevel, true);
+		view->cfg_valid = false;
+	}
 	if (orbit_free_desktop(view->server, output) && !view->fullscreen) {
 		view->floating = true;
 		orbit_float_place_new(view);
