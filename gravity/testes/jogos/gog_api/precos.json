@@ -1,0 +1,1 @@
+{"_links":{"self":{"href":"\/api\/products\/1207658930\/prices?countryCode=BR"},"product":{"href":"https:\/\/api.gog.com\/products\/1207658930"}},"_embedded":{"prices":[{"currency":{"code":"BRL"},"basePrice":"5999 BRL","finalPrice":"5999 BRL","bonusWalletFunds":"0 BRL"},{"currency":{"code":"USD"},"basePrice":"1225 USD","finalPrice":"1225 USD","bonusWalletFunds":"0 USD"}]}}

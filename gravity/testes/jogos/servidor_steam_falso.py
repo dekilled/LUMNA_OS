@@ -43,11 +43,26 @@ class H(http.server.BaseHTTPRequestHandler):
             if u.path.endswith("/620.json"):
                 return self.resp(arq("proton_620.json"))
             return self.resp("", 404)
+        gog = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gog_api")
+        if u.path == "/v1/catalog":
+            termo = q.get("query", [""])[0]
+            arqn = "ofertas.json" if q.get("discounted") else "busca.json" if termo else "trending.json"
+            return self.resp(open(os.path.join(gog, arqn), "rb").read())
+        if u.path == "/products/1207658930":
+            return self.resp(open(os.path.join(gog, "produto_1207658930.json"), "rb").read())
+        if u.path == "/products/1207658930/prices":
+            return self.resp(open(os.path.join(gog, "precos.json"), "rb").read())
+        if u.path.startswith("/products/"):
+            return self.resp("{}", 404)
+        if u.path == "/user/data/games":
+            if self.headers.get("Authorization") != "Bearer TOKEN-FALSO":
+                return self.resp("{}", 401)
+            return self.resp(json.dumps({"owned": [1207658930, 1207658924]}))
         if u.path == "/IPlayerService/GetOwnedGames/v1/":
             if q.get("key", [""])[0] != CHAVE:
                 return self.resp("Forbidden", 403, "text/plain")
             return self.resp(json.dumps({"response": {"game_count": 2, "games": [{"appid": 620}, {"appid": 730}]}}))
-        if u.path.endswith(".jpg"):
+        if u.path.endswith(".jpg") or u.path.endswith(".png") or "/images" in u.path or "_" in u.path.split("/")[-1]:
             # uma imagem de verdade (um degradê na cor do jogo), para o app poder desenhar
             import io, re
             from PIL import Image

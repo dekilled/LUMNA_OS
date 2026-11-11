@@ -195,6 +195,47 @@ int main(void) {
 		CONFERE(strstr(lg2, "steam steam://store/777") != NULL, "pelo steam://store");
 		g_free(lg2);
 	}
+
+	/* a GOG: os jogos que o Gaming instalou pelo gogdl (gog_instalados.json) */
+	{
+		char *base = g_strdup_printf("%s/GogJogos", g_getenv("RAIZ_TESTE"));
+		char *nat = g_strdup_printf("%s/Nativo Jogo", base), *win = g_strdup_printf("%s/Windows Jogo", base), *sumiu = g_strdup_printf("%s/Sumiu", base);
+		g_mkdir_with_parents(nat, 0755);
+		g_mkdir_with_parents(win, 0755);
+		char *s1 = g_strdup_printf("%s/start.sh", nat), *i1 = g_strdup_printf("%s/goggame-222.info", win);
+		char *conteudo_sh = g_strdup_printf("#!/bin/sh\necho \"gog nativo rodou em $PWD\" >> \"%s\"\n", g_getenv("FALSO_LOG"));
+		g_file_set_contents(s1, conteudo_sh, -1, NULL);
+		g_free(conteudo_sh);
+		chmod(s1, 0755);
+		g_file_set_contents(i1, "{\"gameId\":\"222\",\"playTasks\":[{\"path\":\"outro.exe\"},{\"path\":\"bin/game.exe\",\"isPrimary\":true}]}", -1, NULL);
+		char *regs = g_strdup_printf("{\"jogos\":[{\"id\":111,\"nome\":\"Nativo\",\"pasta\":\"%s\",\"linux\":true},{\"id\":222,\"nome\":\"Do Windows\",\"pasta\":\"%s\",\"linux\":false},{\"id\":333,\"nome\":\"Sumiu\",\"pasta\":\"%s\",\"linux\":true}]}", nat, win, sumiu);
+		char *rg = g_strdup_printf("%s/.config/lumna/jogos/gog_instalados.json", g_getenv("HOME"));
+		char *dirrg = g_path_get_dirname(rg);
+		g_mkdir_with_parents(dirrg, 0755);
+		g_free(dirrg);
+		g_file_set_contents(rg, regs, -1, NULL);
+		n = jogos_listar(l, JOGOS_MAX);
+		struct jogo *gn = acha(l, n, "gog:111"), *gw = acha(l, n, "gog:222");
+		CONFERE(gn && gw && !acha(l, n, "gog:333"), "os jogos da GOG entram, e o que teve a pasta apagada por fora não");
+		CONFERE(gn && gn->origem == ORIGEM_GOG && !strcmp(jogos_origem_nome(ORIGEM_GOG), "GOG") && gn->exec[0] && strstr(gn->exec, "start.sh") && !gn->compat, "o nativo abre pelo start.sh, sem camada de compatibilidade");
+		CONFERE(gw && gw->compat && strstr(gw->exec, "bin/game.exe"), "o do Windows abre o programa principal do goggame-ID.info, pela camada de compatibilidade");
+		CONFERE(jogos_props_editaveis(gn), "as propriedades dos jogos da GOG são editáveis (como os avulsos)");
+		char *cw = jogos_comando(gw);
+		CONFERE(strstr(cw, "wine") && strstr(cw, "bin/game.exe"), "o comando do Windows usa o wine (ou o umu-run)");
+		g_free(cw);
+		CONFERE(jogos_lancar(gn, erro, sizeof(erro)), "abre o jogo nativo");
+		g_usleep(500000);
+		char *lgg = le(g_getenv("FALSO_LOG"));
+		CONFERE(strstr(lgg, "gog nativo rodou em ") && strstr(lgg, "Nativo Jogo") != NULL, "o start.sh rodou na pasta do jogo");
+		g_free(lgg);
+		CONFERE(strstr(jogos_desinstalar_texto(gn), "pasta"), "a confirmação diz que a pasta é apagada");
+		bool saiu2 = false;
+		CONFERE(jogos_desinstalar(gn, false, &saiu2, erro, sizeof(erro)) && saiu2, "desinstalar tira da lista");
+		CONFERE(!g_file_test(nat, G_FILE_TEST_EXISTS), "e apaga a pasta do jogo (a que o gogdl criou)");
+		n = jogos_listar(l, JOGOS_MAX);
+		CONFERE(!acha(l, n, "gog:111") && acha(l, n, "gog:222"), "o outro jogo continua");
+		g_free(base); g_free(nat); g_free(win); g_free(sumiu); g_free(s1); g_free(i1); g_free(regs); g_free(rg);
+	}
 	if (falhas) {
 		fprintf(stderr, "%d falha(s)\n", falhas);
 		return 1;

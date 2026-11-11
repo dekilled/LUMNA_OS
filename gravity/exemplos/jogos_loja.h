@@ -3,6 +3,7 @@
  * Lista de desejos (local), Buscar (filtros), a página do jogo (Visão geral, Sobre, Requisitos) e a janela Instalar. Instalar, atualizar e
  * desinstalar são feitos pela Steam escondida (servicos/jogos.h); só Comprar abre a loja da Steam, na hora.
  */
+#include "loja_gog.h"
 #include "loja_steam.h"
 
 enum { LJ_ABA_GERAL, LJ_ABA_SOBRE, LJ_ABA_REQ, LJ_ABA_N };
@@ -17,7 +18,14 @@ static char l_busca_txt[96];
 static struct ls_detalhe l_det;
 static bool l_det_ok;
 static char l_det_erro[200], l_proton[16];
-static int l_appid;                      /* o jogo aberto na Loja */
+static int l_appid, l_loja;              /* o jogo aberto na Loja e de qual loja (LS_LOJA_*) */
+static int l_loja_f;                     /* o filtro de loja: 0 todas, 1 Steam, 2 GOG */
+static int *l_possui_gog;                /* os ids da conta na GOG (com o login) */
+static int l_npossui_gog;
+static char l_gog_msg[160], l_gog_cod[400];
+static char l_pasta_gog[400];            /* onde instalar jogos da GOG */
+static struct lg_prog l_prog_gog;
+static bool l_gog_logado;
 static int *l_possui;                    /* os appids da conta (com a chave) */
 static int l_npossui;
 static char l_possui_msg[160];
@@ -25,11 +33,11 @@ static bool l_instalando_dialogo;
 static int l_lib_sel;
 static struct steam_lib l_libs[8];
 static int l_nlibs;
-static struct { int appid; char nome[128], capa[400]; } l_desejos[200];
+static struct { int loja, appid; char nome[128], capa[400]; } l_desejos[200];
 static int l_ndesejos;
 static struct steam_prog l_prog;
 static double l_prog_em;
-static int l_baixando[8], l_nbaixando;
+static int l_baixando[8], l_nbaixando;   /* Steam: o appid; GOG: o id negativo */
 static char l_chave_txt[80], l_id_txt[32];
 static bool l_chave_ok;
 
@@ -111,6 +119,19 @@ static const char *l_img(const char *url) {
 /* ---------------- dados ---------------- */
 
 static bool l_tem(const struct ls_item *it) {
+	if (it->loja == LS_LOJA_GOG) {
+		for (int i = 0; i < l_npossui_gog; i++) {
+			if (l_possui_gog[i] == it->appid) {
+				return true;
+			}
+		}
+		for (int i = 0; i < njogos; i++) {
+			if (lista[i].origem == ORIGEM_GOG && atoi(lista[i].ref) == it->appid) {
+				return true;
+			}
+		}
+		return false;
+	}
 	for (int i = 0; i < l_npossui; i++) {
 		if (l_possui[i] == it->appid) {
 			return true;
@@ -125,8 +146,22 @@ static bool l_tem(const struct ls_item *it) {
 }
 
 static bool l_appid_tem(int appid) {
-	struct ls_item it = { .appid = appid };
+	struct ls_item it = { .appid = appid, .loja = l_loja };
 	return l_tem(&it);
+}
+
+/* intercala duas listas (uma de cada loja), para o catálogo unificado */
+static int l_mesclar(const struct ls_item *a, int na, const struct ls_item *b, int nb, struct ls_item *saida, int max) {
+	int n = 0, i = 0, k = 0;
+	while (n < max && (i < na || k < nb)) {
+		if (i < na) {
+			saida[n++] = a[i++];
+		}
+		if (n < max && k < nb) {
+			saida[n++] = b[k++];
+		}
+	}
+	return n;
 }
 
 static char *l_arq_desejos(void) {
@@ -142,6 +177,7 @@ static void l_desejos_ler(void) {
 		for (int i = 0; l && i < l->nfilhos && l_ndesejos < 200; i++) {
 			const struct json *x = json_item(l, i);
 			l_desejos[l_ndesejos].appid = (int)json_numero(json_chave(x, "id"), 0);
+			l_desejos[l_ndesejos].loja = (int)json_numero(json_chave(x, "loja"), 0);
 			g_strlcpy(l_desejos[l_ndesejos].nome, json_chave_texto(x, "nome"), sizeof(l_desejos[0].nome));
 			g_strlcpy(l_desejos[l_ndesejos].capa, json_chave_texto(x, "capa"), sizeof(l_desejos[0].capa));
 			if (l_desejos[l_ndesejos].appid > 0) {
@@ -157,7 +193,7 @@ static void l_desejos_ler(void) {
 static void l_desejos_gravar(void) {
 	GString *s = g_string_new("{\"jogos\":[");
 	for (int i = 0; i < l_ndesejos; i++) {
-		g_string_append_printf(s, "%s{\"id\":%d,\"nome\":", i ? "," : "", l_desejos[i].appid);
+		g_string_append_printf(s, "%s{\"loja\":%d,\"id\":%d,\"nome\":", i ? "," : "", l_desejos[i].loja, l_desejos[i].appid);
 		json_escrever_texto(s, l_desejos[i].nome);
 		g_string_append(s, ",\"capa\":");
 		json_escrever_texto(s, l_desejos[i].capa);
@@ -174,7 +210,7 @@ static void l_desejos_gravar(void) {
 
 static int l_desejo_indice(int appid) {
 	for (int i = 0; i < l_ndesejos; i++) {
-		if (l_desejos[i].appid == appid) {
+		if (l_desejos[i].appid == appid && l_desejos[i].loja == l_loja) {
 			return i;
 		}
 	}
@@ -188,6 +224,7 @@ static void l_desejo_alternar(int appid, const char *nome, const char *capa) {
 		l_ndesejos--;
 	} else if (l_ndesejos < 200) {
 		l_desejos[l_ndesejos].appid = appid;
+		l_desejos[l_ndesejos].loja = l_loja;
 		g_strlcpy(l_desejos[l_ndesejos].nome, nome, sizeof(l_desejos[0].nome));
 		g_strlcpy(l_desejos[l_ndesejos].capa, capa, sizeof(l_desejos[0].capa));
 		l_ndesejos++;
@@ -199,20 +236,27 @@ struct l_dest_job {
 	struct ls_item dest[LS_MAX], ofertas[LS_MAX];
 	int ndest, nofertas;
 	char erro[200];
-	int genero;
+	int genero, loja_f;
 };
 
 static void l_dest_trabalho(void *d) {
 	struct l_dest_job *j = d;
+	static struct ls_item sa[LS_MAX], sb[LS_MAX];
+	int na = 0, nb = 0, total;
+	bool steam = j->loja_f != 2, gog = j->loja_f != 1;
 	if (j->genero > 0) {
 		struct ls_filtro f = { .genero = j->genero, .ordem = 1 };
-		int total;
-		j->ndest = ls_buscar(&f, j->dest, 12, &total, j->erro, sizeof(j->erro));
+		na = steam ? ls_buscar(&f, sa, 12, &total, j->erro, sizeof(j->erro)) : 0;
+		nb = gog ? lg_buscar(&f, sb, 12, &total, j->erro, sizeof(j->erro)) : 0;
 	} else {
-		j->ndest = ls_mais_vendidos(j->dest, 12, j->erro, sizeof(j->erro));
+		na = steam ? ls_mais_vendidos(sa, 12, j->erro, sizeof(j->erro)) : 0;
+		nb = gog ? lg_destaques(sb, 12, j->erro, sizeof(j->erro)) : 0;
 	}
-	if (!j->nofertas && !j->genero) {
-		j->nofertas = ls_ofertas(j->ofertas, LS_MAX, j->erro, sizeof(j->erro));
+	j->ndest = l_mesclar(sa, na, sb, nb, j->dest, 12);
+	if (!j->genero) {
+		static struct ls_item oa[LS_MAX], ob[LS_MAX];
+		int noa = steam ? ls_ofertas(oa, 16, j->erro, sizeof(j->erro)) : 0, nob = gog ? lg_ofertas(ob, 16, j->erro, sizeof(j->erro)) : 0;
+		j->nofertas = l_mesclar(oa, noa, ob, nob, j->ofertas, 32);
 	}
 }
 
@@ -240,6 +284,7 @@ static void l_carregar_destaques(int genero) {
 	l_carregando = true;
 	struct l_dest_job *j = g_new0(struct l_dest_job, 1);
 	j->genero = genero;
+	j->loja_f = l_loja_f;
 	l_hero_gen = genero;
 	l_em_segundo_plano(l_dest_trabalho, l_dest_pronto, j);
 }
@@ -247,13 +292,22 @@ static void l_carregar_destaques(int genero) {
 struct l_busca_job {
 	struct ls_filtro f;
 	struct ls_item res[LS_MAX];
-	int n, total;
+	int n, total, loja_f;
 	char erro[200];
 };
 
 static void l_busca_trabalho(void *d) {
 	struct l_busca_job *j = d;
-	j->n = ls_buscar(&j->f, j->res, 30, &j->total, j->erro, sizeof(j->erro));
+	static struct ls_item sa[LS_MAX], sb[LS_MAX];
+	int ta = 0, tb = 0, na = 0, nb = 0;
+	if (j->loja_f != 2) {
+		na = ls_buscar(&j->f, sa, 20, &ta, j->erro, sizeof(j->erro));
+	}
+	if (j->loja_f != 1) {
+		nb = lg_buscar(&j->f, sb, 20, &tb, j->erro, sizeof(j->erro));
+	}
+	j->n = l_mesclar(sa, na, sb, nb, j->res, 30);
+	j->total = ta + tb;
 }
 
 static void l_busca_pronto(void *d) {
@@ -275,11 +329,12 @@ static void l_buscar(void) {
 	struct l_busca_job *j = g_new0(struct l_busca_job, 1);
 	j->f = l_filtro;
 	g_strlcpy(j->f.termo, l_busca_txt, sizeof(j->f.termo));
+	j->loja_f = l_loja_f;
 	l_em_segundo_plano(l_busca_trabalho, l_busca_pronto, j);
 }
 
 struct l_det_job {
-	int appid;
+	int appid, loja;
 	struct ls_detalhe d;
 	char proton[16], erro[200];
 	bool ok;
@@ -287,8 +342,8 @@ struct l_det_job {
 
 static void l_det_trabalho(void *d) {
 	struct l_det_job *j = d;
-	j->ok = ls_detalhes(j->appid, &j->d, j->erro, sizeof(j->erro));
-	if (j->ok && j->d.windows) {
+	j->ok = j->loja == LS_LOJA_GOG ? lg_detalhes(j->appid, &j->d, j->erro, sizeof(j->erro)) : ls_detalhes(j->appid, &j->d, j->erro, sizeof(j->erro));
+	if (j->ok && j->loja == LS_LOJA_STEAM && j->d.windows) {
 		ls_proton(j->appid, j->proton, sizeof(j->proton));
 	}
 }
@@ -296,7 +351,7 @@ static void l_det_trabalho(void *d) {
 static void l_det_pronto(void *d) {
 	struct l_det_job *j = d;
 	l_det_ocupado = false;
-	if (j->appid == l_appid) {
+	if (j->appid == l_appid && j->loja == l_loja) {
 		l_det_ok = j->ok;
 		l_det = j->d;
 		g_strlcpy(l_proton, j->proton, sizeof(l_proton));
@@ -305,8 +360,9 @@ static void l_det_pronto(void *d) {
 	g_free(j);
 }
 
-static void l_abrir_jogo(int appid) {
+static void l_abrir_jogo(int appid, int loja) {
 	l_appid = appid;
+	l_loja = loja;
 	tela = T_LOJA_JOGO;
 	l_aba = LJ_ABA_GERAL;
 	l_det_ok = false;
@@ -314,20 +370,25 @@ static void l_abrir_jogo(int appid) {
 	l_proton[0] = '\0';
 	l_instalando_dialogo = false;
 	l_prog_em = 0;
+	memset(&l_prog, 0, sizeof(l_prog));
+	memset(&l_prog_gog, 0, sizeof(l_prog_gog));
 	struct l_det_job *j = g_new0(struct l_det_job, 1);
 	j->appid = appid;
+	j->loja = loja;
 	l_det_ocupado = true;
 	l_em_segundo_plano(l_det_trabalho, l_det_pronto, j);
 }
 
 struct l_possui_job {
 	int ids[4000], n;
-	char erro[160];
+	int gids[4000], gn;
+	char erro[160], gerro[160];
 };
 
 static void l_possui_trabalho(void *d) {
 	struct l_possui_job *j = d;
-	j->n = ls_possuidos(j->ids, 4000, j->erro, sizeof(j->erro));
+	j->n = ls_chave_existe() ? ls_possuidos(j->ids, 4000, j->erro, sizeof(j->erro)) : 0;
+	j->gn = lg_logado() ? lg_possuidos(j->gids, 4000, j->gerro, sizeof(j->gerro)) : 0;
 }
 
 static void l_possui_pronto(void *d) {
@@ -336,6 +397,10 @@ static void l_possui_pronto(void *d) {
 	l_possui = j->n > 0 ? g_memdup2(j->ids, (gsize)j->n * sizeof(int)) : NULL;
 	l_npossui = j->n > 0 ? j->n : 0;
 	g_strlcpy(l_possui_msg, j->n >= 0 ? "" : j->erro, sizeof(l_possui_msg));
+	g_free(l_possui_gog);
+	l_possui_gog = j->gn > 0 ? g_memdup2(j->gids, (gsize)j->gn * sizeof(int)) : NULL;
+	l_npossui_gog = j->gn > 0 ? j->gn : 0;
+	g_strlcpy(l_gog_msg, j->gn >= 0 ? "" : j->gerro, sizeof(l_gog_msg));
 	g_free(j);
 }
 
@@ -347,7 +412,8 @@ static void l_abrir_loja(void) {
 	l_chave_ok = ls_chave_existe();
 	if (!l_carregou) {
 		l_carregar_destaques(0);
-		if (l_chave_ok) {
+		l_gog_logado = lg_logado();
+		if (l_chave_ok || l_gog_logado) {
 			l_em_segundo_plano(l_possui_trabalho, l_possui_pronto, g_new0(struct l_possui_job, 1));
 		}
 	}
@@ -396,8 +462,32 @@ static void l_baixando_adicionar(int appid) {
 	}
 }
 
+/* "~/Jogos" → o caminho de verdade */
+static char *setup_pasta_expandir_jogos(const char *p) {
+	if (!p || !*p) {
+		return g_build_filename(g_get_home_dir(), "Jogos", NULL);
+	}
+	if (p[0] == '~' && (p[1] == '/' || p[1] == '\0')) {
+		return g_build_filename(g_get_home_dir(), p + (p[1] ? 2 : 1), NULL);
+	}
+	return g_strdup(p);
+}
+
 static void l_instalar_agora(void) {
 	char erro[200] = "";
+	if (l_loja == LS_LOJA_GOG) {
+		char *pasta = setup_pasta_expandir_jogos(l_pasta_gog);
+		if (lg_instalar(l_appid, l_det.nome, pasta, l_det.linux_nativo, erro, sizeof(erro))) {
+			l_baixando_adicionar(-l_appid);
+			l_instalando_dialogo = false;
+			l_prog_em = 0;
+			avisar("A instalação começou.");
+		} else {
+			avisar(erro);
+		}
+		g_free(pasta);
+		return;
+	}
 	const char *lib = l_lib_sel > 0 && l_lib_sel < l_nlibs ? l_libs[l_lib_sel].caminho : NULL;
 	if (jogos_steam_instalar(l_appid, l_det.nome, lib, erro, sizeof(erro))) {
 		l_baixando_adicionar(l_appid);
@@ -409,7 +499,48 @@ static void l_instalar_agora(void) {
 	}
 }
 
+static void l_dialogo_instalar_gog(void) {
+	char *pasta = setup_pasta_expandir_jogos(l_pasta_gog), *existente = g_strdup(pasta);
+	while (existente[1] && !g_file_test(existente, G_FILE_TEST_IS_DIR)) {
+		char *pai = g_path_get_dirname(existente);
+		g_free(existente);
+		existente = pai;
+	}
+	struct statvfs v;
+	int64_t livre = statvfs(existente, &v) == 0 ? (int64_t)v.f_bavail * (int64_t)v.f_frsize : 0;
+	CLAY(CLAY_ID("li-fundo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER } },
+		.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .attachPoints = { CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER }, .zIndex = 50, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE },
+		.backgroundColor = (Clay_Color){ 0, 0, 0, 170 } }) {
+		CLAY(CLAY_ID("li-caixa"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(U(760)) }, .padding = CLAY_PADDING_ALL(U(28)), .childGap = U(14) },
+			.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(U(14)), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+			gv_texto(gv_fmt("Instalar %s", l_det.nome), U(30), gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_str(l_appid_tem(l_appid) || l_det.gratis ? "Jogo adquirido (GOG)" : "Ainda não adquirido: compre na GOG primeiro."), U(18), l_appid_tem(l_appid) || l_det.gratis ? gv_t.sucesso : gv_t.aviso, GV_PESO_NORMAL);
+			gv_texto(CLAY_STRING("Pasta de instalação (o jogo ganha uma pasta própria dentro dela)"), U(17), gv_t.texto_secundario, GV_PESO_MEDIO);
+			gv_campo(CLAY_ID("li-pasta"), l_pasta_gog, sizeof(l_pasta_gog), "~/Jogos", GV_CAMPO_TEXTO);
+			gv_texto(gv_fmt("Espaço livre nessa pasta: %.1f GB · versão: %s", (double)livre / 1e9, l_det.linux_nativo ? "Linux nativo" : "Windows (por Wine/Proton)"), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+			if (!l_gog_logado) {
+				gv_texto(CLAY_STRING("Entre na GOG em Configurações > GOG para baixar."), U(17), gv_t.aviso, GV_PESO_NORMAL);
+			}
+			gv_texto(CLAY_STRING("O download roda em segundo plano (gogdl), sem abrir janela nenhuma."), U(15), gv_t.texto_suave, GV_PESO_NORMAL);
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(12), .padding = { 0, 0, U(6), 0 } } }) {
+				if (gv_botao_ext(CLAY_ID("li-nao"), &(gv_botao_opcoes){ .texto = "Agora não", .estilo = GV_BOTAO_ELEVADO, .crescer = true, .altura = U(54) }) || tecla(XKB_KEY_Escape)) {
+					l_instalando_dialogo = false;
+				}
+				if (gv_botao_ext(CLAY_ID("li-ok"), &(gv_botao_opcoes){ .icone = "download", .texto = "Instalar", .estilo = GV_BOTAO_CHEIO, .crescer = true, .altura = U(54), .desativado = !l_gog_logado || !l_pasta_gog[0] })) {
+					l_instalar_agora();
+				}
+			}
+		}
+	}
+	g_free(pasta);
+	g_free(existente);
+}
+
 static void l_dialogo_instalar(void) {
+	if (l_loja == LS_LOJA_GOG) {
+		l_dialogo_instalar_gog();
+		return;
+	}
 	int64_t nec = l_espaco_necessario(&l_det);
 	if (!l_nlibs) {
 		l_nlibs = jogos_steam_bibliotecas(l_libs, 8);
@@ -500,7 +631,7 @@ static void l_card(const char *base, int idx, const struct ls_item *it, float la
 		bool possui;
 		const char *preco = l_preco_txt(it, &possui);
 		if (possui) {
-			gv_texto(CLAY_STRING("Na biblioteca"), U(16), gv_t.acento, GV_PESO_MEDIO);
+			gv_texto(gv_fmt("Na biblioteca · %s", it->loja == LS_LOJA_GOG ? "GOG" : "Steam"), U(16), gv_t.acento, GV_PESO_MEDIO);
 		} else {
 			CLAY_AUTO_ID({ .layout = { .childGap = U(8), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 				if (it->desconto > 0) {
@@ -509,10 +640,13 @@ static void l_card(const char *base, int idx, const struct ls_item *it, float la
 					}
 				}
 				gv_texto(gv_str(preco), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+				CLAY_AUTO_ID({ .layout = { .padding = { U(6), U(6), U(1), U(1) } }, .backgroundColor = it->loja == LS_LOJA_GOG ? (Clay_Color){ 150, 70, 200, 255 } : (Clay_Color){ 40, 90, 140, 255 }, .cornerRadius = CLAY_CORNER_RADIUS(U(4)) }) {
+					gv_texto(gv_str(it->loja == LS_LOJA_GOG ? "GOG" : "Steam"), U(12), (Clay_Color){ 255, 255, 255, 255 }, GV_PESO_MEDIO);
+				}
 			}
 		}
 		if (gv_tocado(id) || ativou) {
-			l_abrir_jogo(it->appid);
+			l_abrir_jogo(it->appid, it->loja);
 		}
 	}
 }
@@ -542,13 +676,13 @@ static void l_sub_destaques(void) {
 					gv_texto(gv_str(h->nome), U(64), gv_t.texto, GV_PESO_SEMINEGRITO);
 				}
 				bool possui = l_tem(h);
-				gv_texto(gv_str(h->desconto > 0 ? gv_fmt("Oferta: -%d%%", h->desconto).chars : possui ? "Na sua biblioteca" : h->gratis ? "Grátis para jogar" : "Em destaque na Steam"), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_texto(gv_str(h->desconto > 0 ? gv_fmt("Oferta: -%d%%", h->desconto).chars : possui ? "Na sua biblioteca" : h->gratis ? "Grátis para jogar" : h->loja == LS_LOJA_GOG ? "Em destaque na GOG" : "Em destaque na Steam"), U(20), gv_t.texto_secundario, GV_PESO_NORMAL);
 				CLAY_AUTO_ID({ .layout = { .childGap = U(14), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 					if (botao_u(CLAY_ID("l-ver"), "play", "Ver jogo", GV_BOTAO_CHEIO, false)) {
-						l_abrir_jogo(h->appid);
+						l_abrir_jogo(h->appid, h->loja);
 					}
 					if (!possui && botao_u(CLAY_ID("l-preco"), NULL, h->gratis ? "Grátis" : h->preco, GV_BOTAO_CONTORNO, false)) {
-						l_abrir_jogo(h->appid);
+						l_abrir_jogo(h->appid, h->loja);
 					}
 				}
 			} else if (l_carregando) {
@@ -651,6 +785,13 @@ static void t_loja(void) {
 				}
 			}
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+			CLAY(CLAY_ID("l-loja-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(290)) } } }) {
+				static const char *const lojas[3] = { "Todas as lojas", "Só Steam", "Só GOG" };
+				if (gv_lista_suspensa(CLAY_ID("l-loja"), lojas, 3, &l_loja_f)) {
+					l_carregou = false;
+					l_carregar_destaques(l_hero_gen);
+				}
+			}
 			CLAY(CLAY_ID("l-busca-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(420)) } } }) {
 				int r = gv_campo(CLAY_ID("l-busca"), l_busca_txt, sizeof(l_busca_txt), "Buscar jogos", GV_CAMPO_BUSCA);
 				if (r & GV_CAMPO_ENTER) {
@@ -710,6 +851,12 @@ static void t_busca(void) {
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 					gv_texto(gv_str(l_busca_ocupada ? "Buscando…" : gv_fmt("%d resultado%s", l_total, l_total == 1 ? "" : "s").chars), U(26), gv_t.texto, GV_PESO_MEDIO);
 					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+					static const char *const lojas[3] = { "Todas as lojas", "Só Steam", "Só GOG" };
+					CLAY(CLAY_ID("b-loja-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(230)) } } }) {
+						if (gv_lista_suspensa(CLAY_ID("b-loja"), lojas, 3, &l_loja_f)) {
+							l_buscar();
+						}
+					}
 					static const char *const ordens[4] = { "Ordenar: Relevância", "Ordenar: Mais vendidos", "Ordenar: Lançamento", "Ordenar: Menor preço" };
 					CLAY(CLAY_ID("b-ordem-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(320)) } } }) {
 						if (gv_lista_suspensa(CLAY_ID("b-ordem"), ordens, 4, &l_filtro.ordem)) {
@@ -734,6 +881,16 @@ static void t_busca(void) {
 static void l_painel_compra(void) {
 	bool tem = l_appid_tem(l_appid);
 	struct steam_prog *pr = &l_prog;
+	char gid[32] = "";
+	g_snprintf(gid, sizeof(gid), "gog:%d", l_appid);
+	struct jogo *gj = l_loja == LS_LOJA_GOG ? por_id(gid) : NULL;
+	if (l_loja == LS_LOJA_GOG) {
+		/* a GOG: o progresso vem do arquivo de estado do instalador; instalado é o que a biblioteca já lê */
+		memset(pr, 0, sizeof(*pr));
+		pr->baixando = l_prog_gog.baixando;
+		pr->pct = l_prog_gog.pct;
+		pr->instalado = gj != NULL;
+	}
 	bool instalado = pr->instalado && !pr->baixando;
 	CLAY(CLAY_ID("lj-lado"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(U(22)), .childGap = U(10) },
 		.backgroundColor = (Clay_Color){ 255, 255, 255, 12 }, .cornerRadius = CLAY_CORNER_RADIUS(U(10)), .border = { .color = (Clay_Color){ 255, 255, 255, 30 }, .width = GV_BORDA(1) } }) {
@@ -748,14 +905,14 @@ static void l_painel_compra(void) {
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(U(12)), CLAY_SIZING_FIXED(U(12)) } }, .backgroundColor = gv_t.sucesso, .cornerRadius = CLAY_CORNER_RADIUS(U(6)) }) {}
 				gv_texto(CLAY_STRING("Instalado"), U(26), gv_t.texto, GV_PESO_MEDIO);
 			}
-			if (pr->atualizacao && botao_u(CLAY_ID("lj-atualizar"), "download", "Atualizar", GV_BOTAO_CHEIO, false)) {
+			if (l_loja == LS_LOJA_STEAM && pr->atualizacao && botao_u(CLAY_ID("lj-atualizar"), "download", "Atualizar", GV_BOTAO_CHEIO, false)) {
 				char e[160] = "";
 				jogos_steam_instalar(l_appid, l_det.nome, NULL, e, sizeof(e));
 				l_baixando_adicionar(l_appid);
 			}
 			if (botao_u(CLAY_ID("lj-jogar"), "play", "Ver na biblioteca", GV_BOTAO_CHEIO, false)) {
 				char id[32];
-				g_snprintf(id, sizeof(id), "steam:%d", l_appid);
+				g_snprintf(id, sizeof(id), "%s:%d", l_loja == LS_LOJA_GOG ? "gog" : "steam", l_appid);
 				struct jogo *j = por_id(id);
 				if (!j) {
 					relistar();
@@ -765,17 +922,23 @@ static void l_painel_compra(void) {
 					abrir_detalhes(j);
 				}
 			}
-			if (botao_u(CLAY_ID("lj-desinstalar"), "trash", "Desinstalar", GV_BOTAO_CONTORNO, false)) {
+			static int confirma_gog;
+			if (botao_u(CLAY_ID("lj-desinstalar"), "trash", l_loja == LS_LOJA_GOG && confirma_gog == l_appid ? "Apagar a pasta do jogo?" : "Desinstalar", l_loja == LS_LOJA_GOG && confirma_gog == l_appid ? GV_BOTAO_PERIGO : GV_BOTAO_CONTORNO, false) &&
+				(l_loja != LS_LOJA_GOG || confirma_gog == l_appid || (confirma_gog = l_appid, false))) {
 				char id[32], e[160] = "";
 				bool saiu;
-				g_snprintf(id, sizeof(id), "steam:%d", l_appid);
+				confirma_gog = 0;
+				g_snprintf(id, sizeof(id), "%s:%d", l_loja == LS_LOJA_GOG ? "gog" : "steam", l_appid);
 				struct jogo *j = por_id(id);
 				if (!j) {
 					relistar(); /* acabou de instalar: a biblioteca ainda não leu o manifesto */
 					j = por_id(id);
 				}
 				if (j && jogos_desinstalar(j, false, &saiu, e, sizeof(e))) {
-					avisar("A Steam abriu para desinstalar.");
+					avisar(l_loja == LS_LOJA_GOG ? "Jogo da GOG removido." : "A Steam abriu para desinstalar.");
+					if (l_loja == LS_LOJA_GOG) {
+						relistar();
+					}
 				} else if (e[0]) {
 					avisar(e);
 				}
@@ -787,6 +950,10 @@ static void l_painel_compra(void) {
 				if (botao_u(CLAY_ID("lj-instalar"), "download", "Instalar", GV_BOTAO_CHEIO, false)) {
 					l_nlibs = jogos_steam_bibliotecas(l_libs, 8);
 					l_lib_sel = 0;
+					if (!l_pasta_gog[0]) {
+						g_strlcpy(l_pasta_gog, "~/Jogos", sizeof(l_pasta_gog));
+					}
+					l_gog_logado = lg_logado();
 					l_instalando_dialogo = true;
 				}
 			} else {
@@ -798,7 +965,18 @@ static void l_painel_compra(void) {
 				}
 				if (botao_u(CLAY_ID("lj-comprar"), "bag", "Comprar", GV_BOTAO_CHEIO, false)) {
 					char e[160] = "";
-					if (jogos_steam_comprar(l_appid, e, sizeof(e))) {
+					if (l_loja == LS_LOJA_GOG) {
+						char url[320];
+						g_snprintf(url, sizeof(url), "%s", l_det.loja_url[0] ? l_det.loja_url : "https://www.gog.com");
+						char *ab[] = { "xdg-open", url, NULL };
+						GError *ge = NULL;
+						if (g_spawn_async(NULL, ab, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, &ge)) {
+							avisar("A loja da GOG abriu para a compra.");
+						} else {
+							avisar("Não consegui abrir a loja da GOG.");
+						}
+						g_clear_error(&ge);
+					} else if (jogos_steam_comprar(l_appid, e, sizeof(e))) {
 						avisar("A loja da Steam abriu para a compra.");
 					} else {
 						avisar(e);
@@ -823,20 +1001,30 @@ static void l_painel_compra(void) {
 		}
 		CLAY_AUTO_ID({ .layout = { .childGap = U(12) } }) {
 			gv_icone("stack", U(24), gv_t.icone);
-			gv_texto(gv_str(l_det.linux_nativo ? "Linux nativo" : l_proton[0] ? ls_proton_texto(l_proton) : l_det.windows ? "Via Proton" : "Sem versão para Linux"), U(19), gv_t.texto, GV_PESO_NORMAL);
+			gv_texto(gv_str(l_det.linux_nativo ? "Linux nativo" : l_proton[0] ? ls_proton_texto(l_proton) : l_det.windows ? (l_loja == LS_LOJA_GOG ? "Via Wine/Proton" : "Via Proton") : "Sem versão para Linux"), U(19), gv_t.texto, GV_PESO_NORMAL);
 		}
 	}
 }
 
 static void t_loja_jogo(void) {
 	if (gv_agora() - l_prog_em > 1.0) {
-		jogos_steam_progresso(l_appid, &l_prog);
-		l_prog_em = gv_agora();
-		if (l_prog.baixando) {
-			l_baixando_adicionar(l_appid);
+		if (l_loja == LS_LOJA_GOG) {
+			lg_progresso(l_appid, &l_prog_gog);
+			if (l_prog_gog.baixando) {
+				l_baixando_adicionar(-l_appid);
+			}
+			if (l_prog_gog.pronto) {
+				relistar(); /* acabou: a biblioteca lê o registro do jogo */
+			}
+		} else {
+			jogos_steam_progresso(l_appid, &l_prog);
+			if (l_prog.baixando) {
+				l_baixando_adicionar(l_appid);
+			}
 		}
+		l_prog_em = gv_agora();
 	}
-	if (l_prog.baixando) {
+	if (l_prog.baixando || l_prog_gog.baixando) {
 		gv_acordar_em(1.0);
 	}
 	CLAY(CLAY_ID("lj"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
@@ -937,6 +1125,51 @@ static void cfg_steam(void) {
 			gv_texto(gv_str(l_possui_msg), U(16), gv_t.aviso, GV_PESO_NORMAL);
 		} else if (l_npossui) {
 			gv_texto(gv_fmt("A conta tem %d jogos.", l_npossui), U(17), gv_t.sucesso, GV_PESO_NORMAL);
+		}
+	}
+}
+
+/* ---------------- a conta da GOG (Configurações) ---------------- */
+
+static void cfg_gog(void) {
+	bool logado = lg_logado();
+	CLAY(CLAY_ID("cfg-gg"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(12) } }) {
+		gv_texto(CLAY_STRING("GOG"), U(28), gv_t.texto, GV_PESO_MEDIO);
+		gv_texto(CLAY_STRING("Para instalar e ver os jogos da sua conta, entre uma vez. O download usa o gogdl (o motor do Heroic), sem janela."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+		gv_texto(gv_str(logado ? "Conectado à GOG." : "Sem login."), U(20), logado ? gv_t.sucesso : gv_t.texto_secundario, GV_PESO_MEDIO);
+		if (!logado) {
+			gv_texto(CLAY_STRING("1. Abra a página de login da GOG e entre na sua conta."), U(18), gv_t.texto, GV_PESO_NORMAL);
+			if (botao_u(CLAY_ID("gg-abrir"), "external", "Abrir a página de login", GV_BOTAO_ELEVADO, false)) {
+				char *ab[] = { "xdg-open", (char *)lg_url_login(), NULL };
+				g_spawn_async(NULL, ab, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+			}
+			gv_texto(CLAY_STRING("2. Depois do login a GOG leva a uma página em branco: copie o endereço inteiro dela e cole aqui."), U(18), gv_t.texto, GV_PESO_NORMAL);
+			gv_campo(CLAY_ID("gg-codigo"), l_gog_cod, sizeof(l_gog_cod), "https://embed.gog.com/on_login_success?...&code=…", GV_CAMPO_TEXTO);
+			if (botao_u(CLAY_ID("gg-entrar"), "check", "Entrar", GV_BOTAO_CHEIO, !l_gog_cod[0])) {
+				char e[200] = "";
+				if (lg_login(l_gog_cod, e, sizeof(e))) {
+					l_gog_cod[0] = '\0';
+					l_gog_logado = true;
+					l_carregou = false;
+					avisar("Conectado à GOG.");
+				} else {
+					avisar(e);
+				}
+			}
+		} else {
+			if (botao_u(CLAY_ID("gg-sair"), "logout", "Sair da conta", GV_BOTAO_CONTORNO, false)) {
+				lg_sair();
+				l_gog_logado = false;
+				g_free(l_possui_gog);
+				l_possui_gog = NULL;
+				l_npossui_gog = 0;
+				avisar("Saiu da GOG.");
+			}
+			if (l_gog_msg[0]) {
+				gv_texto(gv_str(l_gog_msg), U(16), gv_t.aviso, GV_PESO_NORMAL);
+			} else if (l_npossui_gog) {
+				gv_texto(gv_fmt("A conta tem %d jogos.", l_npossui_gog), U(17), gv_t.sucesso, GV_PESO_NORMAL);
+			}
 		}
 	}
 }

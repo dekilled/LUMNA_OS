@@ -12,6 +12,7 @@ srv=$!
 export XDG_RUNTIME_DIR=$run HOME=$casa XDG_CACHE_HOME="$run/cache" WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1
 export PATH="$run/bin:$PATH" FALSO_LOG="$run/falso.log" LC_ALL=C RAIZ_TESTE="$run"
 export LUMNA_STEAM_DIR="$run/steam" LUMNA_LUTRIS_DB="$run/lutris.db" LUMNA_HEROIC_DIR="$run/heroic"
+export LUMNA_LOJA_GOG_CATALOG_URL="http://127.0.0.1:$porta" LUMNA_LOJA_GOG_API_URL="http://127.0.0.1:$porta" LUMNA_LOJA_GOG_EMBED_URL="http://127.0.0.1:$porta" LUMNA_LOJA_GOG_IMG_URL="http://127.0.0.1:$porta" GOGDL_ESPERA=1
 export LUMNA_LOJA_STEAM_URL="http://127.0.0.1:$porta" LUMNA_LOJA_PROTONDB_URL="http://127.0.0.1:$porta" LUMNA_LOJA_IMG_URL="http://127.0.0.1:$porta" LUMNA_LOJA_API_URL="http://127.0.0.1:$porta"
 unset XDG_CONFIG_HOME XDG_DATA_HOME
 (cd "$orbit_dir" && ./orbit > "$run/orbit.log" 2>&1 &)

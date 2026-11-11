@@ -20,8 +20,11 @@
 #define LS_MAX 60
 #define LS_TELAS 16
 
+enum { LS_LOJA_STEAM, LS_LOJA_GOG };
+
 struct ls_item {
-	int appid;
+	int loja;             /* LS_LOJA_* */
+	int appid;            /* o id na loja (Steam: appid; GOG: o id numérico do produto) */
 	char nome[128];
 	char capa[400];       /* a imagem de cápsula (URL) */
 	char fundo[400];      /* o fundo largo (URL) */
@@ -30,10 +33,12 @@ struct ls_item {
 	char preco_antes[32]; /* o preço sem desconto, se há desconto */
 	bool gratis;
 	bool linux_nativo;
+	char generos[96];     /* na GOG vem da lista ("Ação · RPG") */
 	bool possui;          /* a conta tem (só com a chave); ou está instalado */
 };
 
 struct ls_detalhe {
+	int loja;
 	int appid;
 	char nome[128];
 	char resumo[512];
@@ -51,6 +56,7 @@ struct ls_detalhe {
 	bool gratis, linux_nativo, windows, um_jogador, cooperativo, multijogador, controle;
 	char requisitos[1536]; /* mínimos para o Linux (ou Windows), sem HTML */
 	int metacritic;       /* 0: sem nota */
+	char loja_url[300];   /* a página do jogo na loja (Comprar, na GOG) */
 	bool existe;          /* o app existe e é um jogo */
 };
 
@@ -82,6 +88,10 @@ void ls_chave_ler(char *id64, size_t tam);    /* só o id; a chave nunca sai daq
 /* o id64 do usuário que está logado no cliente da Steam (loginusers.vdf), "" se não achou */
 void ls_id_local(char *id64, size_t tam);
 int ls_possuidos(int *appids, int max, char *erro, size_t tam);
+
+/* para o catálogo da GOG (loja_gog.h): a mesma rede com cache, o mesmo limpador de HTML */
+char *ls_http(const char *url, int ttl, char *erro, size_t tam);   /* g_free */
+void ls_sem_html(const char *src, char *dest, size_t tam);
 
 /* baixa uma imagem para o cache e devolve o caminho local (g_free); NULL se falhar. Bloqueia: linha à parte. */
 char *ls_imagem(const char *url);

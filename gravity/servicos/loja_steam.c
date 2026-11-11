@@ -147,6 +147,11 @@ static void imagens(int appid, struct ls_item *it) {
 	g_snprintf(it->fundo, sizeof(it->fundo), "%s/steam/apps/%d/library_hero.jpg", base_img(), appid);
 }
 
+/* o que a Loja da GOG (loja_gog.c) reaproveita */
+char *ls_http(const char *url, int ttl, char *erro, size_t tam) { return buscar(url, ttl, erro, tam); }
+void ls_sem_html(const char *src, char *dest, size_t tam) { sem_html(src, dest, tam); }
+const char *ls_base_img(void) { return base_img(); }
+
 /* ---------------- destaques ---------------- */
 
 static int lista_featured(const char *chave, struct ls_item *l, int max, char *erro, size_t tam) {

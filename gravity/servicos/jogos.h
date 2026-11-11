@@ -17,7 +17,7 @@
 #define JOGOS_MAX 400
 #define JOGO_ENV_MAX 8
 
-enum jogo_origem { ORIGEM_STEAM, ORIGEM_LUTRIS, ORIGEM_HEROIC, ORIGEM_AVULSO, ORIGEM_N };
+enum jogo_origem { ORIGEM_STEAM, ORIGEM_LUTRIS, ORIGEM_HEROIC, ORIGEM_AVULSO, ORIGEM_GOG, ORIGEM_N };
 
 struct jogo {
 	char id[64];            /* "steam:1234", "lutris:slug", "heroic:legendary:app", "avulso:abc123" */

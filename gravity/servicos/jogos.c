@@ -141,12 +141,12 @@ static bool gravar_arquivo(const char *caminho, const char *texto) {
 }
 
 const char *jogos_origem_nome(enum jogo_origem o) {
-	static const char *const n[ORIGEM_N] = { "Steam", "Lutris", "Heroic", "Avulso" };
+	static const char *const n[ORIGEM_N] = { "Steam", "Lutris", "Heroic", "Avulso", "GOG" };
 	return o >= 0 && o < ORIGEM_N ? n[o] : "";
 }
 
 bool jogos_props_editaveis(const struct jogo *j) {
-	return j->origem == ORIGEM_AVULSO || j->origem == ORIGEM_LUTRIS;
+	return j->origem == ORIGEM_AVULSO || j->origem == ORIGEM_LUTRIS || j->origem == ORIGEM_GOG;
 }
 
 /* ---------------- a Steam ---------------- */
@@ -423,6 +423,72 @@ static int ler_avulsos(struct jogo *lista, int n, int max) {
 	return n;
 }
 
+/* ---------------- a GOG (os jogos que o próprio Gaming instalou pelo gogdl) ---------------- */
+
+static char *arq_gog_registro(void) {
+	return g_build_filename(g_get_user_config_dir(), "lumna", "jogos", "gog_instalados.json", NULL);
+}
+
+static int ler_gog(struct jogo *lista, int n, int max) {
+	char *a = arq_gog_registro();
+	struct json *j = json_arquivo(a);
+	const struct json *l = json_chave(j, "jogos");
+	for (int i = 0; l && i < l->nfilhos && n < max; i++) {
+		const struct json *g = json_item(l, i);
+		int id = (int)json_numero(json_chave(g, "id"), 0);
+		const char *pasta = json_chave_texto(g, "pasta");
+		if (!id || !*pasta || !g_file_test(pasta, G_FILE_TEST_IS_DIR)) {
+			continue; /* a pasta foi apagada por fora: o jogo não está mais instalado */
+		}
+		struct jogo *o = &lista[n++];
+		memset(o, 0, sizeof(*o));
+		g_snprintf(o->id, sizeof(o->id), "gog:%d", id);
+		g_strlcpy(o->nome, json_chave_texto(g, "nome"), sizeof(o->nome));
+		o->origem = ORIGEM_GOG;
+		g_snprintf(o->ref, sizeof(o->ref), "%d", id);
+		g_strlcpy(o->pasta, pasta, sizeof(o->pasta));
+		g_strlcpy(o->dir, pasta, sizeof(o->dir));
+		g_strlcpy(o->janela, "cheia", sizeof(o->janela));
+		bool nativo = json_bool(json_chave(g, "linux"), false);
+		o->compat = !nativo;
+		if (nativo) {
+			char *s = g_build_filename(pasta, "start.sh", NULL);
+			g_strlcpy(o->exec, s, sizeof(o->exec));
+			g_free(s);
+		} else {
+			/* o jogo do Windows: o programa principal vem do goggame-ID.info */
+			char nome[64], *inf, *t = NULL;
+			g_snprintf(nome, sizeof(nome), "goggame-%d.info", id);
+			inf = g_build_filename(pasta, nome, NULL);
+			struct json *ij = g_file_get_contents(inf, &t, NULL, NULL) ? json_ler(t) : NULL;
+			const struct json *tasks = json_chave(ij, "playTasks");
+			const char *rel = "";
+			for (int k = 0; tasks && k < tasks->nfilhos; k++) {
+				if (json_bool(json_chave(json_item(tasks, k), "isPrimary"), false)) {
+					rel = json_chave_texto(json_item(tasks, k), "path");
+				}
+			}
+			if (*rel && !strstr(rel, "..")) {
+				char *e = g_build_filename(pasta, rel, NULL);
+				g_strlcpy(o->exec, e, sizeof(o->exec));
+				g_free(e);
+			}
+			json_liberar(ij);
+			g_free(t);
+			g_free(inf);
+		}
+		char img[600];
+		g_snprintf(img, sizeof(img), "%s/galaxy-capa.jpg", pasta);
+		if (g_file_test(img, G_FILE_TEST_IS_REGULAR)) {
+			g_strlcpy(o->capa, img, sizeof(o->capa));
+			g_strlcpy(o->fundo, img, sizeof(o->fundo));
+		}
+	}
+	json_liberar(j);
+	g_free(a);
+	return n;
+}
+
 /* ---------------- as propriedades (props.json) ---------------- */
 
 static struct json *props_ler(void) {
@@ -539,6 +605,7 @@ int jogos_listar(struct jogo *lista, int max) {
 	n = ler_lutris(lista, n, max);
 	n = ler_heroic(lista, n, max);
 	n = ler_avulsos(lista, n, max);
+	n = ler_gog(lista, n, max);
 	struct json *p = props_ler();
 	for (int i = 0; i < n; i++) {
 		completar_estado_salvo(&lista[i], p);
@@ -667,7 +734,7 @@ char *jogos_comando(const struct jogo *j) {
 	default:
 		break;
 	}
-	/* avulso: as variáveis, a GPU, a camada de compatibilidade e as opções com %command% */
+	/* avulso e GOG: as variáveis, a GPU, a camada de compatibilidade e as opções com %command% */
 	GString *c = g_string_new(NULL);
 	for (int i = 0; i < j->nenv; i++) {
 		bool nome_ok = j->env[i].k[0] && (g_ascii_isalpha(j->env[i].k[0]) || j->env[i].k[0] == '_');
@@ -712,7 +779,7 @@ static void anotar_sessao(const struct jogo *j) {
 
 bool jogos_lancar(const struct jogo *j, char *erro, size_t tam) {
 	char *cmd = jogos_comando(j);
-	const char *dir = j->origem == ORIGEM_AVULSO && j->dir[0] && g_file_test(j->dir, G_FILE_TEST_IS_DIR) ? j->dir : NULL;
+	const char *dir = (j->origem == ORIGEM_AVULSO || j->origem == ORIGEM_GOG) && j->dir[0] && g_file_test(j->dir, G_FILE_TEST_IS_DIR) ? j->dir : NULL;
 	GError *ge = NULL;
 	char *argv[] = { "sh", "-c", cmd, NULL };
 	bool ok = g_spawn_async(dir, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, &ge);
@@ -733,6 +800,7 @@ const char *jogos_desinstalar_texto(const struct jogo *j) {
 	case ORIGEM_STEAM: return "A Steam desinstala o jogo e cuida dos arquivos dele. Os saves na nuvem da Steam continuam.";
 	case ORIGEM_LUTRIS: return "O Lutris abre para desinstalar este jogo; ele cuida dos arquivos e do prefixo.";
 	case ORIGEM_HEROIC: return "O Heroic abre para desinstalar este jogo; ele cuida dos arquivos.";
+	case ORIGEM_GOG: return "O jogo é removido do Gaming e a pasta dele (instalada pela GOG) é apagada. Os saves na nuvem da GOG continuam.";
 	default: return "O jogo sai da biblioteca. Os arquivos só são apagados se você marcar a opção abaixo; os saves nunca.";
 	}
 }
@@ -776,6 +844,39 @@ bool jogos_desinstalar(const struct jogo *j, bool apagar_arquivos, bool *saiu_da
 			*saiu_da_lista = true;
 		}
 		return true;
+	}
+	if (j->origem == ORIGEM_GOG) {
+		char *a = arq_gog_registro();
+		struct json *p = json_arquivo(a);
+		const struct json *l = json_chave(p, "jogos");
+		GString *s = g_string_new("{\"jogos\":[");
+		bool primeiro = true;
+		for (int i = 0; l && i < l->nfilhos; i++) {
+			if (!strcmp(json_chave_texto(l->filhos[i], "id"), j->ref) || (int)json_numero(json_chave(l->filhos[i], "id"), 0) == atoi(j->ref)) {
+				continue;
+			}
+			g_string_append(s, primeiro ? "" : ",");
+			primeiro = false;
+			json_escrever(s, l->filhos[i]);
+		}
+		g_string_append(s, "]}");
+		bool ok = gravar_arquivo(a, s->str);
+		g_string_free(s, TRUE);
+		json_liberar(p);
+		g_free(a);
+		props_regravar(j->id, NULL, 0, 0);
+		/* a pasta que o gogdl criou: só se é uma pasta própria (nunca a casa, a raiz ou um caminho curto) */
+		if (ok && j->pasta[0] && g_path_is_absolute(j->pasta) && strcmp(j->pasta, g_get_home_dir()) && strlen(j->pasta) > 12 && g_file_test(j->pasta, G_FILE_TEST_IS_DIR)) {
+			char *argv[] = { "rm", "-rf", "--", (char *)j->pasta, NULL };
+			g_spawn_sync(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL, NULL, NULL);
+		}
+		if (saiu_da_lista) {
+			*saiu_da_lista = ok;
+		}
+		if (!ok) {
+			g_strlcpy(erro, "Não consegui atualizar a lista de jogos.", tam);
+		}
+		return ok;
 	}
 	char *cmd = j->origem == ORIGEM_STEAM ? g_strdup_printf("steam steam://uninstall/%s", j->ref) : j->origem == ORIGEM_LUTRIS ? g_strdup("lutris") : g_strdup("heroic");
 	char *argv[] = { "sh", "-c", cmd, NULL };

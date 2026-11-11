@@ -435,6 +435,26 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.331 | Um jogo grátis (ex. um free-to-play) | Mostra "Grátis" e "Instalar" (sem Comprar) | ☐ |
 | 2.332 | Desligue a internet e abra a Loja | Mostra a mensagem e "Tentar de novo"; o que já foi visto continua (cache) | ☐ |
 
+### 2o. Loja do Gaming (GOG)
+
+Antes: `yay -S gogdl` (o motor do Heroic, de linha de comando).
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.333 | Gaming > Loja | Destaques com jogos da Steam e da GOG misturados, cada card com o selo da loja | ☐ |
+| 2.334 | O seletor "Todas as lojas" ao lado da busca: "Só GOG", depois "Só Steam" | A lista mostra só aquela loja (Destaques, Ofertas e Buscar) | ☐ |
+| 2.335 | Buscar com "Linux nativo", "Só grátis" e um gênero | Os resultados da GOG acompanham (e da Steam, se misturadas) | ☐ |
+| 2.336 | Abra um jogo da GOG | Descrição, prints, trailer (precisa do yt-dlp), preço em reais, "Linux nativo" ou "Via Wine/Proton" | ☐ |
+| 2.337 | "Comprar" num jogo da GOG | A página dele abre no navegador | ☐ |
+| 2.338 | Configurações > GOG > "Abrir a página de login", entre na conta, copie o endereço da página em branco que a GOG mostra e cole | "Conectado à GOG" (se o gogdl recusar, me mande a mensagem) | ☐ |
+| 2.339 | Volte à Loja | Os jogos que você comprou na GOG mostram "Na biblioteca" | ☐ |
+| 2.340 | Num jogo seu: "Instalar" | Pede a pasta (padrão ~/Jogos) e mostra o espaço livre | ☐ |
+| 2.341 | Confirme | O download começa sem nenhuma janela; a barra de progresso anda; o contador de downloads da barra sobe | ☐ |
+| 2.342 | Ao terminar | "Instalado"; o jogo aparece na Biblioteca (filtro GOG) | ☐ |
+| 2.343 | Abra o jogo pela Biblioteca | Abre (Linux nativo pelo start.sh; Windows pelo wine/umu-run) | ☐ |
+| 2.344 | "Desinstalar" na página do jogo (toque duas vezes) | Apaga a pasta do jogo e ele some da Biblioteca | ☐ |
+| 2.345 | Configurações > GOG > "Sair da conta" | Volta a "Sem login"; "Instalar" pede para entrar | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

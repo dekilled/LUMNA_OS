@@ -2,7 +2,7 @@
 
 Esboços: Destaques (hero, "Descubra sua próxima aventura" com gêneros), Buscar (filtros de preço, compatibilidade e jogadores), a página do jogo (Visão geral, Sobre, Requisitos, Avaliações, com Comprar e Lista de desejos), o jogo na biblioteca (Atualizar, Desinstalar) e a janela "Instalar" (local, espaço).
 
-Decisões: catálogo unificado, começando pela **Steam** (depois GOG e Epic). Instalar, atualizar, desinstalar e acompanhar o download são feitos **dentro do Gaming**, sem abrir a janela da Steam; só **Comprar** abre a loja da empresa, na hora.
+Decisões: catálogo unificado (Steam e GOG misturadas, cada jogo com o selo da loja, e um filtro "Todas as lojas / Só Steam / Só GOG"), depois a Epic. Instalar, atualizar, desinstalar e acompanhar o download são feitos **dentro do Gaming**, sem abrir a janela da Steam; só **Comprar** abre a loja da empresa, na hora.
 
 ## Estado
 
@@ -19,9 +19,22 @@ Decisões: catálogo unificado, começando pela **Steam** (depois GOG e Epic). I
   - **Configurações > Steam:** a chave de API e o id (a chave fica num arquivo 600 e nunca aparece).
 - O instalador (`gravity/servicos/jogos.[ch]`): sobe a Steam **sem janela** (`steam -silent -nochatui -nofriendsui`) e pede `steam://install/ID`; em outra biblioteca deixa antes um `appmanifest` lá. **Comprar** abre a loja da Steam (`steam://store/ID`), a única exceção.
 
-**Falta:** a aba **Avaliações** do esboço, o "Conectado" do topo, a **GOG** e a **Epic**, o catálogo unificado com elas ("Origem: LUMNA"), e as conquistas.
+**Falta:** a aba **Avaliações** do esboço, o "Conectado" do topo, a **Epic** e as conquistas.
 
 **Não testado com a Steam de verdade** (aqui não há cliente): se `steam://install` abre mesmo um diálogo na janela da Steam, se o `appmanifest` deixado em outra biblioteca faz a Steam baixar lá, e se os flags do manifesto (progresso, atualização) batem. O roteiro 2.316 em diante confere.
+
+## GOG
+
+Mesmas telas da Steam, com o selo **GOG** nos cards e o filtro de loja ao lado da busca.
+
+- **Catálogo** (`gravity/servicos/loja_gog.[ch]`): `catalog.gog.com` (destaques, ofertas, busca com gênero, grátis, Linux, um jogador/cooperativo, ordem; "Indie" é uma tag, a GOG não tem esse gênero), detalhes e preço em reais pela `api.gog.com`. Testado (`sh gravity/testes/loja_gog.sh`) contra **respostas reais gravadas**.
+- **Entrar:** Configurações > GOG: abre a página de login da GOG no navegador e você cola a URL para onde ela leva depois (ou só o código); o `gogdl` troca por um token (`~/.config/lumna/jogos/gog/auth.json`, 600). Só se faz uma vez.
+- **Os jogos da conta:** com o login, a Loja marca "Na biblioteca" o que você já comprou na GOG.
+- **Instalar:** pede a pasta (padrão `~/Jogos`) e roda o `gogdl download` num processo à parte (`lumna-jogos gog-instalar`), que sobrevive à janela; o progresso aparece na página do jogo e no contador de downloads. Versão Linux nativa quando existe; senão a do Windows, por Wine/Proton.
+- **Depois de instalado:** o jogo entra na Biblioteca (filtro GOG), abre pelo `start.sh` (Linux) ou pelo programa principal do `goggame-ID.info` (Windows, por `umu-run`/`wine`) e tem as mesmas Propriedades dos avulsos. **Desinstalar apaga a pasta do jogo** (na Loja, em dois toques).
+- **Comprar:** abre a página do jogo na GOG, no navegador (a exceção, como na Steam).
+
+**Não testado com a GOG de verdade** (sem conta nem `gogdl` aqui): o formato do `auth.json` do gogdl, a linha de progresso dele, o login pela URL colada e se o token que ele guarda serve para a lista de jogos da conta. O roteiro 2.333 em diante confere. O `gogdl` precisa estar instalado (AUR).
 
 ## A chave de API da Steam (opcional)
 
