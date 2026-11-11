@@ -256,8 +256,8 @@ void orbit_idle_describe(struct orbit_server *server, char *buf, size_t cap) {
 		const char *app_id = "?";
 		struct orbit_view *view;
 		wl_list_for_each(view, &server->views, link) {
-			if (surface && view->toplevel && view->toplevel->base->surface == surface && view->toplevel->app_id) {
-				app_id = view->toplevel->app_id;
+			if (surface && orbit_view_surface(view) == surface && *orbit_view_app_id(view)) {
+				app_id = orbit_view_app_id(view);
 			}
 		}
 		int n = snprintf(buf + len, cap - len, "%s{\"app_id\":\"%.80s\",\"visivel\":%s}", len ? "," : "", app_id,

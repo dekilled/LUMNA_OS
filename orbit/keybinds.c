@@ -141,7 +141,7 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 		break;
 	case ORBIT_CLOSE:
 		if (focused) {
-			wlr_xdg_toplevel_send_close(focused->toplevel);
+			orbit_view_close(focused);
 		}
 		break;
 	case ORBIT_FLOAT:

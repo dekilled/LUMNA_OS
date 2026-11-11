@@ -18,7 +18,7 @@ static void handle_activate(struct wl_listener *listener, void *data) {
 		wlr_log(WLR_INFO, "a dock pediu ativar uma janela que não está mapeada: ignorado");
 		return;
 	}
-	wlr_log(WLR_INFO, "a dock pediu ativar \"%s\" (minimizada=%d, espaço=%d, espaço da saída=%d, saída=%s)", view->toplevel->title ? view->toplevel->title : "",
+	wlr_log(WLR_INFO, "a dock pediu ativar \"%s\" (minimizada=%d, espaço=%d, espaço da saída=%d, saída=%s)", orbit_view_title(view),
 		view->minimized, view->tag, view->output ? view->output->tag : -1, view->output ? view->output->wlr->name : "nenhuma");
 	if (view->output) {
 		view->output->tag = view->tag;
@@ -48,7 +48,7 @@ static void handle_minimize(struct wl_listener *listener, void *data) {
 
 static void handle_close(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, foreign_close);
-	wlr_xdg_toplevel_send_close(view->toplevel);
+	orbit_view_close(view);
 }
 
 bool orbit_foreign_bind(struct orbit_server *server) {
@@ -100,8 +100,8 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	if (!view->foreign) {
 		return;
 	}
-	const char *title = view->toplevel->title ? view->toplevel->title : "";
-	const char *app = view->toplevel->app_id ? view->toplevel->app_id : "";
+	const char *title = orbit_view_title(view);
+	const char *app = orbit_view_app_id(view);
 	/* o wlroots manda o título e o app_id (e um "done") a TODOS os clientes a cada chamada, mesmo igual. Esta função roda a cada commit de janela:
 	 * sem esta conferência, cada commit de uma janela acordava todo app Gravity (dock, barra, Atlas...), que redesenhava e fazia commit, e o ciclo
 	 * não acabava: 60 quadros por segundo, parado, em todos os apps. */

@@ -154,9 +154,9 @@ static bool client_send(struct ipc_client *client, struct ipc_buf *b) {
 static void put_view(struct ipc_buf *b, struct orbit_view *view) {
 	struct orbit_server *server = view->server;
 	put(b, "{\"id\":%u,\"app_id\":", view->id);
-	put_str(b, view->toplevel->app_id);
+	put_str(b, orbit_view_app_id(view));
 	put(b, ",\"titulo\":");
-	put_str(b, view->toplevel->title);
+	put_str(b, orbit_view_title(view));
 	put(b, ",\"saida\":");
 	put_str(b, view->output ? view->output->wlr->name : "");
 	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"visivel\":%s,\"recortada\":%s}",
@@ -396,7 +396,7 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			fail(b, "janela não encontrada");
 			return;
 		}
-		wlr_xdg_toplevel_send_close(view->toplevel);
+		orbit_view_close(view);
 		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "modo")) {
 		/* modo [seguinte|anterior|desktop|gaming|midia [saida]] */

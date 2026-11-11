@@ -3,6 +3,171 @@
 #include <stdlib.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
+#include <wlr/version.h>
+#if WLR_HAS_XWAYLAND
+#include <wlr/xwayland.h>
+#endif
+
+/* ---- o que muda entre uma janela Wayland (xdg) e uma X11 (XWayland) ---- */
+
+const char *orbit_view_app_id(const struct orbit_view *view) {
+	if (view->toplevel) {
+		return view->toplevel->app_id ? view->toplevel->app_id : "";
+	}
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface && view->xsurface->class) {
+		return view->xsurface->class;
+	}
+#endif
+	return "";
+}
+
+const char *orbit_view_title(const struct orbit_view *view) {
+	if (view->toplevel) {
+		return view->toplevel->title ? view->toplevel->title : "";
+	}
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface && view->xsurface->title) {
+		return view->xsurface->title;
+	}
+#endif
+	return "";
+}
+
+struct wlr_surface *orbit_view_surface(const struct orbit_view *view) {
+	if (view->toplevel) {
+		return view->toplevel->base->surface;
+	}
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface) {
+		return view->xsurface->surface;
+	}
+#endif
+	return NULL;
+}
+
+bool orbit_view_ready(const struct orbit_view *view) {
+	if (view->toplevel) {
+		return view->toplevel->base->initialized;
+	}
+	return view->xsurface != NULL;
+}
+
+void orbit_view_close(struct orbit_view *view) {
+	if (view->toplevel) {
+		wlr_xdg_toplevel_send_close(view->toplevel);
+	}
+#if WLR_HAS_XWAYLAND
+	else if (view->xsurface) {
+		wlr_xwayland_surface_close(view->xsurface);
+	}
+#endif
+}
+
+#if WLR_HAS_XWAYLAND
+/* onde a janela X11 está na tela (o nó da cena, com a borda do Orbit) ou vai ficar quando a animação chegar */
+static void xwl_pos(const struct orbit_view *view, int *x, int *y) {
+	int b = view->server->border_px;
+	bool inset = view->border && view->border->node.enabled && b > 0;
+	int px = view->placed ? view->slide_to_x : view->x, py = view->placed ? view->slide_to_y : view->y;
+	*x = px + (inset ? b : 0);
+	*y = py + (inset ? b : 0);
+}
+
+void orbit_xwl_sync_pos(struct orbit_view *view, int x, int y) {
+	struct wlr_xwayland_surface *xs = view->xsurface;
+	if (xs && (xs->x != x || xs->y != y)) {
+		wlr_xwayland_surface_configure(xs, (int16_t)x, (int16_t)y, xs->width, xs->height);
+	}
+}
+#endif
+
+void orbit_view_set_activated(struct orbit_view *view, bool on) {
+	if (view->toplevel) {
+		wlr_xdg_toplevel_set_activated(view->toplevel, on);
+	}
+#if WLR_HAS_XWAYLAND
+	else if (view->xsurface) {
+		wlr_xwayland_surface_activate(view->xsurface, on);
+		if (on) {
+			wlr_xwayland_surface_restack(view->xsurface, NULL, XCB_STACK_MODE_ABOVE);
+		}
+	}
+#endif
+}
+
+void orbit_view_set_size(struct orbit_view *view, int w, int h) {
+	if (view->toplevel) {
+		wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)w, (uint32_t)h);
+	}
+#if WLR_HAS_XWAYLAND
+	else if (view->xsurface) {
+		int x, y;
+		xwl_pos(view, &x, &y);
+		wlr_xwayland_surface_configure(view->xsurface, (int16_t)x, (int16_t)y, (uint16_t)(w > 0 ? w : 1), (uint16_t)(h > 0 ? h : 1));
+	}
+#endif
+}
+
+void orbit_view_set_state(struct orbit_view *view, bool fullscreen, bool maximized, uint32_t tiled) {
+	if (view->toplevel) {
+		wlr_xdg_toplevel_set_fullscreen(view->toplevel, fullscreen);
+		wlr_xdg_toplevel_set_maximized(view->toplevel, maximized);
+		wlr_xdg_toplevel_set_tiled(view->toplevel, tiled);
+	}
+#if WLR_HAS_XWAYLAND
+	else if (view->xsurface) {
+		wlr_xwayland_surface_set_fullscreen(view->xsurface, fullscreen);
+#if WLR_VERSION_NUM >= ((0 << 16) | (19 << 8))
+		wlr_xwayland_surface_set_maximized(view->xsurface, maximized, maximized);
+#else
+		wlr_xwayland_surface_set_maximized(view->xsurface, maximized);
+#endif
+	}
+#endif
+	(void)tiled;
+}
+
+void orbit_view_set_resizing(struct orbit_view *view, bool on) {
+	if (view->toplevel) {
+		wlr_xdg_toplevel_set_resizing(view->toplevel, on);
+	}
+	(void)on;
+}
+
+void orbit_view_reconfigure(struct orbit_view *view) {
+	if (view->toplevel) {
+		if (view->toplevel->base->initialized) {
+			wlr_xdg_surface_schedule_configure(view->toplevel->base);
+		}
+		return;
+	}
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface) {
+		wlr_xwayland_surface_set_fullscreen(view->xsurface, view->fullscreen);
+	}
+#endif
+}
+
+struct wlr_box orbit_view_client_box(struct orbit_view *view) {
+	struct wlr_box box = { 0 };
+	if (view->toplevel) {
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR < 19
+		wlr_xdg_surface_get_geometry(view->toplevel->base, &box);
+#else
+		box = view->toplevel->base->geometry;
+#endif
+		return box;
+	}
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface) {
+		struct wlr_surface *s = view->xsurface->surface;
+		box.width = s && s->current.width > 0 ? s->current.width : view->xsurface->width;
+		box.height = s && s->current.height > 0 ? s->current.height : view->xsurface->height;
+	}
+#endif
+	return box;
+}
 
 void orbit_focus(struct orbit_view *view) {
 	if (!view || !view->mapped || view->server->session_locked) {
@@ -16,7 +181,13 @@ void orbit_focus(struct orbit_view *view) {
 	}
 	struct orbit_view *previous_view = server->focused;
 	struct wlr_surface *prev = server->seat->keyboard_state.focused_surface;
-	if (prev && prev != view->toplevel->base->surface) {
+	if (prev && prev != orbit_view_surface(view)) {
+#if WLR_HAS_XWAYLAND
+		struct wlr_xwayland_surface *xprev = wlr_xwayland_surface_try_from_wlr_surface(prev);
+		if (xprev) {
+			wlr_xwayland_surface_activate(xprev, false);
+		}
+#endif
 		struct wlr_xdg_surface *previous = wlr_xdg_surface_try_from_wlr_surface(prev);
 		/* uma janela escondida (o app segue vivo, sem janela) está desmapeada e sem configure: pedir-lhe um é erro de protocolo (e, conforme o wlroots, aborta o compositor) */
 		if (previous && previous->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL && previous->toplevel && previous->initialized) {
@@ -29,12 +200,12 @@ void orbit_focus(struct orbit_view *view) {
 	if (view->border && view->border->node.enabled) {
 		wlr_scene_node_place_below(&view->border->node, &view->scene_tree->node);
 	}
-	wlr_xdg_toplevel_set_activated(view->toplevel, true);
+	orbit_view_set_activated(view, true);
 	/* o foco entra mesmo sem teclado nenhum ainda (o telemóvel só tem o virtual, que chega
 	 * depois): o wlroots aceita, e as teclas chegam assim que houver um */
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(server->seat);
 	if (!server->exclusive_layer) {
-		wlr_seat_keyboard_notify_enter(server->seat, view->toplevel->base->surface,
+		wlr_seat_keyboard_notify_enter(server->seat, orbit_view_surface(view),
 			keyboard ? keyboard->keycodes : NULL, keyboard ? keyboard->num_keycodes : 0,
 			keyboard ? &keyboard->modifiers : NULL);
 	}
@@ -52,8 +223,8 @@ void orbit_unfocus(struct orbit_server *server) {
 		return;
 	}
 	server->focused = NULL;
-	if (view->mapped && view->toplevel) {
-		wlr_xdg_toplevel_set_activated(view->toplevel, false);
+	if (view->mapped) {
+		orbit_view_set_activated(view, false);
 	}
 	if (!server->exclusive_layer) {
 		wlr_seat_keyboard_notify_clear_focus(server->seat);
@@ -113,9 +284,7 @@ struct orbit_view *view_at(struct orbit_server *server, double lx, double ly,
  */
 void orbit_view_set_maximized(struct orbit_view *view, bool on) {
 	if (view->maximized == on) {
-		if (view->toplevel->base->initialized) {
-			wlr_xdg_surface_schedule_configure(view->toplevel->base);
-		}
+		orbit_view_reconfigure(view);
 		return;
 	}
 	if (on) {
@@ -130,7 +299,7 @@ void orbit_view_set_maximized(struct orbit_view *view, bool on) {
 		orbit_split_release(view->server, view);
 	}
 	if (!view->mapped) {
-		if (view->toplevel->base->initialized) {
+		if (view->toplevel && view->toplevel->base->initialized) {
 			wlr_xdg_toplevel_set_maximized(view->toplevel, on);
 			view->cfg_valid = false;
 		}
@@ -144,9 +313,7 @@ void orbit_view_set_maximized(struct orbit_view *view, bool on) {
 
 void orbit_view_set_fullscreen(struct orbit_view *view, bool on) {
 	if (view->fullscreen == on) {
-		if (view->toplevel->base->initialized) {
-			wlr_xdg_surface_schedule_configure(view->toplevel->base);
-		}
+		orbit_view_reconfigure(view);
 		return;
 	}
 	view->fullscreen = on;
@@ -155,7 +322,7 @@ void orbit_view_set_fullscreen(struct orbit_view *view, bool on) {
 		orbit_split_release(view->server, view);
 	}
 	if (!view->mapped) {
-		if (view->toplevel->base->initialized) {
+		if (view->toplevel && view->toplevel->base->initialized) {
 			wlr_xdg_toplevel_set_fullscreen(view->toplevel, on);
 			view->cfg_valid = false;
 		}
@@ -222,9 +389,8 @@ static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
 	orbit_view_set_fullscreen(view, view->toplevel->requested.fullscreen);
 }
 
-static void xdg_map(struct wl_listener *listener, void *data) {
-	struct orbit_view *view = wl_container_of(listener, view, map);
-	struct orbit_output *output = orbit_output_for_new_view(view->server, view->toplevel->app_id);
+void orbit_view_map(struct orbit_view *view) {
+	struct orbit_output *output = orbit_output_for_new_view(view->server, orbit_view_app_id(view));
 	view->mapped = true;
 	view->output = output;
 	view->tag = output ? output->tag : 0;
@@ -236,12 +402,18 @@ static void xdg_map(struct wl_listener *listener, void *data) {
 	view->y = box.y + view->server->gap + 48;
 	view->w = box.width / 2;
 	view->h = box.height / 2;
-	if (orbit_app_is_gaming_shell(view->toplevel->app_id)) {
+	if (view->toplevel && orbit_app_is_gaming_shell(orbit_view_app_id(view))) {
 		view->fullscreen = true; /* a biblioteca do Gaming ocupa a tela inteira do modo */
 		view->floating = false;
 		wlr_xdg_toplevel_set_fullscreen(view->toplevel, true);
 		view->cfg_valid = false;
 	}
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface && view->xsurface->fullscreen) {
+		view->fullscreen = true; /* o jogo X11 já abre pedindo tela cheia */
+		view->floating = false;
+	}
+#endif
 	if (orbit_free_desktop(view->server, output) && !view->fullscreen) {
 		view->floating = true;
 		orbit_float_place_new(view);
@@ -259,8 +431,7 @@ static void xdg_map(struct wl_listener *listener, void *data) {
 	}
 }
 
-static void xdg_unmap(struct wl_listener *listener, void *data) {
-	struct orbit_view *view = wl_container_of(listener, view, unmap);
+void orbit_view_unmap(struct orbit_view *view) {
 	if (!view->mapped) {
 		return;
 	}
@@ -282,7 +453,7 @@ static void xdg_unmap(struct wl_listener *listener, void *data) {
 	struct orbit_output *output = view->output;
 	wl_list_remove(&view->link);
 	/* o teclado não pode ficar apontando para uma superfície que acabou de sumir */
-	if (server->seat->keyboard_state.focused_surface == view->toplevel->base->surface) {
+	if (server->seat->keyboard_state.focused_surface && server->seat->keyboard_state.focused_surface == orbit_view_surface(view)) {
 		wlr_seat_keyboard_notify_clear_focus(server->seat);
 	}
 	orbit_arrange(server);
@@ -291,6 +462,14 @@ static void xdg_unmap(struct wl_listener *listener, void *data) {
 	} else if (output) {
 		focus_top(server, output);
 	}
+}
+
+static void xdg_map(struct wl_listener *listener, void *data) {
+	orbit_view_map(wl_container_of(listener, (struct orbit_view *)NULL, map));
+}
+
+static void xdg_unmap(struct wl_listener *listener, void *data) {
+	orbit_view_unmap(wl_container_of(listener, (struct orbit_view *)NULL, unmap));
 }
 
 static void xdg_destroy(struct wl_listener *listener, void *data) {
@@ -304,6 +483,10 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&view->request_minimize.link);
 	wl_list_remove(&view->request_move.link);
 	wl_list_remove(&view->request_resize.link);
+	orbit_view_release(view);
+}
+
+void orbit_view_release(struct orbit_view *view) {
 	if (view->mapped) {
 		orbit_split_release(view->server, view);
 		wl_list_remove(&view->link);
@@ -326,6 +509,9 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 	if (view->border) {
 		wlr_scene_node_destroy(&view->border->node);
 		view->border = NULL;
+	}
+	if (view->xsurface) {
+		wlr_scene_node_destroy(&view->scene_tree->node); /* a do xdg morre com a superfície; a da janela X11 é nossa */
 	}
 	free(view);
 }

@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/config.h>
 #include <wlr/version.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_output.h>
@@ -56,6 +57,9 @@ struct orbit_server;
 struct orbit_layer;
 struct wlr_layer_shell_v1;
 struct wlr_foreign_toplevel_manager_v1;
+struct wlr_compositor;
+struct wlr_xwayland;
+struct wlr_xwayland_surface;
 struct wlr_foreign_toplevel_handle_v1;
 struct wlr_session_lock_manager_v1;
 struct wlr_idle_inhibit_manager_v1;
@@ -68,6 +72,7 @@ struct wlr_output;
 enum orbit_node_kind {
 	ORBIT_NODE_VIEW = 0,
 	ORBIT_NODE_LAYER = 1,
+	ORBIT_NODE_XOR = 2, /* menu/dica de um app X11 (override-redirect): só aparece, sem foco nem arranjo */
 };
 
 /* Igual a zwlr_layer_shell_v1_layer. A ordem da cena segue estes índices. */
@@ -201,6 +206,9 @@ struct orbit_server {
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
+	struct wlr_xwayland *xwayland; /* o servidor X11 (sob demanda); NULL sem XWayland */
+	struct wl_listener xwl_new_surface;
+	struct wl_listener xwl_ready;
 	struct wlr_xdg_decoration_manager_v1 *deco_mgr; /* a barra de título que o Orbit desenha (deco.c) */
 	struct wl_listener new_deco;
 	int bar_h;                 /* a altura da barra de título, em px (0: o Orbit não desenha barras) */
@@ -366,7 +374,10 @@ struct orbit_view {
 	struct wl_list link;
 	struct orbit_server *server;
 	struct orbit_output *output;
-	struct wlr_xdg_toplevel *toplevel;
+	struct wlr_xdg_toplevel *toplevel; /* NULL numa janela X11 */
+	struct wlr_xwayland_surface *xsurface; /* só numa janela X11 (xwl.c) */
+	bool xwl_assoc;
+	struct wl_listener xwl_associate, xwl_dissociate, xwl_set_title, xwl_set_class, request_configure_x, request_activate_x;
 	struct wlr_scene_tree *scene_tree;
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -479,6 +490,24 @@ void orbit_views_bind(struct orbit_server *server);
 void orbit_view_set_maximized(struct orbit_view *view, bool on);
 void orbit_view_set_minimized(struct orbit_view *view, bool on);
 void orbit_view_set_fullscreen(struct orbit_view *view, bool on);
+/* o que muda entre uma janela Wayland (xdg) e uma X11 (XWayland): o resto do Orbit só usa estas */
+const char *orbit_view_app_id(const struct orbit_view *view);   /* o app_id (X11: a classe); nunca NULL */
+const char *orbit_view_title(const struct orbit_view *view);    /* nunca NULL */
+struct wlr_surface *orbit_view_surface(const struct orbit_view *view);
+bool orbit_view_ready(const struct orbit_view *view);           /* já pode receber configure */
+void orbit_view_close(struct orbit_view *view);
+void orbit_view_set_activated(struct orbit_view *view, bool on);
+void orbit_view_set_size(struct orbit_view *view, int w, int h);
+void orbit_view_set_state(struct orbit_view *view, bool fullscreen, bool maximized, uint32_t tiled);
+void orbit_view_set_resizing(struct orbit_view *view, bool on);
+void orbit_view_reconfigure(struct orbit_view *view);           /* manda de novo o estado de agora */
+struct wlr_box orbit_view_client_box(struct orbit_view *view);  /* a geometria da janela dentro da superfície */
+void orbit_xwl_sync_pos(struct orbit_view *view, int x, int y); /* a posição da janela X11 na tela (só com XWayland) */
+void orbit_view_map(struct orbit_view *view);
+void orbit_view_unmap(struct orbit_view *view);
+void orbit_view_release(struct orbit_view *view);               /* o fim do destroy (Wayland e X11) */
+bool orbit_xwayland_bind(struct orbit_server *server, struct wlr_compositor *compositor);
+void orbit_xwayland_finish(struct orbit_server *server);
 void orbit_focus(struct orbit_view *view);
 void orbit_unfocus(struct orbit_server *server);
 void focus_top(struct orbit_server *server, struct orbit_output *output);

@@ -108,7 +108,8 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao criar o allocator");
 	}
 
-	if (!wlr_compositor_create(server.display, 5, server.renderer)) {
+	struct wlr_compositor *compositor = wlr_compositor_create(server.display, 5, server.renderer);
+	if (!compositor) {
 		return fail(&server, "falha ao criar o compositor");
 	}
 	wlr_subcompositor_create(server.display);
@@ -184,6 +185,7 @@ int main(int argc, char *argv[]) {
 		return fail(&server, "falha ao preparar os protocolos dos apps (seleção, cursor, ativação, trava do ponteiro)");
 	}
 
+	orbit_xwayland_bind(&server, compositor); /* o DISPLAY vai no ambiente antes de abrir qualquer app */
 	const char *socket = wl_display_add_socket_auto(server.display);
 	if (!socket) {
 		return fail(&server, "falha ao abrir o socket Wayland");
@@ -211,6 +213,7 @@ int main(int argc, char *argv[]) {
 	}
 	orbit_ipc_finish();
 	wl_display_destroy_clients(server.display);
+	orbit_xwayland_finish(&server);
 	/* o wlroots confere que ninguém mais ouve estes sinais quando o display acaba */
 	wl_list_remove(&server.new_lock.link);
 	wl_list_remove(&server.new_inhibitor.link);

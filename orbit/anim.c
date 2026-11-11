@@ -13,18 +13,12 @@ static uint32_t now_ms(void) {
 /* Na troca de espaço ou de modo a janela anda uma tela inteira para o lado; com monitores lado a lado ela passava por cima do
  * vizinho (um piscar na tela errada). Enquanto anda, só se vê o pedaço que cai na própria saída. */
 static void orbit_slide_clip(struct orbit_view *view, int x, int y) {
-	if (!view->clipped || !view->output || !view->toplevel) {
+	if (!view->clipped || !view->output || (!view->toplevel && !view->xsurface)) {
 		return;
 	}
 	struct wlr_box out;
 	wlr_output_layout_get_box(view->server->layout, view->output->wlr, &out);
-	/* no wlroots 0.19 em diante a geometria é um campo; antes era uma função */
-#if WLR_VERSION_NUM >= ((0 << 16) | (19 << 8))
-	struct wlr_box geo = view->toplevel->base->geometry;
-#else
-	struct wlr_box geo;
-	wlr_xdg_surface_get_geometry(view->toplevel->base, &geo);
-#endif
+	struct wlr_box geo = orbit_view_client_box(view);
 	struct wlr_box clip = {
 		.x = out.x - x + geo.x,
 		.y = out.y - y + geo.y,
@@ -51,6 +45,11 @@ static void apply_visual(struct orbit_view *view, int x, int y) {
 	view->slide_x = x;
 	view->slide_y = y;
 	orbit_slide_clip(view, x, y);
+#if WLR_HAS_XWAYLAND
+	if (view->xsurface) {
+		orbit_xwl_sync_pos(view, inset ? x + b : x, inset ? y + b : y); /* a janela X11 sabe onde está na tela */
+	}
+#endif
 }
 
 static void hide_after_leave(struct orbit_view *view) {

@@ -7,10 +7,10 @@ arch=(x86_64 aarch64)
 url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
 # O Arch só tem o wlroots 0.20 (pacote wlroots0.20): o Orbit compila nele (PKGS abaixo).
-depends=(wlroots0.20 wayland libxkbcommon libinput pixman mesa cairo pango
+depends=(wlroots0.20 wayland libxcb xorg-xwayland libxkbcommon libinput pixman mesa cairo pango
   # o que os atalhos do Orbit chamam: terminal, brilho, volume (wpctl), captura (lumna-gravity)
   foot brightnessctl wireplumber)
-makedepends=(wayland-protocols libdrm)
+makedepends=(wayland-protocols libdrm libxcb)
 options=(!strip !debug)
 
 _root="$(realpath "$startdir/../..")"

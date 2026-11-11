@@ -69,10 +69,8 @@ static void place(struct orbit_view *view, int x, int y, int w, int h, bool tile
 	uint32_t edges = tiled ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT | WLR_EDGE_TOP | WLR_EDGE_BOTTOM : WLR_EDGE_NONE;
 	if (!view->cfg_valid || view->cfg_w != cw || view->cfg_h != ch || view->cfg_full != view->fullscreen ||
 		view->cfg_max != max || view->cfg_tiled != edges) {
-		wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)cw, (uint32_t)ch);
-		wlr_xdg_toplevel_set_fullscreen(view->toplevel, view->fullscreen);
-		wlr_xdg_toplevel_set_maximized(view->toplevel, max);
-		wlr_xdg_toplevel_set_tiled(view->toplevel, edges);
+		orbit_view_set_size(view, cw, ch);
+		orbit_view_set_state(view, view->fullscreen, max, edges);
 		view->cfg_valid = true;
 		view->cfg_w = cw;
 		view->cfg_h = ch;

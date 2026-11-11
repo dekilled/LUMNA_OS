@@ -23,13 +23,7 @@
 
 /* o tamanho da janela que o cliente diz (no 0.19 passou a um campo) */
 static struct wlr_box client_geometry(struct orbit_view *view) {
-#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR < 19
-	struct wlr_box box;
-	wlr_xdg_surface_get_geometry(view->toplevel->base, &box);
-	return box;
-#else
-	return view->toplevel->base->geometry;
-#endif
+	return orbit_view_client_box(view);
 }
 
 static struct wlr_box geometry(struct orbit_view *view) {
@@ -148,7 +142,7 @@ void orbit_float_place_new(struct orbit_view *view) {
 	view->slide_x = view->x;
 	view->slide_y = view->y;
 	if (resize) {
-		wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)w, (uint32_t)h);
+		orbit_view_set_size(view, w, h);
 	}
 }
 
@@ -210,12 +204,10 @@ void orbit_float_show(struct orbit_view *view) {
 		view->h = view->fh;
 	}
 	if (!view->cfg_valid || view->cfg_full || view->cfg_max || view->cfg_tiled) {
-		wlr_xdg_toplevel_set_fullscreen(view->toplevel, false);
-		wlr_xdg_toplevel_set_maximized(view->toplevel, false);
-		wlr_xdg_toplevel_set_tiled(view->toplevel, WLR_EDGE_NONE);
+		orbit_view_set_state(view, false, false, WLR_EDGE_NONE);
 		if (view->cfg_valid && view->fw > 0 && view->fh > 0) {
 			/* voltou de maximizada ou encaixada: o tamanho livre de antes */
-			wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)view->fw, (uint32_t)view->fh);
+			orbit_view_set_size(view, view->fw, view->fh);
 		}
 		view->cfg_valid = true;
 		view->cfg_full = false;
@@ -620,8 +612,8 @@ void orbit_resize_motion(struct orbit_server *server) {
 	view->slide_x = l;
 	view->slide_y = t;
 	wlr_scene_node_set_position(&view->scene_tree->node, l, t);
-	wlr_xdg_toplevel_set_resizing(view->toplevel, true);
-	wlr_xdg_toplevel_set_size(view->toplevel, (uint32_t)(r - l), (uint32_t)(b - t));
+	orbit_view_set_resizing(view, true);
+	orbit_view_set_size(view, r - l, b - t);
 	view->cfg_w = r - l;
 	view->cfg_h = b - t;
 }
@@ -632,6 +624,6 @@ void orbit_resize_end(struct orbit_server *server) {
 	server->grabbed = NULL;
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "left_ptr");
 	if (view && view->mapped) {
-		wlr_xdg_toplevel_set_resizing(view->toplevel, false);
+		orbit_view_set_resizing(view, false);
 	}
 }

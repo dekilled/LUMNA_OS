@@ -75,7 +75,7 @@ static void request_activate(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = protocols.server;
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
-		if (view->mapped && view->toplevel->base->surface == wlr_surface_get_root_surface(event->surface)) {
+		if (view->mapped && orbit_view_surface(view) == wlr_surface_get_root_surface(event->surface)) {
 			if (view->minimized) {
 				orbit_view_set_minimized(view, false);
 			}
@@ -217,7 +217,7 @@ void orbit_pointer_confine(struct orbit_server *server) {
 	int margin = 0;
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
-		if (view->mapped && view->toplevel->base->surface == wlr_surface_get_root_surface(constraint->surface)) {
+		if (view->mapped && orbit_view_surface(view) == wlr_surface_get_root_surface(constraint->surface)) {
 			margin = orbit_float_edge_margin(view); /* a faixa de mudar o tamanho de uma janela livre: a janela não vê o cursor ali */
 			break;
 		}

@@ -69,13 +69,7 @@ static const struct wlr_buffer_impl bar_buffer_impl = {
 /* ---- o tamanho do cliente (o campo mudou de lugar no wlroots 0.19) ---- */
 
 static int client_width(struct orbit_view *view) {
-#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR < 19
-	struct wlr_box box;
-	wlr_xdg_surface_get_geometry(view->toplevel->base, &box);
-	return box.width;
-#else
-	return view->toplevel->base->geometry.width;
-#endif
+	return orbit_view_client_box(view).width;
 }
 
 /* ---- as medidas e as zonas ---- */
@@ -252,8 +246,7 @@ void orbit_deco_update(struct orbit_view *view) {
 		return; /* ainda sem tamanho (a janela não deu o primeiro commit) */
 	}
 	struct orbit_server *server = view->server;
-	const char *titulo = view->toplevel->title && *view->toplevel->title ? view->toplevel->title
-		: view->toplevel->app_id ? view->toplevel->app_id : "";
+	const char *titulo = *orbit_view_title(view) ? orbit_view_title(view) : orbit_view_app_id(view);
 	float scale = view->output && view->output->wlr->scale > 0 ? view->output->wlr->scale : 1.0f;
 	bool foco = server->focused == view, maxim = view->maximized;
 	if (view->bar && view->bar->node.enabled && view->bar_w == w && view->bar_scale == scale && view->bar_focus == foco && view->bar_max == maxim &&
@@ -357,7 +350,7 @@ void orbit_deco_press(struct orbit_server *server, struct orbit_view *view, enum
 	orbit_focus(view);
 	switch (zone) {
 	case ORBIT_DECO_CLOSE:
-		wlr_xdg_toplevel_send_close(view->toplevel);
+		orbit_view_close(view);
 		return;
 	case ORBIT_DECO_MIN:
 		orbit_view_set_minimized(view, true);

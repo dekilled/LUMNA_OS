@@ -484,6 +484,12 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.366 | Gaming > Loja > Categorias | Tem Todas (abre a busca sem categoria, com resultados) e as categorias novas (Simulação, Esportes, Tiro, Terror, Luta, Plataforma, Quebra-cabeça, Sobrevivência, Mundo aberto, Casual) | ☐ |
 | 2.367 | Gaming > Loja > busca: filtros | Além dos antigos, Multijogador, Suporte a controle e Em promoção filtram os resultados da Steam e da GOG | ☐ |
 | 2.368 | Painel > Teclado: abrir a lista de layouts e descer o cursor até o fim | A lista tem altura máxima e rola, nunca passa da janela; mesmo se passar, clicar nas opções funciona (sem a seta de redimensionar) | ☐ |
+| 2.369 | Abrir `xterm` ou `xeyes` pelo terminal (ou pelo menu) | A janela X11 abre como uma janela normal do Orbit, com teclado e mouse funcionando; `orbit-msg janelas` mostra a classe como app_id | ☐ |
+| 2.370 | Abrir a Steam pelo menu e, depois, pelo Gaming (Configurações > Steam ou Instalar um jogo) | A Steam abre (antes reclamava de não achar o display X11); no Gaming ela fica na tela do Gaming, sem ir pra dock | ☐ |
+| 2.371 | Abrir um jogo (Proton) pela Biblioteca do Gaming | O jogo abre em tela cheia na tela do Gaming, com teclado e controle; fechar pelo jogo devolve à Biblioteca | ☐ |
+| 2.372 | Na Steam, abrir menus de contexto, listas e dicas (passando o mouse) | Aparecem no lugar certo, por cima da janela, e somem ao sair | ☐ |
+| 2.373 | Copiar texto de um app X11 e colar num Wayland (e ao contrário) | Funciona nos dois sentidos | ☐ |
+| 2.374 | Fechar uma janela X11 pela dock ou pelo botão de fechar do app | A janela fecha (e o app encerra) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
