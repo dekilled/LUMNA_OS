@@ -49,6 +49,17 @@ confere(llm.normalize_base_url("http://127.0.0.1:11434") == "http://127.0.0.1:11
 confere(llm.normalize_base_url("https://api.openai.com/v1") == "https://api.openai.com/v1", "outros provedores não mudam")
 confere(llm.normalize_base_url("http://meupc:8080") == "http://meupc:8080", "outra porta não muda")
 
+def tira(pedacos):
+    st = llm.LabelStripper()
+    return "".join(st.feed(p) for p in pedacos) + st.flush()
+
+
+confere(tira(["Em", "ma", ": Oi", "!"]) == "Oi!", "rótulo 'Emma: ' picado em pedaços sai do começo")
+confere(tira(["Emma: Sempre estou aqui"]) == "Sempre estou aqui", "rótulo inteiro num pedaço")
+confere(tira(["Olá, Emma: tudo bem"]) == "Olá, Emma: tudo bem", "'Emma:' no meio do texto fica")
+confere(tira(["Emmanuel chegou"]) == "Emmanuel chegou", "nome parecido não é rótulo")
+confere(tira(["Em"]) == "Em", "resposta curta demais não some")
+
 if falhas:
     print(f"{len(falhas)} falha(s)", file=sys.stderr)
     sys.exit(1)

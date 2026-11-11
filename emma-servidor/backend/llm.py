@@ -1,3 +1,4 @@
+import re
 from typing import AsyncIterator, Optional
 
 from fastapi import HTTPException
@@ -76,7 +77,7 @@ async def resolve(task: str) -> tuple[Provider, str]:
     return p, target.model or (p.models[0] if p.models else "")
 
 
-async def stream_chat(p: Provider, model: str, messages: list[dict], max_tokens: Optional[int] = None) -> AsyncIterator[str]:
+async def _stream_chat_raw(p: Provider, model: str, messages: list[dict], max_tokens: Optional[int] = None) -> AsyncIterator[str]:
     c = client_for(p)
     got = False
     try:
@@ -98,11 +99,69 @@ async def stream_chat(p: Provider, model: str, messages: list[dict], max_tokens:
     yield resp.choices[0].message.content or ""
 
 
+_LABEL_RE = re.compile(r"^\s*(?:\*\*)?(?:Emma|Assistente|Assistant)(?:\*\*)?\s*:\s*(?:\*\*)?", re.I)
+
+
+class LabelStripper:
+    """LUMNA: modelos pequenos (Ollama local) imitam uma transcrição e começam a resposta com "Emma: ".
+    Tira esse rótulo do começo (só do começo da resposta), segurando os primeiros caracteres até decidir."""
+
+    def __init__(self):
+        self.buf, self.done = "", False
+
+    def feed(self, piece: str) -> str:
+        if self.done:
+            return piece
+        self.buf += piece
+        m = _LABEL_RE.match(self.buf)
+        if m:
+            self.done = True
+            return self.buf[m.end():]
+        if len(self.buf) <= 16 and re.fullmatch(r"\s*\**[A-Za-z]*\**\s*", self.buf):
+            return ""
+        self.done = True
+        return self.buf
+
+    def flush(self) -> str:
+        if self.done:
+            return ""
+        self.done = True
+        return self.buf
+
+
+async def stream_chat(p: Provider, model: str, messages: list[dict], max_tokens: Optional[int] = None) -> AsyncIterator[str]:
+    st = LabelStripper()
+    async for piece in _stream_chat_raw(p, model, messages, max_tokens):
+        out = st.feed(piece)
+        if out:
+            yield out
+    out = st.flush()
+    if out:
+        yield out
+
+
+async def stream_turn(p: Provider, model: str, messages: list[dict], tools: list[dict], max_tokens: Optional[int] = None) -> AsyncIterator[tuple[str, object]]:
+    st = LabelStripper()
+    async for kind, val in _stream_turn_raw(p, model, messages, tools, max_tokens):
+        if kind == "text":
+            val = st.feed(val)
+            if not val:
+                continue
+        else:
+            tail = st.flush()
+            if tail:
+                yield "text", tail
+        yield kind, val
+    tail = st.flush()
+    if tail:
+        yield "text", tail
+
+
 def _calls(slots: dict) -> list[dict]:
     return [{"id": s["id"], "name": s["name"], "arguments": s["args"]} for _, s in sorted(slots.items()) if s["name"]]
 
 
-async def stream_turn(p: Provider, model: str, messages: list[dict], tools: list[dict], max_tokens: Optional[int] = None) -> AsyncIterator[tuple[str, object]]:
+async def _stream_turn_raw(p: Provider, model: str, messages: list[dict], tools: list[dict], max_tokens: Optional[int] = None) -> AsyncIterator[tuple[str, object]]:
     """One model turn with native tools: yields ("text", piece) while it writes and, at the end,
     ("calls", [{id, name, arguments}]) if it asked for tools. Errors before any output propagate,
     so the caller can fall back to the text protocol (endpoints/models without tool support)."""
