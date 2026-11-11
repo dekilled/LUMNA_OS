@@ -80,6 +80,7 @@ else:
     linha2 = ordenados[3][1]
     x_ini, y_ini = direita + 40, linha2[1] + linha2[3] // 2
     alvo = ordenados[1][1]
+    print("GEO", origem(), "ini", x_ini, y_ini, "alvo", alvo, "itens", {n: c for n, c in list(caixas.items())[:20]}, flush=True)
     msg("mouse", "mover", x_ini, y_ini)
     time.sleep(0.15)
     msg("mouse", "botao", "baixo")
