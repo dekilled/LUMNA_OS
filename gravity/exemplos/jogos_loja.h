@@ -1341,7 +1341,7 @@ static void cfg_epic(void) {
 	bool logado = le_logado();
 	CLAY(CLAY_ID("cfg-ep"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(12) } }) {
 		gv_texto(CLAY_STRING("Epic Games"), U(28), gv_t.texto, GV_PESO_MEDIO);
-		gv_texto(CLAY_STRING("Para ver a sua biblioteca e instalar, entre uma vez. A instalação e a abertura usam o legendary (o motor do Heroic), sem janela."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+		gv_texto(CLAY_STRING("Para ver a sua biblioteca e instalar, entre uma vez. A instalação e a abertura usam o legendary (AUR: yay -S legendary), sem janela."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
 		gv_texto(gv_str(logado ? "Conectado à Epic." : "Sem login."), U(20), logado ? gv_t.sucesso : gv_t.texto_secundario, GV_PESO_MEDIO);
 		if (!logado) {
 			gv_texto(CLAY_STRING("1. Abra a página de login e entre na sua conta da Epic."), U(18), gv_t.texto, GV_PESO_NORMAL);

@@ -45,7 +45,7 @@ A Epic **não tem catálogo público pesquisável** (a busca da loja fica atrás
 - **Entrar:** Configurações > Epic: abre `legendary.gl/epiclogin`, e você cola o texto que a Epic mostra depois do login (`{"authorizationCode":"..."}`). O login e a lista de jogos instalados ficam em `~/.config/lumna/jogos/epic` (o `LEGENDARY_CONFIG_PATH` do legendary), separados do Heroic.
 - **Na Biblioteca:** os jogos da Epic instalados entram com o filtro Epic; abrem pelo `legendary launch`. As Propriedades são do legendary (só leitura). Desinstalar pede dois toques e o legendary apaga a pasta.
 
-**Não testado com a Epic de verdade** (sem conta nem legendary aqui): `legendary auth --code`, o formato do `list --json` e do `installed.json`, a linha de progresso ("Progress: NN%") e o `launch` (que pede o login do jogo na primeira vez). O roteiro 2.346 em diante confere. Precisa do `legendary` (`pacman -S legendary` ou AUR).
+**Não testado com a Epic de verdade** (sem conta nem legendary aqui): `legendary auth --code`, o formato do `list --json` e do `installed.json`, a linha de progresso ("Progress: NN%") e o `launch` (que pede o login do jogo na primeira vez). O roteiro 2.346 em diante confere. Precisa do `legendary`, que **não está nos repositórios oficiais do Arch**: é do AUR (`yay -S legendary`, ou `paru -S legendary`). O `gogdl` também é do AUR.
 
 ## A chave de API da Steam (opcional)
 

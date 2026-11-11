@@ -169,6 +169,10 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 		focus_top(server, from);
 	}
 	write_mode_file(from->mode);
+	if (mode == ORBIT_MODE_GAMING) {
+		/* o Gaming abre a biblioteca por conta própria (não depende do vigia da sessão estar de pé); o LUMNA Jogos recusa a segunda cópia */
+		spawn("pgrep -x lumna-jogos >/dev/null || lumna-jogos");
+	}
 	/* o seletor aparece mesmo se o modo já era esse (Super+Tab de novo), na saída que trocou */
 	setenv("LUMNA_SAIDA", from->wlr->name, 1);
 	setenv("LUMNA_MODO", orbit_mode_name(from->mode), 1);

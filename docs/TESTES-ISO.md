@@ -457,7 +457,7 @@ Antes: `yay -S gogdl` (o motor do Heroic, de linha de comando).
 
 ### 2p. Loja do Gaming (Epic)
 
-Antes: `sudo pacman -S legendary` (ou AUR).
+Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 
 | # | Faça | Esperado | OK |
 |---|---|---|---|

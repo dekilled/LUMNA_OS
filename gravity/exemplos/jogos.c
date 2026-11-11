@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <sys/file.h>
 #include <sys/statvfs.h>
 #include <time.h>
 #include <unistd.h>
@@ -1628,6 +1630,16 @@ int main(int argc, char **argv) {
 	}
 	if (getenv("LUMNA_JOGOS_DEBUG")) {
 		setvbuf(stdout, NULL, _IOLBF, 0);
+	}
+	/* uma biblioteca só: o Orbit, o vigia e o Guia podem pedir ao mesmo tempo */
+	{
+		const char *run = g_get_user_runtime_dir();
+		char *lock = g_build_filename(run ? run : "/tmp", "lumna-jogos.lock", NULL);
+		int fd = open(lock, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+		g_free(lock);
+		if (fd >= 0 && flock(fd, LOCK_EX | LOCK_NB) != 0) {
+			return 0;
+		}
 	}
 	const char *ir_jogo = NULL;
 	int aba_ini = 0, loja_jogo_ini = 0;

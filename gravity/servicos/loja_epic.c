@@ -210,7 +210,7 @@ static bool legendary(const char **args, char **saida, char *erro, size_t tam) {
 	g_strfreev(env);
 	g_object_unref(lc);
 	if (!p) {
-		g_strlcpy(erro, "O legendary não está instalado (pacman -S legendary, ou AUR).", tam);
+		g_strlcpy(erro, "O legendary não está instalado (é do AUR: yay -S legendary).", tam);
 		g_clear_error(&ge);
 		return false;
 	}
@@ -464,7 +464,7 @@ int le_instalar_agora(const char *app, const char *titulo, const char *pasta) {
 	g_strfreev(env);
 	g_object_unref(lc);
 	if (!p) {
-		estado_gravar(app, "erro", 0, "O legendary não está instalado.");
+		estado_gravar(app, "erro", 0, "O legendary não está instalado (AUR: yay -S legendary).");
 		g_clear_error(&ge);
 		return 1;
 	}
