@@ -4,6 +4,8 @@ from fastapi import HTTPException
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 
 from core import Provider, db, get_settings, oid
+from urllib.parse import urlparse
+
 from netguard import assert_public_url
 
 MODE_TASK = {"chat": "chat", "plan": "planner", "build": "coder", "workspace": "coder"}
@@ -17,9 +19,19 @@ PRESETS = [
 ]
 
 
+def normalize_base_url(url: str) -> str:
+    """O Ollama (porta 11434) fala o protocolo da OpenAI em /v1; quem põe só http://localhost:11434 leva 404 em /chat/completions."""
+    u = (url or "").strip()
+    pu = urlparse(u)
+    if pu.port == 11434 and pu.path in ("", "/"):
+        return u.rstrip("/") + "/v1"
+    return u
+
+
 def client_for(p: Provider) -> AsyncOpenAI:
-    assert_public_url(p.base_url)
-    return AsyncOpenAI(base_url=p.base_url, api_key=p.api_key or "none", timeout=180, max_retries=2)
+    base = normalize_base_url(p.base_url)
+    assert_public_url(base)
+    return AsyncOpenAI(base_url=base, api_key=p.api_key or "none", timeout=180, max_retries=2)
 
 
 def why_failed(e: Exception) -> str:
@@ -37,6 +49,10 @@ def why_failed(e: Exception) -> str:
         return "transient"
     if isinstance(e, APIStatusError) and status in (400, 404, 422, 501) and any(k in text for k in ("tool", "function")):
         return "unsupported"
+    if isinstance(e, APIStatusError) and status in (400, 422):
+        # Um 400 sem dizer o motivo (o Ollama com um modelo de GGUF do Hugging Face, por exemplo) quando a requisição levava as ferramentas: o mais provável é que sejam elas.
+        # Vale o protocolo de texto só nesta resposta; se o 400 era outra coisa, o protocolo de texto falha igual e o erro aparece.
+        return "bad_call"
     return "other"
 
 

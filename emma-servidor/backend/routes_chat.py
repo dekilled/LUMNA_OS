@@ -598,7 +598,7 @@ async def chat(sid: str, body: ChatIn):
                                 _text_only.add(route_key)
                             else:
                                 # The server couldn't read the call the model wrote: written calls, this answer only.
-                                logging.getLogger("tools").info("%s/%s: chamada ilegível no servidor; protocolo de texto nesta resposta", provider.name, model)
+                                logging.getLogger("tools").info("%s/%s: o servidor recusou a requisição com ferramentas (%s); protocolo de texto nesta resposta", provider.name, model, str(e)[:300])
                             state["native"] = False
                             msgs[0]["content"] = base_system + "\n\n" + lumna_tools.system_prompt(tool_list, False, body.client_now)
                             break
