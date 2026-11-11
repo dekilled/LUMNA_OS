@@ -403,6 +403,16 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.309 | Gaming: "Mostrar o FPS" com o MangoHud instalado; abra um jogo avulso | O FPS aparece por cima do jogo | ☐ |
 | 2.310 | Gaming: "Não perturbar" | Em Gaming, só os avisos urgentes passam | ☐ |
 
+### 2m. Fundo das telas do Gaming
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.311 | Início: ande pelos cards de "Seus jogos" | O nome, a origem e o fundo trocam para o do jogo selecionado | ☐ |
+| 2.312 | Olhe a barra de cima | Escura em cima e transparente a partir do meio, deixando a arte aparecer | ☐ |
+| 2.313 | Olhe a barra de baixo (dicas dos botões) | De uma cor só, sem arte por trás | ☐ |
+| 2.314 | Biblioteca | Um papel de parede (a arte do jogo mais recente) escurecido atrás da grade | ☐ |
+| 2.315 | Configurações > Gaming > Papel de parede: "Uma imagem minha" com um caminho; depois "Nenhum" | A Biblioteca usa a sua imagem (em até 5 s); com "Nenhum" fica só o fundo escuro | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

@@ -37,6 +37,12 @@ Teclado: setas, Enter (abre), Esc (volta), Page Up e Page Down (abas), Home (In�
 
 `sh gravity/testes/jogos.sh [PASTA_DO_ORBIT]`: o serviço (ASAN/UBSAN) com uma Steam, um Lutris e um Heroic de mentira (duas bibliotecas da Steam, capas, horas, nomes com aspas), e a janela inteira num Orbit sem tela, até o vigia abrir a biblioteca ao entrar no Gaming.
 
+## O fundo das telas
+
+- **Início:** o jogo selecionado em "Seus jogos" manda na tela: o nome, a origem e a última sessão no centro e a **arte dele como fundo** (troca ao andar pelos cards). A esquerda e a parte de baixo escurecem para o texto e a fila se lerem. A barra de cima começa escura e, **a partir do meio, fica transparente**; a barra de baixo (dicas dos botões) é de **uma cor só**.
+- **Biblioteca:** um **papel de parede** por trás da grade, escurecido. Em Configurações > Gaming: *Automático* (a arte do jogo em destaque), *Uma imagem minha* (um arquivo) ou *Nenhum*. Guardado em `~/.config/lumna/jogos/ui.ini`.
+- **Ainda não:** papel de parede em **vídeo** (fica para uma decisão sua: ele pede o mpv por baixo, como o player de vídeo).
+
 ## O controle (gamepad)
 
 `lumna-gamepad` (`gravity/exemplos/gamepad.c`, `servicos/gamepad.[ch]`) é um serviço que sobe com a sessão e lê os controles direto do kernel (`/dev/input/event*`, USB e Bluetooth; o acesso vem do `uaccess` do systemd).

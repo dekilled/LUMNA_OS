@@ -40,6 +40,49 @@ NOMES = ["Celeste", "Horizonte", "Rocket", "Terras", "Witcher"]
 # 1. Início: o último jogado em destaque (Celeste) e jogar
 confere(lambda: est("tela") == "0" and est("njogos") == "5", "abre no Início com 5 jogos", 8)
 confere(lambda: existe("continuar") and existe("ic/0") and existe("ic/4") and not existe("ic/5"), "o destaque e a fila Seus jogos (5 cards)")
+
+# 1b. o fundo das telas (olhando os pixels): cada jogo selecionado dá o fundo do Início; a barra de cima degrada; a de baixo é de uma cor só
+from PIL import Image
+import json as _json
+
+
+def tira():
+    subprocess.run(["grim", f"{run}/tela.png"], check=True)
+    j = _json.loads(msg("janelas"))["janelas"][0]
+    return Image.open(f"{run}/tela.png").convert("RGB"), j
+
+
+def px(img, j, fx, fy):
+    return img.getpixel((int(j["x"] + j["w"] * fx), int(j["y"] + j["h"] * fy)))
+
+
+time.sleep(0.8)
+img, j = tira()
+sem_arte = px(img, j, 0.75, 0.4)
+if not (sem_arte[2] < 45):
+    falha(f"o primeiro jogo (Celeste) não tem arte: o fundo do Início fica escuro ({sem_arte})")
+tecla("Right")
+confere(lambda: est("sel") == "1", "a seta para a direita seleciona o próximo jogo")
+time.sleep(1.2)
+img, j = tira()
+azul = px(img, j, 0.75, 0.4)
+if not (azul[2] > azul[0] + 60):
+    falha(f"o fundo do Início é a arte do jogo selecionado (Terras Distantes, azul): {azul}")
+topo, abaixo = px(img, j, 0.75, 0.004), px(img, j, 0.75, 0.15)
+if not (sum(topo) < sum(abaixo) * 0.45):
+    falha(f"a barra de cima começa escura e vai ficando transparente (topo {topo}, mais abaixo {abaixo})")
+r1, r2 = px(img, j, 0.2, 0.985), px(img, j, 0.8, 0.985)
+if r1 != r2 or sum(r1) > 90:
+    falha(f"a barra de baixo é de uma cor só ({r1} e {r2})")
+tecla("Right")
+confere(lambda: est("sel") == "2", "mais um jogo")
+time.sleep(1.2)
+img, j = tira()
+if px(img, j, 0.75, 0.4) == azul:
+    falha("trocar de jogo troca o fundo")
+tecla("Left")
+tecla("Left")
+confere(lambda: est("sel") == "0", "volta ao primeiro")
 toca("continuar", 1.0)
 confere(lambda: "lutris lutris:rungame/celeste" in falso(), "Continuar abre o Celeste pelo Lutris", 5)
 confere(lambda: "Abrindo" in est("aviso", ""), "mostra 'Abrindo…'", 3) if False else None
@@ -47,6 +90,20 @@ confere(lambda: "Abrindo" in est("aviso", ""), "mostra 'Abrindo…'", 3) if Fals
 # 2. Biblioteca e filtros
 toca("ver-bib", 0.8)
 confere(lambda: est("tela") == "1" and est("nvis") == "5", "Ver biblioteca abre a Biblioteca com 5 jogos")
+# o papel de parede da Biblioteca: automático (a arte do jogo em destaque: o Celeste não tem), uma imagem, e nenhum
+os.makedirs(f"{casa}/.config/lumna/jogos", exist_ok=True)
+open(f"{casa}/.config/lumna/jogos/ui.ini", "w").write(f"[biblioteca]\npapel=imagem\nimagem={run}/steam/appcache/librarycache/1001/library_hero.jpg\n")
+time.sleep(6.5)  # a biblioteca relê a configuração de 5 em 5 s
+img, j = tira()
+papel_img = px(img, j, 0.8, 0.8)
+if not (papel_img[2] > 50 and papel_img[2] > papel_img[0] + 25):
+    falha(f"o papel de parede da Biblioteca (uma imagem azul) aparece escurecido atrás da grade: {papel_img}")
+open(f"{casa}/.config/lumna/jogos/ui.ini", "w").write("[biblioteca]\npapel=nenhum\n")
+time.sleep(6.5)
+img, j = tira()
+sem_papel = px(img, j, 0.8, 0.8)
+if not (sem_papel[2] < 40):
+    falha(f"sem papel de parede, só o fundo escuro: {sem_papel}")
 toca("filtro/2", 0.6)
 confere(lambda: est("filtro") == "2" and est("nvis") == "2", "filtro Steam: 2 jogos")
 toca("filtro/3", 0.6)

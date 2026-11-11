@@ -5,6 +5,7 @@
  *
  *   lumna-jogos [--tela inicio|biblioteca] [--jogo ID]     para testes: abre direto numa tela
  */
+#include <cairo.h>
 #include <glib.h>
 #include <math.h>
 #include <stdio.h>
@@ -124,10 +125,13 @@ static int recentes(int *idx, int max) {
 	return n < max ? n : max;
 }
 
+static void papel_ler(void);
+
 static void relistar(void) {
 	jogos_listar(lista, 0); /* (o valor de max 0 não lê nada: só garante o símbolo) */
 	njogos = jogos_listar(lista, JOGOS_MAX);
 	relista_em = gv_agora() + 5.0;
+	papel_ler();
 	if (det_id[0] && !por_id(det_id) && tela == T_DETALHES) {
 		tela = T_BIBLIOTECA; /* o jogo saiu (foi desinstalado) */
 		det_id[0] = '\0';
@@ -188,6 +192,104 @@ static void abrir(const struct jogo *j) {
 	}
 }
 
+/* ---------------- o fundo das telas ---------------- */
+
+/* o papel de parede da Biblioteca (~/.config/lumna/jogos/ui.ini): "auto" (a arte do jogo em destaque), "imagem" (um arquivo) ou "nenhum" */
+static struct {
+	int modo; /* 0 auto, 1 imagem, 2 nenhum */
+	char imagem[400];
+} papel;
+
+static char *ui_ini(void) {
+	return g_build_filename(g_get_user_config_dir(), "lumna", "jogos", "ui.ini", NULL);
+}
+
+static void papel_ler(void) {
+	GKeyFile *kf = g_key_file_new();
+	char *a = ui_ini();
+	papel.modo = 0;
+	papel.imagem[0] = '\0';
+	if (g_key_file_load_from_file(kf, a, G_KEY_FILE_NONE, NULL)) {
+		char *m = g_key_file_get_string(kf, "biblioteca", "papel", NULL), *i = g_key_file_get_string(kf, "biblioteca", "imagem", NULL);
+		papel.modo = m && !strcmp(m, "imagem") ? 1 : m && !strcmp(m, "nenhum") ? 2 : 0;
+		g_strlcpy(papel.imagem, i ? i : "", sizeof(papel.imagem));
+		g_free(m);
+		g_free(i);
+	}
+	g_free(a);
+	g_key_file_free(kf);
+}
+
+static void papel_gravar(void) {
+	GKeyFile *kf = g_key_file_new();
+	char *a = ui_ini(), *dir = g_path_get_dirname(a);
+	g_key_file_set_string(kf, "biblioteca", "papel", papel.modo == 1 ? "imagem" : papel.modo == 2 ? "nenhum" : "auto");
+	g_key_file_set_string(kf, "biblioteca", "imagem", papel.imagem);
+	g_mkdir_with_parents(dir, 0700);
+	g_key_file_save_to_file(kf, a, NULL);
+	g_free(dir);
+	g_free(a);
+	g_key_file_free(kf);
+}
+
+/* o arquivo do papel de parede da Biblioteca ("" : só o fundo escuro) */
+static const char *papel_arquivo(void) {
+	if (papel.modo == 2) {
+		return "";
+	}
+	if (papel.modo == 1) {
+		return papel.imagem[0] && g_file_test(papel.imagem, G_FILE_TEST_IS_REGULAR) ? papel.imagem : "";
+	}
+	struct jogo *d = destaque();
+	return d ? d->fundo : "";
+}
+
+/* o desenho dos degradês (o Gravity não tem um elemento de degradê: pelo gv_livre) */
+static void draw_topo(cairo_t *cr, Clay_BoundingBox b, void *dados) {
+	/* a barra de cima começa escura e, a partir do meio, fica transparente */
+	cairo_pattern_t *p = cairo_pattern_create_linear(0, b.y, 0, b.y + b.height);
+	cairo_pattern_add_color_stop_rgba(p, 0.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.94);
+	cairo_pattern_add_color_stop_rgba(p, 0.5, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_pattern_add_color_stop_rgba(p, 1.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_rectangle(cr, b.x, b.y, b.width, b.height);
+	cairo_set_source(cr, p);
+	cairo_fill(cr);
+	cairo_pattern_destroy(p);
+}
+
+static void draw_inicio(cairo_t *cr, Clay_BoundingBox b, void *dados) {
+	/* o jogo selecionado aparece limpo à direita: a esquerda (onde fica o texto) e a parte de baixo (onde ficam os jogos) escurecem */
+	cairo_pattern_t *h = cairo_pattern_create_linear(b.x, 0, b.x + b.width, 0);
+	cairo_pattern_add_color_stop_rgba(h, 0.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.82);
+	cairo_pattern_add_color_stop_rgba(h, 0.55, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_rectangle(cr, b.x, b.y, b.width, b.height);
+	cairo_set_source(cr, h);
+	cairo_fill(cr);
+	cairo_pattern_destroy(h);
+	cairo_pattern_t *v = cairo_pattern_create_linear(0, b.y, 0, b.y + b.height);
+	cairo_pattern_add_color_stop_rgba(v, 0.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_pattern_add_color_stop_rgba(v, 0.62, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_pattern_add_color_stop_rgba(v, 1.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.9);
+	cairo_rectangle(cr, b.x, b.y, b.width, b.height);
+	cairo_set_source(cr, v);
+	cairo_fill(cr);
+	cairo_pattern_destroy(v);
+}
+
+static void draw_biblioteca(cairo_t *cr, Clay_BoundingBox b, void *dados) {
+	/* o papel de parede fica por trás, escurecido e mais forte nos cantos, para a grade de capas se ler bem */
+	cairo_set_source_rgba(cr, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.66);
+	cairo_rectangle(cr, b.x, b.y, b.width, b.height);
+	cairo_fill(cr);
+	cairo_pattern_t *r = cairo_pattern_create_radial(b.x + b.width * 0.5, b.y + b.height * 0.45, b.height * 0.2, b.x + b.width * 0.5, b.y + b.height * 0.45, b.width * 0.7);
+	cairo_pattern_add_color_stop_rgba(r, 0.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_pattern_add_color_stop_rgba(r, 1.0, 4 / 255.0, 3 / 255.0, 12 / 255.0, 0.55);
+	cairo_rectangle(cr, b.x, b.y, b.width, b.height);
+	cairo_set_source(cr, r);
+	cairo_fill(cr);
+	cairo_pattern_destroy(r);
+}
+
 /* ---------------- peças ---------------- */
 
 static Clay_Color roxo(float a) {
@@ -222,8 +324,8 @@ static bool botao_u(Clay_ElementId id, const char *icone, const char *texto, enu
 
 static void barra_cima(void) {
 	static const char *const abas[3] = { "Início", "Biblioteca", "Loja" };
-	CLAY(CLAY_ID("topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(U(80)) }, .padding = { U(56), U(56), 0, 0 }, .childGap = U(28), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = (Clay_Color){ 8, 6, 20, 150 } }) {
+	CLAY(CLAY_ID("topo"), gv_livre(draw_topo, NULL, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(U(104)) }, .padding = { U(56), U(56), 0, U(24) }, .childGap = U(28),
+		.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } })) {
 		gv_icone("lumna", U(36), gv_t.acento);
 		gv_texto(CLAY_STRING("LUMNA"), U(26), gv_t.texto, GV_PESO_MEDIO);
 		gv_texto(CLAY_STRING("Gaming"), U(22), gv_t.texto_secundario, GV_PESO_NORMAL);
@@ -257,7 +359,7 @@ static void barra_cima(void) {
 
 static void barra_baixo(void) {
 	CLAY(CLAY_ID("rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(U(70)) }, .padding = { U(56), U(56), 0, 0 }, .childGap = U(34), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = (Clay_Color){ 8, 6, 20, 170 } }) {
+		.backgroundColor = (Clay_Color){ 10, 8, 24, 255 } }) {
 		gv_texto(CLAY_STRING("Enter  Selecionar"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
 		gv_texto(CLAY_STRING("Esc  Voltar"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
 		if (tela == T_DETALHES || tela == T_CONFIG) {
@@ -269,8 +371,21 @@ static void barra_baixo(void) {
 
 /* ---------------- Início ---------------- */
 
+/* o jogo do card selecionado em "Seus jogos": é ele que aparece no centro e dá o fundo da tela */
+static struct jogo *selecionado_inicio(void) {
+	int idx[JOGOS_MAX];
+	int n = recentes(idx, 6);
+	if (!n) {
+		return NULL;
+	}
+	if (sel >= n) {
+		sel = n - 1;
+	}
+	return &lista[idx[sel < 0 ? 0 : sel]];
+}
+
 static void t_inicio(void) {
-	struct jogo *d = destaque();
+	struct jogo *d = selecionado_inicio();
 	CLAY(CLAY_ID("inicio"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 		if (!d) {
 			CLAY(CLAY_ID("vazio"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = U(16),
@@ -286,6 +401,9 @@ static void t_inicio(void) {
 			CLAY(CLAY_ID("hero"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { U(72), U(72), U(40), U(10) }, .childGap = U(14),
 				.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 				gv_texto(CLAY_STRING("E M   D E S T A Q U E   N A   S U A   B I B L I O T E C A"), U(15), gv_t.texto_secundario, GV_PESO_MEDIO);
+				if (d != destaque()) {
+					/* (o selecionado não é o último que se jogou: o rótulo vira o do card) */
+				}
 				CLAY(CLAY_ID("hero-t"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(900)) } } }) {
 					gv_texto(gv_str(d->nome), U(78), gv_t.texto, GV_PESO_SEMINEGRITO);
 				}
@@ -1075,6 +1193,24 @@ static void cfg_gaming(void) {
 			mc.m[MODO_GAMING].nao_perturbe = dnd_gaming;
 			modos_cfg_gravar(&mc);
 		}
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(6) } }) {
+			static const char *const papeis[3] = { "Automático (a arte do jogo em destaque)", "Uma imagem minha", "Nenhum (só o fundo escuro)" };
+			gv_texto(CLAY_STRING("Papel de parede da Biblioteca"), U(21), gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(CLAY_STRING("O que aparece por trás da grade de jogos, escurecido para as capas se lerem bem."), U(16), gv_t.texto_secundario, GV_PESO_NORMAL);
+			CLAY(CLAY_ID("gm-papel-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(480)) } } }) {
+				if (gv_lista_suspensa(CLAY_ID("gm-papel"), papeis, 3, &papel.modo)) {
+					papel_gravar();
+				}
+			}
+			if (papel.modo == 1) {
+				if (gv_campo(CLAY_ID("gm-papel-img"), papel.imagem, sizeof(papel.imagem), "/home/eu/Imagens/papel.jpg", GV_CAMPO_TEXTO) & GV_CAMPO_MUDOU) {
+					papel_gravar();
+				}
+				if (papel.imagem[0] && !g_file_test(papel.imagem, G_FILE_TEST_IS_REGULAR)) {
+					gv_texto(CLAY_STRING("Esse arquivo não existe."), U(16), gv_t.perigo, GV_PESO_NORMAL);
+				}
+			}
+		}
 		if (gv_linha(CLAY_ID("gm-fps"), "stack", "Mostrar o FPS (MangoHud)", mango ? "Nos jogos avulsos que o Gaming abre. Na Steam, use mangohud %command% nas opções do jogo." : "O MangoHud não está instalado (pacman -S mangohud).", &gcfg.fps)) {
 			cfg_salvar();
 		}
@@ -1203,21 +1339,14 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 	gv_acordar_em(5.0);
 	navegar_teclado();
-	struct jogo *d = tela == T_DETALHES ? por_id(det_id) : tela == T_INICIO ? destaque() : NULL;
-	const char *fundo = d ? d->fundo : "";
+	struct jogo *d = tela == T_DETALHES ? por_id(det_id) : tela == T_INICIO ? selecionado_inicio() : NULL;
+	const char *fundo = tela == T_BIBLIOTECA ? papel_arquivo() : tela == T_CONFIG ? "" : d ? d->fundo : "";
 	Clay_ElementDeclaration base = { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = (Clay_Color){ 12, 9, 26, 255 } };
-	if (fundo[0] && tela != T_BIBLIOTECA && tela != T_CONFIG) {
-		CLAY(CLAY_ID("janela"), gv_imagem(CLAY_ID("janela"), fundo, GV_AJUSTE_COBRIR, base)) {
-			barra_cima();
-			if (tela == T_INICIO) {
-				t_inicio();
-			} else {
-				t_detalhes();
-			}
-			barra_baixo();
-		}
-	} else {
-		CLAY(CLAY_ID("janela"), base) {
+	Clay_ElementDeclaration cena = { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } };
+	void (*degrade)(cairo_t *, Clay_BoundingBox, void *) = tela == T_INICIO ? draw_inicio : tela == T_BIBLIOTECA && fundo[0] ? draw_biblioteca : NULL;
+	Clay_ElementDeclaration janela = fundo[0] ? gv_imagem(CLAY_ID("janela"), fundo, GV_AJUSTE_COBRIR, base) : base;
+	CLAY(CLAY_ID("janela"), janela) {
+		CLAY(CLAY_ID("cena"), degrade ? gv_livre(degrade, NULL, cena) : cena) {
 			barra_cima();
 			if (tela == T_INICIO) {
 				t_inicio();
@@ -1255,7 +1384,7 @@ static void depurar(void) {
 #define S(base, n) for (int i_ = 0; i_ < (n); i_++) { g_ptr_array_add(nomes, g_strdup_printf("%s/%d", base, i_)); Clay_ElementId e_ = CLAY_IDI(base, (uint32_t)i_); g_array_append_val(ids, e_.id); }
 	F("continuar"); F("sobre"); F("mais"); F("ver-bib"); F("det-voltar"); F("det-continuar"); F("det-fav"); F("det-mais"); F("add"); F("add-nome"); F("add-exec"); F("add-ok"); F("add-cancelar");
 	F("abrir-pasta"); F("gerenciar"); F("verificar"); F("config-ini"); F("desinstalar"); F("des-ok"); F("des-cancelar"); F("apagar-arquivos");
-	F("engrenagem"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
+	F("engrenagem"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("gm-papel"); F("gm-papel-img"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
 	S("nav", 3); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 4); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
 	{ Clay_ElementId b_ = CLAY_ID("det-aba"); for (int i_ = 0; i_ < 2; i_++) { g_ptr_array_add(nomes, g_strdup_printf("det-aba/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	g_ptr_array_add(nomes, g_strdup("p-exec")); { Clay_ElementId e_ = CLAY_SID(CLAY_STRING("p-exec")); g_array_append_val(ids, e_.id); }
@@ -1278,10 +1407,10 @@ static void depurar(void) {
 	}
 	int idx[JOGOS_MAX];
 	struct jogo *d = por_id(det_id);
-	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d",
+	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d papel=%d",
 		tela, aba, filtro, njogos, visiveis(idx), sel, det_id[0] ? det_id : "-", d ? d->favorito : 0, confirmando, adicionando, ed_suja,
 		aviso[0] && gv_agora() < aviso_ate ? aviso : "-", d && d->opcoes[0] ? d->opcoes : "-", d ? d->nenv : 0,
-		cfg_pg, nctl, servico_pad, gcfg.zona_morta, gcfg.trocar_ab, gcfg.vibracao, gcfg.guia, gcfg.energia, gcfg.fps, dnd_gaming);
+		cfg_pg, nctl, servico_pad, gcfg.zona_morta, gcfg.trocar_ab, gcfg.vibracao, gcfg.guia, gcfg.energia, gcfg.fps, dnd_gaming, papel.modo);
 	for (char *c = est; *c; c++) {
 		if (*c == '\n') {
 			*c = ' ';
