@@ -352,6 +352,33 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.268 | Ligue "Não mostrar de novo" e feche | Nem janela nem aviso nos próximos logins | ☐ |
 | 2.269 | Lançador: "Configuração inicial" | Abre o assistente de novo, quando quiser | ☐ |
 
+### 2k. Gaming: biblioteca de jogos
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.270 | Com jogos instalados na Steam, Super+Tab até o Gaming (ou `lumna-modo gaming`) | A biblioteca abre sozinha na tela do Gaming, no Início, com o último jogo em destaque | ☐ |
+| 2.271 | Olhe "Seus jogos" | Até 6 jogos, os mais recentes primeiro, com a capa/fundo que a Steam guarda | ☐ |
+| 2.272 | "Continuar" no destaque | Abre o jogo pela Steam (`steam://rungameid`); a "Última sessão" passa a ser "agora há pouco" | ☐ |
+| 2.273 | "Ver biblioteca" | Todos os jogos da Steam (inclusive de outras pastas/discos), Lutris e Heroic, em ordem de nome | ☐ |
+| 2.274 | Filtros Steam, Lutris, Heroic, Avulsos, Favoritos | Cada um mostra só os jogos dele | ☐ |
+| 2.275 | Toque num jogo | Detalhes: "Sua jornada" (tempo de jogo, última sessão, tamanho) e o painel Instalado (versão, origem, disco, local) | ☐ |
+| 2.276 | Compare o tempo de jogo e a última sessão com a Steam | Batem | ☐ |
+| 2.277 | O coração nos Detalhes | Favorita; o jogo aparece no filtro Favoritos | ☐ |
+| 2.278 | "Abrir pasta" | Abre a pasta do jogo no Atlas | ☐ |
+| 2.279 | Jogo da Steam: "Verificar arquivos" | A Steam abre e verifica o jogo | ☐ |
+| 2.280 | Biblioteca > "Adicionar jogo": nome e o caminho de um executável | O jogo aparece em Avulsos | ☐ |
+| 2.281 | Detalhes do avulso > Propriedades: opções `gamemoderun %command%`, uma variável (`MANGOHUD=1`), Aplicar | Salva; "Continuar" abre com o gamemode e o MangoHud | ☐ |
+| 2.282 | Propriedades > "Restaurar padrão" | Limpa opções, variáveis e GPU | ☐ |
+| 2.283 | Propriedades de um jogo da Steam | Só leitura, com o aviso de que a Steam guarda as dela | ☐ |
+| 2.284 | Desinstalar um jogo da Steam > confirmar | A Steam abre pedindo para desinstalar; o jogo continua na lista até ela terminar | ☐ |
+| 2.285 | Desinstalar um avulso > confirmar (sem marcar nada) | Sai da biblioteca; os arquivos continuam | ☐ |
+| 2.286 | Desinstalar um avulso marcando "Apagar também os arquivos" | Sai da biblioteca e a pasta dele some | ☐ |
+| 2.287 | Desinstalar > Cancelar (ou Esc) | Nada muda | ☐ |
+| 2.288 | Jogo do Lutris/Heroic: Desinstalar | Abre o Lutris/Heroic para você desinstalar lá | ☐ |
+| 2.289 | Jogo do Lutris e do Heroic: "Continuar" | Abre o jogo (Heroic: se não abrir, me mande o `heroic --no-gui heroic://launch/...` do terminal) | ☐ |
+| 2.290 | Teclado: setas, Enter e Esc na Biblioteca e nos Detalhes | Navega, abre e volta | ☐ |
+| 2.291 | Abra um jogo com a Steam fechada, e feche-o | O jogo abre na tela do Gaming; ao fechar, volta a biblioteca | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

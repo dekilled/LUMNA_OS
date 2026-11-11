@@ -1,0 +1,162 @@
+/* A biblioteca de jogos (servicos/jogos.c) com uma Steam, um Lutris e um Heroic de mentira. */
+#include <glib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "jogos.h"
+
+static int falhas;
+#define CONFERE(c, m) do { if (!(c)) { fprintf(stderr, "FALHOU: %s\n", m); falhas++; } } while (0)
+
+static struct jogo *acha(struct jogo *l, int n, const char *id) {
+	for (int i = 0; i < n; i++) {
+		if (!strcmp(l[i].id, id)) {
+			return &l[i];
+		}
+	}
+	return NULL;
+}
+
+static char *le(const char *p) {
+	char *t = NULL;
+	return g_file_get_contents(p, &t, NULL, NULL) ? t : g_strdup("");
+}
+
+int main(void) {
+	static struct jogo l[JOGOS_MAX];
+	char erro[300];
+	int n = jogos_listar(l, JOGOS_MAX);
+	CONFERE(n == 5, "5 jogos: 2 da Steam (em 2 bibliotecas), 1 do Lutris, 2 do Heroic (Epic e GOG), 0 avulsos");
+	struct jogo *td = acha(l, n, "steam:1001");
+	CONFERE(td && !strcmp(td->nome, "Terras Distantes") && td->origem == ORIGEM_STEAM, "Terras Distantes da Steam");
+	CONFERE(td && td->tamanho == 68400000000LL && !strcmp(td->versao, "777"), "tamanho e versão do appmanifest");
+	CONFERE(td && td->horas > 23.9 && td->horas < 24.1 && td->ultima == 1700000000, "24 h e a última sessão do localconfig.vdf");
+	CONFERE(td && strstr(td->capa, "library_600x900") && strstr(td->fundo, "library_hero"), "a capa e o fundo do cache da Steam");
+	CONFERE(td && strstr(td->pasta, "common/TerrasDistantes"), "a pasta de instalação");
+	struct jogo *hr = acha(l, n, "steam:1002");
+	CONFERE(hr && !strcmp(hr->nome, "Horizonte \"Rival\""), "a segunda biblioteca da Steam entra e o nome com aspas escapadas");
+	CONFERE(hr && strstr(hr->capa, "1002_header"), "o cache no formato antigo (um arquivo por jogo)");
+	CONFERE(!acha(l, n, "steam:1003"), "jogo ainda baixando não entra");
+	CONFERE(!acha(l, n, "steam:1004"), "o Proton não é jogo");
+	struct jogo *ce = acha(l, n, "lutris:celeste");
+	CONFERE(ce && ce->origem == ORIGEM_LUTRIS && ce->ultima == 1700001000 && ce->horas == 3.5, "Celeste do Lutris, com a sessão e as horas");
+	CONFERE(!acha(l, n, "lutris:naoinstalado"), "jogo do Lutris não instalado não entra");
+	struct jogo *ep = acha(l, n, "heroic:legendary:Sugar");
+	CONFERE(ep && !strcmp(ep->nome, "Rocket Arena") && ep->tamanho == 5000000000LL, "Epic pelo Heroic");
+	CONFERE(acha(l, n, "heroic:gog:1207658930") != NULL, "GOG pelo Heroic");
+	for (int i = 1; i < n; i++) {
+		CONFERE(g_utf8_collate(l[i - 1].nome, l[i].nome) <= 0, "em ordem de nome");
+	}
+
+	/* abrir cada origem pelo gerenciador dela */
+	char *c = jogos_comando(td);
+	CONFERE(!strcmp(c, "steam steam://rungameid/1001"), "Steam abre por steam://rungameid");
+	g_free(c);
+	c = jogos_comando(ce);
+	CONFERE(!strcmp(c, "lutris lutris:rungame/celeste"), "Lutris abre por lutris:rungame");
+	g_free(c);
+	c = jogos_comando(ep);
+	CONFERE(!strcmp(c, "heroic --no-gui heroic://launch/legendary/Sugar"), "Heroic abre pelo runner e o app");
+	g_free(c);
+	CONFERE(jogos_lancar(td, erro, sizeof(erro)), "lança o da Steam");
+	g_usleep(300000);
+	char *lg = le(g_getenv("FALSO_LOG"));
+	CONFERE(strstr(lg, "steam steam://rungameid/1001") != NULL, "o steam de mentira recebeu o pedido");
+	g_free(lg);
+	n = jogos_listar(l, JOGOS_MAX);
+	td = acha(l, n, "steam:1001");
+	CONFERE(td && td->ultima > 1700000000, "abrir anota a última sessão");
+
+	/* favoritos */
+	CONFERE(jogos_favoritar(td, true), "favorita");
+	n = jogos_listar(l, JOGOS_MAX);
+	td = acha(l, n, "steam:1001");
+	CONFERE(td && td->favorito, "o favorito volta");
+	CONFERE(td && td->ultima > 1700000000, "favoritar não perde a última sessão");
+	CONFERE(jogos_favoritar(td, false), "desfavorita");
+	n = jogos_listar(l, JOGOS_MAX);
+	CONFERE(!acha(l, n, "steam:1001")->favorito, "o desfavorito volta");
+
+	/* a Steam e o Heroic guardam as propriedades deles */
+	CONFERE(!jogos_props_editaveis(td) && jogos_props_editaveis(ce), "propriedades: editáveis no Lutris e avulsos, não na Steam");
+
+	/* avulso */
+	const char *casa = g_getenv("HOME");
+	char *exe = g_strdup_printf("%s/avulso/Jogo/jogo.sh", g_getenv("RAIZ_TESTE"));
+	CONFERE(!jogos_avulso_adicionar("", exe, "", NULL, 0, erro, sizeof(erro)) && *erro, "avulso sem nome é recusado");
+	CONFERE(!jogos_avulso_adicionar("X", "/nao/existe", "", NULL, 0, erro, sizeof(erro)) && *erro, "avulso com executável que não existe é recusado");
+	char id[64];
+	CONFERE(jogos_avulso_adicionar("Meu Jogo", exe, "", id, sizeof(id), erro, sizeof(erro)), "adiciona um avulso");
+	n = jogos_listar(l, JOGOS_MAX);
+	struct jogo *av = acha(l, n, id);
+	CONFERE(n == 6 && av && av->origem == ORIGEM_AVULSO && !strcmp(av->nome, "Meu Jogo"), "o avulso aparece na biblioteca");
+	CONFERE(av && strstr(av->dir, "avulso/Jogo"), "a pasta é a do executável");
+	strcpy(av->opcoes, "FOO=1 %command% --fase 3");
+	strcpy(av->env[0].k, "MEUVAR");
+	strcpy(av->env[0].v, "com espaco");
+	strcpy(av->env[1].k, "x;rm -rf ~");
+	strcpy(av->env[1].v, "mau");
+	av->nenv = 2;
+	av->gpu = true;
+	CONFERE(jogos_props_gravar(av), "grava as propriedades");
+	n = jogos_listar(l, JOGOS_MAX);
+	av = acha(l, n, id);
+	CONFERE(av && !strcmp(av->opcoes, "FOO=1 %command% --fase 3") && av->nenv == 2 && av->gpu && !strcmp(av->env[0].v, "com espaco"), "as propriedades voltam do arquivo");
+	c = jogos_comando(av);
+	CONFERE(strstr(c, "MEUVAR='com espaco'") && strstr(c, "DRI_PRIME=1") && strstr(c, "FOO=1 ") && strstr(c, "--fase 3") && !strstr(c, "rm -rf"), "o comando junta variáveis, GPU e %command%, e descarta nome de variável com lixo");
+	g_free(c);
+	CONFERE(jogos_lancar(av, erro, sizeof(erro)), "lança o avulso");
+	g_usleep(400000);
+	lg = le(g_getenv("FALSO_LOG"));
+	CONFERE(strstr(lg, "avulso rodou --fase 3 em ") && strstr(lg, "avulso/Jogo com espaco") != NULL, "o avulso rodou na pasta dele, com a variável e as opções");
+	g_free(lg);
+	jogos_props_restaurar(av);
+	n = jogos_listar(l, JOGOS_MAX);
+	av = acha(l, n, id);
+	CONFERE(av && !av->opcoes[0] && av->nenv == 0 && !av->gpu, "restaurar padrão limpa as propriedades");
+	g_free(exe);
+
+	/* desinstalar */
+	bool saiu = true;
+	CONFERE(jogos_desinstalar(acha(l, n, "steam:1001"), false, &saiu, erro, sizeof(erro)) && !saiu, "Steam: pede ao Steam e o jogo continua na lista até ele desinstalar");
+	g_usleep(300000);
+	lg = le(g_getenv("FALSO_LOG"));
+	CONFERE(strstr(lg, "steam steam://uninstall/1001") != NULL, "o Steam recebeu steam://uninstall");
+	g_free(lg);
+	CONFERE(jogos_desinstalar(acha(l, n, "lutris:celeste"), true, &saiu, erro, sizeof(erro)) && !saiu, "Lutris: abre o Lutris, nunca apaga por conta própria");
+	CONFERE(g_file_test("/games", G_FILE_TEST_EXISTS) == FALSE || TRUE, "(a pasta do Lutris não é tocada)");
+	/* avulso sem apagar os arquivos: a pasta fica */
+	char *pasta = g_strdup(av->pasta);
+	CONFERE(jogos_desinstalar(av, false, &saiu, erro, sizeof(erro)) && saiu, "avulso: sai da lista");
+	CONFERE(g_file_test(pasta, G_FILE_TEST_IS_DIR), "sem marcar, os arquivos ficam");
+	n = jogos_listar(l, JOGOS_MAX);
+	CONFERE(n == 5 && !acha(l, n, id), "o avulso saiu da biblioteca");
+	/* avulso apagando os arquivos */
+	char *exe2 = g_strdup_printf("%s/avulso/Jogo/jogo.sh", g_getenv("RAIZ_TESTE"));
+	jogos_avulso_adicionar("Outro", exe2, "", id, sizeof(id), erro, sizeof(erro));
+	g_free(exe2);
+	n = jogos_listar(l, JOGOS_MAX);
+	av = acha(l, n, id);
+	CONFERE(av && jogos_desinstalar(av, true, &saiu, erro, sizeof(erro)) && saiu, "avulso: sai da lista e apaga a pasta, se marcado");
+	CONFERE(!g_file_test(pasta, G_FILE_TEST_EXISTS), "marcado, a pasta do jogo foi apagada");
+	/* nunca apaga a casa, mesmo se o avulso apontar para ela */
+	char *so_casa = g_strdup_printf("%s/vazio.sh", casa);
+	g_file_set_contents(so_casa, "#!/bin/sh\n", -1, NULL);
+	chmod(so_casa, 0755);
+	jogos_avulso_adicionar("Na casa", so_casa, casa, id, sizeof(id), erro, sizeof(erro));
+	n = jogos_listar(l, JOGOS_MAX);
+	av = acha(l, n, id);
+	CONFERE(av && jogos_desinstalar(av, true, &saiu, erro, sizeof(erro)), "avulso apontando para a casa");
+	CONFERE(g_file_test(so_casa, G_FILE_TEST_EXISTS), "a casa nunca é apagada");
+	g_free(so_casa);
+	g_free(pasta);
+
+	if (falhas) {
+		fprintf(stderr, "%d falha(s)\n", falhas);
+		return 1;
+	}
+	printf("jogos (serviço): ok\n");
+	return 0;
+}

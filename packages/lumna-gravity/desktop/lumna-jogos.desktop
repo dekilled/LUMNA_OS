@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Jogos
+GenericName=Biblioteca de jogos
+Comment=Steam, Lutris, Heroic e jogos avulsos, no modo Gaming
+Exec=lumna-jogos
+Icon=lumna-painel
+StartupWMClass=lumna-jogos
+Terminal=false
+Categories=Game;
+Keywords=jogos;games;steam;lutris;heroic;gaming;biblioteca;

@@ -71,7 +71,7 @@ areas = [
   "Você confirmou, no Android e no OnePlus: a conexão com o PC, a área de transferência, o controle (inclusive na Mídia), enviar arquivos nos dois sentidos, a conversa com a Emma por texto e por voz e os avisos do celular no PC. Faltam os avisos do PC no celular (o PC não gerou nenhum), energia, agendamentos e informações do PC."),
  ("Telas e monitores", "sim", "Estender, por modo, espelhar, só a da esquerda ou da direita, topbar por monitor e o botão de tela cheia.",
   "Num KDE falso. Você confirmou só as janelas, a tela cheia e o mouse."),
- ("Modo Gaming", "and", "O modo e a ilha por tela existem. A biblioteca de jogos e o Início do Gaming não.", "Nada para testar ainda."),
+ ("Modo Gaming", "and", "O modo, a ilha por tela e a biblioteca de jogos (Início, Biblioteca, Detalhes, Propriedades, Desinstalar) existem. Falta o gamepad, a Loja de jogos e as abas Sobre e Instalação.", "A biblioteca, pelo roteiro 2.270 a 2.291."),
  ("Vídeo", "sim", "O player de vídeo é parte da Galeria (libmpv dentro da janela, com os controles do LUMNA); o mpv separado continua como opção.", "Provado num Orbit sem tela, com o libmpv de verdade e som nulo. Falta você ver no PC: som, vídeos pesados, tela cheia."),
  ("Apps que ainda não existem", "falta", "bloco de notas, Code, Reminders, StoryTeller, Telefone e o navegador. O LUMNA antigo (Vue) está descartado por desempenho e espaço; o que ele tinha serve só de referência.", "—"),
 ]
@@ -98,7 +98,7 @@ backlog = [
  ("1. Modo Gaming", "A ilha por tela, a dock escondida e as janelas de jogo na tela certa já existem. Falta o que se vê e se usa.", [
   ("feito", "O modo, a ilha por tela, dock escondida e não perturbe", "Os jogos (Steam, gamescope, Heroic, Lutris) abrem na tela do Gaming."),
   ("ref", "Biblioteca de jogos em carrossel", "No LUMNA antigo: GameLibrary.vue, com capas, filtros (Todos, Recentes, Steam, Epic, GOG, Amazon, Lutris), controle, teclado e mouse."),
-  ("falta", "Início do Gaming no desktop novo (como o da Mídia)", "Uma tela de Gravity com a biblioteca, navegável pelo teclado, pelo gamepad e pelo celular."),
+  ("testar", "Gaming: biblioteca de jogos (Início, Biblioteca, Detalhes, Propriedades, Desinstalar)", "Pelos seus esboços: o Início com o jogo em destaque e \"Seus jogos\", a Biblioteca com filtros (Todos, Favoritos, Steam, Lutris, Heroic, Avulsos) e \"Adicionar jogo\", os Detalhes com \"Sua jornada\" e o painel de instalação, as Propriedades de inicialização (executável, opções com %command%, variáveis, GPU) e a Desinstalação com confirmação. Lê a Steam (várias bibliotecas, capas e horas), o Lutris e o Heroic (Epic e GOG), e abre cada jogo pelo gerenciador dele; desinstalar pede à Steam, abre o Lutris/Heroic, e nos avulsos tira da lista (e só apaga os arquivos se você marcar). Abre sozinha quando uma tela entra em Gaming. Provada só num Orbit sem tela, com Steam, Lutris, Heroic e launchers de mentira (o serviço com ASAN/UBSAN limpos); falta você ver com seus jogos de verdade. Ainda não tem: controle (gamepad), Loja de jogos, as abas Sobre e Instalação, conquistas e o indicador \"Conectado\". Roteiro: TESTES-ISO 2.270 a 2.291. Detalhes em docs/JOGOS.md."),
   ("falta", "Ler as bibliotecas e abrir o jogo", "Steam (appmanifest, steam://rungameid), Heroic e Lutris; capas pela Steam ou SteamGridDB."),
   ("falta", "Gamepad como controle da interface", "Direcional, A e B no lugar das setas, OK e voltar."),
   ("falta", "Desempenho enquanto joga (ideia minha)", "Perfil de energia de desempenho e GameMode ao abrir um jogo; voltar ao normal ao sair."),
