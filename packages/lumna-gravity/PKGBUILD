@@ -57,4 +57,7 @@ package() {
   install -Dm644 lumna-portals.conf "$pkgdir/usr/share/xdg-desktop-portal/lumna-portals.conf"
   # "Mostrar na pasta" (Firefox, Chromium, Steam...) abre o Atlas: o lumna-portal responde ao org.freedesktop.FileManager1
   install -Dm644 dbus/org.freedesktop.FileManager1.service "$pkgdir/usr/share/dbus-1/services/org.freedesktop.FileManager1.service"
+  # o seletor de arquivos do xdg-desktop-portal (abrir, enviar, salvar, escolher pasta) é o Atlas: o backend "lumna" do lumna-portal
+  install -Dm644 dbus/org.freedesktop.impl.portal.desktop.lumna.service "$pkgdir/usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.lumna.service"
+  install -Dm644 portals/lumna.portal "$pkgdir/usr/share/xdg-desktop-portal/portals/lumna.portal"
 }

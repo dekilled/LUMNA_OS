@@ -503,6 +503,12 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.385 | No Firefox, baixar um arquivo e clicar em 'Mostrar na pasta' | Abre o Atlas na pasta, com o arquivo selecionado (e não o Thunar) | ☐ |
 | 2.386 | Atlas: botão direito (ou segurar) num arquivo > 'Abrir com…' | A janelinha lista os aplicativos do tipo; escolher e Abrir lança o app com o arquivo; 'Mostrar todos' lista tudo; 'Sempre usar' guarda o padrão; Esc fecha | ☐ |
 | 2.387 | `xdg-mime default lumna-atlas.desktop inode/directory` e abrir uma pasta por outro app (xdg-open) | Abre o Atlas | ☐ |
+| 2.388 | No Firefox, clicar em "Enviar"/escolher um arquivo (um site com upload) | Abre o seletor do Atlas (não o do Thunar/GTK); navegar, escolher e Abrir devolve o arquivo ao site | ☐ |
+| 2.389 | No Firefox, salvar uma página/imagem como (Ctrl+S) | O seletor do Atlas abre com o nome sugerido; Salvar grava; um nome que já existe pergunta antes de substituir | ☐ |
+| 2.390 | Num site com upload de vários arquivos | Marcar vários arquivos (Ctrl+clique, área de seleção ou Ctrl+A) e Abrir envia todos | ☐ |
+| 2.391 | Um app que pede escolher uma pasta (Steam, "Adicionar biblioteca") | O seletor só lista pastas; Escolher leva a pasta marcada ou a de agora | ☐ |
+| 2.392 | No seletor do Atlas: Esc, o botão Cancelar e fechar a janela | O app que pediu recebe "cancelado", sem travar | ☐ |
+| 2.393 | Um site que pede só imagens | O seletor mostra o filtro do app (Imagens) e lista só as imagens | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

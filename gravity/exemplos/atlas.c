@@ -13,6 +13,7 @@
 #define _GNU_SOURCE
 #include <cairo.h>
 #include <gio/gio.h>
+#include <fnmatch.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <pango/pangocairo.h>
@@ -107,6 +108,19 @@ static ar_sugestao sug[12];
 static int n_sug, sug_sel = -1;
 static bool confirmar_esvaziar;     /* confirmar esvaziar a lixeira */
 static bool clonar_aberto;          /* o diálogo do git clone */
+/*
+ * O modo "escolher" (atlas --escolher=abrir|abrir-varios|pasta|salvar): o Atlas como o seletor de arquivos do sistema (o lumna-portal o chama quando um app pede para
+ * abrir, enviar, salvar ou escolher uma pasta). Escreve o que a pessoa escolheu em stdout, um caminho por linha, e sai com 0; cancelar sai com 1.
+ *   --titulo=T --pasta=P --nome=N --rotulo=R --filtro=NOME::g=*.png,m=image/png (repetido) --filtro-atual=N
+ */
+enum { ESC_NENHUM, ESC_ABRIR, ESC_PASTA, ESC_SALVAR };
+static int modo_escolher;
+static bool esc_multiplo;
+static char esc_titulo[200] = "Atlas", esc_rotulo[48], esc_nome[512], esc_pasta_ini[4096];
+static struct { char nome[96]; char *pad[24]; int n; } esc_filtros[16];
+static int esc_nfiltros, esc_filtro_sel;
+static const char *esc_filtro_nomes[16];
+static bool esc_confirmar_substituir, esc_feito, esc_foco_nome = true;
 /* "Abrir com...": a janelinha de escolher o aplicativo de um arquivo */
 static bool abrir_com_aberto;
 static char ac_caminho[4096], ac_mime[160];
@@ -167,10 +181,41 @@ static void liberar_lista(void) {
 	ar_liberar(&lista);
 }
 
+/* o arquivo passa no filtro escolhido pelo app? (glob "g:*.png" sem olhar maiúsculas, ou tipo MIME "m:image/png") */
+static bool esc_passa(const char *nome) {
+	if (!modo_escolher || !esc_nfiltros || esc_filtro_sel < 0 || esc_filtro_sel >= esc_nfiltros || !esc_filtros[esc_filtro_sel].n) {
+		return true;
+	}
+	for (int i = 0; i < esc_filtros[esc_filtro_sel].n; i++) {
+		const char *pad = esc_filtros[esc_filtro_sel].pad[i];
+		if (pad[0] == 'g' && fnmatch(pad + 2, nome, FNM_CASEFOLD) == 0) {
+			return true;
+		}
+		if (pad[0] == 'm') {
+			char *tipo = g_content_type_guess(nome, NULL, 0, NULL);
+			bool ok = tipo && g_content_type_is_a(tipo, pad + 2);
+			g_free(tipo);
+			if (ok) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 static void refiltrar(void) {
 	g_free(vis);
 	vis = g_new(int, lista.n > 0 ? lista.n : 1);
 	nvis = ar_filtrar(&lista, busca, filtro, vis);
+	if (modo_escolher) { /* o seletor mostra só o que dá para escolher: sem arquivos ao escolher pasta, e o filtro do app (só imagens...) nos arquivos */
+		int w = 0;
+		for (int k = 0; k < nvis; k++) {
+			if (lista.v[vis[k]].pasta || (modo_escolher != ESC_PASTA && esc_passa(lista.v[vis[k]].nome))) {
+				vis[w++] = vis[k];
+			}
+		}
+		nvis = w;
+	}
 	n_pastas = n_arquivos = 0;
 	memset(cont_filtros, 0, sizeof(cont_filtros));
 	for (int i = 0; i < lista.n; i++) {
@@ -624,13 +669,22 @@ static void abrir_arquivo(const char *caminho) {
 	g_free(uri);
 }
 
+static void esc_aceitar(void);
+static void limpar_selecao(void);
+
 static void abrir_item(int i) {
 	if (i < 0 || i >= lista.n) {
 		return;
 	}
 	if (lista.v[i].pasta) {
 		ir_para(cam[i], true);
-	} else {
+	} else if (modo_escolher == ESC_ABRIR || modo_escolher == ESC_SALVAR) {
+		if (!sel[i]) { /* duplo clique num item que ainda não estava marcado */
+			limpar_selecao();
+			sel[i] = true;
+		}
+		esc_aceitar();
+	} else if (!modo_escolher) {
 		abrir_arquivo(cam[i]);
 	}
 }
@@ -746,6 +800,9 @@ static void clicar_item(int idx, uint32_t mods) {
 		ancora = idx;
 	}
 	foco = idx;
+	if (modo_escolher == ESC_SALVAR && !lista.v[idx].pasta && !(mods & (GV_MOD_CTRL | GV_MOD_SHIFT))) {
+		g_strlcpy(esc_nome, lista.v[idx].nome, sizeof(esc_nome)); /* clicar num arquivo existente no Salvar: o nome dele vai para o campo */
+	}
 }
 
 /* ---- exibição: o tamanho do texto, o nome com ou sem extensão ---- */
@@ -4278,8 +4335,115 @@ static void botoes_abrir_com(void) {
 	}
 }
 
+/* --- o modo escolher: aceitar, cancelar, a barra de baixo --- */
+
+static void esc_sair(int codigo) {
+	fflush(stdout);
+	esc_feito = codigo == 0;
+	exit(codigo);
+}
+
+static void esc_escrever(const char *caminho) {
+	printf("%s\n", caminho);
+}
+
+/* o que a pessoa escolheu agora: arquivos marcados (Abrir), a pasta (Escolher pasta) ou pasta + nome (Salvar) */
+static void esc_aceitar(void) {
+	if (modo_escolher == ESC_ABRIR) {
+		int n = 0;
+		for (int i = 0; i < lista.n; i++) {
+			if (sel[i] && !lista.v[i].pasta && cam[i]) {
+				if (n == 0 || esc_multiplo) {
+					esc_escrever(cam[i]);
+				}
+				n++;
+			}
+		}
+		if (n) {
+			esc_sair(0);
+		}
+	} else if (modo_escolher == ESC_PASTA) {
+		int unico = n_selecionados() == 1 ? primeiro_selecionado() : -1;
+		esc_escrever(unico >= 0 && lista.v[unico].pasta && cam[unico] ? cam[unico] : pasta);
+		esc_sair(0);
+	} else if (modo_escolher == ESC_SALVAR) {
+		char *nome = g_strstrip(g_strdup(esc_nome));
+		if (!nome[0] || strchr(nome, '/') || !strcmp(nome, ".") || !strcmp(nome, "..")) {
+			avisar("Escolha um nome de arquivo válido");
+			g_free(nome);
+			return;
+		}
+		char *alvo = ar_unir(pasta, nome);
+		g_free(nome);
+		if (g_file_test(alvo, G_FILE_TEST_EXISTS) && !esc_confirmar_substituir) {
+			esc_confirmar_substituir = true; /* já existe: pergunta antes de substituir */
+			g_free(alvo);
+			return;
+		}
+		esc_escrever(alvo);
+		g_free(alvo);
+		esc_sair(0);
+	}
+}
+
+static void corpo_esc_substituir(void) {
+	char *nome = g_strstrip(g_strdup(esc_nome));
+	texto_dialogo(gv_fmt("Já existe um arquivo chamado \"%s\" nesta pasta. Quer substituí-lo?", nome).chars);
+	g_free(nome);
+}
+static void botoes_esc_substituir(void) {
+	if (gv_botao_ext(CLAY_ID("esc-sub-nao"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+		esc_confirmar_substituir = false;
+	}
+	if (gv_botao_ext(CLAY_ID("esc-sub-sim"), &(gv_botao_opcoes){ .texto = "Substituir", .estilo = GV_BOTAO_CHEIO })) {
+		esc_aceitar();
+	}
+}
+
+/* a faixa de baixo do seletor, no lugar da barra de status */
+static void barra_escolher(void) {
+	CLAY(CLAY_ID("status"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(64) }, .padding = { 20, 20, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.border = { .color = gv_t.borda, .width = { .top = 1 } } }) {
+		if (modo_escolher == ESC_SALVAR) {
+			gv_texto(CLAY_STRING("Nome"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			CLAY(CLAY_ID("esc-nome-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				int r = gv_campo(CLAY_ID("esc-nome"), esc_nome, sizeof(esc_nome), "nome do arquivo", GV_CAMPO_TEXTO);
+				if (esc_foco_nome) {
+					gv_focar(CLAY_ID("esc-nome"));
+					esc_foco_nome = false;
+				}
+				if (r & GV_CAMPO_ENTER) {
+					esc_aceitar();
+				}
+			}
+		} else {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(gv_str(modo_escolher == ESC_PASTA ? "Escolha a pasta e use o botão ao lado." : esc_multiplo ? "Marque um ou mais arquivos." : "Escolha um arquivo."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+		}
+		if (esc_nfiltros > 0) {
+			CLAY(CLAY_ID("esc-filtro-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(260) } } }) {
+				if (gv_lista_suspensa(CLAY_ID("esc-filtro"), esc_filtro_nomes, esc_nfiltros, &esc_filtro_sel)) {
+					refiltrar();
+				}
+			}
+		}
+		if (gv_botao_ext(CLAY_ID("esc-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO, .altura = 40 })) {
+			esc_sair(1);
+		}
+		const char *rotulo = esc_rotulo[0] ? esc_rotulo : modo_escolher == ESC_SALVAR ? "Salvar" : modo_escolher == ESC_PASTA ? "Escolher" : "Abrir";
+		bool pode = modo_escolher == ESC_ABRIR ? n_selecionados() > 0 && ({ bool f = false; for (int i = 0; i < lista.n; i++) { f |= sel[i] && !lista.v[i].pasta; } f; })
+			: modo_escolher == ESC_SALVAR ? esc_nome[0] != '\0' : true;
+		if (gv_botao_ext(CLAY_ID("esc-ok"), &(gv_botao_opcoes){ .texto = rotulo, .estilo = GV_BOTAO_CHEIO, .altura = 40, .desativado = !pode })) {
+			esc_aceitar();
+		}
+	}
+}
+
 static void dialogos(void) {
-	if (op && op_st.pergunta) {
+	if (esc_confirmar_substituir) {
+		dialogo(CLAY_ID("dlg-esc-substituir"), 460, "Substituir?", corpo_esc_substituir, botoes_esc_substituir);
+	} else if (op && op_st.pergunta) {
 		dialogo(CLAY_ID("dlg-conflito"), 460, "Já existe", corpo_conflito, botoes_conflito);
 	} else if (confirmar_apagar) {
 		dialogo(CLAY_ID("dlg-apagar"), 440, "Apagar para sempre?", corpo_apagar, botoes_apagar);
@@ -4384,7 +4548,7 @@ static void mover_foco(int dk) {
 static void teclado_atalhos(void) {
 	bool digitando = gv_focado(CLAY_ID("busca")) || gv_focado(CLAY_ID("mn-nome")) || gv_focado(CLAY_ID("renome")) || gv_focado(CLAY_ID("caminho-campo")) || gv_focado(CLAY_ID("cl-url"));
 	uint32_t mods = gv_modificadores();
-	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || abrir_com_aberto || rede_dialogo_aberto();
+	bool dialogo_aberto = esc_confirmar_substituir || (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || abrir_com_aberto || rede_dialogo_aberto();
 	for (int i = 0;; i++) {
 		uint32_t k = gv_tecla_n(i);
 		if (!k) {
@@ -4395,7 +4559,7 @@ static void teclado_atalhos(void) {
 				if (op && op_st.pergunta) {
 					ar_op_cancelar(op);
 				}
-				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = clonar_aberto = false;
+				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = clonar_aberto = esc_confirmar_substituir = false;
 				if (abrir_com_aberto) {
 					abrir_com_aberto = false;
 					ac_liberar();
@@ -4496,6 +4660,8 @@ static void teclado_atalhos(void) {
 			if (busca[0]) {
 				busca[0] = '\0';
 				refiltrar();
+			} else if (modo_escolher) {
+				esc_sair(1); /* o seletor: Esc cancela */
 			} else {
 				limpar_selecao();
 			}
@@ -6329,7 +6495,7 @@ static void debug_posicoes(void) {
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
 	GPtrArray *ids = g_ptr_array_new();
 	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
-		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-abrir-com", "ac-todos", "ac-sempre", "ac-ok", "ac-cancelar", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
+		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "esc-cancelar", "esc-ok", "esc-nome", "esc-filtro", "esc-sub-sim", "esc-sub-nao", "mi-abrir", "mi-abrir-com", "ac-todos", "ac-sempre", "ac-ok", "ac-cancelar", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
 		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "l-lixeira", "l-rede", "ml-abrir", "ml-aba", "ml-janela", "ml-esvaziar", "ml-esconder", "ml-remover", "ml-personalizar", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
@@ -6398,8 +6564,8 @@ static void debug_posicoes(void) {
 			g_free(linha);
 		}
 	}
-	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d carregando=%d abrircom=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
-		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")), carregando, abrir_com_aberto);
+	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d carregando=%d abrircom=%d esc=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
+		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")), carregando, abrir_com_aberto, modo_escolher);
 	static char *estado_antes;
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		mudou_algo = true;
@@ -6513,7 +6679,11 @@ static void desenhar(gv_app *a, void *dados) {
 				painel_detalhes();
 			}
 		}
-		barra_status();
+		if (modo_escolher) {
+			barra_escolher();
+		} else {
+			barra_status();
+		}
 	}
 	if (dnd_alvo[0] && dnd_alvo_idx < 0 && !strcmp(dnd_alvo, pasta)) { /* soltando no fundo da lista: o contorno da lista inteira */
 		Clay_BoundingBox b = gv_caixa(ID_CONTEUDO);
@@ -6570,6 +6740,58 @@ int main(int argc, char **argv) {
 	if (getenv("LUMNA_ATLAS_DEBUG") && getenv("LUMNA_ATLAS_FALSO_DIR")) {
 		ar_rede_usar_montagem_falsa(montagem_de_teste);
 	}
+	/* o modo escolher (o seletor de arquivos do sistema): as opções vão para o estado e saem dos argumentos */
+	for (int i = 1; i < argc;) {
+		const char *a = argv[i];
+		bool uso = true;
+		if (g_str_has_prefix(a, "--escolher=")) {
+			const char *m = a + 11;
+			modo_escolher = !strcmp(m, "pasta") ? ESC_PASTA : !strcmp(m, "salvar") ? ESC_SALVAR : ESC_ABRIR;
+			esc_multiplo = !strcmp(m, "abrir-varios");
+		} else if (g_str_has_prefix(a, "--titulo=")) {
+			g_strlcpy(esc_titulo, a + 9, sizeof(esc_titulo));
+		} else if (g_str_has_prefix(a, "--pasta=")) {
+			g_strlcpy(esc_pasta_ini, a + 8, sizeof(esc_pasta_ini));
+		} else if (g_str_has_prefix(a, "--nome=")) {
+			g_strlcpy(esc_nome, a + 7, sizeof(esc_nome));
+		} else if (g_str_has_prefix(a, "--rotulo=")) {
+			g_strlcpy(esc_rotulo, a + 9, sizeof(esc_rotulo));
+		} else if (g_str_has_prefix(a, "--filtro-atual=")) {
+			esc_filtro_sel = atoi(a + 15);
+		} else if (g_str_has_prefix(a, "--filtro=") && esc_nfiltros < 16) {
+			char *copia = g_strdup(a + 9);
+			char *sep = strstr(copia, "::");
+			if (sep) {
+				*sep = '\0';
+				g_strlcpy(esc_filtros[esc_nfiltros].nome, copia, sizeof(esc_filtros[esc_nfiltros].nome));
+				char **partes = g_strsplit(sep + 2, ",", -1);
+				for (int k = 0; partes[k] && esc_filtros[esc_nfiltros].n < 24; k++) {
+					if ((partes[k][0] == 'g' || partes[k][0] == 'm') && partes[k][1] == '=') {
+						esc_filtros[esc_nfiltros].pad[esc_filtros[esc_nfiltros].n++] = g_strdup_printf("%c:%s", partes[k][0], partes[k] + 2);
+					}
+				}
+				g_strfreev(partes);
+				esc_filtro_nomes[esc_nfiltros] = esc_filtros[esc_nfiltros].nome;
+				esc_nfiltros++;
+			}
+			g_free(copia);
+		} else {
+			uso = false;
+		}
+		if (uso) {
+			memmove(&argv[i], &argv[i + 1], (size_t)(argc - i) * sizeof(char *));
+			argc--;
+		} else {
+			i++;
+		}
+	}
+	if (esc_filtro_sel < 0 || esc_filtro_sel >= esc_nfiltros) {
+		esc_filtro_sel = 0;
+	}
+	if (modo_escolher && g_file_test(esc_pasta_ini, G_FILE_TEST_IS_DIR)) {
+		argv[argc++] = esc_pasta_ini; /* o seletor abre na pasta que o app pediu */
+		argv[argc] = NULL;
+	}
 	/* quem abre uma pasta pelo sistema (xdg-open, "Mostrar na pasta") manda file:///caminho: vira o caminho */
 	if (argc > 1 && g_str_has_prefix(argv[1], "file://")) {
 		char *c = g_filename_from_uri(argv[1], NULL, NULL);
@@ -6622,7 +6844,14 @@ int main(int argc, char **argv) {
 	if (especial) {
 		destino = especial;
 	}
-	app = gv_app_criar(&(gv_opcoes){ .titulo = "Atlas", .app_id = "lumna-atlas", .largura = 1240, .altura = 760 });
+	if (modo_escolher) { /* o seletor não abre no Início: numa pasta, e sem o painel de detalhes */
+		if (!g_file_test(destino, G_FILE_TEST_IS_DIR)) {
+			destino = g_get_home_dir();
+		}
+		detalhes = false;
+	}
+	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_escolher ? esc_titulo : "Atlas", .app_id = modo_escolher ? "lumna-atlas-escolher" : "lumna-atlas",
+		.largura = modo_escolher ? 1040 : 1240, .altura = modo_escolher ? 700 : 760 });
 	gv_arraste_aceitar(MIME_URIS);
 	if (!app) {
 		return 1;
@@ -6633,6 +6862,9 @@ int main(int argc, char **argv) {
 	}
 	ir_para(destino, true);
 	int r = gv_app_correr(app, desenhar, NULL);
+	if (modo_escolher && !esc_feito) {
+		return 1; /* a janela foi fechada sem escolher: é cancelar */
+	}
 	liberar_lista();
 	ar_hist_liberar(&hist);
 	return r;
