@@ -107,6 +107,16 @@ static ar_sugestao sug[12];
 static int n_sug, sug_sel = -1;
 static bool confirmar_esvaziar;     /* confirmar esvaziar a lixeira */
 static bool clonar_aberto;          /* o diálogo do git clone */
+/* "Abrir com...": a janelinha de escolher o aplicativo de um arquivo */
+static bool abrir_com_aberto;
+static char ac_caminho[4096], ac_mime[160];
+static GAppInfo *ac_apps[96];
+static int ac_n, ac_sel = -1;
+static bool ac_todos, ac_sempre;     /* "mostrar todos os aplicativos" e "sempre usar este para este tipo de arquivo" */
+static double ac_ultimo_clique;
+static int ac_ultimo_item = -1;
+static bool ac_pedir_abrir;          /* o duplo clique numa linha: abre quando a janelinha acabar de ser desenhada */
+static void abrir_com_comecar(const char *caminho);
 static char clonar_url[512];
 static bool focar_clonar;
 static bool para_todos;             /* o "aplicar a todos" da pergunta de conflito */
@@ -240,6 +250,7 @@ typedef struct {
 static unsigned lst_geracao;       /* a de agora: o que chega de outra geração foi superado por uma pasta mais nova */
 static listagem *lst_chegada;      /* um resultado que chegou e espera o começo do próximo quadro para entrar */
 static bool carregando;            /* uma listagem lenta em andamento */
+static char sel_inicial[1024];     /* o arquivo a selecionar quando a pasta chegar ("Mostrar na pasta" de um download, atlas ARQUIVO) */
 static GPtrArray *lst_nomes;       /* os caminhos selecionados a manter quando ela chegar */
 static bool lst_preservar;
 
@@ -3133,6 +3144,12 @@ static void menu_do_item(void) {
 		}
 		FECHAR_MENU();
 	}
+	if (unico && !pasta1 && cam[i] && gv_menu_item(CLAY_ID("mi-abrir-com"), "external", "Abrir com…", NULL)) {
+		char *alvo = g_strdup(cam[i]);
+		FECHAR_MENU();
+		abrir_com_comecar(alvo);
+		g_free(alvo);
+	}
 	if (pasta1 && gv_menu_item(CLAY_ID("mi-aba"), "plus", "Abrir em nova aba", NULL)) {
 		char *alvo = g_strdup(cam[i]); /* a aba nova relê a lista: o caminho tem de ser uma cópia */
 		FECHAR_MENU();
@@ -4124,6 +4141,143 @@ static void botoes_clone(void) {
 	}
 }
 
+/* --- Abrir com... --- */
+
+static void ac_liberar(void) {
+	for (int i = 0; i < ac_n; i++) {
+		g_object_unref(ac_apps[i]);
+	}
+	ac_n = 0;
+	ac_sel = -1;
+}
+
+/* os aplicativos do tipo do arquivo (o padrão primeiro) ou, com "todos", tudo o que tem atalho */
+static void ac_listar(void) {
+	ac_liberar();
+	GList *l = ac_todos || !ac_mime[0] ? g_app_info_get_all() : g_app_info_get_all_for_type(ac_mime);
+	GAppInfo *padrao = ac_mime[0] ? g_app_info_get_default_for_type(ac_mime, FALSE) : NULL;
+	if (padrao && !ac_todos) {
+		ac_apps[ac_n++] = g_object_ref(padrao);
+	}
+	for (GList *x = l; x && ac_n < (int)(sizeof(ac_apps) / sizeof(ac_apps[0])); x = x->next) {
+		GAppInfo *a = x->data;
+		if (!g_app_info_should_show(a) || (padrao && !ac_todos && g_app_info_equal(padrao, a))) {
+			continue;
+		}
+		ac_apps[ac_n++] = g_object_ref(a);
+	}
+	g_list_free_full(l, g_object_unref);
+	if (padrao) {
+		g_object_unref(padrao);
+	}
+	ac_sel = ac_n ? 0 : -1;
+}
+
+static void abrir_com_comecar(const char *caminho) {
+	g_strlcpy(ac_caminho, caminho, sizeof(ac_caminho));
+	char *tipo = g_content_type_guess(caminho, NULL, 0, NULL);
+	g_strlcpy(ac_mime, tipo ? tipo : "", sizeof(ac_mime));
+	g_free(tipo);
+	ac_todos = false;
+	ac_sempre = false;
+	ac_ultimo_item = -1;
+	ac_listar();
+	if (!ac_n) { /* nada instalado para esse tipo: mostra todos */
+		ac_todos = true;
+		ac_listar();
+	}
+	abrir_com_aberto = true;
+}
+
+static void abrir_com_executar(void) {
+	if (ac_sel < 0 || ac_sel >= ac_n) {
+		return;
+	}
+	GAppInfo *app = ac_apps[ac_sel];
+	GFile *arq = g_file_new_for_path(ac_caminho);
+	GList *arquivos = g_list_append(NULL, arq);
+	GError *err = NULL;
+	if (!g_app_info_launch(app, arquivos, NULL, &err)) {
+		avisar("Não consegui abrir com %s: %s", g_app_info_get_display_name(app), err ? err->message : "erro");
+		g_clear_error(&err);
+	} else {
+		if (ac_sempre && ac_mime[0] && !g_app_info_set_as_default_for_type(app, ac_mime, &err)) {
+			avisar("Abri, mas não consegui guardar o padrão: %s", err ? err->message : "erro");
+			g_clear_error(&err);
+		}
+		abrir_com_aberto = false;
+		ac_liberar();
+	}
+	g_list_free(arquivos);
+	g_object_unref(arq);
+}
+
+static void corpo_abrir_com(void) {
+	char *nome = g_path_get_basename(ac_caminho);
+	texto_dialogo(gv_fmt("Escolha o aplicativo para abrir \"%s\".", nome).chars);
+	g_free(nome);
+	Clay_ElementId rol = CLAY_ID("ac-rolagem");
+	CLAY(rol, gv_rolagem(rol, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(300) }, .childGap = 4 } })) {
+		if (!ac_n) {
+			gv_texto(CLAY_STRING("Nenhum aplicativo instalado abre este tipo de arquivo."), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		for (int i = 0; i < ac_n; i++) {
+			Clay_ElementId id = CLAY_IDI("ac-app", (uint32_t)i);
+			bool marcado = i == ac_sel;
+			const char *nome_app = g_app_info_get_display_name(ac_apps[i]);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 12, 12, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = marcado ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+				gv_icone("external", 20, marcado ? gv_t.texto : gv_t.texto_secundario);
+				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+					gv_texto(gv_str(nome_app), gv_t.tamanho_corpo, gv_t.texto, marcado ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				}
+				if (i == 0 && !ac_todos && ac_mime[0]) {
+					GAppInfo *padrao = g_app_info_get_default_for_type(ac_mime, FALSE);
+					if (padrao && g_app_info_equal(padrao, ac_apps[i])) {
+						gv_texto(CLAY_STRING("padrão"), gv_t.tamanho_legenda + 1, gv_t.texto_suave, GV_PESO_NORMAL);
+					}
+					if (padrao) {
+						g_object_unref(padrao);
+					}
+				}
+			}
+			if (gv_tocado(id)) {
+				double agora = gv_agora();
+				ac_sel = i;
+				if (ac_ultimo_item == i && agora - ac_ultimo_clique < 0.45) { /* o duplo clique abre (nos botões, depois de a lista acabar de ser desenhada) */
+					ac_pedir_abrir = true;
+				}
+				ac_ultimo_item = i;
+				ac_ultimo_clique = agora;
+				gv_app_redesenhar(app);
+			}
+		}
+	}
+	CLAY(CLAY_ID("ac-todos-linha"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		bool antes = ac_todos;
+		gv_interruptor(CLAY_ID("ac-todos"), &ac_todos);
+		gv_texto(CLAY_STRING("Mostrar todos os aplicativos"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		if (antes != ac_todos) {
+			ac_listar();
+		}
+	}
+	CLAY(CLAY_ID("ac-sempre-linha"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		gv_interruptor(CLAY_ID("ac-sempre"), &ac_sempre);
+		gv_texto(CLAY_STRING("Sempre usar este aplicativo para este tipo de arquivo"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+	}
+}
+static void botoes_abrir_com(void) {
+	bool pedido = ac_pedir_abrir;
+	ac_pedir_abrir = false;
+	if (gv_botao_ext(CLAY_ID("ac-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
+		abrir_com_aberto = false;
+		ac_liberar();
+	}
+	if (gv_botao_ext(CLAY_ID("ac-ok"), &(gv_botao_opcoes){ .icone = "external", .texto = "Abrir", .estilo = GV_BOTAO_CHEIO, .desativado = ac_sel < 0 }) || (pedido && abrir_com_aberto)) {
+		abrir_com_executar();
+	}
+}
+
 static void dialogos(void) {
 	if (op && op_st.pergunta) {
 		dialogo(CLAY_ID("dlg-conflito"), 460, "Já existe", corpo_conflito, botoes_conflito);
@@ -4131,6 +4285,8 @@ static void dialogos(void) {
 		dialogo(CLAY_ID("dlg-apagar"), 440, "Apagar para sempre?", corpo_apagar, botoes_apagar);
 	} else if (confirmar_esvaziar) {
 		dialogo(CLAY_ID("dlg-esvaziar"), 440, "Esvaziar a lixeira?", corpo_esvaziar, botoes_esvaziar);
+	} else if (abrir_com_aberto) {
+		dialogo(CLAY_ID("dlg-abrir-com"), 520, "Abrir com", corpo_abrir_com, botoes_abrir_com);
 	} else if (clonar_aberto) {
 		dialogo(CLAY_ID("dlg-clone"), 520, "Git clone", corpo_clone, botoes_clone);
 	} else if (propriedades_abertas) {
@@ -4228,7 +4384,7 @@ static void mover_foco(int dk) {
 static void teclado_atalhos(void) {
 	bool digitando = gv_focado(CLAY_ID("busca")) || gv_focado(CLAY_ID("mn-nome")) || gv_focado(CLAY_ID("renome")) || gv_focado(CLAY_ID("caminho-campo")) || gv_focado(CLAY_ID("cl-url"));
 	uint32_t mods = gv_modificadores();
-	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || rede_dialogo_aberto();
+	bool dialogo_aberto = (op && op_st.pergunta) || confirmar_apagar || confirmar_esvaziar || propriedades_abertas || clonar_aberto || abrir_com_aberto || rede_dialogo_aberto();
 	for (int i = 0;; i++) {
 		uint32_t k = gv_tecla_n(i);
 		if (!k) {
@@ -4240,6 +4396,10 @@ static void teclado_atalhos(void) {
 					ar_op_cancelar(op);
 				}
 				confirmar_apagar = confirmar_esvaziar = propriedades_abertas = clonar_aberto = false;
+				if (abrir_com_aberto) {
+					abrir_com_aberto = false;
+					ac_liberar();
+				}
 			}
 			continue;
 		}
@@ -6169,7 +6329,7 @@ static void debug_posicoes(void) {
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
 	GPtrArray *ids = g_ptr_array_new();
 	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
-		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
+		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "mi-abrir", "mi-abrir-com", "ac-todos", "ac-sempre", "ac-ok", "ac-cancelar", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
 		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "l-lixeira", "l-rede", "ml-abrir", "ml-aba", "ml-janela", "ml-esvaziar", "ml-esconder", "ml-remover", "ml-personalizar", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
 		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
@@ -6184,7 +6344,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "in-disco", 4 }, { "in-unid", 4 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "ac-app", 12 }, { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "in-disco", 4 }, { "in-unid", 4 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {
@@ -6238,8 +6398,8 @@ static void debug_posicoes(void) {
 			g_free(linha);
 		}
 	}
-	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d carregando=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
-		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")), carregando);
+	char *estado = g_strdup_printf("vista=%d pasta=%s nvis=%d sel=%d busca=[%s] ocultos=%d ordem=%d%s lista=%d filtro=%d lixeira=%d editando=%d op=%d nsug=%d pagina=%d abas=%d aba=%d props=%d nshares=%d nmont=%d ncontas=%d cx=%d mc=%d ms=%d mr=%d carregando=%d abrircom=%d", vista, vista == V_PASTA ? pasta : "-", nvis,
+		n_selecionados(), busca, cfg.ocultos, cfg.ordem, cfg.decrescente ? "-" : "+", vista_atual, filtro, em_lixeira(), editando_caminho, op != NULL, n_sug, pagina_cfg, n_abas, aba_atual, propriedades_abertas, rede.n_shares, ({ int m = 0; for (int q = 0; q < rede.n_shares; q++) { m += rede_montado[q]; } m; }), rede.n_contas, cx ? cx_st.fase : -1, menu_conta, menu_share, gv_popup_aberto(CLAY_ID("menu-rede")), carregando, abrir_com_aberto);
 	static char *estado_antes;
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		mudou_algo = true;
@@ -6298,6 +6458,22 @@ static void desenhar(gv_app *a, void *dados) {
 		lst_chegada = NULL;
 		lst_aplicar(l);
 		lst_liberar(l);
+	}
+	if (sel_inicial[0] && vista == V_PASTA && !carregando && lista.n > 0) { /* a pasta chegou: seleciona e mostra o arquivo que mandaram mostrar */
+		for (int i = 0; i < lista.n; i++) {
+			if (!strcmp(lista.v[i].nome, sel_inicial)) {
+				int pos = pos_em_vis(i);
+				limpar_selecao();
+				sel[i] = true;
+				ancora = foco = i;
+				if (pos >= 0) {
+					float ch = modo_lista ? altura_linha() : tam_icone() + 14 + 10 + 6 + (gv_t.tamanho_corpo + 6) * 2 + 20;
+					gv_rolar_para(ID_CONTEUDO, 0, (modo_lista ? pos : pos / (colunas > 0 ? colunas : 1)) * ch, false);
+				}
+				break;
+			}
+		}
+		sel_inicial[0] = '\0';
 	}
 	ino_rever();
 	texto_aplicar(true);
@@ -6400,6 +6576,13 @@ int main(int argc, char **argv) {
 		if (c) {
 			argv[1] = c;
 		}
+	}
+	/* um arquivo (não pasta) na linha de comando: abre a pasta dele com ele selecionado (é o que "Mostrar na pasta" pede) */
+	if (argc > 1 && argv[1][0] == '/' && g_file_test(argv[1], G_FILE_TEST_EXISTS) && !g_file_test(argv[1], G_FILE_TEST_IS_DIR)) {
+		char *pai = g_path_get_dirname(argv[1]), *nome = g_path_get_basename(argv[1]);
+		g_strlcpy(sel_inicial, nome, sizeof(sel_inicial));
+		g_free(nome);
+		argv[1] = pai;
 	}
 	/* uma janela nova pode abrir numa lista (@recentes, @favoritos, @rede...) */
 	const char *especial = argc > 1 && (!strcmp(argv[1], ESPECIAL_INICIO) || !strcmp(argv[1], ESPECIAL_RECENTES) || !strcmp(argv[1], ESPECIAL_FAVORITOS) || !strcmp(argv[1], ESPECIAL_REDE) || !strcmp(argv[1], ESPECIAL_NUVEM)) ? argv[1] : NULL;

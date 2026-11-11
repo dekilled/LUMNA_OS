@@ -256,3 +256,7 @@ emma-app: exemplos/emma-app.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emm
 
 emma-chat: exemplos/emma-chat.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emma_ativa.c servicos/emmac.c servicos/emmac.h servicos/json.c servicos/modos.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -Iexemplos -o $@ exemplos/emma-chat.c exemplos/emma-ui.c servicos/emma_ativa.c servicos/emmac.c servicos/json.c servicos/modos.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+
+# lumna-portal: o que o sistema pede ao gerenciador de arquivos ("Mostrar na pasta"), respondido pelo Atlas; só GIO, sem tela
+portal: exemplos/portal.c
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/portal.c $(shell pkg-config --libs gio-2.0)

@@ -7,6 +7,11 @@ export XDG_SESSION_DESKTOP=lumna
 export ORBIT_BORDA=0
 export ORBIT_TERMINAL=lumna-pulse
 [ -f /usr/lib/lumna/gpu-env ] && . /usr/lib/lumna/gpu-env
+# "Mostrar na pasta" dos downloads (org.freedesktop.FileManager1) é do Atlas: o serviço do usuário vale mais que o de um Thunar que sobrou no sistema
+_fm1="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services/org.freedesktop.FileManager1.service"
+if [ -f /usr/share/dbus-1/services/org.freedesktop.FileManager1.service ] && ! cmp -s /usr/share/dbus-1/services/org.freedesktop.FileManager1.service "$_fm1" 2>/dev/null; then
+	mkdir -p "$(dirname "$_fm1")" && cp /usr/share/dbus-1/services/org.freedesktop.FileManager1.service "$_fm1"
+fi
 # Os portais (escolher arquivo, compartilhar tela) são ativados pelo D-Bus: precisam saber qual é a tela e o desktop.
 # O Orbit só cria o WAYLAND_DISPLAY depois de subir, então o -s empurra o ambiente para o D-Bus antes das peças.
 exec dbus-run-session -- orbit -s 'dbus-update-activation-environment WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP

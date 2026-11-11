@@ -500,6 +500,9 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.382 | Atlas: clicar uma vez numa pasta (principalmente uma grande) | A seleção aparece na hora, sem esperar uns 500 ms | ☐ |
 | 2.383 | Gaming num monitor, abrir o CS:GO (ou outro jogo que troca a resolução sozinho) | A janela fica do tamanho do monitor do Gaming e o jogo preenche a tela inteira; nada de um pedaço pequeno no canto | ☐ |
 | 2.384 | Depois do item acima, rodar `journalctl -b | grep 'xwl:'` | O log mostra cada janela X11 do jogo (classe, posição, tamanho, saída); serve para investigar se sobrar algo | ☐ |
+| 2.385 | No Firefox, baixar um arquivo e clicar em 'Mostrar na pasta' | Abre o Atlas na pasta, com o arquivo selecionado (e não o Thunar) | ☐ |
+| 2.386 | Atlas: botão direito (ou segurar) num arquivo > 'Abrir com…' | A janelinha lista os aplicativos do tipo; escolher e Abrir lança o app com o arquivo; 'Mostrar todos' lista tudo; 'Sempre usar' guarda o padrão; Esc fecha | ☐ |
+| 2.387 | `xdg-mime default lumna-atlas.desktop inode/directory` e abrir uma pasta por outro app (xdg-open) | Abre o Atlas | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

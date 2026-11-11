@@ -29,7 +29,7 @@ options=(!strip !debug)
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad portal)
 
 build() {
   cd "$_root/gravity"
@@ -55,4 +55,6 @@ package() {
   install -Dm644 -t "$pkgdir/usr/share/applications" desktop/*.desktop
   install -Dm644 -t "$pkgdir/usr/share/icons/hicolor/scalable/apps" icones/*.svg
   install -Dm644 lumna-portals.conf "$pkgdir/usr/share/xdg-desktop-portal/lumna-portals.conf"
+  # "Mostrar na pasta" (Firefox, Chromium, Steam...) abre o Atlas: o lumna-portal responde ao org.freedesktop.FileManager1
+  install -Dm644 dbus/org.freedesktop.FileManager1.service "$pkgdir/usr/share/dbus-1/services/org.freedesktop.FileManager1.service"
 }

@@ -66,6 +66,14 @@ if [ $rc -eq 0 ]; then
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_abrircom.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_mostrar.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_clique.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
