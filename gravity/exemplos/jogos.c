@@ -16,10 +16,15 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "gravity.h"
+#include "bluetooth.h"
+#include "gamepad.h"
+#include "gamepadc.h"
 #include "jogos.h"
+#include "json.h"
 #include "modos.h"
 
-enum { T_INICIO, T_BIBLIOTECA, T_DETALHES };
+enum { T_INICIO, T_BIBLIOTECA, T_DETALHES, T_CONFIG };
+enum { CP_CONTROLES, CP_AJUSTES, CP_GUIA, CP_GAMING, CP_N };
 enum { ABA_PRINCIPAL, ABA_PROPRIEDADES };
 enum { F_TODOS, F_FAVORITOS, F_STEAM, F_LUTRIS, F_HEROIC, F_AVULSOS, F_N };
 
@@ -39,6 +44,22 @@ static double aviso_ate, relista_em;
 static bool confirmando, apagar_arquivos, adicionando;
 static char add_nome[128], add_exec[400];
 static char env_k[JOGO_ENV_MAX][48], env_v[JOGO_ENV_MAX][120];
+
+/* ---- configurações do Gaming ---- */
+struct ctl {
+	char id[64], nome[96], apelido[48];
+	bool bluetooth, vibra, ignorado;
+	int bateria;
+};
+static int cfg_pg;
+static struct gp_cfg gcfg;
+static struct ctl ctls[GP_MAX];
+static int nctl;
+static bool servico_pad;
+static double pad_lido_em;
+static bool bt_ligado;
+static char renomeando[64], apelido_ed[48], remover_bt[96], teste_msg[160];
+static bool dnd_gaming;
 
 static const char *const filtros_nome[F_N] = { "Todos", "Favoritos", "Steam", "Lutris", "Heroic", "Avulsos" };
 
@@ -155,6 +176,8 @@ static void abrir_detalhes(const struct jogo *j) {
 	confirmando = false;
 }
 
+static void abrir_config(void);
+
 static void abrir(const struct jogo *j) {
 	char erro[200] = "";
 	if (jogos_lancar(j, erro, sizeof(erro))) {
@@ -222,6 +245,9 @@ static void barra_cima(void) {
 		if (aviso[0] && gv_agora() < aviso_ate) {
 			gv_texto(gv_str(aviso), U(18), gv_t.aviso, GV_PESO_NORMAL);
 		}
+		if (gv_botao_redondo(CLAY_ID("engrenagem"), "settings", U(44), tela == T_CONFIG, false)) {
+			abrir_config();
+		}
 		time_t t = time(NULL);
 		struct tm lt;
 		localtime_r(&t, &lt);
@@ -234,9 +260,10 @@ static void barra_baixo(void) {
 		.backgroundColor = (Clay_Color){ 8, 6, 20, 170 } }) {
 		gv_texto(CLAY_STRING("Enter  Selecionar"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
 		gv_texto(CLAY_STRING("Esc  Voltar"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
-		if (tela == T_DETALHES) {
-			gv_texto(CLAY_STRING("Tab  Abas"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
+		if (tela == T_DETALHES || tela == T_CONFIG) {
+			gv_texto(CLAY_STRING("LB RB  Abas"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
 		}
+		gv_texto(CLAY_STRING("Guia  Menu do Gaming"), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
 	}
 }
 
@@ -753,17 +780,382 @@ static void t_detalhes(void) {
 	}
 }
 
+/* ---------------- Configurações do Gaming ---------------- */
+
+static void pad_ler(void) {
+	char *r = g_malloc(32 * 1024);
+	servico_pad = false;
+	nctl = 0;
+	if (gamepadc_pedido("estado", r, 32 * 1024)) {
+		struct json *j = json_ler(r);
+		if (j && json_bool(json_chave(j, "ok"), false)) {
+			servico_pad = true;
+			const struct json *l = json_chave(j, "controles");
+			for (int i = 0; l && i < l->nfilhos && nctl < GP_MAX; i++) {
+				const struct json *c = json_item(l, i);
+				struct ctl *o = &ctls[nctl++];
+				g_strlcpy(o->id, json_chave_texto(c, "id"), sizeof(o->id));
+				g_strlcpy(o->nome, json_chave_texto(c, "nome"), sizeof(o->nome));
+				g_strlcpy(o->apelido, json_chave_texto(c, "apelido"), sizeof(o->apelido));
+				o->bluetooth = json_bool(json_chave(c, "bluetooth"), false);
+				o->vibra = json_bool(json_chave(c, "vibra"), false);
+				o->ignorado = json_bool(json_chave(c, "ignorado"), false);
+				o->bateria = (int)json_numero(json_chave(c, "bateria"), -1);
+			}
+		}
+		json_liberar(j);
+	}
+	g_free(r);
+	gp_cfg_ler(&gcfg);
+	struct modos_cfg mc;
+	modos_cfg_ler(&mc);
+	dnd_gaming = mc.m[MODO_GAMING].nao_perturbe;
+	pad_lido_em = gv_agora();
+}
+
+static void bt_mudou(gv_app *a, int fd, void *dados) {
+	uint64_t v;
+	if (read(fd, &v, sizeof(v)) < 0) {
+	}
+	gv_app_redesenhar(a);
+}
+
+static void cfg_salvar(void) {
+	gp_cfg_gravar(&gcfg);
+	char r[256];
+	gamepadc_pedido("recarregar", r, sizeof(r));
+}
+
+static void abrir_config(void) {
+	tela = T_CONFIG;
+	confirmando = false;
+	adicionando = false;
+	pad_ler();
+	if (!bt_ligado) {
+		int fd = bt_iniciar();
+		if (fd >= 0) {
+			gv_app_vigiar(app, fd, bt_mudou, NULL);
+		}
+		bt_ligado = true;
+	}
+}
+
+static void ctl_nome(const struct ctl *c, char *saida, size_t tam) {
+	g_strlcpy(saida, c->apelido[0] ? c->apelido : c->nome, tam);
+}
+
+static bool e_controle_bt(const struct bt_disp *d) {
+	return g_str_has_prefix(d->icone, "input-gaming") || g_str_has_prefix(d->icone, "input-joystick");
+}
+
+static void cfg_controles(void) {
+	CLAY(CLAY_ID("cfg-ctl"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(12) } }) {
+		gv_texto(CLAY_STRING("Controles conectados"), U(28), gv_t.texto, GV_PESO_MEDIO);
+		if (!servico_pad) {
+			gv_texto(CLAY_STRING("O serviço dos controles (lumna-gamepad) não está rodando."), U(18), gv_t.aviso, GV_PESO_NORMAL);
+		} else if (!nctl) {
+			gv_texto(CLAY_STRING("Nenhum controle conectado. Ligue um por USB ou pareie um por Bluetooth, logo abaixo."), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		for (int i = 0; i < nctl; i++) {
+			struct ctl *c = &ctls[i];
+			char nome[96];
+			ctl_nome(c, nome, sizeof(nome));
+			CLAY(CLAY_IDI("ctl", (uint32_t)i), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(U(16)), .childGap = U(10) },
+				.backgroundColor = (Clay_Color){ 255, 255, 255, 12 }, .cornerRadius = CLAY_CORNER_RADIUS(U(8)), .border = { .color = (Clay_Color){ 255, 255, 255, 30 }, .width = GV_BORDA(1) } }) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(14), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+					gv_icone("gamepad", U(36), c->ignorado ? gv_t.texto_suave : gv_t.acento);
+					CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						gv_texto(gv_str(nome), U(22), c->ignorado ? gv_t.texto_secundario : gv_t.texto, GV_PESO_MEDIO);
+						gv_texto(gv_fmt("%s%s%s%s", c->bluetooth ? "Bluetooth" : "USB", c->bateria >= 0 ? " · bateria " : "", c->bateria >= 0 ? gv_fmt("%d%%", c->bateria).chars : "",
+							c->ignorado ? " · ignorado" : ""), U(16), gv_t.texto_secundario, GV_PESO_NORMAL);
+					}
+				}
+				bool editando = !strcmp(renomeando, c->id);
+				if (editando) {
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(10), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+						CLAY(CLAY_IDI("ctl-ap", (uint32_t)i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+							int r = gv_campo(CLAY_IDI("ctl-apc", (uint32_t)i), apelido_ed, sizeof(apelido_ed), "Apelido (ex.: Controle da sala)", GV_CAMPO_TEXTO);
+							if (r & GV_CAMPO_ENTER) {
+								char p[200], resp[256];
+								g_snprintf(p, sizeof(p), "apelido %s %s", c->id, apelido_ed);
+								gamepadc_pedido(p, resp, sizeof(resp));
+								renomeando[0] = '\0';
+								pad_ler();
+							}
+						}
+						if (gv_botao_ext(CLAY_IDI("ctl-ap-ok", (uint32_t)i), &(gv_botao_opcoes){ .texto = "Salvar", .estilo = GV_BOTAO_CHEIO, .altura = U(44) })) {
+							char p[200], resp[256];
+							g_snprintf(p, sizeof(p), "apelido %s %s", c->id, apelido_ed);
+							gamepadc_pedido(p, resp, sizeof(resp));
+							renomeando[0] = '\0';
+							pad_ler();
+						}
+						if (gv_botao_ext(CLAY_IDI("ctl-ap-x", (uint32_t)i), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO, .altura = U(44) })) {
+							renomeando[0] = '\0';
+						}
+					}
+				} else {
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(10) } }) {
+						if (gv_botao_ext(CLAY_IDI("ctl-vib", (uint32_t)i), &(gv_botao_opcoes){ .icone = "waves", .texto = "Testar vibração", .estilo = GV_BOTAO_ELEVADO, .altura = U(44), .desativado = !c->vibra })) {
+							char p[100], resp[256];
+							g_snprintf(p, sizeof(p), "vibrar %s", c->id);
+							g_strlcpy(teste_msg, gamepadc_pedido(p, resp, sizeof(resp)) && strstr(resp, "\"ok\":true") ? "Vibrou." : "Esse controle não vibra (ou a vibração está desligada em Ajustes).", sizeof(teste_msg));
+						}
+						if (gv_botao_ext(CLAY_IDI("ctl-ren", (uint32_t)i), &(gv_botao_opcoes){ .icone = "edit", .texto = "Renomear", .estilo = GV_BOTAO_ELEVADO, .altura = U(44) })) {
+							g_strlcpy(renomeando, c->id, sizeof(renomeando));
+							g_strlcpy(apelido_ed, c->apelido, sizeof(apelido_ed));
+						}
+						if (gv_botao_ext(CLAY_IDI("ctl-ign", (uint32_t)i), &(gv_botao_opcoes){ .icone = c->ignorado ? "play" : "close", .texto = c->ignorado ? "Voltar a usar" : "Ignorar", .estilo = GV_BOTAO_ELEVADO, .altura = U(44) })) {
+							char p[200], resp[256];
+							g_snprintf(p, sizeof(p), "ignorar %s %s", c->id, c->ignorado ? "nao" : "sim");
+							gamepadc_pedido(p, resp, sizeof(resp));
+							pad_ler();
+						}
+					}
+				}
+			}
+		}
+		if (teste_msg[0]) {
+			gv_texto(gv_str(teste_msg), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		/* adicionar e remover: o Bluetooth */
+		struct bt_estado bt;
+		bt_estado_copiar(&bt);
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 0, 0, U(14), 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_texto(CLAY_STRING("Adicionar um controle (Bluetooth)"), U(28), gv_t.texto, GV_PESO_MEDIO);
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {}
+			bool procurando = false;
+			for (int a = 0; a < bt.nadapt; a++) {
+				procurando |= bt.adapt[a].procurando;
+			}
+			if (bt.bluez && bt.nadapt && gv_botao_ext(CLAY_ID("bt-procurar"), &(gv_botao_opcoes){ .icone = "search", .texto = procurando ? "Parar de procurar" : "Procurar controles", .estilo = GV_BOTAO_CHEIO, .altura = U(44) })) {
+				for (int a = 0; a < bt.nadapt; a++) {
+					bt_procurar(bt.adapt[a].caminho, !procurando);
+				}
+			}
+		}
+		if (!bt.bluez) {
+			gv_texto(CLAY_STRING("O Bluetooth (BlueZ) não está disponível neste computador."), U(18), gv_t.aviso, GV_PESO_NORMAL);
+		} else if (!bt.nadapt) {
+			gv_texto(CLAY_STRING("Nenhum adaptador Bluetooth."), U(18), gv_t.texto_secundario, GV_PESO_NORMAL);
+		} else {
+			gv_texto(CLAY_STRING("Coloque o controle para parear (no Xbox: o botão de sincronizar; no PlayStation: Share + Guia)."), U(16), gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		int mostrados = 0;
+		for (int i = 0; i < bt.ndisp; i++) {
+			const struct bt_disp *d = &bt.disp[i];
+			if (!e_controle_bt(d)) {
+				continue;
+			}
+			mostrados++;
+			CLAY(CLAY_IDI("bt", (uint32_t)i), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(U(14)), .childGap = U(12), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = (Clay_Color){ 255, 255, 255, 8 }, .cornerRadius = CLAY_CORNER_RADIUS(U(8)), .border = { .color = (Clay_Color){ 255, 255, 255, 25 }, .width = GV_BORDA(1) } }) {
+				gv_icone("bluetooth", U(26), d->conectado ? gv_t.acento : gv_t.icone);
+				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(gv_str(d->nome), U(20), gv_t.texto, GV_PESO_MEDIO);
+					gv_texto(gv_str(d->conectado ? "Conectado" : d->pareado ? "Pareado" : "Disponível"), U(15), gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (!d->pareado) {
+					if (gv_botao_ext(CLAY_IDI("bt-parear", (uint32_t)i), &(gv_botao_opcoes){ .icone = "plus", .texto = "Parear", .estilo = GV_BOTAO_CHEIO, .altura = U(42) })) {
+						bt_parear(d->caminho);
+					}
+				} else {
+					if (!d->conectado && gv_botao_ext(CLAY_IDI("bt-conectar", (uint32_t)i), &(gv_botao_opcoes){ .texto = "Conectar", .estilo = GV_BOTAO_ELEVADO, .altura = U(42) })) {
+						bt_conectar(d->caminho);
+					}
+					bool conf = !strcmp(remover_bt, d->caminho);
+					if (gv_botao_ext(CLAY_IDI("bt-remover", (uint32_t)i), &(gv_botao_opcoes){ .icone = "trash", .texto = conf ? "Remover mesmo?" : "Remover", .estilo = conf ? GV_BOTAO_PERIGO : GV_BOTAO_ELEVADO, .altura = U(42) })) {
+						if (conf) {
+							bt_esquecer(d->caminho);
+							remover_bt[0] = '\0';
+						} else {
+							g_strlcpy(remover_bt, d->caminho, sizeof(remover_bt));
+						}
+					}
+				}
+			}
+		}
+		if (bt.bluez && bt.nadapt && !mostrados) {
+			gv_texto(CLAY_STRING("Nenhum controle Bluetooth à vista. Toque em \"Procurar controles\"."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		if (bt.erro[0]) {
+			gv_texto(gv_str(bt.erro), U(16), gv_t.perigo, GV_PESO_NORMAL);
+		}
+	}
+}
+
+static void cfg_ajustes(void) {
+	CLAY(CLAY_ID("cfg-aj"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(14) } }) {
+		gv_texto(CLAY_STRING("Ajustes do controle"), U(28), gv_t.texto, GV_PESO_MEDIO);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(6) } }) {
+			gv_texto(gv_fmt("Zona morta dos analógicos: %d%%", gcfg.zona_morta), U(20), gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(CLAY_STRING("Quanto o analógico precisa andar para contar na navegação. Controles gastos pedem mais. (Para navegar, nunca menos que 25%.)"), U(16), gv_t.texto_secundario, GV_PESO_NORMAL);
+			float v = gcfg.zona_morta / 50.0f;
+			CLAY(CLAY_ID("aj-zona-c"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(U(40)) } } }) {
+				if (gv_deslizante(CLAY_ID("aj-zona"), &v, U(8), U(24))) {
+					gcfg.zona_morta = (int)(v * 50.0f + 0.5f);
+					cfg_salvar();
+				}
+			}
+		}
+		if (gv_linha(CLAY_ID("aj-vib"), "waves", "Vibração", "Os tranquinhos de teste e do menu. Os jogos vibram pelo controle por conta própria.", &gcfg.vibracao)) {
+			cfg_salvar();
+		}
+		if (gv_linha(CLAY_ID("aj-ab"), "gamepad", "Trocar A e B (estilo Nintendo)", "A volta (Esc) e B confirma (Enter), só na navegação do Gaming.", &gcfg.trocar_ab)) {
+			cfg_salvar();
+		}
+		gv_texto(CLAY_STRING("Mapa dos botões na navegação"), U(22), gv_t.texto, GV_PESO_MEDIO);
+		static const char *const mapa[][2] = { { "Direcional / analógico esquerdo", "Setas" }, { "A", "Enter (confirma)" }, { "B", "Esc (volta)" }, { "LB e RB", "Troca de aba (Page Up e Page Down)" },
+			{ "Guia", "Abre o Gaming (veja a página Botão Guia)" } };
+		for (int i = 0; i < 5; i++) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(14) } }) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(U(300)) } } }) {
+					gv_texto(gv_str(mapa[i][0]), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				gv_texto(gv_str(mapa[i][1]), U(17), gv_t.texto, GV_PESO_NORMAL);
+			}
+		}
+	}
+}
+
+static void cfg_guia(void) {
+	static const char *const ids[4] = { "biblioteca", "inicio", "emma", "nada" };
+	static const char *const nomes[4] = { "Abrir a biblioteca de jogos", "Ir ao Início do Gaming", "Chamar a Emma", "Não fazer nada" };
+	static const char *const subs[4] = { "Traz o LUMNA Jogos para a frente (abre se estiver fechado).", "Traz o LUMNA Jogos e volta ao Início.", "Abre ou fecha o chat da Emma por cima do jogo.", "O botão Guia fica só para o jogo." };
+	CLAY(CLAY_ID("cfg-gu"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(12) } }) {
+		gv_texto(CLAY_STRING("Botão Guia"), U(28), gv_t.texto, GV_PESO_MEDIO);
+		gv_texto(CLAY_STRING("O que o botão do meio do controle faz, em qualquer janela (inclusive por cima de um jogo)."), U(17), gv_t.texto_secundario, GV_PESO_NORMAL);
+		for (int i = 0; i < 4; i++) {
+			bool sel_ = !strcmp(gcfg.guia, ids[i]);
+			Clay_ElementId id = CLAY_IDI("guia", (uint32_t)i);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(U(16)), .childGap = U(14), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = sel_ ? roxo(0.16f) : (Clay_Color){ 255, 255, 255, 10 }, .cornerRadius = CLAY_CORNER_RADIUS(U(8)), .border = { .color = sel_ ? roxo(1) : (Clay_Color){ 255, 255, 255, 30 }, .width = GV_BORDA(sel_ ? 2 : 1) } }) {
+				bool ativou = gv_focavel(id, U(8));
+				CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(gv_str(nomes[i]), U(21), gv_t.texto, GV_PESO_MEDIO);
+					gv_texto(gv_str(subs[i]), U(15), gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				if (sel_) {
+					gv_icone("check", U(26), gv_t.acento);
+				}
+				if (gv_tocado(id) || ativou) {
+					g_strlcpy(gcfg.guia, ids[i], sizeof(gcfg.guia));
+					cfg_salvar();
+				}
+			}
+		}
+	}
+}
+
+static void cfg_gaming(void) {
+	static const char *const energias[4] = { "Desempenho", "Equilibrado", "Economia", "Não mexer" };
+	static const char *const energia_id[4] = { "performance", "balanced", "power-saver", "nao" };
+	int e = 0;
+	for (int i = 0; i < 4; i++) {
+		if (!strcmp(gcfg.energia, energia_id[i])) {
+			e = i;
+		}
+	}
+	char *mango = g_find_program_in_path("mangohud");
+	CLAY(CLAY_ID("cfg-gm"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(14) } }) {
+		gv_texto(CLAY_STRING("Gaming"), U(28), gv_t.texto, GV_PESO_MEDIO);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = U(6) } }) {
+			gv_texto(CLAY_STRING("Perfil de energia no modo Gaming"), U(21), gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(CLAY_STRING("Ao entrar no Gaming o perfil muda; ao sair, volta ao que estava. Precisa do power-profiles-daemon."), U(16), gv_t.texto_secundario, GV_PESO_NORMAL);
+			CLAY(CLAY_ID("gm-energia-c"), { .layout = { .sizing = { CLAY_SIZING_FIXED(U(360)) } } }) {
+				if (gv_lista_suspensa(CLAY_ID("gm-energia"), energias, 4, &e)) {
+					g_strlcpy(gcfg.energia, energia_id[e], sizeof(gcfg.energia));
+					cfg_salvar();
+				}
+			}
+		}
+		if (gv_linha(CLAY_ID("gm-dnd"), "bell", "Não perturbar no Gaming", "Só os avisos urgentes passam enquanto a tela está em Gaming.", &dnd_gaming)) {
+			struct modos_cfg mc;
+			modos_cfg_ler(&mc);
+			mc.m[MODO_GAMING].nao_perturbe = dnd_gaming;
+			modos_cfg_gravar(&mc);
+		}
+		if (gv_linha(CLAY_ID("gm-fps"), "stack", "Mostrar o FPS (MangoHud)", mango ? "Nos jogos avulsos que o Gaming abre. Na Steam, use mangohud %command% nas opções do jogo." : "O MangoHud não está instalado (pacman -S mangohud).", &gcfg.fps)) {
+			cfg_salvar();
+		}
+	}
+	g_free(mango);
+}
+
+static void t_config(void) {
+	static const char *const paginas[CP_N] = { "Controles", "Ajustes do controle", "Botão Guia", "Gaming" };
+	static const char *const icones[CP_N] = { "gamepad", "sliders", "lumna", "settings" };
+	if (gv_agora() - pad_lido_em > 1.5) {
+		pad_ler();
+	}
+	gv_acordar_em(1.5);
+	CLAY(CLAY_ID("cfg"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { U(56), U(56), U(26), U(10) }, .childGap = U(34) } }) {
+		CLAY(CLAY_ID("cfg-lado"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(U(360)) }, .childGap = U(10) } }) {
+			gv_texto(CLAY_STRING("Configurações"), U(38), gv_t.texto, GV_PESO_SEMINEGRITO);
+			for (int i = 0; i < CP_N; i++) {
+				Clay_ElementId id = CLAY_IDI("cfg-pg", (uint32_t)i);
+				bool ativa = cfg_pg == i;
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(U(14)), .childGap = U(14), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = ativa ? roxo(0.18f) : (Clay_Color){ 255, 255, 255, 8 }, .cornerRadius = CLAY_CORNER_RADIUS(U(8)), .border = { .color = ativa ? roxo(1) : (Clay_Color){ 255, 255, 255, 25 }, .width = GV_BORDA(ativa ? 2 : 1) } }) {
+					bool ativou = gv_focavel(id, U(8));
+					gv_icone(icones[i], U(26), ativa ? gv_t.acento : gv_t.icone);
+					gv_texto(gv_str(paginas[i]), U(21), ativa ? gv_t.texto : gv_t.texto_secundario, ativa ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+					if (gv_tocado(id) || ativou) {
+						cfg_pg = i;
+					}
+				}
+			}
+		}
+		Clay_ElementId rol = CLAY_ID("cfg-rol");
+		CLAY(rol, gv_rolagem(rol, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {
+			switch (cfg_pg) {
+			case CP_CONTROLES: cfg_controles(); break;
+			case CP_AJUSTES: cfg_ajustes(); break;
+			case CP_GUIA: cfg_guia(); break;
+			default: cfg_gaming(); break;
+			}
+		}
+	}
+}
+
 /* ---------------- a janela ---------------- */
 
 static void depurar(void);
 
 static void navegar_teclado(void) {
-	if (adicionando || confirmando) {
+	/* Home: volta ao Início, de qualquer tela (o Guia pede isso ao controle) */
+	if (tecla(XKB_KEY_Home) && !adicionando && !confirmando) {
+		tela = T_INICIO;
 		return;
 	}
-	if (tela == T_DETALHES) {
+	bool pagina_antes = tecla(XKB_KEY_Prior), pagina_depois = tecla(XKB_KEY_Next); /* LB e RB */
+	if (adicionando || confirmando) {
+		bool seta_volta = tecla(XKB_KEY_Up) || tecla(XKB_KEY_Left), seta_vai = tecla(XKB_KEY_Down) || tecla(XKB_KEY_Right);
+		if (seta_volta) {
+			gv_foco_pedir(-1);
+		}
+		if (seta_vai) {
+			gv_foco_pedir(1);
+		}
+		return;
+	}
+	if (tela == T_DETALHES || tela == T_CONFIG) {
 		if (tecla(XKB_KEY_Escape)) {
-			tela = T_BIBLIOTECA;
+			tela = tela == T_CONFIG ? T_INICIO : T_BIBLIOTECA;
+			return;
+		}
+		if (tecla(XKB_KEY_Up) || tecla(XKB_KEY_Left)) {
+			gv_foco_pedir(-1);
+		}
+		if (tecla(XKB_KEY_Down) || tecla(XKB_KEY_Right)) {
+			gv_foco_pedir(1);
+		}
+		int passo = pagina_depois ? 1 : pagina_antes ? -1 : 0;
+		if (passo && tela == T_DETALHES) {
+			aba = (aba + passo + 2) % 2;
+			ed_viva = ed_viva && aba == ABA_PROPRIEDADES;
+		} else if (passo && tela == T_CONFIG) {
+			cfg_pg = (cfg_pg + passo + CP_N) % CP_N;
 		}
 		return;
 	}
@@ -789,6 +1181,18 @@ static void navegar_teclado(void) {
 	if (tecla(XKB_KEY_Escape) && tela == T_BIBLIOTECA) {
 		tela = T_INICIO;
 	}
+	/* LB e RB andam pelas abas de cima: Início, Biblioteca, Configurações */
+	if (pagina_depois) {
+		if (tela == T_INICIO) {
+			tela = T_BIBLIOTECA;
+		} else {
+			abrir_config();
+		}
+	} else if (pagina_antes) {
+		if (tela == T_BIBLIOTECA) {
+			tela = T_INICIO;
+		}
+	}
 }
 
 static void desenhar(gv_app *a, void *dados) {
@@ -802,7 +1206,7 @@ static void desenhar(gv_app *a, void *dados) {
 	struct jogo *d = tela == T_DETALHES ? por_id(det_id) : tela == T_INICIO ? destaque() : NULL;
 	const char *fundo = d ? d->fundo : "";
 	Clay_ElementDeclaration base = { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = (Clay_Color){ 12, 9, 26, 255 } };
-	if (fundo[0] && tela != T_BIBLIOTECA) {
+	if (fundo[0] && tela != T_BIBLIOTECA && tela != T_CONFIG) {
 		CLAY(CLAY_ID("janela"), gv_imagem(CLAY_ID("janela"), fundo, GV_AJUSTE_COBRIR, base)) {
 			barra_cima();
 			if (tela == T_INICIO) {
@@ -819,6 +1223,8 @@ static void desenhar(gv_app *a, void *dados) {
 				t_inicio();
 			} else if (tela == T_BIBLIOTECA) {
 				t_biblioteca();
+			} else if (tela == T_CONFIG) {
+				t_config();
 			} else {
 				t_detalhes();
 			}
@@ -849,8 +1255,8 @@ static void depurar(void) {
 #define S(base, n) for (int i_ = 0; i_ < (n); i_++) { g_ptr_array_add(nomes, g_strdup_printf("%s/%d", base, i_)); Clay_ElementId e_ = CLAY_IDI(base, (uint32_t)i_); g_array_append_val(ids, e_.id); }
 	F("continuar"); F("sobre"); F("mais"); F("ver-bib"); F("det-voltar"); F("det-continuar"); F("det-fav"); F("det-mais"); F("add"); F("add-nome"); F("add-exec"); F("add-ok"); F("add-cancelar");
 	F("abrir-pasta"); F("gerenciar"); F("verificar"); F("config-ini"); F("desinstalar"); F("des-ok"); F("des-cancelar"); F("apagar-arquivos");
-	F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
-	S("nav", 3); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
+	F("engrenagem"); F("bt-procurar"); F("aj-zona"); F("aj-vib"); F("aj-ab"); F("gm-energia"); F("gm-dnd"); F("gm-fps"); F("p-add-env"); F("p-restaurar"); F("p-cancelar"); F("p-aplicar"); F("p-compat"); F("p-gpu"); F("p-gerenciador");
+	S("nav", 3); S("cfg-pg", CP_N); S("ctl-vib", GP_MAX); S("ctl-ren", GP_MAX); S("ctl-ign", GP_MAX); S("ctl-apc", GP_MAX); S("ctl-ap-ok", GP_MAX); S("guia", 4); S("bt-parear", 8); S("bt-remover", 8); S("ic", 6); S("card", 40); S("filtro", F_N); S("env-k", JOGO_ENV_MAX); S("env-v", JOGO_ENV_MAX); S("env-x", JOGO_ENV_MAX);
 	{ Clay_ElementId b_ = CLAY_ID("det-aba"); for (int i_ = 0; i_ < 2; i_++) { g_ptr_array_add(nomes, g_strdup_printf("det-aba/%d", i_)); Clay_ElementId e_ = Clay__HashStringWithOffset(b_.stringId, b_.offset * 64 + 3000017u + (uint32_t)i_, b_.baseId); g_array_append_val(ids, e_.id); } }
 	g_ptr_array_add(nomes, g_strdup("p-exec")); { Clay_ElementId e_ = CLAY_SID(CLAY_STRING("p-exec")); g_array_append_val(ids, e_.id); }
 	g_ptr_array_add(nomes, g_strdup("p-opcoes")); { Clay_ElementId e_ = CLAY_SID(CLAY_STRING("p-opcoes")); g_array_append_val(ids, e_.id); }
@@ -872,9 +1278,10 @@ static void depurar(void) {
 	}
 	int idx[JOGOS_MAX];
 	struct jogo *d = por_id(det_id);
-	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d",
+	char *est = g_strdup_printf("estado tela=%d aba=%d filtro=%d njogos=%d nvis=%d sel=%d det=%s favorito=%d confirmando=%d adicionando=%d suja=%d aviso=%s opcoes=%s nenv=%d pg=%d nctl=%d servico=%d zona=%d ab=%d vib=%d guia=%s energia=%s fps=%d dnd=%d",
 		tela, aba, filtro, njogos, visiveis(idx), sel, det_id[0] ? det_id : "-", d ? d->favorito : 0, confirmando, adicionando, ed_suja,
-		aviso[0] && gv_agora() < aviso_ate ? aviso : "-", d && d->opcoes[0] ? d->opcoes : "-", d ? d->nenv : 0);
+		aviso[0] && gv_agora() < aviso_ate ? aviso : "-", d && d->opcoes[0] ? d->opcoes : "-", d ? d->nenv : 0,
+		cfg_pg, nctl, servico_pad, gcfg.zona_morta, gcfg.trocar_ab, gcfg.vibracao, gcfg.guia, gcfg.energia, gcfg.fps, dnd_gaming);
 	for (char *c = est; *c; c++) {
 		if (*c == '\n') {
 			*c = ' ';
@@ -893,6 +1300,30 @@ static void depurar(void) {
 }
 
 /* lumna-jogos vigia: sobe com a sessão; quando uma tela entra em Gaming e a biblioteca não está aberta, abre (como o serviço da Mídia faz com as telas dela) */
+/* o perfil de energia do Gaming (gamepad.ini [gaming] energia): muda ao entrar e devolve ao sair */
+static char energia_antes[24];
+static bool energia_mudada;
+
+static void energia_ajustar(bool gaming) {
+	struct gp_cfg c;
+	gp_cfg_ler(&c);
+	if (gaming && !energia_mudada && strcmp(c.energia, "nao")) {
+		char *out = NULL;
+		char *get[] = { "powerprofilesctl", "get", NULL };
+		if (g_spawn_sync(NULL, get, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &out, NULL, NULL, NULL) && out) {
+			g_strlcpy(energia_antes, g_strstrip(out), sizeof(energia_antes));
+			char *set[] = { "powerprofilesctl", "set", c.energia, NULL };
+			g_spawn_sync(NULL, set, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+			energia_mudada = energia_antes[0] != '\0';
+		}
+		g_free(out);
+	} else if (!gaming && energia_mudada) {
+		char *set[] = { "powerprofilesctl", "set", energia_antes, NULL };
+		g_spawn_sync(NULL, set, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+		energia_mudada = false;
+	}
+}
+
 static int vigia(void) {
 	int fd = modos_assinar();
 	if (fd < 0) {
@@ -907,6 +1338,7 @@ static int vigia(void) {
 				gaming |= e.saidas[i].modo == MODO_GAMING;
 			}
 		}
+		energia_ajustar(gaming);
 		if (gaming) {
 			int estado = 0;
 			char *pg[] = { "pgrep", "-x", "lumna-jogos", NULL };
@@ -939,7 +1371,7 @@ int main(int argc, char **argv) {
 	int aba_ini = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--tela") && i + 1 < argc) {
-			tela = !strcmp(argv[++i], "biblioteca") ? T_BIBLIOTECA : T_INICIO;
+			{ const char *t_ = argv[++i]; tela = !strcmp(t_, "biblioteca") ? T_BIBLIOTECA : !strcmp(t_, "config") ? T_CONFIG : T_INICIO; }
 		} else if (!strcmp(argv[i], "--jogo") && i + 1 < argc) {
 			ir_jogo = argv[++i];
 		} else if (!strcmp(argv[i], "--aba") && i + 1 < argc) {
@@ -947,6 +1379,7 @@ int main(int argc, char **argv) {
 		}
 	}
 	relistar();
+	gp_cfg_ler(&gcfg);
 	if (ir_jogo && por_id(ir_jogo)) {
 		abrir_detalhes(por_id(ir_jogo));
 		aba = aba_ini ? ABA_PROPRIEDADES : ABA_PRINCIPAL;

@@ -150,6 +150,9 @@ def tem_jogos():
 confere(lambda: not tem_jogos(), "antes de entrar no Gaming a biblioteca não está aberta", 2)
 msg("modo", "gaming")
 confere(lambda: tem_jogos(), "entrar no modo Gaming abre a biblioteca sozinho", 8)
+confere(lambda: "powerprofilesctl set performance" in falso(), "entrar no Gaming põe o perfil de energia em Desempenho", 6)
+msg("modo", "desktop")
+confere(lambda: "powerprofilesctl set balanced" in falso(), "sair do Gaming devolve o perfil que estava (Equilibrado)", 6)
 vigia.kill()
 
 sys.exit(1 if falhas else 0)

@@ -304,6 +304,9 @@ int gv_campo_area(Clay_ElementId id, char *texto, size_t capacidade, const char 
 /* O campo de uma conversa: uma linha que cresce até linhas_max; Enter envia (GV_CAMPO_ENTER) e Shift+Enter quebra a linha.
  * moldura false: sem fundo nem contorno (quem o envolve, uma pílula, é que os desenha). */
 int gv_campo_chat(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, int linhas_max, bool moldura);
+/* Anda o foco um controle para a frente (passo > 0) ou para trás (< 0), como o Tab e o Shift+Tab: para quem navega por controle (gamepad). */
+void gv_foco_pedir(int passo);
+
 /* ---- foco ----
  * Um foco para a app inteira: Tab e Shift+Tab andam pelos controles na ordem em que aparecem,
  * Enter ou Espaço ativam, o anel violeta só aparece ao navegar pelo teclado. Os componentes do

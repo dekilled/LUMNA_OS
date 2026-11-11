@@ -22,14 +22,14 @@ depends=(
   firefox foot
   # o que o instalador de apps do Painel e a Loja usam (pacman, checkupdates, a busca no AUR)
   pacman-contrib curl)
-optdepends=('steam: jogos da Steam na biblioteca do Gaming' 'lutris: jogos do Lutris' 'heroic-games-launcher-bin: Epic e GOG (AUR)' 'gamemode: gamemoderun nas opções de jogo' 'paru: instalar do AUR pela Loja' 'yay: instalar do AUR pela Loja (alternativa ao paru)' 'rclone: a nuvem do pré-setup (Google Drive, OneDrive, Dropbox numa pasta)')
+optdepends=('steam: jogos da Steam na biblioteca do Gaming' 'lutris: jogos do Lutris' 'heroic-games-launcher-bin: Epic e GOG (AUR)' 'gamemode: gamemoderun nas opções de jogo' 'mangohud: o FPS por cima dos jogos (Gaming > Configurações)' 'paru: instalar do AUR pela Loja' 'yay: instalar do AUR pela Loja (alternativa ao paru)' 'rclone: a nuvem do pré-setup (Google Drive, OneDrive, Dropbox numa pasta)')
 makedepends=(wayland-protocols zip)
 options=(!strip !debug)
 
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad)
 
 build() {
   cd "$_root/gravity"

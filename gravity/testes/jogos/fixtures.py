@@ -56,6 +56,8 @@ os.makedirs(f"{raiz}/bin", exist_ok=True)
 for p in ("steam", "lutris", "heroic", "wine"):
     open(f"{raiz}/bin/{p}", "w").write(f'#!/bin/sh\necho "{p} $*" >> "$FALSO_LOG"\n')
     os.chmod(f"{raiz}/bin/{p}", 0o755)
+open(f"{raiz}/bin/powerprofilesctl", "w").write('#!/bin/sh\n[ "$1" = get ] && echo balanced\necho "powerprofilesctl $*" >> "$FALSO_LOG"\n')
+os.chmod(f"{raiz}/bin/powerprofilesctl", 0o755)
 os.makedirs(f"{raiz}/avulso/Jogo", exist_ok=True)
 open(f"{raiz}/avulso/Jogo/jogo.sh", "w").write('#!/bin/sh\necho "avulso rodou $* em $PWD $MEUVAR" >> "$FALSO_LOG"\n')
 os.chmod(f"{raiz}/avulso/Jogo/jogo.sh", 0o755)

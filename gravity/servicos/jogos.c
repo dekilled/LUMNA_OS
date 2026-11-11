@@ -627,6 +627,27 @@ static char *quote(const char *s) {
 	return g_shell_quote(s);
 }
 
+/* o FPS (MangoHud) ligado nas configurações do Gaming (gamepad.ini [gaming] fps) e o mangohud instalado */
+static bool fps_ligado(void) {
+	GKeyFile *kf = g_key_file_new();
+	char *a = g_build_filename(g_get_user_config_dir(), "lumna", "gamepad.ini", NULL);
+	char *v = NULL;
+	if (g_key_file_load_from_file(kf, a, G_KEY_FILE_NONE, NULL)) {
+		v = g_key_file_get_string(kf, "gaming", "fps", NULL);
+	}
+	bool lig = v && !strcmp(v, "sim");
+	g_free(v);
+	g_free(a);
+	g_key_file_free(kf);
+	if (!lig) {
+		return false;
+	}
+	char *p = g_find_program_in_path("mangohud");
+	bool ok = p != NULL;
+	g_free(p);
+	return ok;
+}
+
 char *jogos_comando(const struct jogo *j) {
 	switch (j->origem) {
 	case ORIGEM_STEAM:
@@ -657,6 +678,9 @@ char *jogos_comando(const struct jogo *j) {
 			g_string_append_printf(c, "%s=%s ", j->env[i].k, v);
 			g_free(v);
 		}
+	}
+	if (fps_ligado()) {
+		g_string_append(c, "MANGOHUD=1 ");
 	}
 	if (j->gpu) {
 		g_string_append(c, "DRI_PRIME=1 __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ");

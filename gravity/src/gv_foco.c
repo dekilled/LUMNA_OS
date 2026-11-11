@@ -121,6 +121,12 @@ static int achar(uint32_t id) {
 	return -1;
 }
 
+static int pedido_andar; /* gv_foco_pedir: um passo de foco pedido pela app (o controle), feito no fim do quadro */
+
+void gv_foco_pedir(int passo) {
+	pedido_andar += passo > 0 ? 1 : -1;
+}
+
 /* o próximo (ou o anterior) da mesma camada, dando a volta */
 static void andar(int camada, int passo) {
 	int n = 0, atual = -1;
@@ -182,6 +188,11 @@ void gv__foco_fim_do_quadro(void) {
 		} else if (++ausente > 1) {
 			gv__foco_definir(0, false);
 		}
+	}
+
+	while (pedido_andar != 0) {
+		andar(topo, pedido_andar > 0 ? 1 : -1);
+		pedido_andar += pedido_andar > 0 ? -1 : 1;
 	}
 
 	/* uma tecla de cada vez (várias podem chegar no mesmo quadro) */

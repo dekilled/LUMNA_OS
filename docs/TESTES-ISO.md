@@ -379,6 +379,30 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.290 | Teclado: setas, Enter e Esc na Biblioteca e nos Detalhes | Navega, abre e volta | ☐ |
 | 2.291 | Abra um jogo com a Steam fechada, e feche-o | O jogo abre na tela do Gaming; ao fechar, volta a biblioteca | ☐ |
 
+### 2l. Controle (gamepad) e Configurações do Gaming
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.292 | Ligue um controle por USB (Xbox, PlayStation ou genérico) e abra o LUMNA Jogos | O direcional e o analógico esquerdo movem o card; A abre os Detalhes; B volta | ☐ |
+| 2.293 | Segure o direcional | Repete (anda sem parar), e para ao soltar | ☐ |
+| 2.294 | LB e RB | Trocam de aba (Início ↔ Biblioteca ↔ Configurações; nos Detalhes, Principal ↔ Propriedades) | ☐ |
+| 2.295 | Abra um jogo e mexa no controle dentro dele | O jogo recebe o controle normalmente; o Gaming não reage | ☐ |
+| 2.296 | Com o jogo aberto, aperte o botão Guia | Traz a biblioteca por cima (guia=biblioteca); o jogo continua rodando | ☐ |
+| 2.297 | Configurações > Controles | O controle aparece com o nome, USB/Bluetooth e a bateria (se ele informa) | ☐ |
+| 2.298 | "Testar vibração" | O controle vibra | ☐ |
+| 2.299 | "Renomear": dê um apelido | O apelido aparece na lista e continua depois de reiniciar o serviço | ☐ |
+| 2.300 | "Ignorar" | O controle para de mexer na biblioteca (o jogo ainda o lê); "Voltar a usar" desfaz | ☐ |
+| 2.301 | Desconecte o controle e conecte de novo | Some e volta da lista em até 2 s, sem reiniciar nada | ☐ |
+| 2.302 | Controles > "Procurar controles" com um controle Bluetooth em modo de pareamento | Ele aparece; "Parear" e depois "Conectar" | ☐ |
+| 2.303 | Controle pareado > "Remover" (duas vezes) | O controle é esquecido pelo Bluetooth | ☐ |
+| 2.304 | Ajustes: mexa na zona morta com um analógico gasto | O analógico deixa de "andar sozinho" | ☐ |
+| 2.305 | Ajustes: "Trocar A e B" | O A passa a voltar e o B a confirmar | ☐ |
+| 2.306 | Ajustes: desligue a vibração e "Testar vibração" | Recusa (a vibração está desligada) | ☐ |
+| 2.307 | Botão Guia: escolha "Chamar a Emma" e aperte o Guia | O chat da Emma abre e fecha por cima | ☐ |
+| 2.308 | Gaming: perfil "Desempenho"; entre e saia do Gaming (`powerprofilesctl get`) | Entra em performance e volta ao que estava ao sair | ☐ |
+| 2.309 | Gaming: "Mostrar o FPS" com o MangoHud instalado; abra um jogo avulso | O FPS aparece por cima do jogo | ☐ |
+| 2.310 | Gaming: "Não perturbar" | Em Gaming, só os avisos urgentes passam | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

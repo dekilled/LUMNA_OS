@@ -13,5 +13,5 @@ exec dbus-run-session -- orbit -s 'dbus-update-activation-environment WAYLAND_DI
 	lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-widgets & lumna-ocioso & lumna-inicio & lumna-polkit & lumna-luz & lumna-teclado & lumna-discos & lumna-connect &
 	{ mkdir -p ~/.local/state/lumna; lumna-emma 2>>~/.local/state/lumna/emma.log; } &
 	lumna-midia servico &
-	lumna-jogos vigia &
+	lumna-jogos vigia & lumna-gamepad &
 	{ sleep 4; lumna-setup --login; } &'

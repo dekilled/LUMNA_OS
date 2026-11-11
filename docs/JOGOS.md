@@ -23,11 +23,12 @@ O que é nosso fica em `~/.config/lumna/jogos/props.json`: favorito, última ses
   Valem para os **avulsos e o Lutris**. A **Steam e o Heroic guardam as próprias** propriedades: a tela mostra o aviso e fica só para leitura.
 - **Desinstalar**: sempre pede confirmação e diz o que vai acontecer em cada origem.
 
-Teclado: setas, Enter (abre), Esc (volta), Tab (abas).
+Teclado: setas, Enter (abre), Esc (volta), Page Up e Page Down (abas), Home (Início). O controle faz as mesmas teclas (veja abaixo).
 
 ## O que ainda não existe
 
-- **Controle (gamepad)**: o Gravity ainda não lê o controle; os atalhos A/B/LB/RB do esboço e o "Conectado" do topo ficam para quando o Orbit tiver entrada de controle. Hoje: teclado, mouse e toque.
+- O indicador **"Conectado"** do topo do esboço (a bolinha do controle) e os atalhos **Guia + botão** (captura etc.).
+- Um **mapa de botões livre** (qualquer botão para qualquer função): hoje só se troca A e B.
 - A **Loja** (a aba existe, apagada), as abas **Sobre** e **Instalação**, **Conquistas** e a busca do topo.
 - Gêneros e descrições dos jogos (não há fonte local; vão com a Loja).
 - O **Heroic** e o **Lutris** foram escritos pela documentação deles, sem os programas de verdade aqui: se algo não abrir, o roteiro 2.289 pede o comando.
@@ -35,3 +36,22 @@ Teclado: setas, Enter (abre), Esc (volta), Tab (abas).
 ## Testes
 
 `sh gravity/testes/jogos.sh [PASTA_DO_ORBIT]`: o serviço (ASAN/UBSAN) com uma Steam, um Lutris e um Heroic de mentira (duas bibliotecas da Steam, capas, horas, nomes com aspas), e a janela inteira num Orbit sem tela, até o vigia abrir a biblioteca ao entrar no Gaming.
+
+## O controle (gamepad)
+
+`lumna-gamepad` (`gravity/exemplos/gamepad.c`, `servicos/gamepad.[ch]`) é um serviço que sobe com a sessão e lê os controles direto do kernel (`/dev/input/event*`, USB e Bluetooth; o acesso vem do `uaccess` do systemd).
+Ele **não captura** o controle (sem `EVIOCGRAB`): o jogo continua lendo o dele.
+
+- **Navegação:** com o LUMNA Jogos em foco, o direcional e o analógico esquerdo viram as setas (e repetem enquanto seguram), A é Enter, B é Esc, LB e RB são Page Up e Page Down (trocam de aba) e Home leva ao Início. Isso é feito pelo `wtype`. **Com um jogo em foco o serviço não manda tecla nenhuma.**
+- **Botão Guia:** em qualquer janela. Abre a biblioteca, vai ao Início, chama a Emma (se estiver ligada) ou não faz nada, conforme a configuração.
+- **Configurações** (a engrenagem do topo, ou RB a partir da Biblioteca):
+  - *Controles:* a lista (nome, USB/Bluetooth, bateria quando o controle informa), testar vibração, renomear (apelido), ignorar e voltar a usar; e **Adicionar um controle (Bluetooth)**: procurar, parear, conectar e remover (pelo BlueZ).
+  - *Ajustes do controle:* zona morta dos analógicos, vibração, trocar A e B (estilo Nintendo) e o mapa dos botões na navegação.
+  - *Botão Guia:* o que ele faz.
+  - *Gaming:* perfil de energia ao entrar no modo (volta ao que estava ao sair; precisa do power-profiles-daemon), não perturbar do modo Gaming e o FPS (MangoHud; vale para os jogos **avulsos** que o Gaming abre, na Steam use `mangohud %command%`).
+- Guardado em `~/.config/lumna/gamepad.ini` (`[geral]`, `[gaming]`, `[apelidos]`, `[ignorados]`).
+
+### Testes do controle
+
+`sh gravity/testes/gamepad.sh [PASTA_DO_ORBIT]`: a leitura (ASAN/UBSAN) e o serviço de ponta a ponta com controles de mentira (FIFOs com `struct input_event`), e, com o Orbit, o caminho inteiro: controle de mentira → `lumna-gamepad` → o `wtype` de verdade → Orbit → LUMNA Jogos, navegando só pelo controle e mexendo nas Configurações.
+**Não foi testado com controle de verdade** (aqui não há `/dev/input`): os códigos dos botões e dos eixos seguem a API de joystick do Linux; a vibração, a bateria e o Bluetooth precisam do seu teste.

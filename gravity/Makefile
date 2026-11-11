@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos
+all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -198,9 +198,13 @@ SETUP_SERV = servicos/setup.c servicos/emma_ativa.c servicos/emmar.c servicos/em
 setup: exemplos/setup.c $(SETUP_SERV) servicos/setup.h servicos/emma_ativa.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 gio-unix-2.0 libpulse) -o $@ exemplos/setup.c $(SETUP_SERV) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 gio-unix-2.0 libpulse) -lpthread
 
+# os controles do modo Gaming (lumna-gamepad)
+gamepad: exemplos/gamepad.c servicos/gamepad.c servicos/gamepad.h servicos/gamepadc.c servicos/gamepadc.h servicos/emma_ativa.c servicos/json.c servicos/modos.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 gio-unix-2.0) -o $@ exemplos/gamepad.c servicos/gamepad.c servicos/gamepadc.c servicos/emma_ativa.c servicos/json.c servicos/modos.c $(shell pkg-config --libs glib-2.0 gio-2.0 gio-unix-2.0) -lm
+
 # o modo Gaming: a biblioteca de jogos (lumna-jogos)
-jogos: exemplos/jogos.c servicos/jogos.c servicos/jogos.h servicos/json.c servicos/json.h servicos/modos.c servicos/modos.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 sqlite3) -o $@ exemplos/jogos.c servicos/jogos.c servicos/json.c servicos/modos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs glib-2.0 gio-2.0 sqlite3) -lpthread
+jogos: exemplos/jogos.c servicos/jogos.c servicos/jogos.h servicos/json.c servicos/json.h servicos/modos.c servicos/modos.h servicos/gamepad.c servicos/gamepad.h servicos/gamepadc.c servicos/gamepadc.h servicos/bluetooth.c servicos/bluetooth.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 sqlite3) -o $@ exemplos/jogos.c servicos/jogos.c servicos/json.c servicos/modos.c servicos/gamepad.c servicos/gamepadc.c servicos/bluetooth.c libgravity.a $(LDLIBS) $(shell pkg-config --libs glib-2.0 gio-2.0 sqlite3) -lpthread
 
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
@@ -219,7 +223,7 @@ instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h se
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a jogos setup mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a gamepad jogos setup mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 

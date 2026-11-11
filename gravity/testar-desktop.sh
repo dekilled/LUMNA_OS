@@ -66,7 +66,7 @@ fi
 
 # os nomes que as peças chamam umas às outras (a dock abre o lumna-lancador, o sino o lumna-avisos...)
 mkdir -p "$BIN"
-for p in papel barra dock lancador avisos bloqueio entrada ocioso modos connect midia emma emma-chat emma-app perfil captura painel apps rede transferencia mixer wifi galeria widgets loja setup jogos; do
+for p in papel barra dock lancador avisos bloqueio entrada ocioso modos connect midia emma emma-chat emma-app perfil captura painel apps rede transferencia mixer wifi galeria widgets loja setup jogos gamepad; do
 	[ -x "$AQUI/$p" ] && ln -sf "$AQUI/$p" "$BIN/lumna-$p"
 done
 [ -x "$AQUI/musica" ] && ln -sf "$AQUI/musica" "$BIN/lumna-music"   # o app musica instala como lumna-music
