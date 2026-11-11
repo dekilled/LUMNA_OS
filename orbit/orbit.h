@@ -147,6 +147,7 @@ struct orbit_bind {
 struct orbit_input_config {
 	char layout[128], variant[128], options[256], model[64];
 	int repeat_rate, repeat_delay;
+	int numlock; /* o NumLock começa ligado (padrão 1; entrada.ini [teclado] numlock=0 desliga) */
 	struct {
 		int left_handed;       /* botão primário no direito */
 		double speed;          /* -1 a 1 */
@@ -444,6 +445,7 @@ struct orbit_keyboard {
 	struct wl_list link;
 	struct orbit_server *server;
 	struct wlr_keyboard *wlr_keyboard;
+	bool numlock_done; /* o NumLock já foi ligado neste teclado (não brigo com quem o desliga depois) */
 	bool shared; /* usa o mapa do Orbit (o Painel muda); o teclado virtual traz o dele */
 	struct wl_listener modifiers;
 	struct wl_listener key;

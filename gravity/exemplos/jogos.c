@@ -255,10 +255,10 @@ static const char *papel_arquivo(void) {
 
 /* o desenho dos degradês (o Gravity não tem um elemento de degradê: pelo gv_livre) */
 static void draw_topo(cairo_t *cr, Clay_BoundingBox b, void *dados) {
-	/* a barra de cima começa escura e, a partir do meio, fica transparente */
+	/* a barra de cima é escura onde ficam as letras (mesmo sobre um fundo claro, como o laranja) e só some perto da borda de baixo */
 	cairo_pattern_t *p = cairo_pattern_create_linear(0, b.y, 0, b.y + b.height);
-	cairo_pattern_add_color_stop_rgba(p, 0.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.94);
-	cairo_pattern_add_color_stop_rgba(p, 0.5, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
+	cairo_pattern_add_color_stop_rgba(p, 0.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.97);
+	cairo_pattern_add_color_stop_rgba(p, 0.6, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.82);
 	cairo_pattern_add_color_stop_rgba(p, 1.0, 8 / 255.0, 6 / 255.0, 20 / 255.0, 0.0);
 	cairo_rectangle(cr, b.x, b.y, b.width, b.height);
 	cairo_set_source(cr, p);

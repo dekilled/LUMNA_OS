@@ -472,6 +472,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.354 | Abra o jogo pela Biblioteca | Abre pelo legendary (por Wine/Proton) | ☐ |
 | 2.355 | "Desinstalar" (dois toques) | O legendary apaga o jogo e ele some da Biblioteca | ☐ |
 | 2.356 | Configurações > Epic > "Sair da conta" | Volta a "Sem login" | ☐ |
+| 2.357 | Ligar o PC e olhar a tela de login, sem apertar nada | O NumLock já está aceso (LED do teclado ligado) e o teclado numérico digita números | ☐ |
+| 2.358 | Entrar na sessão, depois sair (logoff) e voltar à tela de login | NumLock aceso no login, na sessão e depois do logoff; se você desligar no meio, ele não religa sozinho | ☐ |
+| 2.359 | `~/.config/lumna/entrada.ini` com `[teclado]` `numlock=0`, reentrar | O NumLock começa apagado (a opção desliga o padrão) | ☐ |
+| 2.360 | Gaming: a barra de cima sobre um fundo claro (laranja, branco) | Os textos Gaming/Início/Biblioteca/Loja continuam legíveis, o degradê escuro cobre a barra | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

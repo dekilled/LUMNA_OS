@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/types/wlr_input_device.h>
+#include <wlr/interfaces/wlr_keyboard.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/util/log.h>
@@ -45,6 +46,7 @@ static void defaults(struct orbit_input_config *c) {
 	memset(c, 0, sizeof(*c));
 	c->repeat_rate = 25;
 	c->repeat_delay = 600;
+	c->numlock = 1;
 	c->mouse.left_handed = -1;
 	c->mouse.speed = 2.0; /* fora de -1..1: não mexer */
 	c->mouse.profile = -1;
@@ -136,6 +138,8 @@ void orbit_input_config_load(struct orbit_server *server) {
 				snprintf(c->variant, sizeof(c->variant), "%s", v);
 			} else if (!strcmp(k, "options")) {
 				snprintf(c->options, sizeof(c->options), "%s", v);
+			} else if (!strcmp(k, "numlock")) {
+				c->numlock = strcmp(v, "0") && strcasecmp(v, "false") && strcasecmp(v, "nao") && strcasecmp(v, "não");
 			} else if (!strcmp(k, "model")) {
 				snprintf(c->model, sizeof(c->model), "%s", v);
 			} else if (!strcmp(k, "repeticao_taxa")) {
@@ -265,6 +269,30 @@ static void apply_one(struct orbit_server *server, struct orbit_pointer *p) {
 	}
 }
 
+/* liga o NumLock uma vez por teclado: ao ligar o PC, no login e depois do logoff (cada um é um Orbit novo, com teclados novos) */
+static void numlock_ligar(struct orbit_keyboard *k) {
+	struct wlr_keyboard *kb = k->wlr_keyboard;
+	if (k->numlock_done || !k->server->input.numlock || !kb->keymap || !kb->xkb_state) {
+		return;
+	}
+	xkb_mod_index_t idx = xkb_keymap_mod_get_index(kb->keymap, XKB_MOD_NAME_NUM);
+	if (idx == XKB_MOD_INVALID) {
+		return;
+	}
+	k->numlock_done = true;
+	uint32_t locked = kb->modifiers.locked | (1u << idx);
+	wlr_keyboard_notify_modifiers(kb, kb->modifiers.depressed, kb->modifiers.latched, locked, kb->modifiers.group);
+	uint32_t leds = 0;
+	for (int i = 0; i < WLR_LED_COUNT; i++) {
+		static const char *const nomes[] = { XKB_LED_NAME_NUM, XKB_LED_NAME_CAPS, XKB_LED_NAME_SCROLL };
+		if (i < 3 && xkb_state_led_name_is_active(kb->xkb_state, nomes[i]) > 0) {
+			leds |= 1u << i;
+		}
+	}
+	wlr_keyboard_led_update(kb, leds);
+	wlr_log(WLR_INFO, "NumLock ligado no teclado \"%s\"", k->wlr_keyboard->base.name ? k->wlr_keyboard->base.name : "?");
+}
+
 void orbit_input_apply(struct orbit_server *server) {
 	/* o teclado: o mapa novo e a repetição */
 	if (keymap_build(server) || shared_keymap) {
@@ -274,6 +302,7 @@ void orbit_input_apply(struct orbit_server *server) {
 				continue;
 			}
 			wlr_keyboard_set_keymap(k->wlr_keyboard, shared_keymap);
+			numlock_ligar(k);
 			wlr_keyboard_set_repeat_info(k->wlr_keyboard, server->input.repeat_rate, server->input.repeat_delay);
 		}
 	}
