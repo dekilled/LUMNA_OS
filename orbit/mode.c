@@ -380,6 +380,11 @@ bool orbit_app_is_gaming_shell(const char *app_id) {
 	return app_id && (!strncasecmp(app_id, "lumna-jogos", 11) || !strncasecmp(app_id, "lumna-gaming", 12));
 }
 
+/* as telas dos modos (a biblioteca do Gaming e a janela da Mídia): nascem do tamanho da tela */
+bool orbit_app_is_mode_shell(const char *app_id) {
+	return orbit_app_is_gaming_shell(app_id) || (app_id && !strncasecmp(app_id, "lumna-midia", 11));
+}
+
 struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id) {
 	struct orbit_output *cursor = cursor_output(server);
 	int mode = family_mode(app_id);

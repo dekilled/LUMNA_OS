@@ -95,7 +95,9 @@ static void item_de_produto(const struct json *p, struct ls_item *it) {
 
 /* ---------------- catálogo ---------------- */
 
-static const char *const generos_slug[LS_GEN_N] = { "", "action", "adventure", "rpg", "racing", "strategy", "" };
+/* o gênero na GOG: "g:" é gênero do catálogo, "t:" é etiqueta (tag); vazio não filtra */
+static const char *const generos_slug[LS_GEN_N] = { "", "g:action", "g:adventure", "g:rpg", "g:racing", "g:strategy", "t:indie", "g:simulation", "g:sports", "g:shooter",
+	"t:horror", "t:fighting", "t:platformer", "t:puzzle", "t:survival", "t:open-world", "t:casual" };
 
 static int consulta(const char *extra, struct ls_item *l, int max, int *total, char *erro, size_t tam) {
 	char *url = g_strdup_printf("%s/v1/catalog?countryCode=BR&currencyCode=BRL&productType=in:game,pack&page=1&limit=%d%s", base_catalogo(), max > 48 ? 48 : max, extra);
@@ -133,10 +135,11 @@ int lg_buscar(const struct ls_filtro *f, struct ls_item *l, int max, int *total,
 		g_string_append_printf(q, "&query=like:%s", t);
 		g_free(t);
 	}
-	if (f->genero == LS_GEN_INDIE) {
-		g_string_append(q, "&tags=in:indie");
-	} else if (f->genero > 0 && generos_slug[f->genero][0]) {
-		g_string_append_printf(q, "&genres=in:%s", generos_slug[f->genero]);
+	if (f->genero > 0 && f->genero < LS_GEN_N && generos_slug[f->genero][0]) {
+		g_string_append_printf(q, generos_slug[f->genero][0] == 't' ? "&tags=in:%s" : "&genres=in:%s", generos_slug[f->genero] + 2);
+	}
+	if (f->promocao) {
+		g_string_append(q, "&discounted=eq:true");
 	}
 	if (f->gratis) {
 		g_string_append(q, "&price=between:0,0");
@@ -144,10 +147,21 @@ int lg_buscar(const struct ls_filtro *f, struct ls_item *l, int max, int *total,
 	if (f->linux_nativo) {
 		g_string_append(q, "&systems=in:linux");
 	}
+	char feats[80] = "";
 	if (f->um_jogador && !f->cooperativo) {
-		g_string_append(q, "&features=in:single");
+		g_strlcat(feats, "single,", sizeof(feats));
 	} else if (f->cooperativo && !f->um_jogador) {
-		g_string_append(q, "&features=in:coop");
+		g_strlcat(feats, "coop,", sizeof(feats));
+	}
+	if (f->multijogador) {
+		g_strlcat(feats, "multi,", sizeof(feats));
+	}
+	if (f->controle) {
+		g_strlcat(feats, "controller_support,", sizeof(feats));
+	}
+	if (feats[0]) {
+		feats[strlen(feats) - 1] = '\0';
+		g_string_append_printf(q, "&features=in:%s", feats);
 	}
 	static const char *const ordens[] = { "&order=desc:score", "&order=desc:trending", "&order=desc:releaseDate", "&order=asc:price" };
 	g_string_append(q, ordens[f->ordem >= 0 && f->ordem < 4 ? f->ordem : 0]);

@@ -721,7 +721,7 @@ static void l_card(const char *base, int idx, const struct ls_item *it, float la
 
 static void l_chips_genero(void) {
 	CLAY(CLAY_ID("l-chips"), { .layout = { .childGap = U(10), .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-		for (int g = 0; g < LS_GEN_N; g++) {
+		for (int g = 0; g < LS_GEN_CHIPS; g++) {
 			if (gv_botao_ext(CLAY_IDI("l-chip", (uint32_t)g), &(gv_botao_opcoes){ .texto = ls_gen_nome(g), .estilo = l_hero_gen == g ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO, .altura = U(42) })) {
 				l_sel = 0;
 				l_carregar_destaques(g);
@@ -804,10 +804,13 @@ static void l_abrir_busca(int genero);
 static void l_sub_categorias(void) {
 	CLAY(CLAY_ID("l-cat"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { U(56), U(56), U(18), U(10) }, .childGap = U(18) } }) {
 		gv_texto(CLAY_STRING("Categorias"), U(36), gv_t.texto, GV_PESO_SEMINEGRITO);
-		CLAY_AUTO_ID({ .layout = { .childGap = U(16) } }) {
-			for (int g = 1; g < LS_GEN_N; g++) {
-				if (botao_u(CLAY_IDI("l-cat-b", (uint32_t)g), NULL, ls_gen_nome(g), GV_BOTAO_ELEVADO, false)) {
-					l_abrir_busca(g);
+		/* "Todas" primeiro (a busca sem categoria), depois cada uma, em linhas de seis */
+		for (int linha = 0; linha * 6 < LS_GEN_N; linha++) {
+			CLAY(CLAY_IDI("l-cat-l", (uint32_t)linha), { .layout = { .childGap = U(16) } }) {
+				for (int g = linha * 6; g < LS_GEN_N && g < linha * 6 + 6; g++) {
+					if (botao_u(CLAY_IDI("l-cat-b", (uint32_t)g), NULL, ls_gen_nome(g), g == 0 ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO, false)) {
+						l_abrir_busca(g);
+					}
 				}
 			}
 		}
@@ -962,11 +965,13 @@ static void t_busca(void) {
 				l_buscar();
 			}
 		}
-		CLAY_AUTO_ID({ .layout = { .childGap = U(10) } }) {
-			for (int g = 0; g < LS_GEN_N; g++) {
-				if (gv_botao_ext(CLAY_IDI("b-gen", (uint32_t)g), &(gv_botao_opcoes){ .texto = ls_gen_nome(g), .estilo = l_filtro.genero == g ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO, .altura = U(40) })) {
-					l_filtro.genero = g;
-					l_buscar();
+		for (int linha = 0; linha * 9 < LS_GEN_N; linha++) {
+			CLAY(CLAY_IDI("b-gen-l", (uint32_t)linha), { .layout = { .childGap = U(10) } }) {
+				for (int g = linha * 9; g < LS_GEN_N && g < linha * 9 + 9; g++) {
+					if (gv_botao_ext(CLAY_IDI("b-gen", (uint32_t)g), &(gv_botao_opcoes){ .texto = ls_gen_nome(g), .estilo = l_filtro.genero == g ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO, .altura = U(40) })) {
+						l_filtro.genero = g;
+						l_buscar();
+					}
 				}
 			}
 		}
@@ -979,6 +984,9 @@ static void t_busca(void) {
 				mudou |= gv_linha(CLAY_ID("b-linux"), NULL, "Linux nativo", NULL, &l_filtro.linux_nativo);
 				mudou |= gv_linha(CLAY_ID("b-um"), NULL, "Um jogador", NULL, &l_filtro.um_jogador);
 				mudou |= gv_linha(CLAY_ID("b-coop"), NULL, "Cooperativo", NULL, &l_filtro.cooperativo);
+				mudou |= gv_linha(CLAY_ID("b-multi"), NULL, "Multijogador", NULL, &l_filtro.multijogador);
+				mudou |= gv_linha(CLAY_ID("b-ctrl"), NULL, "Suporte a controle", NULL, &l_filtro.controle);
+				mudou |= gv_linha(CLAY_ID("b-promo"), NULL, "Em promoção", NULL, &l_filtro.promocao);
 				if (mudou) {
 					l_buscar();
 				}

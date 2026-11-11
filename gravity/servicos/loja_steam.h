@@ -63,7 +63,11 @@ struct ls_detalhe {
 	bool existe;          /* o app existe e é um jogo */
 };
 
-enum ls_gen { LS_GEN_TODOS, LS_GEN_ACAO, LS_GEN_AVENTURA, LS_GEN_RPG, LS_GEN_CORRIDA, LS_GEN_ESTRATEGIA, LS_GEN_INDIE, LS_GEN_N };
+/* os sete primeiros são os chips rápidos dos Destaques (LS_GEN_CHIPS); o resto aparece em Categorias e na busca */
+enum ls_gen { LS_GEN_TODOS, LS_GEN_ACAO, LS_GEN_AVENTURA, LS_GEN_RPG, LS_GEN_CORRIDA, LS_GEN_ESTRATEGIA, LS_GEN_INDIE,
+	LS_GEN_SIMULACAO, LS_GEN_ESPORTES, LS_GEN_TIRO, LS_GEN_TERROR, LS_GEN_LUTA, LS_GEN_PLATAFORMA, LS_GEN_QUEBRA, LS_GEN_SOBREVIVENCIA,
+	LS_GEN_MUNDO_ABERTO, LS_GEN_CASUAL, LS_GEN_N };
+#define LS_GEN_CHIPS 7
 
 struct ls_filtro {
 	char termo[96];
@@ -71,6 +75,7 @@ struct ls_filtro {
 	bool gratis;
 	bool linux_nativo;
 	bool um_jogador, cooperativo;
+	bool multijogador, controle, promocao; /* Multijogador, suporte a controle (o do Gaming) e só jogos em promoção */
 	int ordem;           /* 0 relevância, 1 mais vendidos, 2 lançamento, 3 preço crescente */
 };
 

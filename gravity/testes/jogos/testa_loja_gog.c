@@ -57,6 +57,19 @@ int main(void) {
 	CONFERE(strstr(lg, "tags=in:indie") != NULL, "Indie vira uma tag (a GOG não tem esse gênero)");
 	g_free(lg);
 
+	/* os gêneros novos e os filtros novos */
+	struct ls_filtro novo = { .genero = LS_GEN_TIRO, .multijogador = true, .controle = true, .promocao = true };
+	lg_buscar(&novo, l, 12, &total, erro, sizeof(erro));
+	lg = le(log);
+	CONFERE(strstr(lg, "genres=in:shooter") && strstr(lg, "features=in:multi,controller_support") && strstr(lg, "discounted=eq:true"), "Tiro, multijogador, controle e promoção viram parâmetros do catálogo");
+	g_free(lg);
+	struct ls_filtro terror = { .genero = LS_GEN_TERROR };
+	lg_buscar(&terror, l, 12, &total, erro, sizeof(erro));
+	lg = le(log);
+	CONFERE(strstr(lg, "tags=in:horror") != NULL, "Terror vira uma etiqueta da GOG");
+	g_free(lg);
+	CONFERE(!strcmp(ls_gen_nome(LS_GEN_TODOS), "Todas") && LS_GEN_N >= 15, "a lista de categorias tem Todas e as novas");
+
 	/* detalhes */
 	static struct ls_detalhe d;
 	CONFERE(lg_detalhes(1207658930, &d, erro, sizeof(erro)), "detalhes de The Witcher 2");

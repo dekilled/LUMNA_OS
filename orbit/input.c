@@ -92,6 +92,12 @@ void orbit_gesture_end(struct orbit_server *server) {
 	server->gesture_output = NULL;
 }
 
+/* a superfície sob o cursor é um menu/lista (popup) da janela: ele vale mais que a borda de mudar o tamanho, mesmo fora da janela */
+static bool surface_is_popup(struct wlr_surface *surface) {
+	struct wlr_surface *root = surface ? wlr_surface_get_root_surface(surface) : NULL;
+	return root && wlr_xdg_popup_try_from_wlr_surface(root) != NULL;
+}
+
 static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 	orbit_idle_activity(server); /* mexer o rato conta mesmo fora das janelas */
 	orbit_dnd_move(server); /* o ícone de um arraste anda com o ponteiro */
@@ -137,7 +143,7 @@ static void process_cursor_motion(struct orbit_server *server, uint32_t time) {
 		return;
 	}
 	orbit_deco_hover(server, NULL, ORBIT_DECO_NONE);
-	uint32_t edges = orbit_float_edges_at(under, server->cursor->x, server->cursor->y);
+	uint32_t edges = surface_is_popup(surface) ? 0 : orbit_float_edges_at(under, server->cursor->x, server->cursor->y);
 	if (edges) {
 		/* na borda de uma janela livre: a seta de mudar o tamanho (a janela não vê o cursor aqui) */
 		wlr_seat_pointer_clear_focus(server->seat);
@@ -304,7 +310,7 @@ static void cursor_button(struct orbit_server *server, const struct orbit_button
 				return;
 			}
 		}
-		uint32_t edges = event->button == BTN_LEFT ? orbit_float_edges_at(view, server->cursor->x, server->cursor->y) : 0;
+		uint32_t edges = event->button == BTN_LEFT && !surface_is_popup(surface) ? orbit_float_edges_at(view, server->cursor->x, server->cursor->y) : 0;
 		if (view && edges) {
 			orbit_resize_begin(server, view, edges);
 			return;

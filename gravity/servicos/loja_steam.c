@@ -197,7 +197,9 @@ int ls_lancamentos(struct ls_item *l, int max, char *erro, size_t tam) { return 
 /* ---------------- busca ---------------- */
 
 static const struct { const char *nome; int tag; } generos[LS_GEN_N] = {
-	{ "Todos", 0 }, { "Ação", 19 }, { "Aventura", 21 }, { "RPG", 122 }, { "Corrida", 699 }, { "Estratégia", 9 }, { "Indie", 492 },
+	{ "Todas", 0 }, { "Ação", 19 }, { "Aventura", 21 }, { "RPG", 122 }, { "Corrida", 699 }, { "Estratégia", 9 }, { "Indie", 492 },
+	{ "Simulação", 599 }, { "Esportes", 701 }, { "Tiro", 1774 }, { "Terror", 1667 }, { "Luta", 1743 }, { "Plataforma", 1625 },
+	{ "Quebra-cabeça", 1664 }, { "Sobrevivência", 1662 }, { "Mundo aberto", 1695 }, { "Casual", 597 },
 };
 
 const char *ls_gen_nome(int g) {
@@ -236,10 +238,25 @@ int ls_buscar(const struct ls_filtro *f, struct ls_item *l, int max, int *total,
 	if (f->linux_nativo) {
 		g_string_append(u, "&os=linux");
 	}
+	/* as categorias de jogador/controle se somam numa lista só (category3=2,28: uma e outra) */
+	char cats[40] = "";
 	if (f->um_jogador && !f->cooperativo) {
-		g_string_append(u, "&category3=2");
+		g_strlcat(cats, "2,", sizeof(cats));
 	} else if (f->cooperativo && !f->um_jogador) {
-		g_string_append(u, "&category3=9");
+		g_strlcat(cats, "9,", sizeof(cats));
+	}
+	if (f->multijogador) {
+		g_strlcat(cats, "1,", sizeof(cats));
+	}
+	if (f->controle) {
+		g_strlcat(cats, "28,", sizeof(cats));
+	}
+	if (cats[0]) {
+		cats[strlen(cats) - 1] = '\0';
+		g_string_append_printf(u, "&category3=%s", cats);
+	}
+	if (f->promocao) {
+		g_string_append(u, "&specials=1");
 	}
 	static const char *const ordens[] = { "", "&filter=topsellers", "&sort_by=Released_DESC", "&sort_by=Price_ASC" };
 	g_string_append(u, ordens[f->ordem >= 0 && f->ordem < 4 ? f->ordem : 0]);

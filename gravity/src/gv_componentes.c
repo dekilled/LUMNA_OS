@@ -595,7 +595,7 @@ bool gv_lista_suspensa(Clay_ElementId id, const char *const *opcoes, int n, int 
 		gv_icone(aberta ? "chevron-up" : "chevron-down", 18, gv_t.texto_secundario);
 	}
 	float largura = gv_caixa(id).width;
-	GV_POPUP(menu, id, .alinhar = GV_ALINHAR_INICIO, .largura = largura > 0 ? largura : 240, .distancia = 4) {
+	GV_POPUP(menu, id, .alinhar = GV_ALINHAR_INICIO, .largura = largura > 0 ? largura : 240, .distancia = 4, .altura_max = 340) {
 		for (int i = 0; i < n; i++) {
 			Clay_ElementId item = Clay__HashStringWithOffset(id.stringId, id.offset * 64 + 6000023u + i, id.baseId);
 			bool esta = *escolhida == i;

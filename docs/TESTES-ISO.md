@@ -480,6 +480,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.362 | Dois monitores: Gaming no 2 e Mídia no 1; pedir o Gaming no 1 | Os dois trocam de monitor, ninguém vai pro Desktop | ☐ |
 | 2.363 | Dois monitores no Desktop: pedir o Gaming no 1 pela primeira vez | A biblioteca aparece de primeira em tela cheia no monitor 1 | ☐ |
 | 2.364 | Pedir o Gaming no monitor 2 estando no 1 e depois voltar ao 1 | A janela acompanha o monitor, nunca fica escondida no antigo | ☐ |
+| 2.365 | Primeira vez que o Gaming ou a Mídia abre em cada monitor | Aparece já do tamanho da tela, sem crescer aos saltos pela diagonal (o deslizar depois continua liso) | ☐ |
+| 2.366 | Gaming > Loja > Categorias | Tem Todas (abre a busca sem categoria, com resultados) e as categorias novas (Simulação, Esportes, Tiro, Terror, Luta, Plataforma, Quebra-cabeça, Sobrevivência, Mundo aberto, Casual) | ☐ |
+| 2.367 | Gaming > Loja > busca: filtros | Além dos antigos, Multijogador, Suporte a controle e Em promoção filtram os resultados da Steam e da GOG | ☐ |
+| 2.368 | Painel > Teclado: abrir a lista de layouts e descer o cursor até o fim | A lista tem altura máxima e rola, nunca passa da janela; mesmo se passar, clicar nas opções funciona (sem a seta de redimensionar) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

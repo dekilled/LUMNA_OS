@@ -333,7 +333,21 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 static void xdg_commit(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, commit);
 	if (view->toplevel->base->initial_commit) {
-		wlr_xdg_toplevel_set_size(view->toplevel, 0, 0);
+		const char *app_id = view->toplevel->app_id;
+		struct orbit_output *alvo = app_id && orbit_app_is_mode_shell(app_id) ? orbit_output_for_new_view(view->server, app_id) : NULL;
+		struct wlr_box caixa = { 0 };
+		if (alvo) {
+			wlr_output_layout_get_box(view->server->layout, alvo->wlr, &caixa);
+		}
+		if (alvo && caixa.width > 0 && caixa.height > 0) {
+			/* o Gaming e a Mídia já nascem do tamanho da tela (e o Gaming em tela cheia): o primeiro quadro do app já é o certo, sem crescer aos saltos */
+			if (orbit_app_is_gaming_shell(app_id)) {
+				wlr_xdg_toplevel_set_fullscreen(view->toplevel, true);
+			}
+			wlr_xdg_toplevel_set_size(view->toplevel, caixa.width, caixa.height);
+		} else {
+			wlr_xdg_toplevel_set_size(view->toplevel, 0, 0);
+		}
 		orbit_deco_send_mode(view); /* o modo da barra vai junto com o primeiro configure */
 		view->cfg_valid = false;
 	} else if (view->mapped) {

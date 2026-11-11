@@ -45,6 +45,11 @@ int main(void) {
 	n = ls_buscar(&f, l, LS_MAX, &total, erro, sizeof(erro));
 	CONFERE(n >= 5 && total > 100, "a busca devolve jogos e o total");
 	CONFERE(l[0].appid > 0 && l[0].nome[0] && !strchr(l[0].nome, '<') && l[0].preco[0], "cada resultado tem id, nome sem HTML e preço");
+	struct ls_filtro nv = { .genero = LS_GEN_TERROR, .um_jogador = true, .controle = true, .promocao = true };
+	ls_buscar(&nv, l, LS_MAX, &total, erro, sizeof(erro));
+	char *lgs = le(log);
+	CONFERE(strstr(lgs, "tags=1667") && strstr(lgs, "category3=2,28") && strstr(lgs, "specials=1"), "Terror, um jogador + controle e promoção viram os parâmetros da Steam");
+	g_free(lgs);
 	bool algum_linux = false;
 	for (int i = 0; i < n; i++) {
 		algum_linux |= l[i].linux_nativo;
