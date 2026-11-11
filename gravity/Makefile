@@ -260,3 +260,7 @@ emma-chat: exemplos/emma-chat.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/e
 # lumna-portal: o que o sistema pede ao gerenciador de arquivos ("Mostrar na pasta"), respondido pelo Atlas; só GIO, sem tela
 portal: exemplos/portal.c
 	$(CC) $(CFLAGS) $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/portal.c $(shell pkg-config --libs gio-2.0)
+
+# o ajudante com privilégio do gerenciador de processos (pkexec): encerrar e prioridade em processos do sistema
+processos-ajudante: exemplos/processos-ajudante.c servicos/processos.c servicos/processos.h
+	$(CC) -std=gnu11 -O2 -Wall -Wextra -Iservicos -o $@ exemplos/processos-ajudante.c servicos/processos.c

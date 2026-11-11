@@ -60,3 +60,14 @@ Ideias combinadas para depois, para não se perderem. A ordem não é prioridade
 
 - Brainstorm da **interface nova**: funcional, lisa e perfeita — antes de mexer, conversar e
   desenhar juntos.
+
+## Gerenciador de processos (lumna-processos) — em andamento
+
+Esboços do Eric: Processos (lista com Nome/PID/CPU/Memória/GPU/Disco, busca, filtro, "Encerrar processo", árvore), Desempenho (CPU, Memória, GPU, discos, rede), Aplicativos de inicialização e Serviços.
+
+Decidido: atalho **Ctrl+Shift+Esc** (o Orbit nunca o entrega a um jogo; no Gaming, o botão Guia do controle também); serviço **residente** com prioridade de tempo real (SCHED_FIFO 50) e protegido do OOM killer, que só mostra a janela quando chamado; senha do **polkit uma vez por sessão** para processos do sistema.
+
+Prioridades: Baixa (nice 10, E/S ociosa), Média (0), Alta (-5), Máxima (-15), Tempo real (SCHED_RR 20); encerrar = SIGTERM ou SIGKILL por pidfd (sem corrida de PID), do processo ou da árvore dele.
+
+Feito: `servicos/processos.c` (ler /proc, CPU, encerrar, prioridade, proteger o próprio processo) + `lumna-processos-ajudante` (pkexec) + política `os.lumna.processos`, com testes em processos reais.
+Falta: o app (esboços), o serviço residente, o atalho no Orbit, a camada acima de tudo, Desempenho/Inicialização/Serviços.

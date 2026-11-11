@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>LUMNA OS</vendor>
+  <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
+  <action id="os.lumna.processos">
+    <description>Close processes and change their priority</description>
+    <description xml:lang="pt_BR">Encerrar processos e mudar a prioridade deles</description>
+    <message>Your password is needed to close or change the priority of system processes.</message>
+    <message xml:lang="pt_BR">A sua senha é necessária para encerrar ou mudar a prioridade de processos do sistema.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- Uma vez por sessão: o gerenciador não pode pedir a senha a cada clique quando alguém está tentando salvar o PC de um jogo travado. -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/lumna/lumna-processos-ajudante</annotate>
+  </action>
+</policyconfig>
