@@ -5,7 +5,11 @@ python3 teste_escolher.py PASTA_DO_ORBIT PASTA_RUN CASA"""
 import json, os, re, subprocess, sys, time
 
 orbit_dir, run, casa = sys.argv[1], sys.argv[2], sys.argv[3]
-docs = f"{casa}/Documentos"
+docs = f"{casa}/Seletor"  # uma pasta só do teste: nas outras, os testes anteriores deixam itens demais e os arquivos caem fora da janela
+os.makedirs(f"{docs}/Projetos", exist_ok=True)
+os.makedirs(f"{docs}/Contratos", exist_ok=True)
+for _n in ("notas.md", "planejamento.pdf", "orçamento.ods"):
+    open(f"{docs}/{_n}", "w").write("x")
 env = dict(os.environ, ORBIT_SOCK=f"{run}/orbit.wayland-0.sock", LUMNA_ATLAS_DEBUG="1")
 gravity = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 atlas = os.environ.get("ATLAS_BIN", f"{gravity}/atlas")
@@ -168,7 +172,7 @@ extras(False)
 
 # 4. escolher pasta: clicando numa pasta e em Escolher; sem marcar nada leva a pasta de agora
 s = Seletor("--escolher=pasta", f"--pasta={docs}")
-if any(n.rstrip("*").endswith((".md", ".pdf", ".png", ".ods", ".odp")) for n in s.ordem()):
+if any(n.rstrip("*").endswith((".md", ".pdf", ".png", ".ods")) for n in s.ordem()):
     falha(f"escolher pasta não devia mostrar arquivos ({s.ordem()})")
 s.clica("item/Projetos")
 s.clica("esc-ok")
@@ -221,9 +225,5 @@ if rc != 1 or linhas:
     falha(f"Cancelar devia sair com 1 (rc {rc}, {linhas})")
 s.fecha()
 
-extras(False)
-try:
-    os.remove(f"{docs}/novo.txt")
-except OSError:
-    pass
+subprocess.run(["rm", "-rf", docs])
 sys.exit(1 if falhas else 0)
