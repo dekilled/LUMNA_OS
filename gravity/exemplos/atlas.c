@@ -2272,6 +2272,9 @@ static void arraste_arquivo_ver(Clay_ElementId id, int idx) {
 	}
 	Clay_Vector2 p = gv_ponteiro();
 	if (!gv_premido(id)) {
+		if (dnd_cand == id.id) {
+			dnd_cand = 0; /* soltou: o candidato morre. Sobrando, o segundo clique de um duplo clique (o mouse andou uns pixels entre os dois) já nascia arraste */
+		}
 		return;
 	}
 	if (dnd_cand != id.id) {
@@ -2504,6 +2507,7 @@ static void tratar_clique(int idx, Clay_ElementId id) {
 	}
 	double agora = gv_agora();
 	uint32_t mods = gv_modificadores();
+	gv_app_redesenhar(app); /* a seleção muda depois de os itens serem desenhados neste quadro: sem outro quadro ela só aparecia no próximo despertar (~0,5 s) */
 	if (idx == ultimo_item && agora - ultimo_clique < 0.45 && !(mods & (GV_MOD_CTRL | GV_MOD_SHIFT))) {
 		abrir_item(idx);
 		ultimo_item = -1;
@@ -2691,11 +2695,83 @@ static void conteudo(void) {
 }
 
 /* os cliques são tratados depois do desenho: o Clay já sabe onde cada um está */
+/* ---- seleção por área (o retângulo): apertar no fundo da lista ou da grade e andar ---- */
+
+static bool banda_cand, banda_ativa;
+static bool banda_acabou;          /* este quadro a área acabou de soltar: o soltar não é um clique no vazio (que limparia a seleção) */
+static float banda_x0, banda_y0;   /* onde apertou: x na janela, y no conteúdo rolado (a rolagem não solta a ponta) */
+static bool *banda_base;           /* a seleção de antes (Ctrl soma a ela) */
+static int banda_nbase;
+
+static bool banda_pode(void) {
+	return !gv_ponteiro_e_toque() && !gv_arrastando_daqui() && renomeando < 0 && !VISTA_CARTOES && vista != V_INICIO && !erro_pasta[0] && nvis > 0;
+}
+
+/* a cada quadro, depois de os itens existirem: começa, acompanha e termina a área; as caixas dos itens são as do quadro anterior */
+static void banda_rever(void) {
+	banda_acabou = false;
+	if (!banda_pode() || !gv_premido(ID_CONTEUDO)) {
+		banda_acabou = banda_ativa;
+		banda_cand = banda_ativa = false;
+		return;
+	}
+	Clay_BoundingBox c = gv_caixa(ID_CONTEUDO);
+	Clay_Vector2 p = gv_ponteiro();
+	float rolou = gv_rolagem_posicao(ID_CONTEUDO).y;
+	if (!banda_cand && !banda_ativa) {
+		if (p.x > c.x + c.width - 18) {
+			return; /* a barra de rolagem é dela */
+		}
+		banda_cand = true;
+		banda_x0 = p.x;
+		banda_y0 = p.y - c.y + rolou;
+		return;
+	}
+	float y0 = c.y + banda_y0 - rolou; /* a ponta de onde apertou, na janela de agora */
+	if (!banda_ativa) {
+		if (fabsf(p.x - banda_x0) + fabsf(p.y - y0) < 6) {
+			return; /* ainda é um clique */
+		}
+		banda_ativa = true;
+		banda_cand = false;
+		g_free(banda_base);
+		banda_nbase = lista.n;
+		banda_base = g_new0(bool, lista.n > 0 ? lista.n : 1);
+		if (gv_modificadores() & GV_MOD_CTRL) {
+			memcpy(banda_base, sel, sizeof(bool) * (size_t)lista.n);
+		}
+	}
+	float x1 = fminf(banda_x0, p.x), x2 = fmaxf(banda_x0, p.x), y1 = fminf(y0, p.y), y2 = fmaxf(y0, p.y);
+	x1 = fmaxf(x1, c.x);
+	x2 = fminf(x2, c.x + c.width);
+	y1 = fmaxf(y1, c.y);
+	y2 = fminf(y2, c.y + c.height);
+	int primeiro = -1;
+	for (int i = 0; i < lista.n && i < banda_nbase; i++) {
+		Clay_BoundingBox b = gv_caixa(modo_lista ? CLAY_IDI("lin", (uint32_t)i) : CLAY_IDI("cel", (uint32_t)i));
+		bool dentro = b.width > 0 && b.x < x2 && b.x + b.width > x1 && b.y < y2 && b.y + b.height > y1;
+		sel[i] = banda_base[i] || dentro;
+		if (dentro && primeiro < 0) {
+			primeiro = i;
+		}
+	}
+	if (primeiro >= 0) {
+		ancora = foco = primeiro;
+	}
+	gv_app_redesenhar(app);
+	if (x2 > x1 && y2 > y1) {
+		CLAY(CLAY_ID("banda-sel"), { .layout = { .sizing = { CLAY_SIZING_FIXED(x2 - x1), CLAY_SIZING_FIXED(y2 - y1) } }, .backgroundColor = gv_alfa(gv_t.acento, 0.14f),
+			.border = { .color = gv_alfa(gv_t.acento, 0.8f), .width = GV_BORDA(1) }, .cornerRadius = CLAY_CORNER_RADIUS(2),
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 55, .offset = { x1, y1 }, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH } }) {}
+	}
+}
+
 static void tratar_cliques_conteudo(void) {
 	if (VISTA_CARTOES) {
 		return; /* o Início e a Rede têm os seus cartões; o fundo da rolagem pedir o toque por último tirava o clique deles */
 	}
 	bool fundo = gv_tocado(ID_CONTEUDO); /* primeiro: quem pede o aperto depois ganha, e o item vale mais que o fundo */
+	banda_rever();
 	bool algum = false;
 	for (int k = 0; k < nvis; k++) {
 		int idx = vis[k];
@@ -2711,9 +2787,10 @@ static void tratar_cliques_conteudo(void) {
 			algum = true;
 		}
 	}
-	if (!algum && fundo && !(gv_modificadores() & (GV_MOD_CTRL | GV_MOD_SHIFT))) {
+	if (!algum && fundo && !banda_acabou && !(gv_modificadores() & (GV_MOD_CTRL | GV_MOD_SHIFT))) {
 		limpar_selecao();
 		ancora = foco = -1;
+		gv_app_redesenhar(app);
 	}
 }
 
@@ -6172,7 +6249,7 @@ static void debug_posicoes(void) {
 	} else {
 		g_free(estado);
 	}
-	if (mudou_algo) { /* as caixas são as do quadro anterior: mais um quadro e o log fica com o layout de agora (o teste clica no que o log diz) */
+	if (mudou_algo && !getenv("LUMNA_ATLAS_SEM_REDESENHO")) { /* (o teste que mede a latência da seleção desliga isto: o redesenho do debug esconde um quadro que faltava) as caixas são as do quadro anterior: mais um quadro e o log fica com o layout de agora (o teste clica no que o log diz) */
 		gv_app_redesenhar(app);
 	}
 

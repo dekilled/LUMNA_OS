@@ -494,6 +494,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.376 | Gaming > Loja > Buscar/Destaques, jogos sem a cápsula | Os cartões caem no header ou em outra arte da Steam, sem ficar só com o nome | ☐ |
 | 2.377 | Gaming ligado numa tela e um jogo da Steam (nativo, como o CS:GO, ou do Proton) aberto pela Biblioteca | O jogo abre na tela do Gaming, em tela cheia, sem ir pra dock nem para o monitor do Desktop | ☐ |
 | 2.378 | Com o Gaming num monitor e o cursor no outro, abrir um jogo | O jogo vai para o monitor do Gaming (quem decide é a marca da Steam no processo, não a classe da janela) | ☐ |
+| 2.379 | Atlas: duplo clique com o mouse numa pasta, mexendo a mão um pouco entre os cliques | Abre a pasta; o ícone de arrastar não aparece | ☐ |
+| 2.380 | Atlas: apertar no vazio da grade e andar sobre alguns arquivos | Aparece o retângulo e os itens tocados ficam selecionados enquanto se arrasta; soltar mantém a seleção; clicar no vazio sem andar limpa | ☐ |
+| 2.381 | Atlas: Ctrl + área de seleção | Soma os itens da área aos que já estavam selecionados | ☐ |
+| 2.382 | Atlas: clicar uma vez numa pasta (principalmente uma grande) | A seleção aparece na hora, sem esperar uns 500 ms | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 
