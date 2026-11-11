@@ -62,6 +62,16 @@ class H(BaseHTTPRequestHandler):
         msgs = c.get("messages", [])
         ultimo_user = next((m["content"] for m in reversed(msgs) if m["role"] == "user"), "").lower()
         resultado_de_ferramenta = msgs[-1] if msgs and msgs[-1]["role"] == "tool" else None
+        modelo = c.get("model", "")
+        if "tools" in c and (modelo == "modelo-sem-tools" or "sem-tools" in ultimo_user):
+            # como o Ollama com um modelo de GGUF: 400 sem explicar que o problema são as ferramentas
+            b = json.dumps({"error": {"message": "Bad request", "type": "invalid_request_error"}}).encode()
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Connection", "close")
@@ -98,6 +108,11 @@ class H(BaseHTTPRequestHandler):
             falar(["comecou "])
             time.sleep(8)  # começa, mas não acaba (a pergunta avulsa desiste em 'teto' s)
             falar(["fim"])
+        elif "resposta-vazia" in ultimo_user:
+            self.sse({"choices": [{"index": 0, "delta": {"reasoning": "pensando…"}}]})   # só raciocínio, nenhum texto
+            self.sse({"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+        elif "sem-tools" in ultimo_user:
+            falar(["Respondi sem usar ferramentas."])
         elif "pulse-ok" in ultimo_user:
             falar(["ls ", "-la"])
         elif "netflix" in ultimo_user:

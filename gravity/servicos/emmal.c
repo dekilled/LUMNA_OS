@@ -103,6 +103,7 @@ struct resposta {
 	GString *texto;
 	GPtrArray *chamadas; /* struct tcall */
 	bool stream;         /* o provedor respondeu em pedaços (event-stream) */
+	int status;          /* o código HTTP de uma recusa (0: sem recusa) */
 };
 
 static void tcall_liberar(gpointer p) {
@@ -242,6 +243,9 @@ static bool pedir_c(const struct emmal_prov *p, const char *messages_json, const
 		g_input_stream_read_all(in, buf, sizeof(buf) - 1, &n, cancel, NULL);
 		buf[n] = '\0';
 		*erro = erro_do_provedor(p, status, buf);
+		if (r) {
+			r->status = status;
+		}
 		g_object_unref(in);
 		goto fim;
 	}
@@ -599,13 +603,25 @@ bool emmal_conversar(const char *sid, const char *texto, bool voz, const char *l
 	bool ok = false;
 	GString *final = g_string_new(NULL);
 	struct delta_ctx dc = { .o = o };
+	const char *tools_agora = tools;   /* vira NULL se o provedor recusar as ferramentas */
+	bool feitas_algo = false;           /* já rodou alguma ferramenta: aí a recusa é de outra coisa */
 	for (int rodada = 0; rodada < RODADAS_MAX; rodada++) {
 		struct resposta r;
 		resposta_iniciar(&r);
 		char *arr = g_strdup_printf("%s]", msgs->str);
 		char *e = NULL;
-		bool falou = pedir(&prov, arr, tools, NULL, delta_para_ouvinte, &dc, &r, &e);
+		bool falou = pedir(&prov, arr, tools_agora, NULL, delta_para_ouvinte, &dc, &r, &e);
 		g_free(arr);
+		if (!falou && tools_agora && (r.status == 400 || r.status == 422) && !feitas_algo) {
+			/* o provedor recusou a requisição que levava as ferramentas (um modelo que não as aceita, como alguns do Ollama): repete esta conversa só com texto */
+			fprintf(stderr, "emma: %s recusou as ferramentas (%d: %s); conversando só com texto\n", prov.nome, r.status, e ? e : "");
+			g_free(e);
+			e = NULL;
+			resposta_liberar(&r);
+			tools_agora = NULL;
+			rodada--;
+			continue;
+		}
 		if (!falou) {
 			*erro = e ? e : g_strdup("A conversa foi cortada.");
 			resposta_liberar(&r);
@@ -618,6 +634,7 @@ bool emmal_conversar(const char *sid, const char *texto, bool voz, const char *l
 			break;
 		}
 		/* a Emma quer agir: roda as ferramentas e volta ao provedor com o resultado */
+		feitas_algo = true;
 		g_string_append(msgs, ",{\"role\":\"assistant\",\"content\":");
 		json_escrever_texto(msgs, r.texto->str);
 		g_string_append(msgs, ",\"tool_calls\":[");
@@ -674,6 +691,11 @@ bool emmal_conversar(const char *sid, const char *texto, bool voz, const char *l
 		ok = true; /* se acabarem as rodadas, vale o que já foi dito */
 	}
 	g_string_append_c(feitas, ']');
+	if (ok && !*erro && !final->len && !feitas_algo) {
+		/* o modelo respondeu sem escrever nada (os de raciocínio mandam o texto em outro campo): melhor dizer do que deixar a conversa muda */
+		*erro = g_strdup_printf("O modelo %s respondeu sem escrever nada. Se ele é um modelo de raciocínio, tente outro, ou um que responda direto.", prov.modelo);
+		ok = false;
+	}
 	if (final->len || ok) {
 		char *limpo = g_strstrip(g_strdup(final->str));
 		emmas_anexar(sid, "assistant", limpo, feitas->str);
@@ -795,8 +817,17 @@ char *emmal_testar_json(const char *url, const char *chave, const char *modelo) 
 		}
 		g_free(e2);
 		resposta_liberar(&r2);
-		g_string_append_printf(g, "{\"ok\":true,\"chat\":true,\"streaming\":%s,\"json_mode\":%s,\"latency_ms\":%d,\"error\":\"\"}", stream ? "true" : "false",
-			json_mode ? "true" : "false", ms);
+		/* ferramentas: a requisição que o chat faz de verdade (com tools) é aceita? É o que separa o "verde" do teste de um chat que responde */
+		bool tools = false;
+		struct resposta r3;
+		resposta_iniciar(&r3);
+		char *e3 = NULL;
+		static const char *const FERRAMENTA = "[{\"type\":\"function\",\"function\":{\"name\":\"hora_agora\",\"description\":\"Diz que horas são\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]";
+		tools = pedir(&p, "[{\"role\":\"user\",\"content\":\"Que horas são? Use a ferramenta hora_agora.\"}]", FERRAMENTA, NULL, NULL, NULL, &r3, &e3);
+		g_free(e3);
+		resposta_liberar(&r3);
+		g_string_append_printf(g, "{\"ok\":true,\"chat\":true,\"streaming\":%s,\"json_mode\":%s,\"tools\":%s,\"latency_ms\":%d,\"error\":\"\"}", stream ? "true" : "false",
+			json_mode ? "true" : "false", tools ? "true" : "false", ms);
 	}
 	g_free(erro);
 	resposta_liberar(&r);

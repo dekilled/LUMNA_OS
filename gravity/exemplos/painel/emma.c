@@ -39,7 +39,7 @@ struct prov {
 struct edicao {
 	char nome[96], url[200], chave[200], modelos[1500];
 	int modelo_teste;
-	bool tem_relatorio, chat, streaming, json_mode;
+	bool tem_relatorio, chat, streaming, json_mode, tools;
 	int latencia;
 	char erro[240];
 };
@@ -446,6 +446,7 @@ static void pronto(void *d) {
 			e->chat = json_bool(json_chave(r, "chat"), false);
 			e->streaming = json_bool(json_chave(r, "streaming"), false);
 			e->json_mode = json_bool(json_chave(r, "json_mode"), false);
+			e->tools = json_bool(json_chave(r, "tools"), false);
 			e->latencia = (int)json_numero(json_chave(r, "latency_ms"), 0);
 			g_strlcpy(e->erro, json_chave_texto(r, "error"), sizeof(e->erro));
 		}
@@ -850,12 +851,16 @@ static void cartao_provedor(int i) {
 				marca_capacidade("chat", e->chat);
 				marca_capacidade("streaming", e->streaming);
 				marca_capacidade("JSON mode", e->json_mode);
+				marca_capacidade("ferramentas", e->tools);
 				if (e->latencia) {
 					gv_texto(gv_fmt("%dms", e->latencia), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
 				}
 			}
 			if (e->erro[0]) {
 				gv_texto(gv_str(e->erro), gv_t.tamanho_corpo - 1, gv_t.perigo, GV_PESO_NORMAL);
+			}
+			if (e->chat && !e->tools) {
+				gv_texto(CLAY_STRING("Este modelo não aceita ferramentas: a Emma conversa com ele, mas sem agir (abrir apps, ler arquivos…). Para ela agir, escolha um modelo com suporte a tool calling."), gv_t.tamanho_corpo - 2, gv_t.aviso, GV_PESO_NORMAL);
 			}
 			if (e->chat && !e->json_mode) {
 				gv_texto(CLAY_STRING("Compatibilidade parcial: o LUMNA usa blocos de texto (não tool calling), então Build continua funcionando."), gv_t.tamanho_corpo - 2, gv_t.aviso, GV_PESO_NORMAL);

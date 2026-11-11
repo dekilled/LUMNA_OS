@@ -353,6 +353,10 @@ try:
     confere(m.get("ok") is False and "chave" in m.get("error", ""), f"a chave errada devia ser recusada com uma frase clara: {m}")
     t = pede("llm", json.dumps({"acao": "testar", "url": url_prov, "chave": "sk-teste", "modelo": "modelo-x"}))
     confere(t.get("chat") is True and t.get("streaming") is True, f"o teste de capacidades falhou: {t}")
+    confere(t.get("tools") is True, f"o provedor aceita ferramentas e o teste disse que não: {t}")
+    t2 = pede("llm", json.dumps({"acao": "testar", "url": url_prov, "chave": "sk-teste", "modelo": "modelo-sem-tools"}))
+    confere(t2.get("chat") is False or t2.get("tools") is False, f"um modelo que recusa ferramentas não podia sair verde nelas: {t2}")
+    confere(t2.get("tools") is not True, f"o teste de capacidades não pegou o modelo sem ferramentas: {t2}")
 
     # FASE 2, com o servidor DESLIGADO: a reserva. A Emma conversa direto com o provedor e guarda no PC
     backend.terminate()
@@ -369,6 +373,15 @@ try:
     confere('"type":"function"' in log() and any("lumna_midia_abrir" in seg for seg in log().split("POST /v1/chat/completions")[1:]), "o catálogo de ferramentas não foi ao provedor")
     h = pede("historico")
     confere(any("capital" in m.get("texto", "") for m in h.get("mensagens", [])) and any("Brasília" in m.get("texto", "") for m in h.get("mensagens", [])), f"o histórico da reserva não veio: {h}")
+    # o provedor que recusa a requisição com ferramentas (400 sem explicar, como o Ollama com um GGUF): a reserva repete só com texto e a conversa responde
+    n_antes = log().count("POST /v1/chat/completions")
+    r = pede("celular", "sem-tools: me diga oi")
+    confere(r.get("ok") is True and "sem usar ferramentas" in r.get("resposta", ""), f"a reserva não se virou sem ferramentas depois do 400: {r}")
+    seg = log().split("POST /v1/chat/completions")[n_antes + 1:]
+    confere(len(seg) == 2 and '"tools"' in seg[0] and '"tools"' not in seg[1], f"a primeira tentativa devia levar as ferramentas e a repetição não: {[('tools' in x) for x in seg]}")
+    # um modelo que só "raciocina" e não escreve nada: a conversa diz isso em vez de ficar muda
+    r = pede("celular", "resposta-vazia: oi")
+    confere(r.get("ok") is False and "sem escrever nada" in json.dumps(r, ensure_ascii=False), f"uma resposta vazia devia virar um aviso claro: {r}")
 
     r = pede("rest", "POST", "/api/sessions", json.dumps({"title": "Minha conversa"}))
     sid = r.get("corpo", {}).get("id", "")

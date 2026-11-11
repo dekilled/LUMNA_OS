@@ -149,6 +149,12 @@ async def test_provider(pid: str, body: TestIn):
         report["json_mode"] = "ok" in (r.choices[0].message.content or "")
     except Exception:
         report["json_mode"] = False
+    try:  # ferramentas: a requisição que o chat faz de verdade (com tools) é aceita?
+        await c.chat.completions.create(model=body.model, messages=[{"role": "user", "content": "Que horas são? Use a ferramenta hora_agora."}],
+                                        tools=[{"type": "function", "function": {"name": "hora_agora", "description": "Diz que horas são", "parameters": {"type": "object", "properties": {}}}}])
+        report["tools"] = True
+    except Exception:
+        report["tools"] = False
     return report
 
 

@@ -138,6 +138,7 @@ painel da Emma (⚡): macros com ▶, automações liga/desliga e as últimas ex
 - **Reserva sem servidor:** se o servidor estiver desligado, a Emma conversa **direto com o provedor de IA** (Ollama, OpenAI, Gemini, Claude ou qualquer API compatível com
   OpenAI) com a URL, a chave e o modelo de Painel > Emma > Provedores e Roteamento (`~/.config/lumna/emma/provedores.json`, modo 600). Sem skills, memória nem RAG; as conversas
   da reserva ficam em `~/.local/share/lumna/emma` (`servicos/emmal.c` e `emmas.c`). Quando o servidor volta, ele volta a ser o motor.
+- **Modelos que não aceitam ferramentas** (muitos do Ollama local): o servidor e a reserva repetem a conversa só com texto quando o provedor recusa a requisição com ferramentas (400/422); a Emma responde, mas sem agir. O teste de capacidades (Painel > Emma > Provedores) agora mostra também **ferramentas**; sem elas o Painel avisa. Um modelo que responde sem escrever nada (os de raciocínio) vira um aviso claro em vez de uma conversa muda. `http://localhost:11434` sem `/v1` ganha o `/v1` sozinho no servidor.
 - O backend escuta só em `127.0.0.1:8001`. Endpoints locais (Ollama no próprio PC) são liberados
   (`ALLOW_PRIVATE_URLS=true`).
 - O código vem do NewHarnessV2 (privado): `EMMA_SRC` no build local, `EMMA_REPO_TOKEN` no CI. Sem
