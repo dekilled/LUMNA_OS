@@ -104,7 +104,7 @@ static void l_img_pronto(void *d) {
 }
 
 /* o arquivo da imagem, se já veio; senão pede e devolve NULL (o quadro seguinte a encontra) */
-static const char *l_img(const char *url) {
+static const char *l_img_um(const char *url) {
 	if (!url || !*url) {
 		return NULL;
 	}
@@ -124,6 +124,55 @@ static const char *l_img(const char *url) {
 	l_img_ativas++;
 	l_em_segundo_plano(l_img_trabalho, l_img_pronto, j);
 	return NULL;
+}
+
+static bool l_img_falhou(const char *url) {
+	const char *v = l_imgs ? g_hash_table_lookup(l_imgs, url) : NULL;
+	return v && !strcmp(v, "!");
+}
+
+/*
+ * As artes da Steam nem sempre existem todas (a cápsula, o retrato, o hero): se a pedida não existe, tenta as outras em ordem, uma de cada vez
+ * (a seguinte só depois de a anterior falhar). Quase todo jogo tem ao menos o header. *indice diz qual veio (0: a pedida).
+ * Outras URLs (a GOG, a Epic) seguem direto.
+ */
+static const char *l_img_ex(const char *url, int *indice) {
+	if (indice) {
+		*indice = 0;
+	}
+	const char *p = url ? strstr(url, "/steam/apps/") : NULL;
+	const char *nome = p ? strrchr(url, '/') : NULL;
+	if (!p || !nome || strchr(nome, '?')) {
+		return l_img_um(url);
+	}
+	static const char *const alt[] = { "header.jpg", "capsule_616x353.jpg", "capsule_231x87.jpg", "library_600x900.jpg", NULL };
+	const char *a = l_img_um(url);
+	if (a || !l_img_falhou(url)) {
+		return a;
+	}
+	for (int i = 0; alt[i]; i++) {
+		if (!strcmp(nome + 1, alt[i])) {
+			continue;
+		}
+		char *u = g_strdup_printf("%.*s%s", (int)(nome + 1 - url), url, alt[i]);
+		a = l_img_um(u);
+		bool falhou = l_img_falhou(u);
+		g_free(u);
+		if (a) {
+			if (indice) {
+				*indice = i + 1;
+			}
+			return a;
+		}
+		if (!falhou) {
+			return NULL; /* ainda baixando: o quadro seguinte continua a cadeia */
+		}
+	}
+	return NULL;
+}
+
+static const char *l_img(const char *url) {
+	return l_img_ex(url, NULL);
 }
 
 /* ---------------- dados ---------------- */

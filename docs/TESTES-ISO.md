@@ -490,6 +490,8 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.372 | Na Steam, abrir menus de contexto, listas e dicas (passando o mouse) | Aparecem no lugar certo, por cima da janela, e somem ao sair | ☐ |
 | 2.373 | Copiar texto de um app X11 e colar num Wayland (e ao contrário) | Funciona nos dois sentidos | ☐ |
 | 2.374 | Fechar uma janela X11 pela dock ou pelo botão de fechar do app | A janela fecha (e o app encerra) | ☐ |
+| 2.375 | Gaming > Biblioteca com jogos da Steam sem capa vertical (o Counter-Strike, as demos) | Cada um mostra uma arte (o retrato, ou o banner inteiro no cartão), nunca só o ícone de controle; no Início o jogo sem hero também ganha um fundo | ☐ |
+| 2.376 | Gaming > Loja > Buscar/Destaques, jogos sem a cápsula | Os cartões caem no header ou em outra arte da Steam, sem ficar só com o nome | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

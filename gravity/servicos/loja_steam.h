@@ -87,6 +87,7 @@ int ls_buscar(const struct ls_filtro *f, struct ls_item *l, int max, int *total,
 bool ls_detalhes(int appid, struct ls_detalhe *d, char *erro, size_t tam);
 /* o nível do ProtonDB ("platinum", "gold", "silver", "bronze", "borked", "pending", "") */
 bool ls_proton(int appid, char *nivel, size_t tam);
+const char *ls_base_img(void);                    /* o início das URLs das artes da Steam (a CDN, ou o servidor falso dos testes) */
 const char *ls_proton_texto(const char *nivel);   /* "Roda bem via Proton" etc.; "" se não há */
 
 /* o que a conta tem: precisa da chave (steam.ini [api] chave, id64) */

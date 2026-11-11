@@ -170,23 +170,45 @@ static bool nome_de_ferramenta(const char *n) {
 	return g_str_has_prefix(n, "Proton") || g_str_has_prefix(n, "Steam Linux Runtime") || g_str_has_prefix(n, "Steamworks Common") || g_str_has_prefix(n, "Steam Controller");
 }
 
-static void arte_steam(const char *raiz, const char *appid, struct jogo *j) {
-	const char *cache = "appcache/librarycache";
-	const char *capas[] = { "%s/%s/%s/library_600x900.jpg", "%s/%s/%s_library_600x900.jpg", "%s/%s/%s/portrait.png", NULL };
-	const char *fundos[] = { "%s/%s/%s/library_hero.jpg", "%s/%s/%s_library_hero.jpg", "%s/%s/%s/header.jpg", "%s/%s/%s_header.jpg", NULL };
-	for (int pass = 0; pass < 2; pass++) {
-		const char *const *m = pass ? fundos : capas;
-		char *dest = pass ? j->fundo : j->capa;
-		for (int i = 0; m[i]; i++) {
-			char *c = g_strdup_printf(m[i], raiz, cache, appid);
-			if (!dest[0] && g_file_test(c, G_FILE_TEST_IS_REGULAR)) {
-				g_strlcpy(dest, c, 400);
+/* o primeiro arquivo com um destes nomes no cache da Steam: solto (appid/nome, appid_nome) ou numa subpasta de hash (appid/<hash>/nome), que é como a Steam nova guarda */
+static void achar_arte(const char *raiz, const char *appid, const char *const *nomes, char *dest, size_t tam) {
+	char *base = g_build_filename(raiz, "appcache", "librarycache", appid, NULL);
+	for (int i = 0; nomes[i] && !dest[0]; i++) {
+		char *solto = g_strdup_printf("%s/%s", base, nomes[i]);
+		char *ao_lado = g_strdup_printf("%s/appcache/librarycache/%s_%s", raiz, appid, nomes[i]);
+		if (g_file_test(solto, G_FILE_TEST_IS_REGULAR)) {
+			g_strlcpy(dest, solto, tam);
+		} else if (g_file_test(ao_lado, G_FILE_TEST_IS_REGULAR)) {
+			g_strlcpy(dest, ao_lado, tam);
+		} else {
+			GDir *d = g_dir_open(base, 0, NULL);
+			const char *sub;
+			while (d && (sub = g_dir_read_name(d)) && !dest[0]) {
+				char *c = g_build_filename(base, sub, nomes[i], NULL);
+				if (g_file_test(c, G_FILE_TEST_IS_REGULAR)) {
+					g_strlcpy(dest, c, tam);
+				}
+				g_free(c);
 			}
-			g_free(c);
+			if (d) {
+				g_dir_close(d);
+			}
 		}
+		g_free(solto);
+		g_free(ao_lado);
 	}
+	g_free(base);
+}
+
+static void arte_steam(const char *raiz, const char *appid, struct jogo *j) {
+	/* o retrato primeiro; sem ele, o banner e as cápsulas (quase todo jogo tem ao menos o header) */
+	static const char *const capas[] = { "library_600x900.jpg", "portrait.png", "library_capsule.jpg", NULL };
+	static const char *const fundos[] = { "library_hero.jpg", "header.jpg", "capsule_616x353.jpg", "library_header.jpg", "capsule_231x87.jpg", NULL };
+	achar_arte(raiz, appid, capas, j->capa, sizeof(j->capa));
+	achar_arte(raiz, appid, fundos, j->fundo, sizeof(j->fundo));
 	if (!j->capa[0]) {
 		g_strlcpy(j->capa, j->fundo, sizeof(j->capa));
+		j->capa_larga = j->capa[0] != '\0'; /* é um banner: cabe inteiro no retrato, sem cortar */
 	}
 	if (!j->fundo[0]) {
 		g_strlcpy(j->fundo, j->capa, sizeof(j->fundo));

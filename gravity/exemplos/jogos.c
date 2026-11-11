@@ -241,6 +241,22 @@ static void papel_gravar(void) {
 	g_key_file_free(kf);
 }
 
+const char *ls_base_img(void);
+static const char *l_img_ex(const char *url, int *indice); /* jogos_loja.h: a arte pela cadeia de alternativas */
+
+/* a arte de um jogo da Steam que não está no cache local (o jogo ainda não rodou): a da loja, pela cadeia (retrato ou hero, depois header e cápsulas) */
+static const char *arte_remota(const struct jogo *j, bool fundo, int *indice) {
+	if (indice) {
+		*indice = 0;
+	}
+	if (!j || !g_str_has_prefix(j->id, "steam:") || atoi(j->id + 6) <= 0) {
+		return NULL;
+	}
+	char url[300];
+	g_snprintf(url, sizeof(url), "%s/steam/apps/%d/%s", ls_base_img(), atoi(j->id + 6), fundo ? "library_hero.jpg" : "library_600x900.jpg");
+	return l_img_ex(url, indice);
+}
+
 /* o arquivo do papel de parede da Biblioteca ("" : só o fundo escuro) */
 static const char *papel_arquivo(void) {
 	if (papel.modo == 2) {
@@ -250,6 +266,10 @@ static const char *papel_arquivo(void) {
 		return papel.imagem[0] && g_file_test(papel.imagem, G_FILE_TEST_IS_REGULAR) ? papel.imagem : "";
 	}
 	struct jogo *d = destaque();
+	if (d && !d->fundo[0]) {
+		const char *r = arte_remota(d, true, NULL);
+		return r ? r : "";
+	}
 	return d ? d->fundo : "";
 }
 
@@ -307,11 +327,16 @@ static Clay_Color roxo(float a) {
 
 static void capa(Clay_ElementId id, const struct jogo *j, float larg, float alt, bool foco, bool fundo) {
 	const char *img = fundo ? j->fundo : j->capa;
+	int alternativa = 0;
+	if (!img || !*img) {
+		img = arte_remota(j, fundo, &alternativa); /* sem arte no cache local: a da loja */
+	}
+	bool inteira = !fundo && (j->capa_larga || alternativa > 0); /* um banner no retrato: cabe inteiro, sem cortar o meio */
 	Clay_ElementDeclaration d = { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(larg), CLAY_SIZING_FIXED(alt) }, .padding = CLAY_PADDING_ALL(U(10)),
 		.childAlignment = { .y = CLAY_ALIGN_Y_BOTTOM } }, .backgroundColor = (Clay_Color){ 40, 30, 70, 255 }, .cornerRadius = CLAY_CORNER_RADIUS(U(8)),
 		.border = { .color = foco ? roxo(1) : (Clay_Color){ 255, 255, 255, 30 }, .width = GV_BORDA(foco ? 3 : 1) } };
 	if (img && *img) {
-		CLAY(id, gv_imagem(id, img, GV_AJUSTE_COBRIR, d)) {}
+		CLAY(id, gv_imagem(id, img, inteira ? GV_AJUSTE_CONTER : GV_AJUSTE_COBRIR, d)) {}
 	} else {
 		CLAY(id, d) {
 			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } } }) {
@@ -1453,6 +1478,10 @@ static void desenhar(gv_app *a, void *dados) {
 	navegar_teclado();
 	struct jogo *d = tela == T_DETALHES ? por_id(det_id) : tela == T_INICIO ? selecionado_inicio() : NULL;
 	const char *fundo = tela == T_BIBLIOTECA ? papel_arquivo() : tela == T_CONFIG ? "" : d ? d->fundo : "";
+	if (d && !fundo[0] && tela != T_BIBLIOTECA && tela != T_CONFIG) {
+		const char *r = arte_remota(d, true, NULL); /* o jogo sem hero no cache: a arte da loja */
+		fundo = r ? r : "";
+	}
 	if (tela == T_LOJA && l_sub == LS_SUB_DEST && l_ndest) {
 		fundo = l_img(l_dest[l_sel < l_ndest ? l_sel : 0].fundo) ? l_img(l_dest[l_sel < l_ndest ? l_sel : 0].fundo) : "";
 	} else if (tela == T_LOJA_JOGO && l_det_ok) {

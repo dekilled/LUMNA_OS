@@ -64,6 +64,10 @@ class H(http.server.BaseHTTPRequestHandler):
             if q.get("key", [""])[0] != CHAVE:
                 return self.resp("Forbidden", 403, "text/plain")
             return self.resp(json.dumps({"response": {"game_count": 2, "games": [{"appid": 620}, {"appid": 730}]}}))
+        import re as _re
+        _m = _re.search(r"/steam/apps/(\d+)/capsule_616x353\.jpg$", u.path)
+        if _m and int(_m.group(1)) % 2 == 0:
+            return self.resp("nao", 404, "text/plain")  # uns jogos não têm a cápsula: o app tem de cair no header
         if u.path.endswith(".jpg") or u.path.endswith(".png") or "spt-assets" in u.path or u.path.endswith(".jpeg") or "/images" in u.path or "_" in u.path.split("/")[-1]:
             # uma imagem de verdade (um degradê na cor do jogo), para o app poder desenhar
             import io, re

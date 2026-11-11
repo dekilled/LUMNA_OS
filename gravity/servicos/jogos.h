@@ -28,6 +28,7 @@ struct jogo {
 	char versao[48];
 	int64_t tamanho;        /* bytes em disco (0 se não souber) */
 	char capa[400];         /* a capa vertical (arquivo), "" se não há */
+	bool capa_larga;        /* a "capa" é um banner (o jogo não tem arte vertical): a grade o mostra inteiro, sem cortar */
 	char fundo[400];        /* o fundo largo (arquivo), "" se não há */
 	int64_t ultima;         /* última sessão (time_t), 0 = nunca */
 	double horas;           /* tempo de jogo */

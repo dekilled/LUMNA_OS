@@ -45,6 +45,7 @@ def manifesto(appid, flags, a_baixar=0, baixado=0):
 # 1. Destaques: o catálogo real carrega; o primeiro jogo manda no centro
 confere(lambda: est("tela") == "4" and int(est("lndest", "0")) >= 4, "a Loja abre nos Destaques com os mais vendidos do catálogo", 10)
 confere(lambda: existe("l-ver"), "o hero tem 'Ver jogo'")
+confere(lambda: "/capsule_616x353.jpg" in pedidos() and "/header.jpg" in pedidos(), "um jogo sem a cápsula cai na arte alternativa (o header), em vez de ficar sem capa", 8)
 tecla("Right")
 confere(lambda: est("lsel") == "1", "a seta para a direita seleciona o próximo jogo da fila")
 tecla("Left")
