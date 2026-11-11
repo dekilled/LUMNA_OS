@@ -20,6 +20,12 @@
 #include <wlr/xwayland.h>
 #include <stdio.h>
 
+/* o diagnóstico das janelas X11 (journalctl -b | grep "xwl:"): o que o servidor X cria, onde e de que tamanho */
+static void xwl_log(const char *evento, const struct wlr_xwayland_surface *xs, const char *extra) {
+	wlr_log(WLR_INFO, "xwl: %s id=0x%x classe=\"%s\" titulo=\"%s\" sem-moldura=%d pos=%d,%d tam=%ux%u pid=%d %s", evento, xs->window_id, xs->class ? xs->class : "",
+		xs->title ? xs->title : "", xs->override_redirect, xs->x, xs->y, xs->width, xs->height, (int)xs->pid, extra ? extra : "");
+}
+
 /* ---- um jogo da Steam? ---- */
 
 /* A Steam marca todo jogo que abre (o nativo e o do Proton) com SteamGameId/SteamAppId no ambiente do processo: o jogo nativo tem uma classe
@@ -60,6 +66,10 @@ bool orbit_xwl_steam_game(const struct orbit_view *view) {
 static void xwl_surface_map(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, map);
 	orbit_view_map(view);
+	char extra[160];
+	snprintf(extra, sizeof(extra), "-> janela do Orbit %u na saida %s, espaco %d, %dx%d em %d,%d, steam=%d", view->id, view->output ? view->output->wlr->name : "?", view->tag + 1,
+		view->w, view->h, view->x, view->y, orbit_xwl_steam_game(view));
+	xwl_log("mapeou", view->xsurface, extra);
 }
 
 static void xwl_surface_unmap(struct wl_listener *listener, void *data) {
@@ -97,15 +107,32 @@ static void xwl_dissociate(struct wl_listener *listener, void *data) {
 static void xwl_request_configure(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, request_configure_x);
 	struct wlr_xwayland_surface_configure_event *e = data;
+	char pedido[80];
+	snprintf(pedido, sizeof(pedido), "pediu %d,%d %ux%u mapeada=%d", e->x, e->y, e->width, e->height, view->mapped);
+	xwl_log("configure", view->xsurface, pedido);
 	if (!view->mapped) {
 		/* ainda não está na tela: vale o que pediu (o tamanho dela na hora de abrir) */
 		wlr_xwayland_surface_configure(view->xsurface, e->x, e->y, e->width, e->height);
 		return;
 	}
-	/* já gerenciada: o Orbit decide onde e de que tamanho; o cliente só recebe de volta o que valeu (ICCCM) */
-	struct wlr_box g = orbit_view_client_box(view);
-	wlr_xwayland_surface_configure(view->xsurface, (int16_t)view->scene_tree->node.x, (int16_t)view->scene_tree->node.y,
-		(uint16_t)(g.width > 0 ? g.width : e->width), (uint16_t)(g.height > 0 ? g.height : e->height));
+	/*
+	 * Já gerenciada. Onde o Orbit controla o tamanho (tela cheia, maximizada, no mosaico, ou numa tela de Gaming/Mídia, que é um kiosk), o cliente recebe de volta
+	 * o tamanho que o Orbit quer, e não o que ele pediu: um jogo troca a resolução por conta própria (XMoveResizeWindow) e, se a resposta fosse o tamanho
+	 * da superfície de agora (ainda o de antes), a janela ficava pequena para sempre enquanto o jogo já desenhava na tela inteira. Janela livre do
+	 * Desktop vale o que pediu (o app que cresce a própria janela).
+	 */
+	bool orbit_manda = view->fullscreen || view->maximized || !view->floating || (view->output && orbit_output_isolated(view->output));
+	uint16_t w = e->width, h = e->height;
+	if (orbit_manda && view->cfg_valid && view->cfg_w > 0 && view->cfg_h > 0) {
+		w = (uint16_t)view->cfg_w;
+		h = (uint16_t)view->cfg_h;
+	} else if (!orbit_manda) {
+		view->fw = w;
+		view->fh = h;
+		view->w = w;
+		view->h = h;
+	}
+	wlr_xwayland_surface_configure(view->xsurface, (int16_t)view->scene_tree->node.x, (int16_t)view->scene_tree->node.y, w, h);
 }
 
 static void xwl_request_activate(struct wl_listener *listener, void *data) {
@@ -240,6 +267,7 @@ static void or_place(struct xwl_or *o) {
 static void or_map(struct wl_listener *listener, void *data) {
 	struct xwl_or *o = wl_container_of(listener, o, map);
 	or_place(o);
+	xwl_log("mapeou sem moldura", o->xs, NULL);
 	wlr_scene_node_set_enabled(&o->tree->node, true);
 	wlr_scene_node_raise_to_top(&o->tree->node);
 }
@@ -323,6 +351,7 @@ static void or_create(struct orbit_server *server, struct wlr_xwayland_surface *
 static void xwl_new_surface(struct wl_listener *listener, void *data) {
 	struct orbit_server *server = wl_container_of(listener, server, xwl_new_surface);
 	struct wlr_xwayland_surface *xs = data;
+	xwl_log("nova", xs, NULL);
 	if (xs->override_redirect) {
 		or_create(server, xs);
 	} else {

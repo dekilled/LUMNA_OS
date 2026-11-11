@@ -498,6 +498,8 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.380 | Atlas: apertar no vazio da grade e andar sobre alguns arquivos | Aparece o retângulo e os itens tocados ficam selecionados enquanto se arrasta; soltar mantém a seleção; clicar no vazio sem andar limpa | ☐ |
 | 2.381 | Atlas: Ctrl + área de seleção | Soma os itens da área aos que já estavam selecionados | ☐ |
 | 2.382 | Atlas: clicar uma vez numa pasta (principalmente uma grande) | A seleção aparece na hora, sem esperar uns 500 ms | ☐ |
+| 2.383 | Gaming num monitor, abrir o CS:GO (ou outro jogo que troca a resolução sozinho) | A janela fica do tamanho do monitor do Gaming e o jogo preenche a tela inteira; nada de um pedaço pequeno no canto | ☐ |
+| 2.384 | Depois do item acima, rodar `journalctl -b | grep 'xwl:'` | O log mostra cada janela X11 do jogo (classe, posição, tamanho, saída); serve para investigar se sobrar algo | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

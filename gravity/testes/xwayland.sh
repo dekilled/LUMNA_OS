@@ -46,11 +46,15 @@ pkill -f xcli.py
 # o jogo da Steam (a marca SteamGameId no ambiente do processo) vai para a tela do Gaming; o mesmo app sem a marca fica onde está
 msg modo gaming HEADLESS-2 >/dev/null; sleep 0.5
 # com a biblioteca do Gaming (que tem o foco) já aberta nessa tela, se existir o binário: o jogo que abre por cima dela tem de aparecer logo, e não só depois
-SteamGameId=730 DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 00ff00 csgo_linux64 "$run/t1" & sleep 2.5
+SteamGameId=730 DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 00ff00 csgo_linux64 "$run/t1" 640x480 & sleep 2.5
 [ -x "$aqui/../jogos" ] && { jan lumna-jogos | grep -q '"visivel":false' || falha "a biblioteca do Gaming devia ficar por trás do jogo que abriu ($(campos lumna-jogos))"; jan csgo_linux64 | grep -q '"visivel":true' || falha "o jogo devia aparecer logo ao abrir, por cima da biblioteca"; }
 sleep 1.5
 campos csgo_linux64 | grep -q '"saida":"HEADLESS-2".*"espaco":4.*"na_dock":false.*"w":1280.*"h":720' || falha "o jogo da Steam devia ir, isolado e do tamanho da tela, para o Gaming ($(campos csgo_linux64))"
-DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan ff0000 outro_app "$run/t2" & sleep 4
+# o jogo pediu 640x480 (como ao trocar a resolução): a janela X de verdade tem de continuar do tamanho da tela do Gaming (o jogo desenha em tela cheia)
+geo() { DISPLAY=$D xdotool search --class "$1" getwindowgeometry 2>/dev/null | grep -o 'Geometry: [0-9x]*' | head -1; }
+[ "$(geo csgo_linux64)" = "Geometry: 1280x720" ] || falha "a janela X do jogo devia ficar do tamanho da tela do Gaming depois do pedido de 640x480 ($(geo csgo_linux64))"
+DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan ff0000 outro_app "$run/t2" 500x350 & sleep 4
 campos outro_app | grep -q '"saida":"HEADLESS-1".*"espaco":1' || falha "um app X11 comum devia ficar no Desktop ($(campos outro_app))"
+[ "$(geo outro_app)" = "Geometry: 500x350" ] || falha "uma janela livre do Desktop vale o tamanho que pediu ($(geo outro_app))"
 kill $pid; pkill -f xcli.py; wait $pid 2>/dev/null; rm -rf "$run"
 [ $ok = 1 ] && echo "xwayland: ok" || exit 1
