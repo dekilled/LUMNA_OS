@@ -14,6 +14,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <cairo.h>
 #include <ctype.h>
 #include <glib.h>
 #include <stdarg.h>
@@ -431,10 +432,77 @@ static void ler_sistema(void) {
 	}
 }
 
+/* ---- o histórico para os gráficos (2 minutos, uma amostra a cada ~2 s) ---- */
+#define HIST 60
+enum { H_CPU, H_MEM, H_GPU, H_DISCO, H_REDE_BAIXA, H_REDE_SOBE, H_N };
+static double hist[H_N][HIST];
+static int hist_n;                 /* quantas amostras valem (até HIST) */
+static double hist_ultima;
+static double rede_baixa, rede_sobe; /* bytes por segundo */
+static bool tem_gpu;
+
+static void ler_rede(double agora) {
+	static unsigned long long rx0, tx0;
+	static double t0;
+	FILE *f = fopen("/proc/net/dev", "r");
+	if (!f) {
+		return;
+	}
+	char linha[512];
+	unsigned long long rx = 0, tx = 0;
+	while (fgets(linha, sizeof(linha), f)) {
+		char *dp = strchr(linha, ':');
+		if (!dp) {
+			continue;
+		}
+		*dp = '\0';
+		const char *nome = g_strstrip(linha);
+		if (!strcmp(nome, "lo") || g_str_has_prefix(nome, "veth") || g_str_has_prefix(nome, "docker") || g_str_has_prefix(nome, "br-")) {
+			continue;
+		}
+		unsigned long long v[16];
+		if (sscanf(dp + 1, "%llu %llu %llu %llu %llu %llu %llu %llu %llu", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7], &v[8]) == 9) {
+			rx += v[0];
+			tx += v[8];
+		}
+	}
+	fclose(f);
+	if (t0 > 0 && agora > t0 && rx >= rx0 && tx >= tx0) {
+		rede_baixa = (double)(rx - rx0) / (agora - t0);
+		rede_sobe = (double)(tx - tx0) / (agora - t0);
+	}
+	rx0 = rx;
+	tx0 = tx;
+	t0 = agora;
+}
+
+static void guardar_amostra(void) {
+	double agora = gv_agora();
+	ler_rede(agora);
+	if (hist_ultima > 0 && agora - hist_ultima < 1.5) {
+		return; /* uma ação do usuário também lê a lista: não vira amostra (o intervalo curto distorce a CPU) */
+	}
+	hist_ultima = agora;
+	for (int k = 0; k < H_N; k++) {
+		memmove(&hist[k][0], &hist[k][1], sizeof(double) * (HIST - 1));
+	}
+	hist[H_CPU][HIST - 1] = cpu_total;
+	hist[H_MEM][HIST - 1] = mem_total_kb > 0 ? 100.0 * (double)mem_usada_kb / (double)mem_total_kb : 0;
+	hist[H_GPU][HIST - 1] = gpu_total >= 0 ? gpu_total : 0;
+	hist[H_DISCO][HIST - 1] = disco_total;
+	hist[H_REDE_BAIXA][HIST - 1] = rede_baixa;
+	hist[H_REDE_SOBE][HIST - 1] = rede_sobe;
+	tem_gpu = gpu_total >= 0;
+	if (hist_n < HIST) {
+		hist_n++;
+	}
+}
+
 static void ler_tudo(void) {
 	pr_liberar(&lista);
 	pr_listar(&lista);
 	ler_sistema();
+	guardar_amostra();
 	montar_linhas();
 	ultima_leitura = gv_agora();
 }
@@ -872,6 +940,135 @@ static void tela_processos(void) {
 	}
 }
 
+/* ---- Desempenho ---- */
+
+struct graf {
+	int a, b;        /* séries (b < 0: só uma) */
+	double teto;     /* 0: automático (a maior amostra) */
+	Clay_Color cor;
+};
+
+static void desenhar_grafico(cairo_t *cr, Clay_BoundingBox c, void *dados) {
+	const struct graf *g = dados;
+	double teto = g->teto;
+	if (teto <= 0) {
+		teto = 1024; /* ao menos 1 KB/s: sem tráfego a linha fica no chão em vez de ampliar ruído */
+		for (int k = 0; k < HIST; k++) {
+			for (int s = 0; s < 2; s++) {
+				int idx = s ? g->b : g->a;
+				if (idx >= 0 && hist[idx][k] > teto) {
+					teto = hist[idx][k];
+				}
+			}
+		}
+	}
+	cairo_save(cr);
+	cairo_translate(cr, c.x, c.y);
+	/* a grade */
+	cairo_set_source_rgba(cr, 1, 1, 1, 0.06);
+	cairo_set_line_width(cr, 1);
+	for (int i = 1; i < 4; i++) {
+		double y = c.height * i / 4.0;
+		cairo_move_to(cr, 0, y + 0.5);
+		cairo_line_to(cr, c.width, y + 0.5);
+	}
+	cairo_stroke(cr);
+	for (int s = 0; s < 2; s++) {
+		int idx = s ? g->b : g->a;
+		if (idx < 0) {
+			continue;
+		}
+		int ini = HIST - hist_n;
+		if (hist_n < 2) {
+			continue;
+		}
+		double passo = c.width / (HIST - 1);
+		for (int k = ini; k < HIST; k++) {
+			double v = hist[idx][k] / teto;
+			v = v > 1 ? 1 : v < 0 ? 0 : v;
+			double x = k * passo, y = c.height - 2 - v * (c.height - 4);
+			if (k == ini) {
+				cairo_move_to(cr, x, y);
+			} else {
+				cairo_line_to(cr, x, y);
+			}
+		}
+		double a = s ? 0.55 : 1;
+		if (!s) { /* o preenchimento só da primeira série */
+			cairo_path_t *caminho = cairo_copy_path(cr);
+			cairo_line_to(cr, (HIST - 1) * passo, c.height);
+			cairo_line_to(cr, ini * passo, c.height);
+			cairo_close_path(cr);
+			cairo_set_source_rgba(cr, g->cor.r / 255, g->cor.g / 255, g->cor.b / 255, 0.16);
+			cairo_fill(cr);
+			cairo_new_path(cr);
+			cairo_append_path(cr, caminho);
+			cairo_path_destroy(caminho);
+		}
+		cairo_set_source_rgba(cr, g->cor.r / 255, g->cor.g / 255, g->cor.b / 255, a);
+		cairo_set_line_width(cr, 2);
+		cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+		cairo_stroke(cr);
+	}
+	cairo_restore(cr);
+}
+
+static const char *fmt_taxa(double bps) {
+	if (bps >= 1024.0 * 1024.0) {
+		return gv_fmt("%.1f MB/s", bps / (1024.0 * 1024.0)).chars;
+	}
+	return gv_fmt("%.0f KB/s", bps / 1024.0).chars;
+}
+
+static void cartao_desempenho(const char *id_nome, const char *icone, const char *titulo, const char *valor, const char *detalhe, struct graf *g, uint32_t n) {
+	CLAY(CLAY_IDI("d-cartao", n), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 10 },
+		.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+			gv_icone(icone, 22, g->cor);
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(gv_str(titulo), gv_t.tamanho_corpo + 1, gv_t.texto, GV_PESO_MEDIO);
+			}
+			gv_texto(gv_str(valor), gv_t.tamanho_destaque + 2, g->cor, GV_PESO_MEDIO);
+		}
+		Clay_ElementId gid = CLAY_IDI("d-graf", n);
+		CLAY(gid, gv_livre(desenhar_grafico, g, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_alfa(gv_t.superficie, 0.6f),
+			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) })) {}
+		reg(id_nome, gid);
+		gv_texto(gv_str(detalhe), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+	}
+}
+
+static void tela_desempenho(void) {
+	static struct graf g_cpu = { H_CPU, -1, 100, { 139, 92, 246, 255 } }, g_mem = { H_MEM, -1, 100, { 56, 189, 248, 255 } }, g_gpu = { H_GPU, -1, 100, { 52, 211, 153, 255 } },
+		g_disco = { H_DISCO, -1, 100, { 251, 191, 36, 255 } }, g_rede = { H_REDE_BAIXA, H_REDE_SOBE, 0, { 244, 114, 182, 255 } };
+	CLAY(CLAY_ID("d-cima"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		gv_texto(CLAY_STRING("Desempenho"), 30, gv_t.texto, GV_PESO_MEDIO);
+	}
+	const double cpus = (double)(sysconf(_SC_NPROCESSORS_ONLN) > 0 ? sysconf(_SC_NPROCESSORS_ONLN) : 1);
+	char det_cpu[96], det_mem[96], det_rede[96];
+	snprintf(det_cpu, sizeof(det_cpu), "%d processos · %.0f núcleos lógicos · últimos %d s", lista.n, cpus, (int)(HIST * INTERVALO_S));
+	snprintf(det_mem, sizeof(det_mem), "%.1f GB em uso de %.1f GB", (double)mem_usada_kb / 1048576.0, (double)mem_total_kb / 1048576.0);
+	snprintf(det_rede, sizeof(det_rede), "Recebendo %s · Enviando %s", fmt_taxa(rede_baixa), fmt_taxa(rede_sobe));
+	char v_cpu[16], v_mem[16], v_gpu[16], v_disco[16];
+	snprintf(v_cpu, sizeof(v_cpu), "%.0f%%", cpu_total);
+	snprintf(v_mem, sizeof(v_mem), "%.0f%%", mem_total_kb > 0 ? 100.0 * (double)mem_usada_kb / (double)mem_total_kb : 0.0);
+	snprintf(v_gpu, sizeof(v_gpu), tem_gpu ? "%.0f%%" : "—", gpu_total);
+	snprintf(v_disco, sizeof(v_disco), "%.0f%%", disco_total);
+	CLAY(CLAY_ID("d-grade"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
+		CLAY(CLAY_ID("d-linha1"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
+			cartao_desempenho("graf/cpu", "cpu", "CPU", v_cpu, det_cpu, &g_cpu, 0);
+			cartao_desempenho("graf/mem", "memory", "Memória", v_mem, det_mem, &g_mem, 1);
+		}
+		CLAY(CLAY_ID("d-linha2"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
+			cartao_desempenho("graf/gpu", "screens", "GPU", v_gpu, tem_gpu ? "Uso da placa de vídeo" : "Sem leitura (a NVIDIA precisa do nvidia-smi)", &g_gpu, 2);
+			cartao_desempenho("graf/disco", "drive", "Disco", v_disco, "Tempo ocupado do disco mais usado", &g_disco, 3);
+		}
+		CLAY(CLAY_ID("d-linha3"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
+			cartao_desempenho("graf/rede", "network", "Rede", fmt_taxa(rede_baixa + rede_sobe), det_rede, &g_rede, 4);
+		}
+	}
+}
+
 static void dialogo_confirmar(void) {
 	const struct linha *l = linha_de(confirmar_pid);
 	CLAY(CLAY_ID("dlg"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
@@ -927,18 +1124,26 @@ static void desenhar(gv_app *a, void *dados) {
 			CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 				CLAY(CLAY_ID("lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(220), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(12), .childGap = 6 },
 					.border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
-					Clay_ElementId id = CLAY_ID("t-processos");
-					CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 14, 14, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-						.backgroundColor = tela == 0 ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
-						gv_icone("list", 22, tela == 0 ? gv_t.texto : gv_t.texto_secundario);
-						gv_texto(CLAY_STRING("Processos"), gv_t.tamanho_corpo, tela == 0 ? gv_t.texto : gv_t.texto_secundario, tela == 0 ? GV_PESO_MEDIO : GV_PESO_NORMAL);
-					}
-					if (gv_tocado(id)) {
-						tela = 0;
+					static const struct { const char *id, *nome_reg, *icone, *texto; } itens[] = { { "t-processos", "aba/processos", "list", "Processos" }, { "t-desempenho", "aba/desempenho", "waves", "Desempenho" } };
+					for (int t = 0; t < 2; t++) {
+						Clay_ElementId id = CLAY_IDI("aba", (uint32_t)t);
+						reg(itens[t].nome_reg, id);
+						CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 14, 14, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+							.backgroundColor = tela == t ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+							gv_icone(itens[t].icone, 22, tela == t ? gv_t.texto : gv_t.texto_secundario);
+							gv_texto(gv_str(itens[t].texto), gv_t.tamanho_corpo, tela == t ? gv_t.texto : gv_t.texto_secundario, tela == t ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+						}
+						if (gv_tocado(id)) {
+							tela = t;
+						}
 					}
 				}
 				CLAY(CLAY_ID("conteudo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 18, 14 }, .childGap = 14 } }) {
-					tela_processos();
+					if (tela == 1) {
+						tela_desempenho();
+					} else {
+						tela_processos();
+					}
 				}
 			}
 		}

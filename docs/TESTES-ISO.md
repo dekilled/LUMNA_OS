@@ -513,6 +513,7 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.395 | Com um jogo travado: abrir o Gerenciador, buscar o jogo, marcar a linha e **Encerrar processo** | O jogo some na hora (o app é de um grupo: encerra o grupo inteiro, não só a janela) | ☐ |
 | 2.396 | Na seta ▾ ao lado de Encerrar (ou botão direito na linha): Forçar encerramento e as cinco prioridades | Forçar mata na hora; Baixa/Média/Alta/Máxima/Tempo real mudam a coluna Prioridade (as de baixo de Média pedem a senha uma vez) | ☐ |
 | 2.397 | Encerrar um processo da sessão (compositor, barra, dock) | Pede confirmação antes; Cancelar não faz nada | ☐ |
+| 2.399 | Gerenciador > Desempenho, com um download rodando e um jogo aberto | Os gráficos de CPU, Memória, Disco e Rede se movem em tempo real; a GPU aparece em AMD/Intel (NVIDIA mostra "—") | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
