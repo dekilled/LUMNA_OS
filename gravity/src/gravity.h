@@ -325,6 +325,8 @@ bool gv_linha(Clay_ElementId id, const char *icone, const char *titulo, const ch
 bool gv_abas(Clay_ElementId id, const char *const *nomes, int n, int *ativa);
 /* A barra de título de uma janela: ícone, título, minimizar, maximizar e fechar; arrastar move. */
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo);
+/* a mesma, com uma segunda linha menor sob o título ("Solicitado pelo Navegador · Upload") */
+void gv_barra_janela_sub(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo, const char *subtitulo);
 
 /* ---- as janelas abertas (para a dock e o alternador) ----
  * Do compositor, pelo wlr-foreign-toplevel-management (o Orbit tem). A lista muda sozinha (e

@@ -208,7 +208,7 @@ jogos: exemplos/jogos.c servicos/jogos.c servicos/jogos.h servicos/json.c servic
 
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0) -o $@ exemplos/atlas.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ exemplos/atlas.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm
 
 # a montagem automática de pendrives e discos externos (lumna-discos): só GIO, sem tela
 discos: exemplos/discos.c servicos/discos_cfg.c servicos/discos_cfg.h
@@ -259,7 +259,7 @@ emma-chat: exemplos/emma-chat.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/e
 
 # lumna-portal: o que o sistema pede ao gerenciador de arquivos ("Mostrar na pasta"), respondido pelo Atlas; só GIO, sem tela
 portal: exemplos/portal.c
-	$(CC) $(CFLAGS) $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/portal.c $(shell pkg-config --libs gio-2.0)
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags gio-unix-2.0) -o $@ exemplos/portal.c $(shell pkg-config --libs gio-unix-2.0)
 
 # o ajudante com privilégio do gerenciador de processos (pkexec): encerrar e prioridade em processos do sistema
 processos-ajudante: exemplos/processos-ajudante.c servicos/processos.c servicos/processos.h

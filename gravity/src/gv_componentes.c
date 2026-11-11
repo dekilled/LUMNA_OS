@@ -496,16 +496,24 @@ static bool botao_janela(Clay_ElementId id, const char *icone, bool fechar) {
 }
 
 void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo) {
+	gv_barra_janela_sub(app, id, icone, titulo, NULL);
+}
+
+void gv_barra_janela_sub(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo, const char *subtitulo) {
+	bool sub = subtitulo && *subtitulo;
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(54) }, .padding = { 20, 10, 0, 0 }, .childGap = 14,
+		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(sub ? 68 : 54) }, .padding = { 20, 10, 0, 0 }, .childGap = 14,
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
 	}) {
 		if (icone) {
 			gv_icone(icone, 22, gv_t.texto_secundario);
 		}
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-			gv_texto(gv_str(titulo), gv_t.tamanho_corpo + 2, gv_t.texto, GV_PESO_NORMAL);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .horizontal = true } }) {
+			gv_texto(gv_str(titulo), gv_t.tamanho_corpo + 2, gv_t.texto, sub ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+			if (sub) {
+				gv_texto(gv_str(subtitulo), gv_t.tamanho_legenda + 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
 		}
 		if (botao_janela(Clay__HashStringWithOffset(id.stringId, 4000001u, id.baseId), "minimize", false)) {
 			gv_app_minimizar(app);

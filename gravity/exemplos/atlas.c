@@ -15,6 +15,7 @@
 #include <gio/gio.h>
 #include <fnmatch.h>
 #include <glib.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <glib/gstdio.h>
 #include <pango/pangocairo.h>
 #include <errno.h>
@@ -116,7 +117,7 @@ static bool clonar_aberto;          /* o diálogo do git clone */
 enum { ESC_NENHUM, ESC_ABRIR, ESC_PASTA, ESC_SALVAR };
 static int modo_escolher;
 static bool esc_multiplo;
-static char esc_titulo[200] = "Atlas", esc_rotulo[48], esc_nome[512], esc_pasta_ini[4096];
+static char esc_titulo[200] = "", esc_rotulo[48], esc_nome[512], esc_pasta_ini[4096], esc_solicitante[120];
 static struct { char nome[96]; char *pad[24]; int n; } esc_filtros[16];
 static int esc_nfiltros, esc_filtro_sel;
 static const char *esc_filtro_nomes[16];
@@ -1892,7 +1893,7 @@ static const char *rotulo_do_destino(const char *d) {
 
 /* a faixa das abas: só aparece com duas ou mais. Cada aba tem o ícone do lugar, o nome e o X; o + abre outra */
 static void faixa_de_abas(void) {
-	if (n_abas < 2) {
+	if (n_abas < 2 || modo_escolher) { /* o seletor é uma janela de uma pasta só */
 		return;
 	}
 	CLAY(CLAY_ID("abas"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 12, 12, 0, 0 }, .childGap = 6, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
@@ -1963,10 +1964,19 @@ static void barra_ferramentas(void) {
 				refiltrar();
 			}
 		}
-		botao_barra(CLAY_ID("t-novo"), "plus", false, vista != V_PASTA, &c);
-		if (c) {
-			novo_tipo = 0;
-			gv_popup_alternar(CLAY_ID("menu-novo"));
+		if (modo_escolher) { /* o seletor tem "Nova pasta" rotulado (só ao salvar ou escolher pasta) e abre direto o nome */
+			if (modo_escolher != ESC_ABRIR && gv_botao_ext(CLAY_ID("t-novo"), &(gv_botao_opcoes){ .icone = "folder-plus", .texto = "Nova pasta", .estilo = GV_BOTAO_ELEVADO, .altura = 40, .desativado = vista != V_PASTA })) {
+				novo_tipo = 1;
+				focar_nome = true;
+				snprintf(novo_nome, sizeof(novo_nome), "Nova pasta");
+				gv_popup_alternar(CLAY_ID("menu-novo"));
+			}
+		} else {
+			botao_barra(CLAY_ID("t-novo"), "plus", false, vista != V_PASTA, &c);
+			if (c) {
+				novo_tipo = 0;
+				gv_popup_alternar(CLAY_ID("menu-novo"));
+			}
 		}
 		botao_barra(CLAY_ID("t-ordem"), "sliders", false, false, &c);
 		if (c) {
@@ -1980,9 +1990,11 @@ static void barra_ferramentas(void) {
 		if (c) {
 			mudar_vista(vista_atual == AR_VISTA_LISTA_GRANDE ? AR_VISTA_LISTA_GRANDE : AR_VISTA_LISTA);
 		}
-		botao_barra(CLAY_ID("t-ajustes"), "settings", false, false, &c);
-		if (c) {
-			abrir_configuracoes(0);
+		if (!modo_escolher) {
+			botao_barra(CLAY_ID("t-ajustes"), "settings", false, false, &c);
+			if (c) {
+				abrir_configuracoes(0);
+			}
 		}
 	}
 
@@ -2688,7 +2700,9 @@ static void conteudo(void) {
 		return;
 	}
 	CLAY(CLAY_ID("principal"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
-		cabecalho_conteudo();
+		if (!modo_escolher) { /* o seletor não tem o título grande nem os chips de filtro: o filtro é o do app, no rodapé */
+			cabecalho_conteudo();
+		}
 		if (modo_lista && !erro_pasta[0]) {
 			cabecalho_lista();
 		}
@@ -4337,6 +4351,20 @@ static void botoes_abrir_com(void) {
 
 /* --- o modo escolher: aceitar, cancelar, a barra de baixo --- */
 
+static const char *esc_titulo_janela(void) {
+	return modo_escolher == ESC_SALVAR ? "Atlas · Salvar arquivo" : modo_escolher == ESC_PASTA ? "Atlas · Selecionar pasta" : esc_multiplo ? "Atlas · Selecionar arquivos" : "Atlas · Selecionar arquivo";
+}
+
+/* "Solicitado pelo Firefox · Upload": quem pediu e o que o app disse que está fazendo */
+static const char *esc_subtitulo(void) {
+	static char t[400];
+	if (!esc_solicitante[0] && !esc_titulo[0]) {
+		return "";
+	}
+	snprintf(t, sizeof(t), "%s%s%s", esc_solicitante[0] ? gv_fmt("Solicitado por %s", esc_solicitante).chars : "", esc_solicitante[0] && esc_titulo[0] ? " · " : "", esc_titulo);
+	return t;
+}
+
 static void esc_sair(int codigo) {
 	fflush(stdout);
 	esc_feito = codigo == 0;
@@ -4400,42 +4428,151 @@ static void botoes_esc_substituir(void) {
 	}
 }
 
-/* a faixa de baixo do seletor, no lugar da barra de status */
+/* o rodapé do seletor, como nos esboços: ao salvar (nome, tipo, "Salvar em" e o aviso) e ao abrir (o nome do que está marcado e o filtro, numa linha só) */
+static const char *esc_rotulo_botao(void) {
+	return esc_rotulo[0] ? esc_rotulo : modo_escolher == ESC_SALVAR ? "Salvar" : modo_escolher == ESC_PASTA ? "Escolher" : "Abrir";
+}
+
+static bool esc_pode_aceitar(void) {
+	if (modo_escolher == ESC_ABRIR) {
+		for (int i = 0; i < lista.n; i++) {
+			if (sel[i] && !lista.v[i].pasta) {
+				return true;
+			}
+		}
+		return false;
+	}
+	return modo_escolher == ESC_SALVAR ? esc_nome[0] != '\0' : true;
+}
+
+static void esc_botoes(void) {
+	if (gv_botao_ext(CLAY_ID("esc-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO, .altura = 42 })) {
+		esc_sair(1);
+	}
+	if (gv_botao_ext(CLAY_ID("esc-ok"), &(gv_botao_opcoes){ .texto = esc_rotulo_botao(), .estilo = GV_BOTAO_CHEIO, .altura = 42, .desativado = !esc_pode_aceitar() })) {
+		esc_aceitar();
+	}
+}
+
+static void esc_filtro_caixa(float largura) {
+	if (esc_nfiltros > 0) {
+		CLAY(CLAY_ID("esc-filtro-caixa"), { .layout = { .sizing = { largura > 0 ? CLAY_SIZING_FIXED(largura) : CLAY_SIZING_GROW(0) } } }) {
+			if (gv_lista_suspensa(CLAY_ID("esc-filtro"), esc_filtro_nomes, esc_nfiltros, &esc_filtro_sel)) {
+				refiltrar();
+			}
+		}
+	}
+}
+
 static void barra_escolher(void) {
-	CLAY(CLAY_ID("status"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(64) }, .padding = { 20, 20, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+	bool salvar = modo_escolher == ESC_SALVAR;
+	CLAY(CLAY_ID("status"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 14, 14 }, .childGap = 10 },
 		.border = { .color = gv_t.borda, .width = { .top = 1 } } }) {
-		if (modo_escolher == ESC_SALVAR) {
-			gv_texto(CLAY_STRING("Nome"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
-			CLAY(CLAY_ID("esc-nome-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				int r = gv_campo(CLAY_ID("esc-nome"), esc_nome, sizeof(esc_nome), "nome do arquivo", GV_CAMPO_TEXTO);
-				if (esc_foco_nome) {
-					gv_focar(CLAY_ID("esc-nome"));
-					esc_foco_nome = false;
+		if (salvar) {
+			CLAY(CLAY_ID("esc-linha-nome"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 16, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+					gv_texto(CLAY_STRING("Nome do arquivo"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 				}
-				if (r & GV_CAMPO_ENTER) {
-					esc_aceitar();
+				CLAY(CLAY_ID("esc-nome-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					int r = gv_campo(CLAY_ID("esc-nome"), esc_nome, sizeof(esc_nome), "nome do arquivo", GV_CAMPO_TEXTO);
+					if (esc_foco_nome) {
+						gv_focar(CLAY_ID("esc-nome"));
+						esc_foco_nome = false;
+					}
+					if (r & GV_CAMPO_ENTER) {
+						esc_aceitar();
+					}
 				}
+			}
+			if (esc_nfiltros > 0) {
+				CLAY(CLAY_ID("esc-linha-tipo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 16, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+						gv_texto(CLAY_STRING("Tipo"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+					}
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						esc_filtro_caixa(0);
+					}
+				}
+			}
+			CLAY(CLAY_ID("esc-linha-em"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 146, 0, 0, 0 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				gv_texto(CLAY_STRING("Salvar em"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				char *nome_pasta = g_path_get_basename(pasta);
+				gv_texto(gv_str(nome_pasta), gv_t.tamanho_corpo - 1, gv_t.acento, GV_PESO_MEDIO);
+				g_free(nome_pasta);
+			}
+			CLAY(CLAY_ID("esc-div"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
+			CLAY(CLAY_ID("esc-linha-fim"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				gv_icone("info", 20, gv_t.texto_suave);
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+					gv_texto(CLAY_STRING("O arquivo será salvo na pasta escolhida."), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				esc_botoes();
 			}
 		} else {
-			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-				gv_texto(gv_str(modo_escolher == ESC_PASTA ? "Escolha a pasta e use o botão ao lado." : esc_multiplo ? "Marque um ou mais arquivos." : "Escolha um arquivo."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+			CLAY(CLAY_ID("esc-linha-unica"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(130) } } }) {
+					gv_texto(gv_str(modo_escolher == ESC_PASTA ? "Pasta" : "Nome do arquivo"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+				}
+				/* o que está marcado (só leitura): o nome, ou quantos; na pasta, o caminho que vai */
+				int n = n_selecionados();
+				int um = n == 1 ? primeiro_selecionado() : -1;
+				const char *marcado = modo_escolher == ESC_PASTA ? (um >= 0 && lista.v[um].pasta && cam[um] ? cam[um] : pasta)
+					: um >= 0 ? lista.v[um].nome : n > 1 ? gv_fmt("%d arquivos marcados", n).chars : "";
+				CLAY(CLAY_ID("esc-marcado"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 16, 16, 0, 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_pequeno), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) }, .clip = { .horizontal = true } }) {
+					gv_texto(gv_str(marcado), gv_t.tamanho_corpo, marcado[0] ? gv_t.texto : gv_t.texto_suave, GV_PESO_NORMAL);
+				}
+				esc_filtro_caixa(modo_escolher == ESC_PASTA ? 0 : 240);
+				esc_botoes();
 			}
 		}
-		if (esc_nfiltros > 0) {
-			CLAY(CLAY_ID("esc-filtro-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(260) } } }) {
-				if (gv_lista_suspensa(CLAY_ID("esc-filtro"), esc_filtro_nomes, esc_nfiltros, &esc_filtro_sel)) {
-					refiltrar();
+	}
+}
+
+/* o painel da direita ao escolher um arquivo: a prévia e "PNG · 3840 × 2160 · 4,2 MB" */
+static void painel_previa_escolher(void) {
+	int n = n_selecionados();
+	int idx = n == 1 ? primeiro_selecionado() : -1;
+	const ar_entrada *e = idx >= 0 && !lista.v[idx].pasta ? &lista.v[idx] : NULL;
+	CLAY(CLAY_ID("esc-painel"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(300), CLAY_SIZING_GROW(0) }, .padding = { 20, 20, 20, 14 }, .childGap = 12 },
+		.border = { .color = gv_t.borda, .width = { .left = 1 } } }) {
+		if (e && cam[idx]) {
+			CLAY(CLAY_ID("esc-previa"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(200) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = gv_t.fundo, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+				if (e->tipo == AR_IMAGEM) {
+					CLAY(CLAY_ID("esc-img"), gv_imagem(CLAY_ID("esc-img"), cam[idx], GV_AJUSTE_CONTER, (Clay_ElementDeclaration){
+						.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) })) {}
+				} else {
+					ic_dados *d = &ic_pool[ic_n++ % (int)(sizeof(ic_pool) / sizeof(ic_pool[0]))];
+					d->tipo = e->tipo;
+					d->link = e->link;
+					d->cor = 0;
+					ar_selo(e, d->selo, sizeof(d->selo));
+					CLAY(CLAY_ID("esc-icone"), gv_livre(desenhar_icone, d, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_FIXED(120), CLAY_SIZING_FIXED(120) } } })) {}
 				}
 			}
-		}
-		if (gv_botao_ext(CLAY_ID("esc-cancelar"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO, .altura = 40 })) {
-			esc_sair(1);
-		}
-		const char *rotulo = esc_rotulo[0] ? esc_rotulo : modo_escolher == ESC_SALVAR ? "Salvar" : modo_escolher == ESC_PASTA ? "Escolher" : "Abrir";
-		bool pode = modo_escolher == ESC_ABRIR ? n_selecionados() > 0 && ({ bool f = false; for (int i = 0; i < lista.n; i++) { f |= sel[i] && !lista.v[i].pasta; } f; })
-			: modo_escolher == ESC_SALVAR ? esc_nome[0] != '\0' : true;
-		if (gv_botao_ext(CLAY_ID("esc-ok"), &(gv_botao_opcoes){ .texto = rotulo, .estilo = GV_BOTAO_CHEIO, .altura = 40, .desativado = !pode })) {
-			esc_aceitar();
+			gv_texto(gv_str(e->nome), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+			/* "PNG · 3840 × 2160 · 4,2 MB" (a leitura da imagem fica em memória: o quadro não relê o arquivo) */
+			static char ultimo_caminho[4096], ultimo_texto[200];
+			if (strcmp(ultimo_caminho, cam[idx])) {
+				char tam[32], tipo[24];
+				ar_tamanho_humano(e->tamanho, tam, sizeof(tam));
+				const char *ponto = strrchr(e->nome, '.');
+				g_strlcpy(tipo, ponto && ponto[1] ? ponto + 1 : "Arquivo", sizeof(tipo));
+				for (char *q = tipo; *q; q++) {
+					*q = (char)g_ascii_toupper(*q);
+				}
+				int w = 0, h = 0;
+				if (e->tipo == AR_IMAGEM && gdk_pixbuf_get_file_info(cam[idx], &w, &h)) {
+					g_snprintf(ultimo_texto, sizeof(ultimo_texto), "%s  ·  %d × %d  ·  %s", tipo, w, h, tam);
+				} else {
+					g_snprintf(ultimo_texto, sizeof(ultimo_texto), "%s  ·  %s", tipo, tam);
+				}
+				g_strlcpy(ultimo_caminho, cam[idx], sizeof(ultimo_caminho));
+			}
+			gv_texto(gv_str(ultimo_texto), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		} else {
+			gv_texto(gv_str(n > 1 ? gv_fmt("%d arquivos marcados", n).chars : "Marque um arquivo para ver a prévia."), gv_t.tamanho_corpo, gv_t.texto_suave, GV_PESO_NORMAL);
 		}
 	}
 }
@@ -6667,7 +6804,11 @@ static void desenhar(gv_app *a, void *dados) {
 	teclado_atalhos();
 	CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
 		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
-		gv_barra_janela(a, CLAY_ID("barra"), "folder", "Atlas");
+		if (modo_escolher) {
+			gv_barra_janela_sub(a, CLAY_ID("barra"), "folder", esc_titulo_janela(), esc_subtitulo());
+		} else {
+			gv_barra_janela(a, CLAY_ID("barra"), "folder", "Atlas");
+		}
 		faixa_de_abas();
 		barra_ferramentas();
 		CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
@@ -6675,7 +6816,9 @@ static void desenhar(gv_app *a, void *dados) {
 			recarga_bloqueada++;
 			conteudo();
 			recarga_bloqueada--;
-			if (detalhes && !VISTA_CARTOES && lista.n >= 0) {
+			if (modo_escolher == ESC_ABRIR && !VISTA_CARTOES && lista.n >= 0) {
+				painel_previa_escolher();
+			} else if (detalhes && !VISTA_CARTOES && lista.n >= 0) {
 				painel_detalhes();
 			}
 		}
@@ -6750,6 +6893,8 @@ int main(int argc, char **argv) {
 			esc_multiplo = !strcmp(m, "abrir-varios");
 		} else if (g_str_has_prefix(a, "--titulo=")) {
 			g_strlcpy(esc_titulo, a + 9, sizeof(esc_titulo));
+		} else if (g_str_has_prefix(a, "--solicitante=")) {
+			g_strlcpy(esc_solicitante, a + 14, sizeof(esc_solicitante));
 		} else if (g_str_has_prefix(a, "--pasta=")) {
 			g_strlcpy(esc_pasta_ini, a + 8, sizeof(esc_pasta_ini));
 		} else if (g_str_has_prefix(a, "--nome=")) {
@@ -6832,6 +6977,9 @@ int main(int argc, char **argv) {
 	ar_barra_ler(&barra);
 	vista_atual = cfg.vista;
 	aplicar_cfg_ao_vivo();
+	if (modo_escolher) { /* nos esboços: ao salvar, a lista com colunas; ao abrir, a grade com a prévia */
+		vista_atual = modo_escolher == ESC_SALVAR ? AR_VISTA_LISTA : AR_VISTA_GRADE;
+	}
 	/* onde abrir: o que a pessoa pediu na linha de comando; senão, o que escolheu em Configurações > Página inicial */
 	const char *destino = argc > 1 && g_file_test(argv[1], G_FILE_TEST_IS_DIR) ? inicio : ESPECIAL_INICIO;
 	if (argc <= 1) {
@@ -6848,9 +6996,9 @@ int main(int argc, char **argv) {
 		if (!g_file_test(destino, G_FILE_TEST_IS_DIR)) {
 			destino = g_get_home_dir();
 		}
-		detalhes = false;
+		detalhes = false; /* o painel do seletor é a prévia (painel_previa_escolher) */
 	}
-	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_escolher ? esc_titulo : "Atlas", .app_id = modo_escolher ? "lumna-atlas-escolher" : "lumna-atlas",
+	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_escolher ? esc_titulo_janela() : "Atlas", .app_id = modo_escolher ? "lumna-atlas-escolher" : "lumna-atlas",
 		.largura = modo_escolher ? 1040 : 1240, .altura = modo_escolher ? 700 : 760 });
 	gv_arraste_aceitar(MIME_URIS);
 	if (!app) {

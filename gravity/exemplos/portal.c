@@ -9,6 +9,7 @@
  * O serviço sobe sozinho pelo D-Bus e sai depois de um minuto sem pedidos. LUMNA_ATLAS_EXE troca o programa que abre a janela (os testes põem um de mentira).
  */
 #include <gio/gio.h>
+#include <gio/gdesktopappinfo.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -260,6 +261,16 @@ static void seletor_chamada(GDBusConnection *c, const char *remetente, const cha
 	acrescentar_filtros(args, v);
 	if (v) {
 		g_variant_unref(v);
+	}
+	/* quem pediu: o nome do app (o do atalho dele), senão o app_id; "Solicitado por Firefox · Upload" */
+	if (app_id && *app_id) {
+		char *id = g_strconcat(app_id, ".desktop", NULL);
+		GDesktopAppInfo *d = g_desktop_app_info_new(id);
+		g_ptr_array_add(args, g_strdup_printf("--solicitante=%s", d ? g_app_info_get_display_name(G_APP_INFO(d)) : app_id));
+		if (d) {
+			g_object_unref(d);
+		}
+		g_free(id);
 	}
 	g_ptr_array_add(args, NULL);
 
