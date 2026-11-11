@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Processos
+GenericName=Gerenciador de processos
+Comment=Ver, encerrar e dar prioridade aos processos (Ctrl+Shift+Esc)
+Exec=lumna-processos
+Icon=utilities-system-monitor
+StartupWMClass=lumna-processos
+Terminal=false
+Categories=System;Monitor;
+Keywords=processos;tarefas;task;manager;gerenciador;monitor;encerrar;matar;kill;prioridade;cpu;memoria;

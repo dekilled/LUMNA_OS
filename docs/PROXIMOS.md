@@ -70,4 +70,5 @@ Decidido: atalho **Ctrl+Shift+Esc** (o Orbit nunca o entrega a um jogo; no Gamin
 Prioridades: Baixa (nice 10, E/S ociosa), Média (0), Alta (-5), Máxima (-15), Tempo real (SCHED_RR 20); encerrar = SIGTERM ou SIGKILL por pidfd (sem corrida de PID), do processo ou da árvore dele.
 
 Feito: `servicos/processos.c` (ler /proc, CPU, encerrar, prioridade, proteger o próprio processo) + `lumna-processos-ajudante` (pkexec) + política `os.lumna.processos`, com testes em processos reais.
-Falta: o app (esboços), o serviço residente, o atalho no Orbit, a camada acima de tudo, Desempenho/Inicialização/Serviços.
+
+Feito (tela Processos): `lumna-processos` com o serviço residente (`lumna-processos servico`, chamado pelo Orbit no Ctrl+Shift+Esc e iniciado na sessão), a janela overlay (lista agrupada por aplicativo com filhos, busca que abre os grupos, filtro, ordenação, Encerrar/Forçar/prioridades, confirmação para processos da sessão, ajudante por pkexec numa linha à parte) e o teste `testes/processos_app.sh` num Orbit headless. **Falta:** Desempenho (gráficos), Aplicativos de inicialização, Serviços, botão Guia do controle e "fechar jogo" no Gaming, e confirmar no PC real (senha do pkexec, jogo travado de verdade, oom_score_adj -900, que o ambiente de teste não deixa gravar).

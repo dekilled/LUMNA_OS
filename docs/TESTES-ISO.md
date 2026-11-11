@@ -509,6 +509,11 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.391 | Um app que pede escolher uma pasta (Steam, "Adicionar biblioteca") | O seletor só lista pastas; Escolher leva a pasta marcada ou a de agora | ☐ |
 | 2.392 | No seletor do Atlas: Esc, o botão Cancelar e fechar a janela | O app que pediu recebe "cancelado", sem travar | ☐ |
 | 2.393 | Um site que pede só imagens | O seletor mostra o filtro do app (Imagens) e lista só as imagens | ☐ |
+| 2.394 | Ctrl+Shift+Esc (na área de trabalho, e com um jogo em tela cheia no Gaming) | Abre o Gerenciador de processos por cima de tudo; Ctrl+Shift+Esc de novo (ou Esc, ou clicar fora) fecha | ☐ |
+| 2.395 | Com um jogo travado: abrir o Gerenciador, buscar o jogo, marcar a linha e **Encerrar processo** | O jogo some na hora (o app é de um grupo: encerra o grupo inteiro, não só a janela) | ☐ |
+| 2.396 | Na seta ▾ ao lado de Encerrar (ou botão direito na linha): Forçar encerramento e as cinco prioridades | Forçar mata na hora; Baixa/Média/Alta/Máxima/Tempo real mudam a coluna Prioridade (as de baixo de Média pedem a senha uma vez) | ☐ |
+| 2.397 | Encerrar um processo da sessão (compositor, barra, dock) | Pede confirmação antes; Cancelar não faz nada | ☐ |
+| 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

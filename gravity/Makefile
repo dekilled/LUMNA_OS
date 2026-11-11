@@ -264,3 +264,7 @@ portal: exemplos/portal.c
 # o ajudante com privilégio do gerenciador de processos (pkexec): encerrar e prioridade em processos do sistema
 processos-ajudante: exemplos/processos-ajudante.c servicos/processos.c servicos/processos.h
 	$(CC) -std=gnu11 -O2 -Wall -Wextra -Iservicos -o $@ exemplos/processos-ajudante.c servicos/processos.c
+
+# o gerenciador de processos (lumna-processos)
+processos: exemplos/processos.c servicos/processos.c servicos/processos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0) -o $@ exemplos/processos.c servicos/processos.c libgravity.a $(LDLIBS)
