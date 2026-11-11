@@ -55,6 +55,7 @@ Módulos
   arraste.c   arrastar e soltar entre aplicações (wl_data_device): ícone do arraste e o dedo/mouse que o levam
   im.c        teclado virtual e método de entrada (escrever sem teclado físico)
   copiados.c  o histórico dos últimos 20 textos copiados
+  xwl.c       o XWayland: as janelas X11 (a Steam, os jogos do Proton) e os menus delas
   clip.c      a ponte de copiar e colar (texto) com o compositor de fora, no modo aninhado
   ipc.c       o socket do orbit-msg
   keybinds.c  tabela de atalhos
