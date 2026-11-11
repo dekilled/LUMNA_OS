@@ -18,6 +18,42 @@
 #if WLR_HAS_XWAYLAND
 
 #include <wlr/xwayland.h>
+#include <stdio.h>
+
+/* ---- um jogo da Steam? ---- */
+
+/* A Steam marca todo jogo que abre (o nativo e o do Proton) com SteamGameId/SteamAppId no ambiente do processo: o jogo nativo tem uma classe
+ * qualquer (csgo_linux64, hl2_linux), então a classe não basta. Só o Linux deixa ler o ambiente do processo, e só o dono dele. */
+bool orbit_xwl_steam_game(const struct orbit_view *view) {
+	struct wlr_xwayland_surface *xs = view->xsurface;
+	if (!xs) {
+		return false;
+	}
+	if (xs->class && !strncmp(xs->class, "steam_app_", 10)) {
+		return true;
+	}
+	if (xs->pid <= 0) {
+		return false;
+	}
+	char caminho[64];
+	snprintf(caminho, sizeof(caminho), "/proc/%d/environ", (int)xs->pid);
+	FILE *f = fopen(caminho, "r");
+	if (!f) {
+		return false;
+	}
+	static char buf[262144];
+	size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+	fclose(f);
+	buf[n] = '\0';
+	for (size_t i = 0; i < n;) {
+		const char *e = buf + i;
+		if (!strncmp(e, "SteamGameId=", 12) || !strncmp(e, "SteamAppId=", 11)) {
+			return true;
+		}
+		i += strlen(e) + 1;
+	}
+	return false;
+}
 
 /* ---- janelas gerenciadas ---- */
 
@@ -325,6 +361,11 @@ void orbit_xwayland_finish(struct orbit_server *server) {
 }
 
 #else /* sem XWayland na wlroots */
+
+bool orbit_xwl_steam_game(const struct orbit_view *view) {
+	(void)view;
+	return false;
+}
 
 bool orbit_xwayland_bind(struct orbit_server *server, struct wlr_compositor *compositor) {
 	(void)server;

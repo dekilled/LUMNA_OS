@@ -502,6 +502,7 @@ void orbit_view_set_state(struct orbit_view *view, bool fullscreen, bool maximiz
 void orbit_view_set_resizing(struct orbit_view *view, bool on);
 void orbit_view_reconfigure(struct orbit_view *view);           /* manda de novo o estado de agora */
 struct wlr_box orbit_view_client_box(struct orbit_view *view);  /* a geometria da janela dentro da superfície */
+bool orbit_xwl_steam_game(const struct orbit_view *view); /* a janela X11 é de um jogo que a Steam abriu */
 void orbit_xwl_sync_pos(struct orbit_view *view, int x, int y); /* a posição da janela X11 na tela (só com XWayland) */
 void orbit_view_map(struct orbit_view *view);
 void orbit_view_unmap(struct orbit_view *view);

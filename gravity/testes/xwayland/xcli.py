@@ -1,0 +1,22 @@
+# clientes X11 de teste: "jan" cria uma janela normal colorida (classe dada); "or" cria uma override-redirect (menu) numa posição
+import sys, time, os
+from Xlib import X, display, Xatom
+d = display.Display(); s = d.screen()
+modo = sys.argv[1]
+cor = int(sys.argv[2], 16)
+if modo == "jan":
+    classe = sys.argv[3]
+    w = s.root.create_window(0, 0, 400, 300, 0, s.root_depth, X.InputOutput, X.CopyFromParent, background_pixel=cor, event_mask=X.KeyPressMask | X.ExposureMask)
+    w.set_wm_class(classe.lower(), classe); w.set_wm_name("X " + classe)
+    w.change_property(d.intern_atom("_NET_WM_PID"), Xatom.CARDINAL, 32, [os.getpid()])
+    w.map(); d.flush()
+    while True:
+        e = d.next_event()
+        if e.type == X.KeyPress:
+            open(sys.argv[4], "a").write("tecla %d\n" % e.detail)
+else:
+    x, y = int(sys.argv[3]), int(sys.argv[4])
+    w = s.root.create_window(x, y, 160, 90, 0, s.root_depth, X.InputOutput, X.CopyFromParent, background_pixel=cor, override_redirect=True)
+    w.map(); d.flush()
+    while True:
+        time.sleep(1)

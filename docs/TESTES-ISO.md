@@ -492,6 +492,8 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.374 | Fechar uma janela X11 pela dock ou pelo botão de fechar do app | A janela fecha (e o app encerra) | ☐ |
 | 2.375 | Gaming > Biblioteca com jogos da Steam sem capa vertical (o Counter-Strike, as demos) | Cada um mostra uma arte (o retrato, ou o banner inteiro no cartão), nunca só o ícone de controle; no Início o jogo sem hero também ganha um fundo | ☐ |
 | 2.376 | Gaming > Loja > Buscar/Destaques, jogos sem a cápsula | Os cartões caem no header ou em outra arte da Steam, sem ficar só com o nome | ☐ |
+| 2.377 | Gaming ligado numa tela e um jogo da Steam (nativo, como o CS:GO, ou do Proton) aberto pela Biblioteca | O jogo abre na tela do Gaming, em tela cheia, sem ir pra dock nem para o monitor do Desktop | ☐ |
+| 2.378 | Com o Gaming num monitor e o cursor no outro, abrir um jogo | O jogo vai para o monitor do Gaming (quem decide é a marca da Steam no processo, não a classe da janela) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
 

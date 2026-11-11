@@ -390,7 +390,9 @@ static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
 }
 
 void orbit_view_map(struct orbit_view *view) {
-	struct orbit_output *output = orbit_output_for_new_view(view->server, orbit_view_app_id(view));
+	/* o jogo da Steam vai para a tela do Gaming (o nativo tem uma classe qualquer: quem diz é o ambiente do processo dele) */
+	const char *familia = view->xsurface && orbit_xwl_steam_game(view) ? "steam_app" : orbit_view_app_id(view);
+	struct orbit_output *output = orbit_output_for_new_view(view->server, familia);
 	view->mapped = true;
 	view->output = output;
 	view->tag = output ? output->tag : 0;
