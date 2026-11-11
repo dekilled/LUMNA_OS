@@ -428,7 +428,9 @@ void orbit_view_map(struct orbit_view *view) {
 	orbit_arrange(server);
 	orbit_focus(view);
 	phone_on_map(server, view, prev);
-	if (output && output_is_phone(output->wlr)) {
+	if (output && (output_is_phone(output->wlr) || orbit_output_isolated(output))) {
+		/* numa tela de Gaming ou Mídia só uma janela aparece (a que tem o foco): a arrumação de cima ainda via o foco na janela de antes (o lumna-jogos) e
+		 * escondia esta; sem arrumar de novo ela só aparecia quando outro evento refazia o arranjo (o jogo abria "por trás" e depois vinha à frente) */
 		orbit_arrange(server);
 	}
 }

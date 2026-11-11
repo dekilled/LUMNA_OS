@@ -5,7 +5,9 @@
 orbit=${1:-orbit}; aqui=$(cd "$(dirname "$0")" && pwd)
 for c in Xwayland grim wtype; do command -v $c >/dev/null || { echo "xwayland: dispensado (falta $c)"; exit 0; }; done
 python3 -c "import Xlib, PIL" 2>/dev/null || { echo "xwayland: dispensado (falta python3-xlib ou PIL)"; exit 0; }
-run=$(mktemp -d); chmod 700 "$run"; mkdir -p "$run/cfg/lumna" "$run/home"
+run=$(mktemp -d); chmod 700 "$run"; mkdir -p "$run/cfg/lumna" "$run/home" "$run/bin"
+[ -x "$aqui/../jogos" ] && ln -s "$aqui/../jogos" "$run/bin/lumna-jogos"
+export PATH="$run/bin:$PATH"
 export HOME="$run/home" XDG_CONFIG_HOME="$run/cfg" XDG_RUNTIME_DIR="$run"
 cd "$orbit" || exit 1
 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=2 WLR_RENDERER=pixman ./orbit >"$run/log" 2>&1 & pid=$!
@@ -43,7 +45,10 @@ msg fechar "$id" >/dev/null; sleep 1.5
 pkill -f xcli.py
 # o jogo da Steam (a marca SteamGameId no ambiente do processo) vai para a tela do Gaming; o mesmo app sem a marca fica onde está
 msg modo gaming HEADLESS-2 >/dev/null; sleep 0.5
-SteamGameId=730 DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 00ff00 csgo_linux64 "$run/t1" & sleep 4
+# com a biblioteca do Gaming (que tem o foco) já aberta nessa tela, se existir o binário: o jogo que abre por cima dela tem de aparecer logo, e não só depois
+SteamGameId=730 DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 00ff00 csgo_linux64 "$run/t1" & sleep 2.5
+[ -x "$aqui/../jogos" ] && { jan lumna-jogos | grep -q '"visivel":false' || falha "a biblioteca do Gaming devia ficar por trás do jogo que abriu ($(campos lumna-jogos))"; jan csgo_linux64 | grep -q '"visivel":true' || falha "o jogo devia aparecer logo ao abrir, por cima da biblioteca"; }
+sleep 1.5
 campos csgo_linux64 | grep -q '"saida":"HEADLESS-2".*"espaco":4.*"na_dock":false.*"w":1280.*"h":720' || falha "o jogo da Steam devia ir, isolado e do tamanho da tela, para o Gaming ($(campos csgo_linux64))"
 DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan ff0000 outro_app "$run/t2" & sleep 4
 campos outro_app | grep -q '"saida":"HEADLESS-1".*"espaco":1' || falha "um app X11 comum devia ficar no Desktop ($(campos outro_app))"
