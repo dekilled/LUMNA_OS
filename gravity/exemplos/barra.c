@@ -26,6 +26,7 @@
 #include "bluetooth.h"
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include "emmac.h"
+#include "emma_ativa.h"
 #include "json.h"
 #include "gravity.h"
 #include "hora.h"
@@ -911,6 +912,16 @@ static void executar(const char *programa, const char *arg, const char *arg2) {
 /* ---- a Emma (lumna-emma: o serviço que fica o tempo todo) ---- */
 
 static int emma_fd = -1;
+/* o emma-sistema.ini é lido de 2 em 2 s (a barra desenha a cada quadro) */
+static bool emma_ativa_cache(void) {
+	static double lido_em = -10;
+	static bool ativa = true;
+	if (gv_agora() - lido_em >= 2.0) {
+		lido_em = gv_agora();
+		ativa = emma_ativa();
+	}
+	return ativa;
+}
 static char emma_estado[16] = "offline";   /* offline | ocioso | ouvindo | transcrevendo | pensando | falando */
 static bool emma_servidor;                 /* o backend da Emma (a conversa) responde; sem ele só valem os comandos curtos */
 static double emma_tentar_em;
@@ -1208,13 +1219,15 @@ static void desenhar_barra(gv_app *app, void *dados) {
 				}
 			}
 			/* o processo da Emma: o ícone mostra que ela roda (e o que faz); tocar abre o menu dele */
-			if (emma_fd < 0 && gv_agora() >= emma_tentar_em) {
+			/* a Emma desligada no sistema (pré-setup ou Painel): nada dela na barra, nem tentativa de conexão */
+			bool emma_no_sistema = emma_ativa_cache();
+			if (emma_no_sistema && emma_fd < 0 && gv_agora() >= emma_tentar_em) {
 				emma_ligar(app);
 			}
-			if (emma_fd < 0) {
+			if (emma_no_sistema && emma_fd < 0) {
 				gv_acordar_em(emma_tentar_em - gv_agora() + 0.05);
 			}
-			{
+			if (emma_no_sistema) {
 				Clay_ElementId id = CLAY_ID("emma");
 				bool tocado = gv_tocado(id);
 				bool ativa = strcmp(emma_estado, "ocioso") && strcmp(emma_estado, "offline");

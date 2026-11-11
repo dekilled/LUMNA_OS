@@ -330,6 +330,28 @@ No login escolha **"LUMNA (clássico · emergência)"** (a senha do live é `lum
 | 2.251 | Music > Configurações > Reprodução: desligue "Continuar tocando ao fechar"; toque e feche | Fechar encerra o app | ☐ |
 | 2.252 | Clique no desktop onde fica o cartão (com ele escondido) | Nada é bloqueado (o widget não pega cliques fora do cartão) | ☐ |
 
+### 2j. Pré-setup (primeiro login)
+
+| # | Faça | Esperado | OK |
+|---|---|---|---|
+| 2.253 | Entre pela primeira vez num usuário novo | Depois de uns segundos abre "Bem-vindo ao LUMNA", etapa 1 de 5, com Uso diário marcado | ☐ |
+| 2.254 | Escolha Gaming, 12 horas, outro idioma e **Continuar** | Vai para Rede e som; pode pedir a senha de administrador (idioma e fuso) sem travar a tela | ☐ |
+| 2.255 | Ao terminar o assistente, reinicie a sessão | O sistema começa no modo do perfil (Gaming); a barra mostra a hora em 12 h | ☐ |
+| 2.256 | Etapa 2: ligue o Wi-Fi, escolha sua rede, digite a senha | Conecta e aparece "Conectado, com internet" | ☐ |
+| 2.257 | Etapa 2: troque a saída de som e toque "Testar som" | O som sai na saída escolhida | ☐ |
+| 2.258 | Etapa 3: e-mail inválido, depois um certo; "Configuração manual" | O inválido não vale; o certo fica "guardado"; aparecem IMAP e SMTP | ☐ |
+| 2.259 | Etapa 3: serviço de nuvem (com o rclone instalado), "Conectar conta" | Abre o navegador para entrar; depois "Conta conectada" e a pasta `~/Nuvem` existe | ☐ |
+| 2.260 | Etapa 3: ligue "Sincronizar em segundo plano" e termine; reinicie a sessão | A nuvem aparece montada em `~/Nuvem` | ☐ |
+| 2.261 | Etapa 4: desligue "Ativar Emma no sistema" e continue | O ícone da Emma some da barra; o chat (Super+A) e o app não abrem; `pgrep lumna-emma` não acha nada | ☐ |
+| 2.262 | Reinicie a sessão com a Emma desligada | A Emma não sobe sozinha | ☐ |
+| 2.263 | `lumna-setup --passo 4`, ligue a Emma de novo | O serviço sobe e o ícone volta à barra | ☐ |
+| 2.264 | Etapa 4: provedor, URL, chave, modelo e "Testar conexão" | Diz "Conexão funcionando" (ou o erro do provedor); o provedor aparece em Painel > Emma > Provedores | ☐ |
+| 2.265 | Etapa 5: "Usar código de pareamento" e digite o código no LUMNA Connect do celular | O código aparece com o endereço; ao parear vira "1 dispositivo pareado" e os recursos escolhidos ficam ligados no celular (Painel > Connect) | ☐ |
+| 2.266 | "Começar a usar o LUMNA" | A janela fecha; no próximo login não abre mais | ☐ |
+| 2.267 | Feche o assistente no meio (**Fechar**) e entre de novo | Não abre a janela: aparece um aviso "Termine de configurar o seu LUMNA" | ☐ |
+| 2.268 | Ligue "Não mostrar de novo" e feche | Nem janela nem aviso nos próximos logins | ☐ |
+| 2.269 | Lançador: "Configuração inicial" | Abre o assistente de novo, quando quiser | ☐ |
+
 ## 3. Instalar (na VM, com `--disco`)
 
 | # | O que fazer | Deve acontecer | |

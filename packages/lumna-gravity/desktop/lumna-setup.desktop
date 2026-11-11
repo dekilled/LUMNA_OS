@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Configuração inicial
+GenericName=Pré-setup do LUMNA
+Comment=Perfil de uso, rede, som, contas, Emma e celular: a configuração de primeiro uso
+Exec=lumna-setup
+Icon=lumna-painel
+StartupWMClass=lumna-setup
+Terminal=false
+Categories=Settings;System;
+Keywords=configuracao;inicial;setup;boas-vindas;primeiro;uso;

@@ -18,6 +18,7 @@
 #include "emma-ui.h"
 #include "destaque.h"
 #include "emmac.h"
+#include "emma_ativa.h"
 #include "emmar.h"
 #include "gravity.h"
 #include "json.h"
@@ -1605,6 +1606,10 @@ static void garantir_servico(void) {
 }
 
 int main(void) {
+	if (!emma_ativa()) {
+		fprintf(stderr, "a Emma está desligada no sistema (Painel > Emma liga de novo)\n");
+		return 0;
+	}
 	msgs = g_ptr_array_new_with_free_func(eu_msg_liberar);
 	sessoes = g_array_new(FALSE, TRUE, sizeof(struct sessao));
 	rotinas = g_array_new(FALSE, TRUE, sizeof(struct rotina));

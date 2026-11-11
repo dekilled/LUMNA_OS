@@ -30,4 +30,6 @@ Detecta a placa de vídeo (e o que mais precisar de driver) e instala o pacote c
 
 ## 6. Menu de pré-configuração (pós-instalação)
 
-O que aparece assim que o sistema acaba de ser instalado, na primeira entrada. Sem esboço ainda. O instalador do sistema (`exemplos/instalador.c`) já cuida do disco e da conta; este vem depois, já dentro da sessão do usuário. Candidatos de etapas (a confirmar com o esboço): idioma e teclado, rede, tema, drivers, Emma (provedor), apps essenciais pela Loja, Connect com o celular.
+**Pronto (lumna-setup)**, pelos esboços do Eric: cinco etapas (Boas-vindas, Rede e som, Contas, Emma, LUMNA Connect), abre no primeiro login de cada usuário, dá para pular tudo
+e pedir que nunca mais apareça. Detalhes, o que ficou de fora e os testes em [SETUP.md](SETUP.md). O instalador do sistema (`exemplos/instalador.c`) cuida do disco e da conta; este vem depois, dentro da sessão do usuário.
+

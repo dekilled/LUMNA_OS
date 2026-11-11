@@ -29,6 +29,7 @@
 #include "emmal.h"
 #include "emmas.h"
 #include "emmac.h"
+#include "emma_ativa.h"
 #include "latex.h"
 #include "emmav.h"
 #include "json.h"
@@ -1807,6 +1808,10 @@ static gboolean reiniciar_agora(gpointer d) {
 int main(int argc, char **argv) {
 	if (argc > 1) {
 		return como_cliente(argc, argv);
+	}
+	if (!emma_ativa()) { /* a Emma foi desligada no sistema (pré-setup ou Painel): nem sobe */
+		fprintf(stderr, "lumna-emma: desligada no sistema (Painel > Emma liga de novo)\n");
+		return 0;
 	}
 	signal(SIGPIPE, SIG_IGN);
 	argv_original = argv;

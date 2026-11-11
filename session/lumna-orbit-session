@@ -12,4 +12,5 @@ export ORBIT_TERMINAL=lumna-pulse
 exec dbus-run-session -- orbit -s 'dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP
 	lumna-papel & lumna-barra & lumna-dock & lumna-avisos & lumna-widgets & lumna-ocioso & lumna-inicio & lumna-polkit & lumna-luz & lumna-teclado & lumna-discos & lumna-connect &
 	{ mkdir -p ~/.local/state/lumna; lumna-emma 2>>~/.local/state/lumna/emma.log; } &
-	lumna-midia servico &'
+	lumna-midia servico &
+	{ sleep 4; lumna-setup --login; } &'

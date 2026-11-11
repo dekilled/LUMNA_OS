@@ -17,6 +17,7 @@
 
 #include "emma-ui.h"
 #include "emmac.h"
+#include "emma_ativa.h"
 #include "gravity.h"
 #include "json.h"
 #include "modos.h"
@@ -386,6 +387,10 @@ static void desenhar(gv_app *a, void *dados) {
 }
 
 int main(void) {
+	if (!emma_ativa()) {
+		fprintf(stderr, "a Emma está desligada no sistema (Painel > Emma liga de novo)\n");
+		return 0;
+	}
 	msgs = g_ptr_array_new_with_free_func(eu_msg_liberar);
 	eu_iniciar();
 	app = gv_app_criar(&(gv_opcoes){ .titulo = "Emma", .app_id = "lumna-emma-chat", .tipo = GV_CAMADA, .nivel = GV_NIVEL_OVERLAY,

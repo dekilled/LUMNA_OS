@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets
+all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -84,8 +84,8 @@ apps: exemplos/apps.c servicos/desktopenv.h libgravity.a
 papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
 
-barra: exemplos/barra.c servicos/mpris.c servicos/mpris.h servicos/bateria.c servicos/bateria.h servicos/emmac.c servicos/emmac.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/mpris.c servicos/bateria.c servicos/emmac.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
+barra: exemplos/barra.c servicos/mpris.c servicos/mpris.h servicos/bateria.c servicos/bateria.h servicos/emmac.c servicos/emmac.h servicos/emma_ativa.c servicos/emma_ativa.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/mpris.c servicos/bateria.c servicos/emmac.c servicos/emma_ativa.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \
 		libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 libpulse) -lpthread
 
 rede: exemplos/rede.c libgravity.a
@@ -193,6 +193,11 @@ LOJA = exemplos/loja/principal.c exemplos/loja/barra.c exemplos/loja/telas.c exe
 loja: $(LOJA) exemplos/loja/app.h servicos/loja.c servicos/loja.h servicos/loja_hw.c servicos/loja_hw.h servicos/json.c servicos/json.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -Iexemplos/loja $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ $(LOJA) servicos/loja.c servicos/loja_hw.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm -lpthread
 
+# o pré-setup (lumna-setup): a configuração inicial depois da instalação
+SETUP_SERV = servicos/setup.c servicos/emma_ativa.c servicos/emmar.c servicos/emmac.c servicos/autostart.c servicos/entrada.c servicos/modos.c servicos/idioma.c servicos/instalador.c servicos/connectc.c servicos/rede.c servicos/som.c servicos/sons.c servicos/json.c
+setup: exemplos/setup.c $(SETUP_SERV) servicos/setup.h servicos/emma_ativa.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 gio-unix-2.0 libpulse) -o $@ exemplos/setup.c $(SETUP_SERV) libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0 gio-unix-2.0 libpulse) -lpthread
+
 # o explorador de arquivos (lumna-atlas)
 atlas: exemplos/atlas.c servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0) -o $@ exemplos/atlas.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
@@ -210,7 +215,7 @@ instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h se
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a setup mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
@@ -233,13 +238,13 @@ extensao:
 	cd extensao-firefox && rm -f lumna-midia.xpi && zip -q lumna-midia.xpi manifest.json fundo.js
 
 # a Emma em segundo plano (servicos/emma*.c): o serviço da sessão, sem a biblioteca de interface
-EMMA = exemplos/emma.c servicos/entrar.c servicos/emmaa.c servicos/emmaq.c servicos/emmah.c servicos/emmab.c servicos/emmal.c servicos/emmas.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
+EMMA = exemplos/emma.c servicos/emma_ativa.c servicos/entrar.c servicos/emmaa.c servicos/emmaq.c servicos/emmah.c servicos/emmab.c servicos/emmal.c servicos/emmas.c servicos/emmac.c servicos/emmav.c servicos/json.c servicos/midia.c servicos/midiac.c servicos/modos.c servicos/mpris.c
 emma: $(EMMA) servicos/emmaa.h servicos/emmaq.h servicos/emmah.h servicos/emmab.h servicos/emmal.h servicos/emmas.h servicos/emmac.h servicos/emmav.h
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags libsoup-3.0 gio-2.0 gio-unix-2.0) -o $@ $(EMMA) $(shell pkg-config --libs libsoup-3.0 gio-2.0 gio-unix-2.0) -lm -lpthread
 
 # o painel flutuante da Emma (à direita)
-emma-app: exemplos/emma-app.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emmac.c servicos/emmac.h servicos/emmar.c servicos/emmar.h servicos/json.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos -Iexemplos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/emma-app.c exemplos/emma-ui.c servicos/emmac.c servicos/emmar.c servicos/json.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+emma-app: exemplos/emma-app.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emma_ativa.c servicos/emmac.c servicos/emmac.h servicos/emmar.c servicos/emmar.h servicos/json.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -Iexemplos $(shell pkg-config --cflags gio-2.0) -o $@ exemplos/emma-app.c exemplos/emma-ui.c servicos/emma_ativa.c servicos/emmac.c servicos/emmar.c servicos/json.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
 
-emma-chat: exemplos/emma-chat.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emmac.c servicos/emmac.h servicos/json.c servicos/modos.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -Iexemplos -o $@ exemplos/emma-chat.c exemplos/emma-ui.c servicos/emmac.c servicos/json.c servicos/modos.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
+emma-chat: exemplos/emma-chat.c exemplos/emma-ui.c exemplos/emma-ui.h servicos/emma_ativa.c servicos/emmac.c servicos/emmac.h servicos/json.c servicos/modos.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0) -Iexemplos -o $@ exemplos/emma-chat.c exemplos/emma-ui.c servicos/emma_ativa.c servicos/emmac.c servicos/json.c servicos/modos.c servicos/destaque.c libgravity.a $(LDLIBS) $(shell pkg-config --libs gio-2.0)
