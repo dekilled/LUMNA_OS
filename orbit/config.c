@@ -198,6 +198,8 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		copy_cmd(server->emma, value);
 	} else if (strcasecmp(key, "emma_voz") == 0) {
 		copy_cmd(server->emma_mic, value);
+	} else if (strcasecmp(key, "processos") == 0) {
+		copy_cmd(server->tasks, value);
 	} else if (strcasecmp(key, "botao_ligar") == 0) {
 		copy_cmd(server->power_button, value);
 	} else if (strcasecmp(key, "seletor_midia") == 0) {
@@ -357,6 +359,7 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->media_menu, "lumna-midia tela seletor");
 	copy_cmd(server->emma, "pkill -x lumna-emma-chat || lumna-emma-chat");
 	copy_cmd(server->emma_mic, "lumna-emma ouvir");
+	copy_cmd(server->tasks, "lumna-processos");
 	copy_cmd(server->power_button, "lumna-botao-ligar");
 	server->inhibit_host_shortcuts = true;
 	server->host_telas_cfg = 0;

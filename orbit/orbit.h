@@ -134,6 +134,7 @@ enum orbit_action {
 	ORBIT_MEDIA_MENU, /* Super+M: o seletor de serviços, só no modo Mídia */
 	ORBIT_EMMA,       /* Super+A: o painel da Emma (de novo, fecha) */
 	ORBIT_EMMA_MIC,   /* Super+Shift+A: ligar (ou encerrar) o microfone da Emma */
+	ORBIT_TASKS,      /* Ctrl+Shift+Esc: o gerenciador de processos, por cima de tudo (nenhum app engole este atalho) */
 	ORBIT_POWER_BUTTON, /* o botão de ligar (XF86PowerOff): o que o Painel (Energia) escolheu */
 	ORBIT_SWAP_OUTPUTS, /* trocar os espaços de trabalho entre as telas */
 	ORBIT_MODE,       /* o modo seguinte do desktop (Desktop, Gaming, Mídia) */
@@ -312,6 +313,7 @@ struct orbit_server {
 	char media_menu[ORBIT_CMD_LEN]; /* o seletor de serviços da Mídia */
 	char emma[ORBIT_CMD_LEN];       /* abre ou fecha o painel da Emma */
 	char emma_mic[ORBIT_CMD_LEN];   /* liga o microfone da Emma (lumna-emma ouvir) */
+	char tasks[ORBIT_CMD_LEN];      /* abre ou fecha o gerenciador de processos (lumna-processos) */
 	char power_button[ORBIT_CMD_LEN]; /* o que fazer com o botão de ligar (lumna-botao-ligar) */
 	struct wlr_output *nested_output; /* aninhado: a saída que é uma janela do compositor de fora */
 	bool host_fullscreen, host_fullscreen_cfg; /* a janela dele em tela cheia (agora, e [geral] tela_cheia = sim) */
