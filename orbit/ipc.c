@@ -592,9 +592,9 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		if (kind && !strcmp(kind, "mover") && a && b2) {
 			orbit_pointer_warp(server, atof(a), atof(b2));
 		} else if (kind && !strcmp(kind, "botao") && a && (!strcmp(a, "baixo") || !strcmp(a, "cima"))) {
-			orbit_pointer_button(server, now_ms(), 0x110 /* BTN_LEFT */, !strcmp(a, "baixo") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
+			orbit_pointer_button(server, now_ms(), b2 && !strcmp(b2, "direito") ? 0x111 /* BTN_RIGHT */ : 0x110 /* BTN_LEFT */, !strcmp(a, "baixo") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
 		} else {
-			fail(b, "uso: mouse mover X Y | mouse botao baixo|cima");
+			fail(b, "uso: mouse mover X Y | mouse botao baixo|cima [direito]");
 			return;
 		}
 		put(b, "{\"ok\":true}");

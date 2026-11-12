@@ -551,6 +551,24 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.429 | Ctrl+G e uma linha; Ctrl++, Ctrl+−, Ctrl+0; Exibir > números de linha e fonte monoespaçada | Pula para a linha; o zoom mostra a % embaixo; as opções ficam salvas ao reabrir | ☐ |
 | 2.430 | Em um terminal, mudar o arquivo aberto (`echo x >> arquivo`) | Sem alterações suas: recarrega sozinho. Com alterações suas: pergunta | ☐ |
 | 2.431 | Abrir um arquivo grande (uns 5 MB de log) e rolar, e um com acentos antigos (Latin-1) | Rola sem travar; o Latin-1 aparece certo e a barra de estado diz "Latin-1" | ☐ |
+
+### 2r. Área de trabalho (ícones e pastas)
+
+| # | O que fazer | O que deve acontecer | OK |
+|---|---|---|---|
+| 2.432 | Pôr alguns arquivos e pastas em `~/Desktop` (ou na "Área de trabalho") e entrar na sessão | Os ícones aparecem no canto de cima, à esquerda, em coluna, no mesmo estilo do Atlas; o papel de parede continua atrás | ☐ |
+| 2.433 | Clicar num ícone, em outro, no vazio; arrastar no vazio em volta de vários | Seleciona um, troca, limpa; o retângulo lilás seleciona os que toca | ☐ |
+| 2.434 | Duplo clique numa pasta, num `.txt` e num atalho `.desktop` | Pasta abre no **Atlas**, o texto no **Signals**, o atalho abre o app | ☐ |
+| 2.435 | Arrastar um ícone para outro canto | Mostra onde vai cair e encaixa na grade; ao fechar e reabrir a sessão ele continua lá | ☐ |
+| 2.436 | Arrastar um arquivo para cima de uma pasta do desktop | Vai para dentro dela (abrir a pasta no Atlas confirma) | ☐ |
+| 2.437 | Abrir o Atlas ao lado e arrastar um arquivo dele para o desktop; depois um ícone do desktop para uma pasta no Atlas | O primeiro **copia** para a Área de trabalho e o ícone aparece onde soltou; o segundo entrega o arquivo ao Atlas | ☐ |
+| 2.438 | Botão direito no vazio: Nova pasta; digitar um nome e Enter. Depois Novo documento | A pasta nasce onde clicou, já pedindo o nome; o documento também | ☐ |
+| 2.439 | Botão direito num ícone: Copiar, depois Colar no vazio (ou no Atlas); Renomear; Lixeira | Copia (nome (2) se já existe), renomeia mantendo o lugar, manda para a lixeira; Ctrl+Z traz de volta | ☐ |
+| 2.440 | No terminal: `touch ~/Desktop/novo.txt` e depois `rm ~/Desktop/novo.txt` | O ícone aparece e some sozinho | ☐ |
+| 2.441 | Entrar com dois monitores | Os ícones só na tela principal; clicar no desktop do outro monitor não quebra nada | ☐ |
+| 2.442 | Abrir uma janela cobrindo parte dos ícones; clicar fora dela | As janelas ficam por cima; clicar no ícone visível ainda seleciona | ☐ |
+| 2.443 | Com os widgets (relógio, mídia) ligados | Os widgets continuam recebendo clique (se o desktop engolir o clique deles, anote) | ☐ |
+| 2.444 | Mudar a resolução ou trocar de monitor | Os ícones que não cabem aparecem em outro lugar e voltam ao lugar certo quando a tela cresce | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

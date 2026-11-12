@@ -97,7 +97,7 @@ static const char *const NOMES_NIVEL[PR_NIVEIS] = { "Baixa", "Média", "Alta", "
 static bool nome_infra(const char *n) {
 	static const char *const infra[] = { "systemd", "dbus-daemon", "dbus-run-session", "pipewire", "pipewire-pulse", "wireplumber", "orbit", "at-spi-bus-laun", "at-spi2-registr",
 		"gvfsd", "gvfs-udisks2-vo", "xdg-document-po", "xdg-desktop-por", "xdg-permission-", "polkit", "lumna-polkit", "lumna-teclado", "lumna-ocioso", "lumna-papel", "lumna-barra",
-		"lumna-dock", "lumna-avisos", "lumna-luz", "lumna-discos", "lumna-widgets", "lumna-inicio", "lumna-connect", "lumna-gamepad", "lumna-portal", "(sd-pam)", "Xwayland", NULL };
+		"lumna-dock", "lumna-avisos", "lumna-luz", "lumna-discos", "lumna-widgets", "lumna-desktop", "lumna-inicio", "lumna-connect", "lumna-gamepad", "lumna-portal", "(sd-pam)", "Xwayland", NULL };
 	for (int i = 0; infra[i]; i++) {
 		if (!strncmp(n, infra[i], strlen(infra[i]))) {
 			return true;
