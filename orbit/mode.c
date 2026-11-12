@@ -450,3 +450,82 @@ bool orbit_outputs_swap_from(struct orbit_server *server, struct orbit_output *f
 	}
 	return orbit_outputs_swap(server, from, other);
 }
+
+/* ---- quem fica na frente numa tela de Gaming (ou Mídia) ---- */
+
+static bool kiosk_candidate(const struct orbit_view *view, const struct orbit_output *output) {
+	return view->mapped && !view->minimized && view->output == output && view->tag == output->tag;
+}
+
+struct orbit_view *orbit_output_game(struct orbit_server *server, struct orbit_output *output) {
+	if (!output || output->mode != ORBIT_MODE_GAMING) {
+		return NULL;
+	}
+	struct orbit_view *view, *best = NULL;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->game && kiosk_candidate(view, output) && (!best || view->focus_seq >= best->focus_seq)) {
+			best = view;
+		}
+	}
+	return best;
+}
+
+struct orbit_view *orbit_kiosk_pick(struct orbit_server *server, struct orbit_output *output) {
+	struct orbit_view *focused = server->focused;
+	if (focused && kiosk_candidate(focused, output)) {
+		return focused; /* a pessoa escolheu (o Guia trazendo a biblioteca, o foco pelo orbit-msg): vale */
+	}
+	struct orbit_view *game = orbit_output_game(server, output);
+	if (game) {
+		return game;
+	}
+	struct orbit_view *view, *shell = NULL, *recent = NULL, *last = NULL;
+	wl_list_for_each(view, &server->views, link) {
+		if (!kiosk_candidate(view, output)) {
+			continue;
+		}
+		last = view;
+		if (!shell && output->mode == ORBIT_MODE_GAMING && orbit_app_is_gaming_shell(orbit_view_app_id(view))) {
+			shell = view;
+		}
+		if (view->focus_seq && (!recent || view->focus_seq > recent->focus_seq)) {
+			recent = view;
+		}
+	}
+	if (shell) {
+		return shell;
+	}
+	if (output->mode == ORBIT_MODE_GAMING && recent) {
+		return recent;
+	}
+	return last; /* a Mídia segue como era: a última que abriu */
+}
+
+bool orbit_view_may_take_focus(struct orbit_view *view) {
+	if (!view || view->game || !view->output || view->output->mode != ORBIT_MODE_GAMING || !orbit_output_isolated(view->output)) {
+		return true;
+	}
+	struct orbit_view *game = orbit_output_game(view->server, view->output);
+	return !game || game == view;
+}
+
+static uint32_t shell_spawned_ms;
+
+void orbit_mode_ensure_shell(struct orbit_server *server, struct orbit_output *output) {
+	if (!output || output->mode != ORBIT_MODE_GAMING || !orbit_output_isolated(output) || server->session_locked) {
+		return;
+	}
+	struct orbit_view *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (view->mapped && view->output == output && view->tag == output->tag) {
+			return; /* ainda há o que mostrar (mesmo minimizado: a Steam escondida volta pelo foco) */
+		}
+	}
+	uint32_t now = mode_now_ms();
+	if (shell_spawned_ms && now - shell_spawned_ms < 5000) {
+		return; /* a biblioteca acabou de ser chamada (ou fecha sozinha ao abrir): não insistir em laço */
+	}
+	shell_spawned_ms = now;
+	wlr_log(WLR_INFO, "a tela de Gaming %s ficou vazia: a biblioteca volta", output->wlr->name);
+	spawn("lumna-jogos");
+}

@@ -44,14 +44,45 @@ static void layer_sync_keyboard(struct orbit_layer *layer) {
 }
 
 static void layer_reparent(struct orbit_layer *layer) {
-	if (!layer->scene) {
+	if (!layer->scene || !layer->holder) {
 		return;
 	}
 	int index = layer->surface->current.layer;
 	if (index < 0 || index >= ORBIT_LAYER_COUNT) {
 		index = ORBIT_LAYER_TOP;
 	}
-	wlr_scene_node_reparent(&layer->scene->tree->node, layer->server->layer_tree[index]);
+	if (layer->holder->node.parent != layer->server->layer_tree[index]) {
+		wlr_scene_node_reparent(&layer->holder->node, layer->server->layer_tree[index]);
+	}
+}
+
+/* esconder numa tela de Gaming ou Mídia: o fundo, o "baixo" e o "cima" (papel de parede, widgets, barra, dock). O overlay fica (avisos, o teclado na tela,
+ * o gerenciador de processos, a capa da Mídia), e também uma camada que pegou o teclado só para ela (o lançador que a pessoa abriu ali) */
+static bool layer_hidden(struct orbit_layer *layer) {
+	if (!layer->surface || !layer->surface->output) {
+		return false;
+	}
+	int index = layer->surface->current.layer;
+	if (index >= ORBIT_LAYER_OVERLAY) {
+		return false;
+	}
+	if (layer->surface->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
+		return false;
+	}
+	struct orbit_output *output = output_from_wlr(layer->server, layer->surface->output);
+	return output && orbit_output_isolated(output);
+}
+
+void orbit_layers_sync_hidden(struct orbit_server *server) {
+	struct orbit_layer *layer;
+	wl_list_for_each(layer, &server->layers, link) {
+		if (layer->holder) {
+			bool hide = layer_hidden(layer);
+			if (layer->holder->node.enabled == hide) {
+				wlr_scene_node_set_enabled(&layer->holder->node, !hide);
+			}
+		}
+	}
 }
 
 static void layer_map(struct wl_listener *listener, void *data) {
@@ -114,6 +145,11 @@ static void layer_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&layer->destroy.link);
 	wl_list_remove(&layer->new_popup.link);
 	wl_list_remove(&layer->link);
+	if (layer->holder) {
+		layer->holder->node.data = NULL;
+		wlr_scene_node_destroy(&layer->holder->node);
+		layer->holder = NULL;
+	}
 	if (server->exclusive_layer == layer) {
 		server->exclusive_layer = NULL;
 		if (server->focused) {
@@ -206,7 +242,7 @@ static void arrange_tree(struct orbit_output *output, struct wlr_scene_tree *tre
 	struct wlr_scene_node *node;
 	wl_list_for_each(node, &tree->children, link) {
 		struct orbit_layer *layer = node->data;
-		if (!layer || layer->kind != ORBIT_NODE_LAYER || !layer->surface) {
+		if (!layer || layer->kind != ORBIT_NODE_LAYER || !layer->surface || !layer->scene) {
 			continue;
 		}
 		if (layer->surface->output != output->wlr) {
@@ -303,13 +339,18 @@ static void server_new_layer_surface(struct wl_listener *listener, void *data) {
 	if (index < 0 || index >= ORBIT_LAYER_COUNT) {
 		index = ORBIT_LAYER_TOP;
 	}
-	layer->scene = wlr_scene_layer_surface_v1_create(server->layer_tree[index], surface);
+	layer->holder = wlr_scene_tree_create(server->layer_tree[index]);
+	layer->scene = layer->holder ? wlr_scene_layer_surface_v1_create(layer->holder, surface) : NULL;
 	if (!layer->scene) {
 		wlr_log(WLR_ERROR, "cena da camada falhou");
+		if (layer->holder) {
+			wlr_scene_node_destroy(&layer->holder->node);
+		}
 		surface->data = NULL;
 		free(layer);
 		return;
 	}
+	layer->holder->node.data = layer; /* o arranjo das camadas (arrange_tree) acha a camada pela caixa */
 	layer->scene->tree->node.data = layer;
 	layer->scene_destroy.notify = layer_scene_destroy;
 	wl_signal_add(&layer->scene->tree->node.events.destroy, &layer->scene_destroy);

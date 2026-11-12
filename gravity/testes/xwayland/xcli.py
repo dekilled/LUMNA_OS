@@ -19,6 +19,16 @@ if modo == "jan":
             time.sleep(0.15); w.configure(width=rw, height=rh); d.flush()
             time.sleep(1.2); w.configure(width=rw, height=rh); d.flush()
         threading.Thread(target=pedir, daemon=True).start()
+    # "ativar=S": S segundos depois de abrir, pede o foco pelo _NET_ACTIVE_WINDOW, como a Steam faz ao abrir um jogo
+    ativar = [a for a in sys.argv[5:] if a.startswith("ativar=")]
+    if ativar:
+        import threading
+        from Xlib.protocol import event as xev
+        def pedir_foco():
+            time.sleep(float(ativar[0].split("=")[1]))
+            ev = xev.ClientMessage(window=w, client_type=d.intern_atom("_NET_ACTIVE_WINDOW"), data=(32, [1, X.CurrentTime, 0, 0, 0]))
+            s.root.send_event(ev, event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask); d.flush()
+        threading.Thread(target=pedir_foco, daemon=True).start()
     while True:
         e = d.next_event()
         if e.type == X.KeyPress:

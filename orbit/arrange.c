@@ -373,10 +373,14 @@ static void enter_views(struct orbit_server *server, struct orbit_output *output
 void orbit_arrange(struct orbit_server *server) {
 	struct orbit_output *output;
 	orbit_soft_off_refresh(server);
+	orbit_mode_follow(server);
+	orbit_layers_sync_hidden(server); /* o Desktop (papel de parede, barra, dock) não aparece numa tela de Gaming ou Mídia */
 	wl_list_for_each(output, &server->outputs, link) {
 		struct wlr_box box;
 		wlr_output_layout_get_box(server->layout, output->wlr, &box);
 		if (output->bg) {
+			static const float preto[4] = { 0, 0, 0, 1 };
+			wlr_scene_rect_set_color(output->bg, orbit_output_isolated(output) ? preto : server->background);
 			int bw = box.width > 0 ? box.width : 1;
 			int bh = box.height > 0 ? box.height : 1;
 			wlr_scene_rect_set_size(output->bg, bw, bh);
@@ -448,6 +452,13 @@ void orbit_arrange(struct orbit_server *server) {
 		}
 		assert(n <= ORBIT_MAX_VIEWS);
 		note_tiled_pressure(output, n, capped);
+		if (kiosk) {
+			/* só uma aparece: a escolhida pelas regras do modo (o jogo não sai da frente porque a Steam abriu uma janela ou o foco foi para o outro monitor) */
+			struct orbit_view *pick = orbit_kiosk_pick(server, output);
+			if (pick) {
+				full = pick;
+			}
+		}
 
 		bool phone = output_is_phone(output->wlr);
 		bool parked = phone && pair_is_parked(server, output);

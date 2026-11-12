@@ -554,11 +554,14 @@ static int ler_epic(struct jogo *lista, int n, int max) {
 	return n;
 }
 
-/* roda o legendary desta sessão (a configuração do Gaming) */
-static bool epic_legendary(const char **args, bool esperar) {
+/* roda o legendary desta sessão (a configuração do Gaming); jogo: é para abrir um jogo (leva a marca LUMNA_JOGO, que o Orbit lê para pôr a janela no Gaming) */
+static bool epic_legendary_ext(const char **args, bool esperar, const char *jogo) {
 	char *cfg = dir_epic();
 	char **env = g_get_environ();
 	env = g_environ_setenv(env, "LEGENDARY_CONFIG_PATH", cfg, TRUE);
+	if (jogo) {
+		env = g_environ_setenv(env, "LUMNA_JOGO", jogo, TRUE);
+	}
 	g_free(cfg);
 	GError *ge = NULL;
 	bool ok;
@@ -570,6 +573,10 @@ static bool epic_legendary(const char **args, bool esperar) {
 	g_strfreev(env);
 	g_clear_error(&ge);
 	return ok;
+}
+
+static bool epic_legendary(const char **args, bool esperar) {
+	return epic_legendary_ext(args, esperar, NULL);
 }
 
 /* ---------------- as propriedades (props.json) ---------------- */
@@ -868,7 +875,7 @@ bool jogos_lancar(const struct jogo *j, char *erro, size_t tam) {
 			return false;
 		}
 		const char *args[] = { "legendary", "launch", j->ref, NULL };
-		if (!epic_legendary(args, false)) {
+		if (!epic_legendary_ext(args, false, j->id)) {
 			g_strlcpy(erro, "O legendary não está instalado.", tam);
 			return false;
 		}
@@ -879,7 +886,12 @@ bool jogos_lancar(const struct jogo *j, char *erro, size_t tam) {
 	const char *dir = (j->origem == ORIGEM_AVULSO || j->origem == ORIGEM_GOG) && j->dir[0] && g_file_test(j->dir, G_FILE_TEST_IS_DIR) ? j->dir : NULL;
 	GError *ge = NULL;
 	char *argv[] = { "sh", "-c", cmd, NULL };
-	bool ok = g_spawn_async(dir, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, &ge);
+	/* os que o LUMNA abre por conta própria (avulso, GOG) levam a marca LUMNA_JOGO: o Orbit põe a janela no Gaming e a deixa na frente. A Steam, o Lutris e o
+	 * Heroic não: o comando só repassa o pedido ao cliente deles (que, se ainda não estava aberto, viraria "jogo" com a marca); a Steam marca os jogos dela */
+	bool marcar = j->origem == ORIGEM_AVULSO || j->origem == ORIGEM_GOG;
+	char **env = marcar ? g_environ_setenv(g_get_environ(), "LUMNA_JOGO", j->id, TRUE) : NULL;
+	bool ok = g_spawn_async(dir, argv, env, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, &ge);
+	g_strfreev(env);
 	if (!ok) {
 		g_strlcpy(erro, ge ? ge->message : "Não consegui abrir o jogo.", tam);
 		g_clear_error(&ge);

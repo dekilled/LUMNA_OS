@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/types.h>
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/config.h>
@@ -379,6 +380,7 @@ struct orbit_view {
 	struct wlr_xdg_toplevel *toplevel; /* NULL numa janela X11 */
 	struct wlr_xwayland_surface *xsurface; /* só numa janela X11 (xwl.c) */
 	bool xwl_assoc;
+	bool game; /* a janela é de um jogo (jogo.c): no Gaming ela manda na tela, e a Steam não a tira da frente */
 	struct wl_listener xwl_associate, xwl_dissociate, xwl_set_title, xwl_set_class, request_configure_x, request_activate_x;
 	struct wlr_scene_tree *scene_tree;
 	struct wl_listener map;
@@ -452,6 +454,7 @@ struct orbit_layer {
 	struct wl_listener destroy;
 	struct wl_listener new_popup;
 	struct wl_listener scene_destroy; /* a cena pode ir antes da camada: esquecê-la */
+	struct wlr_scene_tree *holder;    /* a caixa da cena da camada: desligá-la esconde a camada sem brigar com o wlroots, que liga e desliga a cena ao mapear */
 };
 
 struct orbit_keyboard {
@@ -504,7 +507,10 @@ void orbit_view_set_state(struct orbit_view *view, bool fullscreen, bool maximiz
 void orbit_view_set_resizing(struct orbit_view *view, bool on);
 void orbit_view_reconfigure(struct orbit_view *view);           /* manda de novo o estado de agora */
 struct wlr_box orbit_view_client_box(struct orbit_view *view);  /* a geometria da janela dentro da superfície */
-bool orbit_xwl_steam_game(const struct orbit_view *view); /* a janela X11 é de um jogo que a Steam abriu */
+bool orbit_xwl_steam_game(const struct orbit_view *view); /* a janela X11 é de um jogo (o mesmo que view->game, calculado ao mapear) */
+/* jogo.c: a janela é de um jogo (marca da Steam ou do LUMNA no ambiente do processo, ou aberto pelo Lutris/Heroic) */
+bool orbit_view_detect_game(const struct orbit_view *view);
+bool orbit_pid_is_game(pid_t pid);
 void orbit_xwl_sync_pos(struct orbit_view *view, int x, int y); /* a posição da janela X11 na tela (só com XWayland) */
 void orbit_view_map(struct orbit_view *view);
 void orbit_view_unmap(struct orbit_view *view);
@@ -583,6 +589,8 @@ void orbit_xkb_finish(void);
 bool orbit_layers_bind(struct orbit_server *server);
 struct wlr_box orbit_layer_usable(struct orbit_output *output, const struct wlr_box *full);
 void orbit_layers_close_output(struct orbit_output *output);
+/* numa tela de Gaming ou Mídia, as camadas do Desktop (papel de parede, widgets, barra, dock) não aparecem; o overlay (avisos, teclado, gerenciador) sim */
+void orbit_layers_sync_hidden(struct orbit_server *server);
 bool orbit_layer_is_keyboard_at(struct orbit_server *server, double lx, double ly);
 void orbit_layer_offer_keyboard(struct wlr_surface *surface);
 
@@ -640,6 +648,17 @@ bool orbit_view_isolated(const struct orbit_view *view);
  * em Gaming ou Mídia (vão para a de Desktop mais à mão), a não ser que seja a única */
 struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id);
 bool orbit_app_is_gaming_shell(const char *app_id);
+/*
+ * Quem fica na frente numa tela de Gaming ou Mídia (só uma janela aparece por vez). No Gaming: a janela com o foco, se for desta tela; senão o jogo
+ * (o último que teve o foco), senão a biblioteca, senão a última usada. Assim um clique no outro monitor ou uma janela da Steam que abre não tira o jogo da tela.
+ */
+struct orbit_view *orbit_kiosk_pick(struct orbit_server *server, struct orbit_output *output);
+/* o jogo da tela de Gaming (o último que teve o foco), ou NULL */
+struct orbit_view *orbit_output_game(struct orbit_server *server, struct orbit_output *output);
+/* a janela pode pegar o foco sozinha (ao abrir, por pedido do app)? Não, se for de uma tela de Gaming com um jogo rodando e ela não for um jogo */
+bool orbit_view_may_take_focus(struct orbit_view *view);
+/* a tela de Gaming ficou sem janela nenhuma: a biblioteca volta (como a tela inicial de um console), no máximo uma vez a cada poucos segundos */
+void orbit_mode_ensure_shell(struct orbit_server *server, struct orbit_output *output);
 bool orbit_app_is_mode_shell(const char *app_id);
 /* troca os espaços de trabalho (e as janelas deles) entre duas telas */
 bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, struct orbit_output *b);

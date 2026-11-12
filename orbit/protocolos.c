@@ -76,6 +76,9 @@ static void request_activate(struct wl_listener *listener, void *data) {
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
 		if (view->mapped && orbit_view_surface(view) == wlr_surface_get_root_surface(event->surface)) {
+			if (!orbit_view_may_take_focus(view)) {
+				return; /* no Gaming, com um jogo rodando, outra janela não o tira da frente sozinha */
+			}
 			if (view->minimized) {
 				orbit_view_set_minimized(view, false);
 			}

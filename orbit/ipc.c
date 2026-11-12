@@ -12,6 +12,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wlr/util/log.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 
 /*
  * orbit-msg: o Orbit atende num socket Unix ($ORBIT_SOCK, por omissão
@@ -20,7 +21,8 @@
  *
  *   saidas | get_outputs        as saídas
  *   entrada                     o teclado aplicado (layout, repetição) e os dispositivos ligados
- *   janelas | get_tree          as janelas (com id)
+ *   janelas | get_tree          as janelas (com id; "jogo": a janela é de um jogo, e no Gaming fica na frente)
+ *   camadas                     as camadas (barra, dock, papel de parede...): a tela, o nível e se aparecem
  *   espacos | get_workspaces    o espaço activo e os ocupados de cada saída
  *   foco ID                     foca a janela (e mostra o espaço dela)
  *   fechar [ID]                 fecha a janela (sem ID, a focada)
@@ -159,11 +161,11 @@ static void put_view(struct ipc_buf *b, struct orbit_view *view) {
 	put_str(b, orbit_view_title(view));
 	put(b, ",\"saida\":");
 	put_str(b, view->output ? view->output->wlr->name : "");
-	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"visivel\":%s,\"recortada\":%s}",
+	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"visivel\":%s,\"recortada\":%s,\"jogo\":%s}",
 		view->tag + 1, server->focused == view ? "true" : "false", view->floating ? "true" : "false",
 		view->fullscreen ? "true" : "false", view->maximized ? "true" : "false", view->minimized ? "true" : "false",
 		view->foreign ? "true" : "false", view->x, view->y, view->w, view->h,
-		view->scene_tree->node.enabled ? "true" : "false", view->clipped ? "true" : "false");
+		view->scene_tree->node.enabled ? "true" : "false", view->clipped ? "true" : "false", view->game ? "true" : "false");
 	/* visivel: o nó está ligado (a janela pode constar como ativa e estar escondida); recortada: uma animação a está recortando (só enquanto desliza) */
 }
 
@@ -235,7 +237,28 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 	arg1 = strtok_r(args, " \t", &save);
 	arg2 = arg1 ? strtok_r(NULL, " \t", &save) : NULL;
 
-	if (!strcmp(cmd, "saidas") || !strcmp(cmd, "get_outputs")) {
+	if (!strcmp(cmd, "camadas") || !strcmp(cmd, "get_layers")) {
+		/* as camadas (barra, dock, papel de parede, avisos...): onde estão e se aparecem (numa tela de Gaming ou Mídia as do Desktop somem) */
+		put(b, "{\"ok\":true,\"camadas\":[");
+		struct orbit_layer *layer;
+		bool first = true;
+		static const char *const niveis[] = { "fundo", "baixo", "cima", "overlay" };
+		wl_list_for_each(layer, &server->layers, link) {
+			if (!layer->surface) {
+				continue;
+			}
+			int nivel = layer->surface->current.layer;
+			bool mapeada = layer->surface->surface && layer->surface->surface->mapped;
+			bool visivel = mapeada && layer->holder && layer->holder->node.enabled && layer->scene && layer->scene->tree->node.enabled;
+			put(b, "%s{\"nome\":", first ? "" : ",");
+			put_str(b, layer->surface->namespace ? layer->surface->namespace : "");
+			put(b, ",\"saida\":");
+			put_str(b, layer->surface->output ? layer->surface->output->name : "");
+			put(b, ",\"nivel\":\"%s\",\"mapeada\":%s,\"visivel\":%s}", nivel >= 0 && nivel < 4 ? niveis[nivel] : "?", mapeada ? "true" : "false", visivel ? "true" : "false");
+			first = false;
+		}
+		put(b, "]}");
+	} else if (!strcmp(cmd, "saidas") || !strcmp(cmd, "get_outputs")) {
 		put(b, "{\"ok\":true,\"saidas\":[");
 		struct orbit_output *output;
 		bool first = true;

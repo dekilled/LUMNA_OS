@@ -236,6 +236,18 @@ void orbit_unfocus(struct orbit_server *server) {
 
 void focus_top(struct orbit_server *server, struct orbit_output *output) {
 	struct orbit_view *view;
+	if (output && output->mode == ORBIT_MODE_GAMING && orbit_output_isolated(output)) {
+		/* no Gaming: o jogo, senão a biblioteca, senão a última usada (e não a primeira da lista, que podia ser a Steam) */
+		struct orbit_view *pick = orbit_kiosk_pick(server, output);
+		if (pick && pick != server->focused) {
+			orbit_focus(pick);
+			orbit_arrange(server);
+			return;
+		}
+		if (pick) {
+			return;
+		}
+	}
 	wl_list_for_each(view, &server->views, link) {
 		if (view->mapped && !view->minimized && view->output == output && view->tag == output->tag) {
 			orbit_focus(view);
@@ -390,8 +402,9 @@ static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
 }
 
 void orbit_view_map(struct orbit_view *view) {
-	/* o jogo da Steam vai para a tela do Gaming (o nativo tem uma classe qualquer: quem diz é o ambiente do processo dele) */
-	const char *familia = view->xsurface && orbit_xwl_steam_game(view) ? "steam_app" : orbit_view_app_id(view);
+	/* o jogo vai para a tela do Gaming (o nativo tem uma classe qualquer: quem diz é o ambiente do processo dele, X11 ou Wayland) */
+	view->game = orbit_view_detect_game(view);
+	const char *familia = view->game ? "steam_app" : orbit_view_app_id(view);
 	struct orbit_output *output = orbit_output_for_new_view(view->server, familia);
 	view->mapped = true;
 	view->output = output;
@@ -426,8 +439,20 @@ void orbit_view_map(struct orbit_view *view) {
 	struct orbit_server *server = view->server;
 	struct orbit_view *prev = server->focused;
 	orbit_arrange(server);
+	if (!orbit_view_may_take_focus(view)) {
+		/* uma janela da Steam (ou outra) que abre numa tela de Gaming com um jogo rodando não tira o jogo da frente nem o foco dele: fica por trás,
+		 * e aparece quando o jogo fechar ou quando a pessoa a pedir */
+		wlr_log(WLR_INFO, "janela %u (%s) abriu por trás do jogo na tela %s", view->id, orbit_view_app_id(view), output ? output->wlr->name : "?");
+		return;
+	}
 	orbit_focus(view);
 	phone_on_map(server, view, prev);
+	if (view->game && output && orbit_output_isolated(output) && cursor_output(server) != output) {
+		/* o jogo abriu no monitor do Gaming com o cursor no outro: o cursor vai para o jogo (senão o mouse do jogo mexe no Desktop até a pessoa arrastá-lo) */
+		struct wlr_box box;
+		wlr_output_layout_get_box(server->layout, output->wlr, &box);
+		orbit_pointer_warp(server, box.x + box.width / 2.0, box.y + box.height / 2.0);
+	}
 	if (output && (output_is_phone(output->wlr) || orbit_output_isolated(output))) {
 		/* numa tela de Gaming ou Mídia só uma janela aparece (a que tem o foco): a arrumação de cima ainda via o foco na janela de antes (o lumna-jogos) e
 		 * escondia esta; sem arrumar de novo ela só aparecia quando outro evento refazia o arranjo (o jogo abria "por trás" e depois vinha à frente) */
@@ -466,6 +491,7 @@ void orbit_view_unmap(struct orbit_view *view) {
 	} else if (output) {
 		focus_top(server, output);
 	}
+	orbit_mode_ensure_shell(server, output);
 }
 
 static void xdg_map(struct wl_listener *listener, void *data) {

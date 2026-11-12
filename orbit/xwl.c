@@ -31,34 +31,7 @@ static void xwl_log(const char *evento, const struct wlr_xwayland_surface *xs, c
 /* A Steam marca todo jogo que abre (o nativo e o do Proton) com SteamGameId/SteamAppId no ambiente do processo: o jogo nativo tem uma classe
  * qualquer (csgo_linux64, hl2_linux), então a classe não basta. Só o Linux deixa ler o ambiente do processo, e só o dono dele. */
 bool orbit_xwl_steam_game(const struct orbit_view *view) {
-	struct wlr_xwayland_surface *xs = view->xsurface;
-	if (!xs) {
-		return false;
-	}
-	if (xs->class && !strncmp(xs->class, "steam_app_", 10)) {
-		return true;
-	}
-	if (xs->pid <= 0) {
-		return false;
-	}
-	char caminho[64];
-	snprintf(caminho, sizeof(caminho), "/proc/%d/environ", (int)xs->pid);
-	FILE *f = fopen(caminho, "r");
-	if (!f) {
-		return false;
-	}
-	static char buf[262144];
-	size_t n = fread(buf, 1, sizeof(buf) - 1, f);
-	fclose(f);
-	buf[n] = '\0';
-	for (size_t i = 0; i < n;) {
-		const char *e = buf + i;
-		if (!strncmp(e, "SteamGameId=", 12) || !strncmp(e, "SteamAppId=", 11)) {
-			return true;
-		}
-		i += strlen(e) + 1;
-	}
-	return false;
+	return view->xsurface && orbit_view_detect_game(view); /* jogo.c: a mesma conta das janelas Wayland */
 }
 
 /* ---- janelas gerenciadas ---- */
@@ -67,8 +40,8 @@ static void xwl_surface_map(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, map);
 	orbit_view_map(view);
 	char extra[160];
-	snprintf(extra, sizeof(extra), "-> janela do Orbit %u na saida %s, espaco %d, %dx%d em %d,%d, steam=%d", view->id, view->output ? view->output->wlr->name : "?", view->tag + 1,
-		view->w, view->h, view->x, view->y, orbit_xwl_steam_game(view));
+	snprintf(extra, sizeof(extra), "-> janela do Orbit %u na saida %s, espaco %d, %dx%d em %d,%d, jogo=%d", view->id, view->output ? view->output->wlr->name : "?", view->tag + 1,
+		view->w, view->h, view->x, view->y, view->game);
 	xwl_log("mapeou", view->xsurface, extra);
 }
 
@@ -137,8 +110,8 @@ static void xwl_request_configure(struct wl_listener *listener, void *data) {
 
 static void xwl_request_activate(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, request_activate_x);
-	/* o app pediu o foco (a Steam abrindo uma janela): só vale se ela já é a ativa ou está na tela que a pessoa vê */
-	if (view->mapped && view->output && view->tag == view->output->tag) {
+	/* o app pediu o foco (a Steam abrindo uma janela): só vale se ela está na tela que a pessoa vê, e não tira um jogo da frente no Gaming */
+	if (view->mapped && view->output && view->tag == view->output->tag && orbit_view_may_take_focus(view)) {
 		orbit_focus(view);
 	}
 }

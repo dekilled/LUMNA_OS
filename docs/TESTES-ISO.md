@@ -516,6 +516,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.399 | Gerenciador > Desempenho, com um download rodando e um jogo aberto | Os gráficos de CPU, Memória, Disco e Rede se movem em tempo real; a GPU aparece em AMD/Intel (NVIDIA mostra "—") | ☐ |
 | 2.400 | Gaming > Configurações > Controles > Botão Guia: escolher "Abrir o gerenciador de processos" e apertar o Guia no controle, com um jogo em tela cheia | O gerenciador abre por cima do jogo; o Guia de novo fecha | ☐ |
 | 2.401 | Com um jogo da Steam rodando (ou travado): abrir o gerenciador | Aparece o cartão "Jogo em execução" com o nome e **Fechar jogo**; ao tocar, o jogo some na hora e a Steam continua aberta | ☐ |
+| 2.402 | Monitor 2 em Gaming, cursor no monitor 1: abrir um jogo da Steam (ex.: CS2) pela biblioteca | O jogo abre no monitor do Gaming, em tela cheia, com o foco, e o cursor vai para ele | ☐ |
+| 2.403 | Com o jogo rodando: abrir a lista de amigos da Steam, receber uma mensagem, clicar numa janela do monitor 1 | O jogo continua na frente no monitor do Gaming (a Steam não o tira de lá) | ☐ |
+| 2.404 | Fechar o jogo | Volta a biblioteca do Gaming (não a Steam, nem o Desktop) | ☐ |
+| 2.405 | No Gaming, a qualquer momento (abrindo, fechando, trocando de jogo) | O monitor do Gaming nunca mostra o papel de parede, a barra ou a dock do Desktop; sem janela, fica preto e a biblioteca volta | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
