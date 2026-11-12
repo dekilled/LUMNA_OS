@@ -3,6 +3,9 @@
 #include <time.h>
 #include <wlr/version.h>
 #include <wlr/types/wlr_scene.h>
+#if WLR_HAS_XWAYLAND
+#include <wlr/xwayland.h>
+#endif
 
 static uint32_t now_ms(void) {
 	struct timespec ts;
@@ -12,8 +15,17 @@ static uint32_t now_ms(void) {
 
 /* Na troca de espaço ou de modo a janela anda uma tela inteira para o lado; com monitores lado a lado ela passava por cima do
  * vizinho (um piscar na tela errada). Enquanto anda, só se vê o pedaço que cai na própria saída. */
+/* a cena da janela tem a árvore de subsuperfícies que o recorte exige (uma janela X11 só a tem associada à superfície; sem ela o wlroots aborta) */
+static bool clip_ok(const struct orbit_view *view) {
+#if WLR_HAS_XWAYLAND
+	return view->toplevel || (view->xsurface && view->xwl_assoc && view->xsurface->surface);
+#else
+	return view->toplevel != NULL;
+#endif
+}
+
 static void orbit_slide_clip(struct orbit_view *view, int x, int y) {
-	if (!view->clipped || !view->output || (!view->toplevel && !view->xsurface)) {
+	if (!view->clipped || !view->output || !clip_ok(view)) {
 		return;
 	}
 	struct wlr_box out;
@@ -31,7 +43,9 @@ static void orbit_slide_clip(struct orbit_view *view, int x, int y) {
 void orbit_slide_unclip(struct orbit_view *view) {
 	if (view->clipped) {
 		view->clipped = false;
-		wlr_scene_subsurface_tree_set_clip(&view->scene_tree->node, NULL);
+		if (clip_ok(view)) {
+			wlr_scene_subsurface_tree_set_clip(&view->scene_tree->node, NULL);
+		}
 	}
 }
 

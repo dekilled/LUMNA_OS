@@ -520,6 +520,7 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.403 | Com o jogo rodando: abrir a lista de amigos da Steam, receber uma mensagem, clicar numa janela do monitor 1 | O jogo continua na frente no monitor do Gaming (a Steam não o tira de lá) | ☐ |
 | 2.404 | Fechar o jogo | Volta a biblioteca do Gaming (não a Steam, nem o Desktop) | ☐ |
 | 2.405 | No Gaming, a qualquer momento (abrindo, fechando, trocando de jogo) | O monitor do Gaming nunca mostra o papel de parede, a barra ou a dock do Desktop; sem janela, fica preto e a biblioteca volta | ☐ |
+| 2.406 | Com um jogo aberto no Gaming: trocar para Mídia, para Desktop e voltar ao Gaming (Super+Tab ou topbar); trocar de espaço no Desktop com a Steam aberta | A sessão não cai para o login; de volta ao Gaming o jogo está na frente | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

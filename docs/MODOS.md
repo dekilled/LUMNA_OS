@@ -76,6 +76,9 @@ journalctl -b | grep -E 'xwl:|por trás do jogo|ficou vazia'
 
 - `gravity/testes/gaming_frente.sh`: as regras do Gaming, com clientes X11 de mentira (jogo com `SteamGameId`, janelas da Steam que pedem
   o foco, app comum no Desktop), um app Wayland marcado como jogo e o papel de parede. Desligar as regras faz o teste falhar.
+- `gravity/testes/trocas_x11.sh`: troca de modo (Gaming → Mídia → Desktop → Gaming), de espaço e de tela com janelas X11 abertas, um jogo
+  e um app comum. Antes, a animação da troca recortava a janela X11 e o wlroots abortava, derrubando a sessão para o login. Com o Orbit antigo o teste
+  reproduz o crash. Aceita um binário com ASAN: `sh trocas_x11.sh orbit orbit-asan`.
 - `gravity/testes/modos_telas.sh`: modos em dois monitores (mover, trocar).
 - `gravity/testes/xwayland.sh`: as janelas X11 e o tamanho do jogo.
 
