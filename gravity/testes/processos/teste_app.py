@@ -115,6 +115,25 @@ n0 = int(estado().get("n", 0))
 if n0 < 2:
     falha(f"a lista devia ter processos (tem {n0})")
 
+# a lista cabe na janela (com o rodapé à vista) e rola: arrastar a barra de rolagem leva a lista para baixo
+confere(lambda: pos("d/rodape") is not None and pos("d/cartao") is not None, "a janela devia mostrar o rodapé da lista")
+cartao, rodape, rolagem = pos("d/cartao"), pos("d/rodape"), pos("d/rolagem")
+if cartao and rodape and rodape[1] + rodape[3] > cartao[1] + cartao[3]:
+    falha(f"o rodapé devia ficar dentro do cartão (a lista estourava a janela): rodapé {rodape} cartão {cartao}")
+if rolagem:
+    bx, by = rolagem[0] + rolagem[2] - 6, rolagem[1] + 30
+    msg("mouse", "mover", bx, by); time.sleep(0.3)
+    msg("mouse", "botao", "baixo"); time.sleep(0.2)
+    for dy in range(30, 330, 40):
+        msg("mouse", "mover", bx, rolagem[1] + dy); time.sleep(0.1)
+    msg("mouse", "botao", "cima"); time.sleep(0.8)
+    rol = float(estado().get("rol", "0"))
+    if rol < 200:
+        falha(f"arrastar a barra devia rolar a lista (rolou {rol})")
+    msg("mouse", "mover", bx, rolagem[1] + 20); time.sleep(0.2)
+    msg("mouse", "botao", "baixo"); time.sleep(0.15); msg("mouse", "botao", "cima"); time.sleep(0.2)
+    for dy in range(20, 5, -5):
+        pass
 # o clique num cabeçalho muda a ordem (prova que o toque chega à camada)
 toca("col/mem")
 confere(lambda: estado().get("ordem", "").startswith("1"), "tocar em 'Memória' devia ordenar por memória")

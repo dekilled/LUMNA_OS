@@ -825,7 +825,7 @@ static void debug_posicoes(void) {
 	}
 	n_regs = 0;
 	static char *estado_antes;
-	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, mensagem);
+	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, mensagem);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("%s\n", estado);
 		g_free(estado_antes);
@@ -1019,8 +1019,14 @@ static void tela_processos(void) {
 		numero_resumo("drive", "Discos", gv_fmt("%.0f%%", disco_total).chars, 0);
 	}
 	/* a tabela */
+	reg("d/tabela", CLAY_ID("p-tabela"));
+	reg("d/rolagem", CLAY_ID("p-rolagem"));
+	reg("d/rodape", CLAY_ID("p-rodape"));
+	reg("d/conteudo", CLAY_ID("conteudo"));
+	reg("d/corpo", CLAY_ID("corpo"));
+	reg("d/cartao", CLAY_ID("cartao"));
 	CLAY(CLAY_ID("p-tabela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_t.elevada,
-		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .clip = { .vertical = true } }) {
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) { /* sem .clip aqui: um pai que recorta não deixa o Clay encolher os filhos, e a lista estourava o cartão */
 		CLAY(CLAY_ID("p-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 16 + 22 + 10 + 20 + 10, 16, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 			.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
 			cabecalho_coluna("col/nome", CLAY_ID("c-nome"), "Nome", 2, 0);
@@ -1228,7 +1234,7 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = gv_t.veu }) {
 		CLAY(CLAY_ID("cartao"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_PERCENT(0.92f), CLAY_SIZING_PERCENT(0.9f) } }, .backgroundColor = gv_t.superficie,
-			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) }, .clip = { .vertical = true, .horizontal = true },
+			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) },
 			.userData = gv_sombra(30, 10, 0.6f) }) {
 			CLAY(CLAY_ID("barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(56) }, .padding = { 20, 12, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 				.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {

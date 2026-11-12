@@ -12,10 +12,12 @@ export WAYLAND_DISPLAY=wayland-0
 # o "aplicativo ocupado" que vai ser encerrado (um nome só dele)
 cp /bin/sleep "$run/ocupadoteste"
 "$run/ocupadoteste" 600 & ocupado=$!
+# 150 grupos de processos (órfãos, como os apps de uma sessão): a lista tem de rolar, não estourar a janela
+for i in $(seq 1 150); do (setsid sleep 600 >/dev/null 2>&1 &); done
 "$gravity/processos" servico > "$run/srv.out" 2> "$run/srv.err" & srv=$!
 sleep 1
 rc=0
 python3 "$aqui/processos/teste_app.py" "$orbit_dir" "$run" "$srv" "$ocupado" "$gravity" || rc=$?
-kill $ocupado $srv 2>/dev/null; pkill -x orbit; pkill -f "processos janela"
+kill $ocupado $srv 2>/dev/null; pkill -x sleep; pkill -x orbit; pkill -f "processos janela"
 [ $rc -eq 0 ] || { echo "(log em $run)"; tail -5 "$run/srv.err"; } || true
 exit $rc
