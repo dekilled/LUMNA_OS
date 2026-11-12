@@ -266,5 +266,5 @@ processos-ajudante: exemplos/processos-ajudante.c servicos/processos.c servicos/
 	$(CC) -std=gnu11 -O2 -Wall -Wextra -Iservicos -o $@ exemplos/processos-ajudante.c servicos/processos.c
 
 # o gerenciador de processos (lumna-processos)
-processos: exemplos/processos.c servicos/processos.c servicos/processos.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo glib-2.0 gio-2.0) -o $@ exemplos/processos.c servicos/processos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
+processos: exemplos/processos.c servicos/processos.c servicos/processos.h servicos/sdservicos.c servicos/sdservicos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo glib-2.0 gio-2.0) -o $@ exemplos/processos.c servicos/processos.c servicos/sdservicos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm

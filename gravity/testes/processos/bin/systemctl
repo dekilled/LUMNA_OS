@@ -1,0 +1,51 @@
+#!/bin/sh
+# um systemctl de mentira com saídas no formato do real (systemd 255). FAKE_SD_FALHA=1 faz o systemd "não responder".
+[ -n "$FAKE_SD_FALHA" ] && { echo "Failed to connect to bus: No such file or directory" >&2; exit 1; }
+user=0; for a in "$@"; do [ "$a" = "--user" ] && user=1; done
+case " $* " in
+*" list-units "*)
+	case " $* " in
+	*" --type=timer "*)
+		if [ $user = 1 ]; then
+			printf 'sincroniza.timer loaded active waiting Sincroniza as notas\n'
+		else
+			printf 'fstrim.timer loaded active waiting Discard unused filesystem blocks once a week\n'
+			printf 'logrotate.timer loaded active waiting Daily rotation of log files\n'
+			printf 'antigo.timer loaded inactive dead Timer desligado\n'
+			printf 'sumiu.timer not-found inactive dead sumiu.timer\n'
+		fi ;;
+	*)
+		if [ $user = 1 ]; then
+			printf 'lumna-barra.service loaded active running Barra do LUMNA\n'
+			printf 'pipewire.service loaded active running PipeWire Multimedia Service\n'
+			printf 'sincroniza.service loaded inactive dead Sincroniza as notas\n'
+		else
+			printf 'NetworkManager.service loaded active running Network Manager\n'
+			printf 'bluetooth.service loaded active running Bluetooth service\n'
+			printf 'systemd-modules-load.service loaded active exited Load Kernel Modules\n'
+			printf 'cups.service loaded inactive dead CUPS Scheduler\n'
+			printf 'backup.service loaded failed failed Backup noturno\n'
+			printf 'fstrim.service loaded inactive dead Discard unused blocks\n'
+			printf 'logrotate.service loaded inactive dead Rotate log files\n'
+			printf 'jogo-sync.service loaded active running Sincronizacao pausada pelo usuario\n'
+			printf 'fantasma.service not-found inactive dead fantasma.service\n'
+			printf 'sshd.service masked inactive dead sshd.service\n'
+		fi ;;
+	esac ;;
+*" show "*)
+	if [ $user = 1 ]; then
+		printf 'Id=lumna-barra.service\nMainPID=4242\nMemoryCurrent=41943040\nFreezerState=running\nNextElapseUSecRealtime=\nLastTriggerUSec=\n\n'
+		printf 'Id=pipewire.service\nMainPID=4300\nMemoryCurrent=18446744073709551615\nFreezerState=running\n\n'
+		printf 'Id=sincroniza.service\nMainPID=0\nMemoryCurrent=[not set]\nFreezerState=running\n\n'
+		printf 'Id=sincroniza.timer\nMainPID=0\nFreezerState=running\nNextElapseUSecRealtime=@1900000000\nLastTriggerUSec=@1899990000\n\n'
+	else
+		printf 'Id=NetworkManager.service\nMainPID=812\nMemoryCurrent=33554432\nFreezerState=running\n\n'
+		printf 'Id=bluetooth.service\nMainPID=830\nMemoryCurrent=4194304\nFreezerState=running\n\n'
+		printf 'Id=systemd-modules-load.service\nMainPID=0\nMemoryCurrent=[not set]\nFreezerState=running\n\n'
+		printf 'Id=jogo-sync.service\nMainPID=901\nMemoryCurrent=2097152\nFreezerState=frozen\n\n'
+		printf 'Id=cups.service\nMainPID=0\nFreezerState=running\n\n'
+		printf 'Id=fstrim.timer\nMainPID=0\nFreezerState=running\nNextElapseUSecRealtime=@1900003600\nLastTriggerUSec=@1899400000\n\n'
+		printf 'Id=logrotate.timer\nMainPID=0\nFreezerState=running\nNextElapseUSecRealtime=\nLastTriggerUSec=\n\n'
+	fi ;;
+*) exit 2 ;;
+esac

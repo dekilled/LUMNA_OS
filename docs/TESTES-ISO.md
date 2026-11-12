@@ -524,6 +524,9 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.407 | Gerenciador de processos: rolar a lista com a roda do mouse e pela barra, em uma sessão com muita coisa aberta (centenas de processos) | Rola até o fim sem linhas quebradas; o rodapé "N itens exibidos" fica sempre à vista | ☐ |
 | 2.408 | Gerenciador: arrastar pela barra, redimensionar pelas bordas e cantos, maximizar (botão e duplo clique na barra), restaurar | A janela acompanha o mouse; não fica menor que 960x540; maximizada ocupa a tela; fechar e abrir de novo lembra o tamanho e a posição | ☐ |
 | 2.409 | Gerenciador minimizado com um jogo em tela cheia | Vira uma pastilha no canto; o mouse e o teclado voltam para o jogo; clicar na pastilha ou Ctrl+Shift+Esc traz a janela de volta | ☐ |
+| 2.410 | Gerenciador de processos > Serviços | Os serviços do sistema aparecem separados em Em execução, Parados, Programados e Em pausa, com a contagem em cada filtro; um serviço que falhou aparece em vermelho; "Serviços da sessão" mostra os do usuário (lumna-barra, pipewire...) | ☐ |
+| 2.411 | Em um terminal: `sudo systemctl freeze NOME.service`, e depois `sudo systemctl thaw NOME.service` | Em até 5 s o serviço vai para "Em pausa" e depois volta para "Em execução" | ☐ |
+| 2.412 | Gerenciador de processos > Inicialização (ícone de atalho) | Abre o Painel direto em Inicialização > Apps ao iniciar e o gerenciador fecha | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

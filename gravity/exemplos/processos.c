@@ -33,6 +33,7 @@
 
 #include "gravity.h"
 #include "processos.h"
+#include "sdservicos.h"
 
 #define AJUDANTE_PADRAO "/usr/lib/lumna/lumna-processos-ajudante"
 #define INTERVALO_S 2.0
@@ -804,6 +805,15 @@ static void reg(const char *nome, Clay_ElementId id) {
 	}
 }
 
+/* os serviços do systemd (tela 2): a lista de cada escopo, o filtro de estado, a busca; lida numa linha à parte (o systemctl leva uns instantes) */
+static struct sv_lista sv_dados[2];  /* 0: do sistema, 1: da sessão do usuário */
+static int sv_escopo, sv_filtro = -1; /* filtro: -1 todos, ou um enum sv_estado */
+static char sv_busca[96];
+static char sv_erro[160];
+static bool sv_lendo, sv_leu[2];
+static double sv_ultima;
+static int sv_visiveis;
+
 /* a janela dentro da camada (mais abaixo): posição e tamanho do cartão, em pixels da tela */
 static int cart_w, cart_h; /* o cartão de agora (a tela toda se maximizado) */
 static bool jan_max;
@@ -834,7 +844,7 @@ static void debug_posicoes(void) {
 	}
 	n_regs = 0;
 	static char *estado_antes;
-	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f win=%d,%d,%d,%d max=%d mini=%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, jan_x, jan_y, jan_w, jan_h, jan_max, jan_mini, mensagem);
+	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f win=%d,%d,%d,%d max=%d mini=%d sv=%d,%d,%d,%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, jan_x, jan_y, jan_w, jan_h, jan_max, jan_mini, sv_escopo, sv_filtro, sv_visiveis, sv_dados[sv_escopo].n, mensagem);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("%s\n", estado);
 		g_free(estado_antes);
@@ -1225,6 +1235,241 @@ static void tela_desempenho(void) {
 }
 
 
+/* ---- Serviços ---- */
+
+struct sv_leitura {
+	int escopo;
+	struct sv_lista lista;
+	char erro[160];
+	int rc;
+};
+
+static gpointer sv_thread(gpointer d) {
+	struct sv_leitura *r = d;
+	r->rc = sv_listar(r->escopo == 1, &r->lista, r->erro, sizeof(r->erro));
+	return NULL;
+}
+
+static void sv_chegou(void *d);
+
+static gpointer sv_thread_e_avisa(gpointer d) {
+	sv_thread(d);
+	gv_na_linha_principal(sv_chegou, d);
+	return NULL;
+}
+
+static void sv_chegou(void *d) {
+	struct sv_leitura *r = d;
+	sv_lendo = false;
+	if (r->rc == 0) {
+		sv_liberar(&sv_dados[r->escopo]);
+		sv_dados[r->escopo] = r->lista;
+		sv_leu[r->escopo] = true;
+		if (r->escopo == sv_escopo) {
+			sv_erro[0] = '\0';
+		}
+	} else {
+		sv_liberar(&r->lista);
+		if (r->escopo == sv_escopo) {
+			g_strlcpy(sv_erro, r->erro, sizeof(sv_erro));
+		}
+	}
+	sv_ultima = gv_agora();
+	g_free(r);
+	gv_app_redesenhar(app);
+}
+
+static void sv_atualizar(void) {
+	if (sv_lendo) {
+		return;
+	}
+	sv_lendo = true;
+	struct sv_leitura *r = g_new0(struct sv_leitura, 1);
+	r->escopo = sv_escopo;
+	g_thread_unref(g_thread_new("processos-servicos", sv_thread_e_avisa, r));
+}
+
+static bool sv_casa(const struct sv_item *x) {
+	if (sv_filtro >= 0 && (int)x->estado != sv_filtro) {
+		return false;
+	}
+	if (!sv_busca[0]) {
+		return true;
+	}
+	char *b = g_utf8_casefold(sv_busca, -1), *u = g_utf8_casefold(x->unidade, -1), *d = g_utf8_casefold(x->descricao, -1);
+	bool ok = strstr(u, b) || strstr(d, b);
+	g_free(b);
+	g_free(u);
+	g_free(d);
+	return ok;
+}
+
+static const char *sv_quando(int64_t t) {
+	if (t <= 0) {
+		return "—";
+	}
+	GDateTime *dt = g_date_time_new_from_unix_local(t);
+	char *f = g_date_time_format(dt, "%d/%m %H:%M");
+	g_date_time_unref(dt);
+	const char *r = gv_fmt("%s", f).chars;
+	g_free(f);
+	return r;
+}
+
+#define ALTURA_SERVICO 56
+
+static void linha_servico(const struct sv_item *x, int i) {
+	Clay_ElementId id = CLAY_IDI("sv-linha", (uint32_t)i);
+	char nome_reg[24];
+	snprintf(nome_reg, sizeof(nome_reg), "sv/linha/%d", i);
+	reg(nome_reg, id);
+	static const float cor[SV_ESTADOS][3] = { { 52, 211, 153 }, { 148, 163, 184 }, { 56, 189, 248 }, { 251, 191, 36 } };
+	Clay_Color ponto = { cor[x->estado][0], cor[x->estado][1], cor[x->estado][2], 255 };
+	if (x->falhou) {
+		ponto = (Clay_Color){ 248, 113, 113, 255 };
+	}
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(ALTURA_SERVICO) }, .padding = { 20, 16, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 } }) {
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(10), CLAY_SIZING_FIXED(10) } }, .backgroundColor = ponto, .cornerRadius = CLAY_CORNER_RADIUS(5) }) {}
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .horizontal = true } }) {
+			gv_texto(gv_str(x->descricao[0] ? x->descricao : x->unidade), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_str(x->unidade), gv_t.tamanho_corpo - 3, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(120) } } }) {
+			gv_texto(gv_str(sv_sub_texto(x)), gv_t.tamanho_corpo - 1, x->falhou ? (Clay_Color){ 248, 113, 113, 255 } : gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(80) } } }) {
+			gv_texto(gv_str(x->pid > 0 ? gv_fmt("%d", x->pid).chars : "—"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(90) } } }) {
+			gv_texto(gv_str(x->memoria >= 0 ? fmt_mem(x->memoria / 1024) : "—"), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(150) } } }) {
+			if (x->estado == SV_PROGRAMADO) {
+				gv_texto(gv_str(gv_fmt("Próxima %s", sv_quando(x->proximo)).chars), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+			} else {
+				gv_texto(CLAY_STRING(""), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+			}
+		}
+	}
+}
+
+static void tela_servicos(void) {
+	if (!sv_leu[sv_escopo] && !sv_lendo) {
+		sv_atualizar();
+	}
+	if (!sv_lendo && gv_agora() - sv_ultima >= 5.0) {
+		sv_atualizar(); /* a lista se refaz a cada 5 s enquanto a tela está aberta */
+	}
+	const struct sv_lista *L = &sv_dados[sv_escopo];
+	int cont[SV_ESTADOS] = { 0 };
+	for (int i = 0; i < L->n; i++) {
+		cont[L->v[i].estado]++;
+	}
+	CLAY(CLAY_ID("sv-cima"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		if (cart_w >= 1240) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+				gv_texto(CLAY_STRING("Serviços"), 30, gv_t.texto, GV_PESO_MEDIO);
+			}
+		}
+		CLAY(CLAY_ID("sv-busca-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(140, 360) } } }) {
+			if (gv_campo(CLAY_ID("sv-busca"), sv_busca, sizeof(sv_busca), "Buscar serviço", GV_CAMPO_BUSCA) & GV_CAMPO_MUDOU) {
+				gv_app_redesenhar(app);
+			}
+		}
+		reg("sv/busca", CLAY_ID("sv-busca"));
+		static const char *const ESCOPOS[] = { "Serviços do sistema", "Serviços da sessão" };
+		CLAY(CLAY_ID("sv-escopo-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(250) } } }) {
+			int antes = sv_escopo;
+			if (gv_lista_suspensa(CLAY_ID("sv-escopo"), ESCOPOS, 2, &sv_escopo) && sv_escopo != antes) {
+				sv_erro[0] = '\0';
+				sv_filtro = -1;
+				sv_ultima = 0;
+			}
+		}
+		reg("sv/escopo", CLAY_ID("sv-escopo"));
+	}
+	/* os estados, com a contagem de cada um */
+	CLAY(CLAY_ID("sv-chips"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		for (int f = -1; f < SV_ESTADOS; f++) {
+			Clay_ElementId id = CLAY_IDI("sv-chip", (uint32_t)(f + 1));
+			bool sel = sv_filtro == f;
+			int n = f < 0 ? L->n : cont[f];
+			char nome[24];
+			snprintf(nome, sizeof(nome), "sv/chip/%d", f);
+			reg(nome, id);
+			CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIT(0), CLAY_SIZING_FIXED(36) }, .padding = { 16, 16, 0, 0 }, .childGap = 8, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+				.backgroundColor = sel ? gv_alfa(gv_t.acento, 0.22f) : gv_por_cima(id) ? gv_t.sob_cursor : gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(18),
+				.border = { .color = sel ? gv_t.acento : gv_t.borda, .width = GV_BORDA(1) } }) {
+				gv_texto(gv_str(f < 0 ? "Todos" : sv_estado_nome((enum sv_estado)f)), gv_t.tamanho_corpo - 1, sel ? gv_t.texto : gv_t.texto_secundario, sel ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				gv_texto(gv_str(gv_fmt("%d", n).chars), gv_t.tamanho_corpo - 1, sel ? gv_t.acento : gv_t.texto_suave, GV_PESO_MEDIO);
+			}
+			if (gv_tocado(id)) {
+				sv_filtro = f;
+			}
+		}
+	}
+	/* a tabela */
+	reg("sv/tabela", CLAY_ID("sv-tabela"));
+	CLAY(CLAY_ID("sv-tabela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_t.elevada,
+		.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		CLAY(CLAY_ID("sv-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40) }, .padding = { 42, 16, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+				gv_texto(CLAY_STRING("Serviço"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_MEDIO);
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(120) } } }) {
+				gv_texto(CLAY_STRING("Estado"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_MEDIO);
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(80) } } }) {
+				gv_texto(CLAY_STRING("PID"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_MEDIO);
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(90) } } }) {
+				gv_texto(CLAY_STRING("Memória"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_MEDIO);
+			}
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(150) } } }) {
+				gv_texto(CLAY_STRING("Programação"), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_MEDIO);
+			}
+		}
+		/* as que passam pelo filtro e pela busca (a lista pode ter centenas: só as à vista viram elementos, como na dos processos) */
+		int *ix = g_new(int, L->n > 0 ? L->n : 1);
+		int nv = 0;
+		for (int i = 0; i < L->n; i++) {
+			if (sv_casa(&L->v[i])) {
+				ix[nv++] = i;
+			}
+		}
+		sv_visiveis = nv;
+		Clay_ElementId rol = CLAY_ID("sv-rolagem");
+		CLAY(rol, gv_rolagem(rol, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {
+			float vh = gv_caixa(rol).height > 0 ? gv_caixa(rol).height : 700;
+			float sy = gv_rolagem_posicao(rol).y;
+			int primeira = (int)(sy / ALTURA_SERVICO) - 6, ultima = (int)((sy + vh) / ALTURA_SERVICO) + 7;
+			primeira = primeira < 0 ? 0 : primeira > nv ? nv : primeira;
+			ultima = ultima > nv ? nv : ultima < primeira ? primeira : ultima;
+			if (primeira > 0) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED((float)primeira * ALTURA_SERVICO) } } }) {}
+			}
+			for (int k = primeira; k < ultima; k++) {
+				linha_servico(&L->v[ix[k]], k);
+			}
+			if (ultima < nv) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED((float)(nv - ultima) * ALTURA_SERVICO) } } }) {}
+			}
+			if (!nv) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 30, 0 } } }) {
+					const char *msg = sv_erro[0] ? gv_fmt("Não consegui ler os serviços: %s.", sv_erro).chars : !sv_leu[sv_escopo] ? "Lendo os serviços…" : "Nenhum serviço com esses filtros.";
+					gv_texto(gv_str(msg), gv_t.tamanho_corpo, sv_erro[0] ? gv_t.aviso : gv_t.texto_suave, GV_PESO_NORMAL);
+				}
+			}
+		}
+		g_free(ix);
+	}
+	CLAY(CLAY_ID("sv-rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 0, 0 } } }) {
+		gv_texto(gv_str(gv_fmt("%d de %d serviços · Atualização: 5 s · Só leitura", sv_visiveis, L->n).chars), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+	}
+}
+
 static void dialogo_confirmar(void) {
 	const struct linha *l = linha_de(confirmar_pid);
 	CLAY(CLAY_ID("dlg"), { .layout = { .sizing = { CLAY_SIZING_FIXED((float)cart_w), CLAY_SIZING_FIXED((float)cart_h) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
@@ -1454,6 +1699,15 @@ static void pastilha(float W, float H) {
 	gv_app_entrada_em(app, id);
 }
 
+/* "Aplicativos de inicialização" já é uma página do Painel (Inicialização > Apps ao iniciar): o atalho abre o Painel nela (LUMNA_PROCESSOS_PAINEL troca o comando, para os testes)
+ * e fecha o gerenciador, que está por cima de tudo e cobriria a janela do Painel */
+static void abrir_inicializacao(void) {
+	const char *cmd = g_getenv("LUMNA_PROCESSOS_PAINEL");
+	char *argv[] = { (char *)(cmd && *cmd ? cmd : "lumna-painel"), "--secao", "inicializacao/apps", NULL };
+	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL);
+	gv_app_sair(app);
+}
+
 static void desenhar(gv_app *a, void *dados) {
 	(void)dados;
 	app = a;
@@ -1531,22 +1785,37 @@ static void desenhar(gv_app *a, void *dados) {
 				CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 				CLAY(CLAY_ID("lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(220), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(12), .childGap = 6 },
 					.border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
-					static const struct { const char *id, *nome_reg, *icone, *texto; } itens[] = { { "t-processos", "aba/processos", "list", "Processos" }, { "t-desempenho", "aba/desempenho", "waves", "Desempenho" } };
-					for (int t = 0; t < 2; t++) {
+					/* as telas (0 Processos, 1 Desempenho, 2 Serviços) e o atalho da Inicialização: que já é uma página do Painel e não precisa de outra ferramenta aqui */
+					static const struct { const char *nome_reg, *icone, *texto; int tela; } itens[] = {
+						{ "aba/processos", "list", "Processos", 0 }, { "aba/desempenho", "waves", "Desempenho", 1 },
+						{ "aba/inicializacao", "power", "Inicialização", -1 }, { "aba/servicos", "stack", "Serviços", 2 } };
+					for (int t = 0; t < 4; t++) {
 						Clay_ElementId id = CLAY_IDI("aba", (uint32_t)t);
+						bool atalho = itens[t].tela < 0, ativa = !atalho && tela == itens[t].tela;
 						reg(itens[t].nome_reg, id);
 						CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 14, 14, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-							.backgroundColor = tela == t ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
-							gv_icone(itens[t].icone, 22, tela == t ? gv_t.texto : gv_t.texto_secundario);
-							gv_texto(gv_str(itens[t].texto), gv_t.tamanho_corpo, tela == t ? gv_t.texto : gv_t.texto_secundario, tela == t ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+							.backgroundColor = ativa ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) }) {
+							gv_icone(itens[t].icone, 22, ativa ? gv_t.texto : gv_t.texto_secundario);
+							CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+								gv_texto(gv_str(itens[t].texto), gv_t.tamanho_corpo, ativa ? gv_t.texto : gv_t.texto_secundario, ativa ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+							}
+							if (atalho) {
+								gv_icone("external", 16, gv_t.texto_suave);
+							}
 						}
 						if (gv_tocado(id)) {
-							tela = t;
+							if (atalho) {
+								abrir_inicializacao();
+							} else {
+								tela = itens[t].tela;
+							}
 						}
 					}
 				}
 				CLAY(CLAY_ID("conteudo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 18, 14 }, .childGap = 14 } }) {
-					if (tela == 1) {
+					if (tela == 2) {
+						tela_servicos();
+					} else if (tela == 1) {
 						tela_desempenho();
 					} else {
 						tela_processos();
