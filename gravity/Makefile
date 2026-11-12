@@ -268,3 +268,7 @@ processos-ajudante: exemplos/processos-ajudante.c servicos/processos.c servicos/
 # o gerenciador de processos (lumna-processos)
 processos: exemplos/processos.c servicos/processos.c servicos/processos.h servicos/sdservicos.c servicos/sdservicos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo glib-2.0 gio-2.0) -o $@ exemplos/processos.c servicos/processos.c servicos/sdservicos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
+
+# o Signals (lumna-signals): editor de texto e bloco de notas
+signals: exemplos/signals.c servicos/sgbuffer.c servicos/sgbuffer.h servicos/seletor.c servicos/seletor.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo glib-2.0 gio-2.0) -o $@ exemplos/signals.c servicos/sgbuffer.c servicos/seletor.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm

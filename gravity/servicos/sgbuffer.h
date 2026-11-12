@@ -32,7 +32,15 @@ int sg_abrir(sg_buffer *b, const char *caminho, char *erro, size_t tam);
 /* grava de uma vez (num arquivo temporário e rename: um corte no meio não estraga o original); caminho NULL: o de abrir. 0 se gravou; -1 com o motivo. */
 int sg_salvar(sg_buffer *b, const char *caminho, char *erro, size_t tam);
 const char *sg_caminho(const sg_buffer *b);
+/* dá um nome ao documento sem tocar no disco (um arquivo que ainda não existe: sg_salvar o cria) */
+void sg_definir_caminho(sg_buffer *b, const char *caminho);
 bool sg_modificado(const sg_buffer *b);
+/* sobe a cada mudança no texto (editar, desfazer, refazer, abrir): quem guarda um resultado (a contagem da busca) sabe quando refazer */
+uint64_t sg_versao(const sg_buffer *b);
+/* a pessoa viu que o arquivo mudou no disco e escolheu manter o dela: não avisa de novo por esta mudança */
+void sg_ignorar_mudanca_no_disco(sg_buffer *b);
+/* quantos caracteres (não bytes) há da linha até a posição: a coluna que se mostra */
+int sg_coluna(const sg_buffer *b, struct sg_pos p);
 /* o arquivo mudou no disco desde que se abriu ou salvou (outro programa, outra janela) */
 bool sg_mudou_no_disco(const sg_buffer *b);
 enum sg_fim_linha sg_fim_de_linha(const sg_buffer *b);
@@ -90,6 +98,8 @@ struct sg_busca {
  * A agulha de uma linha só (sem \n). */
 bool sg_buscar(const sg_buffer *b, const struct sg_busca *q, struct sg_pos de, bool frente, struct sg_pos *ini, struct sg_pos *fim, bool *voltou);
 int sg_contar(const sg_buffer *b, const struct sg_busca *q);
+/* os achados de uma linha só (inícios e tamanhos em bytes), até max: para destacar o que se vê sem varrer o documento */
+int sg_buscar_linha(const sg_buffer *b, const struct sg_busca *q, int linha, int *inicios, int *tamanhos, int max);
 /* troca todas (desfeito de uma vez); devolve quantas. A troca pode ter \n. */
 int sg_substituir_tudo(sg_buffer *b, const struct sg_busca *q, const char *por);
 

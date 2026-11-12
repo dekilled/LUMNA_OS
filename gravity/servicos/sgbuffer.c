@@ -47,6 +47,7 @@ struct sg_buffer {
 	int salvo_topo;                /* o topo no último salvamento (-1: não volta mais) */
 	int prox_grupo, lote;
 	bool grupo_aberto;
+	uint64_t versao;
 	bool mod_extra;                /* mudou algo que não está no desfazer (a codificação, o BOM, o fim de linha) */
 };
 
@@ -300,6 +301,7 @@ char *sg_texto_todo(const sg_buffer *b) {
 /* ---- edição sem desfazer ---- */
 
 static struct sg_pos cru_inserir(sg_buffer *b, struct sg_pos p, const char *t, size_t n) {
+	b->versao++;
 	struct linha *x = &b->l[p.linha];
 	const char *nl = memchr(t, '\n', n);
 	if (!nl) {
@@ -349,6 +351,7 @@ static struct sg_pos cru_inserir(sg_buffer *b, struct sg_pos p, const char *t, s
 }
 
 static void cru_apagar(sg_buffer *b, struct sg_pos a, struct sg_pos z) {
+	b->versao++;
 	if (a.linha == z.linha) {
 		struct linha *x = &b->l[a.linha];
 		memmove(x->s + a.col, x->s + z.col, x->len - (size_t)z.col + 1);
@@ -581,6 +584,15 @@ bool sg_modificado(const sg_buffer *b) {
 	return b->mod_extra || b->salvo_topo != b->topo;
 }
 
+uint64_t sg_versao(const sg_buffer *b) {
+	return b->versao;
+}
+
+int sg_coluna(const sg_buffer *b, struct sg_pos p) {
+	p = sg_pos_valida(b, p);
+	return (int)g_utf8_strlen(b->l[p.linha].s, p.col);
+}
+
 /* ---- ciclo de vida e propriedades ---- */
 
 sg_buffer *sg_novo(void) {
@@ -618,6 +630,12 @@ void sg_liberar(sg_buffer *b) {
 
 const char *sg_caminho(const sg_buffer *b) {
 	return b->caminho;
+}
+
+void sg_definir_caminho(sg_buffer *b, const char *caminho) {
+	g_free(b->caminho);
+	b->caminho = caminho ? g_strdup(caminho) : NULL;
+	b->tem_disco = false;
 }
 
 enum sg_fim_linha sg_fim_de_linha(const sg_buffer *b) {
@@ -678,6 +696,12 @@ static void guardar_disco(sg_buffer *b, const char *caminho) {
 		b->tem_disco = true;
 	} else {
 		b->tem_disco = false;
+	}
+}
+
+void sg_ignorar_mudanca_no_disco(sg_buffer *b) {
+	if (b->caminho) {
+		guardar_disco(b, b->caminho);
 	}
 }
 
@@ -760,6 +784,7 @@ int sg_abrir(sg_buffer *b, const char *caminho, char *erro, size_t tam) {
 		}
 	}
 	desfazer_limpar(b);
+	b->versao++;
 	for (int i = 0; i < b->n; i++) {
 		g_free(b->l[i].s);
 	}
@@ -1047,6 +1072,28 @@ int sg_contar(const sg_buffer *b, const struct sg_busca *q) {
 		}
 	}
 	return total;
+}
+
+int sg_buscar_linha(const sg_buffer *b, const struct sg_busca *q, int linha, int *inicios, int *tamanhos, int max) {
+	if (!q || !q->agulha || !*q->agulha || strchr(q->agulha, '\n') || linha < 0 || linha >= b->n) {
+		return 0;
+	}
+	size_t agn = strlen(q->agulha);
+	int n = 0, col = 0, tam;
+	while (n < max) {
+		int a = achar_na_linha(&b->l[linha], q, agn, col, &tam);
+		if (a < 0) {
+			break;
+		}
+		inicios[n] = a;
+		tamanhos[n] = tam;
+		n++;
+		col = a + (tam > 0 ? tam : 1);
+		if ((size_t)col > b->l[linha].len) {
+			break;
+		}
+	}
+	return n;
 }
 
 int sg_substituir_tudo(sg_buffer *b, const struct sg_busca *q, const char *por) {

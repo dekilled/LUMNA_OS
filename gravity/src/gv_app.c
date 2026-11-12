@@ -158,6 +158,7 @@ struct gv_app {
 	bool configurado;
 	bool precisa;   /* há algo novo para desenhar */
 	bool a_correr;
+	char *titulo_atual; /* o título que a janela tem agora (gv_app_definir_titulo) */
 	bool escondida;                 /* a janela está desmapeada (o app segue vivo, sem janela) */
 	bool (*ao_fechar)(void *);      /* pedido de fechar: devolve verdadeiro se tratou (esconder) em vez de sair */
 	void *ao_fechar_dados;
@@ -460,6 +461,17 @@ bool gv_saidas_mudaram(gv_app *app) {
 	bool m = app->saidas_mudaram;
 	app->saidas_mudaram = false;
 	return m;
+}
+
+void gv_app_definir_titulo(gv_app *app, const char *titulo) {
+	if (!app || !app->janela || !titulo) {
+		return;
+	}
+	if (!app->titulo_atual || strcmp(app->titulo_atual, titulo)) {
+		free(app->titulo_atual);
+		app->titulo_atual = strdup(titulo);
+		xdg_toplevel_set_title(app->janela, titulo); /* a dock e o alternador mostram o novo (o foreign-toplevel avisa sozinho) */
+	}
 }
 
 void gv_app_camada(gv_app *app, int largura, int altura, int zona_exclusiva) {

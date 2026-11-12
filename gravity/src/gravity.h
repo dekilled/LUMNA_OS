@@ -349,6 +349,8 @@ void gv_janela_tela_cheia(uint32_t id, bool sim);
 /* Numa camada larga com um pedaço só à vista (a dock, que ocupa a largura toda mas só a pílula
  * se vê), só esse elemento recebe o ponteiro e o toque: o resto passa para as janelas de baixo. */
 void gv_app_entrada_em(gv_app *app, Clay_ElementId id);
+/* Muda o título da janela (o nome do arquivo aberto): a dock e o alternador o mostram. Só janelas. */
+void gv_app_definir_titulo(gv_app *app, const char *titulo);
 /* Uma camada muda de tamanho e de zona exclusiva com a app a correr (a dock que passa a barra). */
 void gv_app_camada(gv_app *app, int largura, int altura, int zona_exclusiva);
 /* Muda as âncoras e se fica com o teclado (os avisos, que passam do canto à tela inteira com a
