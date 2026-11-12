@@ -174,6 +174,14 @@ static void arquivos(const char *dir) {
 	g_free(d);
 	sg_liberar(b);
 	g_free(c);
+	/* recarregar: reabrir com o próprio caminho do buffer (o app faz isso quando o arquivo muda no disco) */
+	c = escrever(dir, "recarga.txt", "um\ndois\n", 8);
+	b = sg_novo();
+	sg_abrir(b, c, erro, sizeof(erro));
+	sg_inserir(b, (struct sg_pos){ 0, 0 }, "X", 1, false);
+	CONFERE(sg_abrir(b, sg_caminho(b), erro, sizeof(erro)) == 0 && igual(b, "um\ndois\n") && !sg_modificado(b) && !strcmp(sg_caminho(b), c), "reabrir com o próprio caminho (recarregar) descarta o que mudou e mantém o caminho");
+	sg_liberar(b);
+	g_free(c);
 	c = escrever(dir, "misto.txt", "a\r\nb\nc\r\nd\r\n", 11);
 	b = sg_novo();
 	sg_abrir(b, c, erro, sizeof(erro));

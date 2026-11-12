@@ -808,9 +808,11 @@ int sg_abrir(sg_buffer *b, const char *caminho, char *erro, size_t tam) {
 	b->cod = cod;
 	b->bom = bom;
 	b->mod_extra = false;
+	/* recarregar passa o próprio caminho do buffer: copiar antes de liberar */
+	char *novo = g_strdup(caminho);
 	g_free(b->caminho);
-	b->caminho = g_strdup(caminho);
-	guardar_disco(b, caminho);
+	b->caminho = novo;
+	guardar_disco(b, novo);
 	g_free(convertido);
 	g_free(dados);
 	return 0;

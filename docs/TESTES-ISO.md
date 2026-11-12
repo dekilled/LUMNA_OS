@@ -532,6 +532,25 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.415 | Marcar `systemd-logind.service`, `dbus.service` ou `greetd.service` e tentar Parar, Reiniciar ou Pausar | Mesmo confirmando, o ajudante recusa ("é essencial para o sistema") e nada acontece | ☐ |
 | 2.416 | Serviços > Sessão: parar um serviço do usuário (ex.: um `lumna-*.service` seu) e iniciar de novo | Vai direto, sem senha e sem confirmação | ☐ |
 | 2.417 | Cancelar a janela da senha numa ação do sistema | O rodapé avisa "Sem permissão" e nada muda | ☐ |
+
+### 2q. Signals (editor de texto e bloco de notas)
+
+| # | O que fazer | O que deve acontecer | OK |
+|---|---|---|---|
+| 2.418 | Abrir o **Signals** pelo lançador | Janela com menus Arquivo/Editar/Exibir, uma aba "Sem título", barra de estado embaixo; o cursor pisca e já dá para digitar | ☐ |
+| 2.419 | Digitar com acentos (ação, é, ç, ~ + a) e emojis | Aparece certo, o cursor acompanha, a coluna na barra de estado conta caracteres | ☐ |
+| 2.420 | Ctrl+Z e Ctrl+Y depois de digitar uma frase e apertar Enter | Desfaz/refaz por blocos (a frase de uma vez, o Enter separado) | ☐ |
+| 2.421 | Selecionar com mouse (arrastar, duplo clique = palavra, triplo = linha) e com Shift+setas; Ctrl+C, Ctrl+X, Ctrl+V | Seleção em lilás; copiar e colar funcionam, inclusive para outro app | ☐ |
+| 2.422 | Ctrl+S num documento sem nome | Abre o seletor do **Atlas** para salvar; escolher um nome grava o arquivo e a aba ganha esse nome, sem o ponto de modificado | ☐ |
+| 2.423 | Ctrl+O e abrir um `.txt` e um `.py`; abrir o mesmo arquivo de novo | Cada um numa aba; abrir de novo vai para a aba que já existe (se não for, anote) | ☐ |
+| 2.424 | No Atlas, duplo clique em um `.txt`, `.md`, `.json` e `.sh` | Abre no Signals. Botão direito > "Abrir com…" lista o Signals | ☐ |
+| 2.425 | Ctrl+N três vezes, trocar com Ctrl+Tab e clicando; fechar uma aba modificada pelo × | Pergunta Salvar / Descartar / Cancelar; Cancelar mantém a aba, Descartar fecha | ☐ |
+| 2.426 | Com alterações não salvas, fechar a janela (X ou Ctrl+Q) | Pergunta antes de sair, uma aba por vez | ☐ |
+| 2.427 | Ctrl+F, digitar uma palavra; F3 e Shift+F3; Aa e "palavra inteira" | "N de M", os achados em destaque, o atual diferente; F3 anda e dá a volta; Esc fecha | ☐ |
+| 2.428 | Ctrl+H, trocar uma palavra em tudo; depois Ctrl+Z | Troca tudo e mostra quantos; Ctrl+Z desfaz tudo de uma vez | ☐ |
+| 2.429 | Ctrl+G e uma linha; Ctrl++, Ctrl+−, Ctrl+0; Exibir > números de linha e fonte monoespaçada | Pula para a linha; o zoom mostra a % embaixo; as opções ficam salvas ao reabrir | ☐ |
+| 2.430 | Em um terminal, mudar o arquivo aberto (`echo x >> arquivo`) | Sem alterações suas: recarrega sozinho. Com alterações suas: pergunta | ☐ |
+| 2.431 | Abrir um arquivo grande (uns 5 MB de log) e rolar, e um com acentos antigos (Latin-1) | Rola sem travar; o Latin-1 aparece certo e a barra de estado diz "Latin-1" | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

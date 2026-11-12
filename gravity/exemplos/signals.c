@@ -276,8 +276,9 @@ static int doc_adicionar(struct doc *d) {
 		return -1;
 	}
 	docs[ndocs] = d;
-	doc_ativar(ndocs);
-	return ndocs++;
+	ndocs++;
+	doc_ativar(ndocs - 1);
+	return ndocs - 1;
 }
 
 static void doc_remover(int i) {
@@ -1120,7 +1121,12 @@ static void retangulo(cairo_t *cr, double x, double y, double w, double h) {
 static void desenhar_editor(cairo_t *cr, Clay_BoundingBox cx, void *dados) {
 	struct desenho *dd = dados;
 	struct doc *d = dd->d;
-	if (!d) {
+	/* o desenho roda depois do quadro: a aba pode ter sido fechada nesse meio tempo (o documento já foi liberado) */
+	bool existe = false;
+	for (int i = 0; i < ndocs && d; i++) {
+		existe = existe || docs[i] == d;
+	}
+	if (!existe) {
 		return;
 	}
 	int lh = altura_linha(), n = sg_linhas(d->b);
@@ -1892,6 +1898,7 @@ static void texto_dlg(const char *t) {
 }
 
 static bool botao_dlg(const char *id_s, const char *texto, int estilo) {
+	reg(gv_fmt("dlg/%s", id_s).chars, CLAY_SID(gv_str(id_s)));
 	return gv_botao_ext(CLAY_SID(gv_str(id_s)), &(gv_botao_opcoes){ .texto = texto, .estilo = estilo, .altura = 40 });
 }
 

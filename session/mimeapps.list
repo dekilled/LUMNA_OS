@@ -1,3 +1,27 @@
 # Programas padrão do LUMNA (cada pessoa pode trocar no ~/.config/mimeapps.list).
 [Default Applications]
 inode/directory=lumna-atlas.desktop;lumna-files.desktop;
+text/plain=lumna-signals.desktop;
+text/markdown=lumna-signals.desktop;
+text/x-log=lumna-signals.desktop;
+text/csv=lumna-signals.desktop;
+text/x-csv=lumna-signals.desktop;
+text/x-python=lumna-signals.desktop;
+text/x-csrc=lumna-signals.desktop;
+text/x-chdr=lumna-signals.desktop;
+text/x-c++src=lumna-signals.desktop;
+text/x-c++hdr=lumna-signals.desktop;
+text/x-shellscript=lumna-signals.desktop;
+text/x-makefile=lumna-signals.desktop;
+text/x-readme=lumna-signals.desktop;
+text/x-java=lumna-signals.desktop;
+text/x-diff=lumna-signals.desktop;
+text/x-patch=lumna-signals.desktop;
+application/json=lumna-signals.desktop;
+application/x-shellscript=lumna-signals.desktop;
+application/xml=lumna-signals.desktop;
+application/x-yaml=lumna-signals.desktop;
+application/toml=lumna-signals.desktop;
+application/javascript=lumna-signals.desktop;
+text/css=lumna-signals.desktop;
+text/xml=lumna-signals.desktop;

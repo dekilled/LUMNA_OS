@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Signals
+GenericName=Editor de texto
+Comment=Escrever e editar texto, anotações e código
+Exec=lumna-signals %U
+Icon=lumna-signals
+StartupWMClass=lumna-signals
+Terminal=false
+Categories=Utility;TextEditor;
+MimeType=text/plain;text/markdown;text/x-log;text/x-csv;text/csv;text/x-python;text/x-csrc;text/x-chdr;text/x-c++src;text/x-c++hdr;text/x-script.python;text/x-shellscript;text/x-makefile;text/x-readme;text/x-java;text/html;text/css;text/xml;text/x-diff;text/x-patch;application/json;application/x-shellscript;application/xml;application/x-yaml;application/toml;application/javascript;
+Keywords=signals;editor;texto;notas;bloco;notepad;anotacoes;codigo;txt;markdown;
