@@ -521,6 +521,9 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.404 | Fechar o jogo | Volta a biblioteca do Gaming (não a Steam, nem o Desktop) | ☐ |
 | 2.405 | No Gaming, a qualquer momento (abrindo, fechando, trocando de jogo) | O monitor do Gaming nunca mostra o papel de parede, a barra ou a dock do Desktop; sem janela, fica preto e a biblioteca volta | ☐ |
 | 2.406 | Com um jogo aberto no Gaming: trocar para Mídia, para Desktop e voltar ao Gaming (Super+Tab ou topbar); trocar de espaço no Desktop com a Steam aberta | A sessão não cai para o login; de volta ao Gaming o jogo está na frente | ☐ |
+| 2.407 | Gerenciador de processos: rolar a lista com a roda do mouse e pela barra, em uma sessão com muita coisa aberta (centenas de processos) | Rola até o fim sem linhas quebradas; o rodapé "N itens exibidos" fica sempre à vista | ☐ |
+| 2.408 | Gerenciador: arrastar pela barra, redimensionar pelas bordas e cantos, maximizar (botão e duplo clique na barra), restaurar | A janela acompanha o mouse; não fica menor que 960x540; maximizada ocupa a tela; fechar e abrir de novo lembra o tamanho e a posição | ☐ |
+| 2.409 | Gerenciador minimizado com um jogo em tela cheia | Vira uma pastilha no canto; o mouse e o teclado voltam para o jogo; clicar na pastilha ou Ctrl+Shift+Esc traz a janela de volta | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

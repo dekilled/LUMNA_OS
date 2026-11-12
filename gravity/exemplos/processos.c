@@ -17,6 +17,8 @@
 #include <cairo.h>
 #include <ctype.h>
 #include <glib.h>
+#include <glib/gstdio.h>
+#include <math.h>
 #include <stdarg.h>
 #include <poll.h>
 #include <signal.h>
@@ -34,6 +36,7 @@
 
 #define AJUDANTE_PADRAO "/usr/lib/lumna/lumna-processos-ajudante"
 #define INTERVALO_S 2.0
+#define ALTURA_LINHA 44 /* a altura de uma linha da lista (as linhas fora da tela viram um espaçador desta altura) */
 
 static gv_app *app;
 
@@ -801,6 +804,12 @@ static void reg(const char *nome, Clay_ElementId id) {
 	}
 }
 
+/* a janela dentro da camada (mais abaixo): posição e tamanho do cartão, em pixels da tela */
+static int cart_w, cart_h; /* o cartão de agora (a tela toda se maximizado) */
+static bool jan_max;
+static bool jan_pronta, jan_mini;
+static int jan_x, jan_y, jan_w, jan_h;
+
 static void debug_posicoes(void) {
 	if (!depurando) {
 		return;
@@ -825,7 +834,7 @@ static void debug_posicoes(void) {
 	}
 	n_regs = 0;
 	static char *estado_antes;
-	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, mensagem);
+	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f win=%d,%d,%d,%d max=%d mini=%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, jan_x, jan_y, jan_w, jan_h, jan_max, jan_mini, mensagem);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("%s\n", estado);
 		g_free(estado_antes);
@@ -913,7 +922,7 @@ static void linha_processo(const struct linha *l) {
 		sel_pid = l->pid;
 		sel_inicio = l->inicio;
 	}
-	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 16 + (uint16_t)(l->profundidade * 24), 16, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(ALTURA_LINHA) }, .padding = { 16 + (uint16_t)(l->profundidade * 24), 16, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = marcada ? gv_alfa(gv_t.acento, 0.18f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 } }) {
 		Clay_ElementId seta = CLAY_IDI("seta", (uint32_t)l->pid);
 		CLAY(seta, { .layout = { .sizing = { CLAY_SIZING_FIXED(22), CLAY_SIZING_FIXED(22) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } } }) {
@@ -970,24 +979,29 @@ static void numero_resumo(const char *icone, const char *rotulo, const char *val
 
 static void tela_processos(void) {
 	CLAY(CLAY_ID("p-cima"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
-			gv_texto(CLAY_STRING("Processos"), 30, gv_t.texto, GV_PESO_MEDIO);
+		/* o título só cabe numa janela larga (a lateral já diz "Processos"); a busca é a que estica, o resto tem largura fixa e não quebra em duas linhas */
+		if (cart_w >= 1240) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+				gv_texto(CLAY_STRING("Processos"), 30, gv_t.texto, GV_PESO_MEDIO);
+			}
 		}
-		CLAY(CLAY_ID("p-busca-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(220) } } }) {
+		CLAY(CLAY_ID("p-busca-caixa"), { .layout = { .sizing = { CLAY_SIZING_GROW(140, 320) } } }) {
 			if (gv_campo(CLAY_ID("p-busca"), busca, sizeof(busca), "Buscar processo", GV_CAMPO_BUSCA) & GV_CAMPO_MUDOU) {
 				montar_linhas();
 			}
 		}
 		reg("busca", CLAY_ID("p-busca"));
-		CLAY(CLAY_ID("p-filtro-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(200) } } }) {
+		CLAY(CLAY_ID("p-filtro-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(230) } } }) {
 			if (gv_lista_suspensa(CLAY_ID("p-filtro"), FILTROS, 4, &filtro)) {
 				montar_linhas();
 			}
 		}
 		reg("filtro", CLAY_ID("p-filtro"));
 		const struct linha *s = linha_de(sel_pid);
-		if (gv_botao_ext(CLAY_ID("p-encerrar"), &(gv_botao_opcoes){ .texto = "Encerrar processo", .estilo = GV_BOTAO_CHEIO, .altura = 44, .desativado = !s || ocupado })) {
-			pedir_encerrar(false);
+		CLAY(CLAY_ID("p-encerrar-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(200) } } }) {
+			if (gv_botao_ext(CLAY_ID("p-encerrar"), &(gv_botao_opcoes){ .texto = "Encerrar processo", .estilo = GV_BOTAO_CHEIO, .altura = 44, .desativado = !s || ocupado })) {
+				pedir_encerrar(false);
+			}
 		}
 		reg("encerrar", CLAY_ID("p-encerrar"));
 		if (gv_botao_ext(CLAY_ID("p-mais"), &(gv_botao_opcoes){ .icone = "chevron-down", .estilo = GV_BOTAO_ELEVADO, .altura = 44, .desativado = !s || ocupado })) {
@@ -1039,8 +1053,21 @@ static void tela_processos(void) {
 		}
 		Clay_ElementId rol = CLAY_ID("p-rolagem");
 		CLAY(rol, gv_rolagem(rol, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {
-			for (int i = 0; i < n_linhas; i++) {
+			/* só as linhas à vista (e umas de folga): o Clay tem um teto de elementos por quadro (8192) e cada linha gasta dezenas; com centenas de processos as de
+			 * baixo quebravam. As outras viram um espaçador da altura delas, e a barra de rolagem continua certa */
+			float vh = gv_caixa(rol).height > 0 ? gv_caixa(rol).height : 700;
+			float sy = gv_rolagem_posicao(rol).y;
+			int primeira = (int)(sy / ALTURA_LINHA) - 6, ultima = (int)((sy + vh) / ALTURA_LINHA) + 7;
+			primeira = primeira < 0 ? 0 : primeira > n_linhas ? n_linhas : primeira;
+			ultima = ultima > n_linhas ? n_linhas : ultima < primeira ? primeira : ultima;
+			if (primeira > 0) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED((float)primeira * ALTURA_LINHA) } } }) {}
+			}
+			for (int i = primeira; i < ultima; i++) {
 				linha_processo(&linhas[i]);
+			}
+			if (ultima < n_linhas) {
+				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED((float)(n_linhas - ultima) * ALTURA_LINHA) } } }) {}
 			}
 			if (!n_linhas) {
 				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 24, 24, 30, 0 } } }) {
@@ -1157,7 +1184,7 @@ static void cartao_desempenho(const char *id_nome, const char *icone, const char
 			gv_texto(gv_str(valor), gv_t.tamanho_destaque + 2, g->cor, GV_PESO_MEDIO);
 		}
 		Clay_ElementId gid = CLAY_IDI("d-graf", n);
-		CLAY(gid, gv_livre(desenhar_grafico, g, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } }, .backgroundColor = gv_alfa(gv_t.superficie, 0.6f),
+		CLAY(gid, gv_livre(desenhar_grafico, g, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(56) } }, .backgroundColor = gv_alfa(gv_t.superficie, 0.6f),
 			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio) })) {}
 		reg(id_nome, gid);
 		gv_texto(gv_str(detalhe), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
@@ -1180,7 +1207,9 @@ static void tela_desempenho(void) {
 	snprintf(v_mem, sizeof(v_mem), "%.0f%%", mem_total_kb > 0 ? 100.0 * (double)mem_usada_kb / (double)mem_total_kb : 0.0);
 	snprintf(v_gpu, sizeof(v_gpu), tem_gpu ? "%.0f%%" : "—", gpu_total);
 	snprintf(v_disco, sizeof(v_disco), "%.0f%%", disco_total);
-	CLAY(CLAY_ID("d-grade"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
+	/* numa janela baixa os cartões não cabem espremidos: cada gráfico tem altura mínima e a grade rola */
+	Clay_ElementId grade = CLAY_ID("d-grade");
+	CLAY(grade, gv_rolagem(grade, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } })) {
 		CLAY(CLAY_ID("d-linha1"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childGap = 14 } }) {
 			cartao_desempenho("graf/cpu", "cpu", "CPU", v_cpu, det_cpu, &g_cpu, 0);
 			cartao_desempenho("graf/mem", "memory", "Memória", v_mem, det_mem, &g_mem, 1);
@@ -1195,10 +1224,11 @@ static void tela_desempenho(void) {
 	}
 }
 
+
 static void dialogo_confirmar(void) {
 	const struct linha *l = linha_de(confirmar_pid);
-	CLAY(CLAY_ID("dlg"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
-		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .zIndex = 95, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE }, .backgroundColor = gv_t.veu }) {
+	CLAY(CLAY_ID("dlg"), { .layout = { .sizing = { CLAY_SIZING_FIXED((float)cart_w), CLAY_SIZING_FIXED((float)cart_h) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+		.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .zIndex = 95, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE }, .backgroundColor = gv_t.veu, .cornerRadius = CLAY_CORNER_RADIUS(jan_max ? 0 : gv_t.raio_grande) }) {
 		CLAY(CLAY_ID("dlg-cartao"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(500), CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(24), .childGap = 14 },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } }) {
 			gv_texto(gv_str(confirmar_forcar ? "Forçar o encerramento?" : "Encerrar este processo?"), gv_t.tamanho_destaque + 2, gv_t.texto, GV_PESO_MEDIO);
@@ -1219,6 +1249,211 @@ static void dialogo_confirmar(void) {
 	}
 }
 
+/* ---- a janela dentro da camada: posição, tamanho, maximizar, minimizar (a camada cobre a tela; só o cartão, ou a pastilha, recebe o mouse) ---- */
+
+#define JAN_MIN_W 960
+#define JAN_MIN_H 540
+#define BORDA 10 /* a faixa de redimensionar em volta do cartão */
+
+static float tela_w = 1280, tela_h = 720;
+static int arr_modo;                             /* 0 nada; 16 mover; 1 esquerda, 2 direita, 4 cima, 8 baixo (somam nos cantos) */
+static float arr_px, arr_py;
+static int arr_x, arr_y, arr_w, arr_h;
+static double barra_ult_aperto;
+static bool barra_estava;
+static int self_pipe[2] = { -1, -1 };
+
+static char *caminho_ini(void) {
+	return g_build_filename(g_get_user_config_dir(), "lumna", "processos.ini", NULL);
+}
+
+static void salvar_janela(void) {
+	GKeyFile *kf = g_key_file_new();
+	g_key_file_set_integer(kf, "janela", "x", jan_x);
+	g_key_file_set_integer(kf, "janela", "y", jan_y);
+	g_key_file_set_integer(kf, "janela", "w", jan_w);
+	g_key_file_set_integer(kf, "janela", "h", jan_h);
+	g_key_file_set_boolean(kf, "janela", "maximizada", jan_max);
+	char *c = caminho_ini();
+	char *dir = g_path_get_dirname(c);
+	g_mkdir_with_parents(dir, 0700);
+	g_key_file_save_to_file(kf, c, NULL);
+	g_free(dir);
+	g_free(c);
+	g_key_file_free(kf);
+}
+
+/* a posição de antes (vale se ainda cabe na tela); sem ela, no meio */
+static void iniciar_janela(float W, float H) {
+	GKeyFile *kf = g_key_file_new();
+	char *c = caminho_ini();
+	bool tem = g_key_file_load_from_file(kf, c, G_KEY_FILE_NONE, NULL) && g_key_file_has_group(kf, "janela");
+	if (tem) {
+		jan_x = g_key_file_get_integer(kf, "janela", "x", 0);
+		jan_y = g_key_file_get_integer(kf, "janela", "y", 0);
+		jan_w = g_key_file_get_integer(kf, "janela", "w", 0);
+		jan_h = g_key_file_get_integer(kf, "janela", "h", 0);
+		jan_max = g_key_file_get_boolean(kf, "janela", "maximizada", NULL);
+	}
+	g_free(c);
+	g_key_file_free(kf);
+	if (!tem || jan_w < JAN_MIN_W || jan_h < JAN_MIN_H) {
+		jan_w = (int)fminf(1180, W * 0.9f);
+		jan_h = (int)(H * 0.88f);
+		jan_x = ((int)W - jan_w) / 2;
+		jan_y = ((int)H - jan_h) / 2;
+	}
+	jan_pronta = true;
+}
+
+/* o cartão sempre cabe na tela e com a barra de título à mão (a tela pode ter mudado de tamanho) */
+static void ajustar_janela(float W, float H) {
+	if (jan_w > W) {
+		jan_w = (int)W;
+	}
+	if (jan_h > H) {
+		jan_h = (int)H;
+	}
+	if (jan_w < fminf(JAN_MIN_W, W)) {
+		jan_w = (int)fminf(JAN_MIN_W, W);
+	}
+	if (jan_h < fminf(JAN_MIN_H, H)) {
+		jan_h = (int)fminf(JAN_MIN_H, H);
+	}
+	if (jan_x < 0 && jan_x + jan_w < 120) {
+		jan_x = 120 - jan_w;
+	}
+	if (jan_x > (int)W - 120) {
+		jan_x = (int)W - 120;
+	}
+	if (jan_y < 0) {
+		jan_y = 0;
+	}
+	if (jan_y > (int)H - 48) {
+		jan_y = (int)H - 48;
+	}
+}
+
+static void alternar_maximizada(void) {
+	jan_max = !jan_max;
+	salvar_janela();
+	gv_app_redesenhar(app);
+}
+
+static void definir_minimizada(bool sim) {
+	if (jan_mini == sim) {
+		return;
+	}
+	jan_mini = sim;
+	/* minimizada, a pastilha não pega o teclado: o jogo (ou o app de baixo) volta a recebê-lo */
+	gv_app_camada_ancoras(app, GV_ANCORA_TUDO, !sim);
+	gv_app_camada(app, 0, 0, -1);
+	gv_app_redesenhar(app);
+}
+
+/* SIGUSR1 (o atalho, ou o Guia): minimizada, volta; senão, fecha (o atalho de novo é "fechar") */
+static void sinal_alternar(int sinal) {
+	(void)sinal;
+	if (self_pipe[1] >= 0) {
+		ssize_t n = write(self_pipe[1], "x", 1);
+		(void)n;
+	}
+}
+
+static void pipe_pronto(gv_app *a, int fd, void *dados) {
+	(void)dados;
+	char b[16];
+	ssize_t n = read(fd, b, sizeof(b));
+	(void)n;
+	if (jan_mini) {
+		definir_minimizada(false);
+	} else {
+		gv_app_sair(a);
+	}
+}
+
+static const struct { const char *nome; int mascara; } BORDAS[8] = { { "L", 1 }, { "R", 2 }, { "T", 4 }, { "B", 8 }, { "TL", 5 }, { "TR", 6 }, { "BL", 9 }, { "BR", 10 } };
+
+/* o arrasto em curso: mover pela barra, ou mudar o tamanho por uma borda ou canto */
+static void tratar_arrasto(float W, float H) {
+	if (!arr_modo) {
+		return;
+	}
+	if (!gv_ponteiro_baixo()) {
+		arr_modo = 0;
+		salvar_janela();
+		return;
+	}
+	Clay_Vector2 p = gv_ponteiro();
+	int dx = (int)(p.x - arr_px), dy = (int)(p.y - arr_py);
+	if (arr_modo & 16) {
+		jan_x = arr_x + dx;
+		jan_y = arr_y + dy;
+	} else {
+		int x = arr_x, y = arr_y, w = arr_w, h = arr_h;
+		if (arr_modo & 2) {
+			w = arr_w + dx;
+		}
+		if (arr_modo & 8) {
+			h = arr_h + dy;
+		}
+		if (arr_modo & 1) {
+			w = arr_w - dx;
+			if (w < JAN_MIN_W) {
+				w = JAN_MIN_W;
+			}
+			x = arr_x + arr_w - w;
+		}
+		if (arr_modo & 4) {
+			h = arr_h - dy;
+			if (h < JAN_MIN_H) {
+				h = JAN_MIN_H;
+			}
+			y = arr_y + arr_h - h;
+		}
+		jan_x = x;
+		jan_y = y;
+		jan_w = w < JAN_MIN_W ? JAN_MIN_W : w;
+		jan_h = h < JAN_MIN_H ? JAN_MIN_H : h;
+	}
+	ajustar_janela(W, H);
+	gv_app_redesenhar(app);
+}
+
+static void comecar_arrasto(int modo) {
+	Clay_Vector2 p = gv_ponteiro();
+	arr_modo = modo;
+	arr_px = p.x;
+	arr_py = p.y;
+	arr_x = jan_x;
+	arr_y = jan_y;
+	arr_w = jan_w;
+	arr_h = jan_h;
+}
+
+static void pastilha(float W, float H) {
+	Clay_ElementId id = CLAY_ID("pastilha");
+	reg("pastilha", id);
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIXED(300), CLAY_SIZING_FIXED(56) }, .padding = { 16, 8, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(28), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) },
+		.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { W - 300 - 20, H - 56 - 20 }, .zIndex = 20 }, .userData = gv_sombra(18, 6, 0.5f) }) {
+		bool voltar = gv_tocado(id);
+		gv_icone("cpu", 22, gv_t.acento);
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) } } }) {
+			gv_texto(CLAY_STRING("Processos"), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_str(gv_fmt("CPU %.0f%% · Mem %.0f%%", cpu_total, mem_total_kb > 0 ? 100.0 * (double)mem_usada_kb / (double)mem_total_kb : 0.0).chars), gv_t.tamanho_corpo - 2, gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		if (gv_botao_ext(CLAY_ID("pastilha-fechar"), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 40 })) {
+			gv_app_sair(app);
+		}
+		reg("pastilha-fechar", CLAY_ID("pastilha-fechar"));
+		if (voltar && !gv_por_cima(CLAY_ID("pastilha-fechar"))) {
+			definir_minimizada(false);
+		}
+	}
+	gv_app_entrada_em(app, id);
+}
+
 static void desenhar(gv_app *a, void *dados) {
 	(void)dados;
 	app = a;
@@ -1226,28 +1461,74 @@ static void desenhar(gv_app *a, void *dados) {
 		ler_tudo();
 	}
 	gv_acordar_em(INTERVALO_S);
-	/* clicar fora do cartão fecha. Antes de tudo: quem pergunta por último ganha o aperto, então a raiz perde para o cartão e o que há dentro dele */
-	bool fora = gv_tocado(CLAY_ID("raiz"));
-	(void)gv_premido(CLAY_ID("cartao"));
-	if (fora && !confirmar) {
-		gv_app_sair(app);
+	float W = gv_app_largura(app), H = gv_app_altura(app);
+	if (W < 200) {
+		W = 1280;
 	}
-	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = gv_t.veu }) {
-		CLAY(CLAY_ID("cartao"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_PERCENT(0.92f), CLAY_SIZING_PERCENT(0.9f) } }, .backgroundColor = gv_t.superficie,
-			.cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) },
-			.userData = gv_sombra(30, 10, 0.6f) }) {
-			CLAY(CLAY_ID("barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(56) }, .padding = { 20, 12, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-				.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
-				gv_icone("cpu", 22, gv_t.acento);
-				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-					gv_texto(CLAY_STRING("Gerenciador de processos"), gv_t.tamanho_corpo + 2, gv_t.texto, GV_PESO_NORMAL);
-				}
-				if (gv_botao_ext(CLAY_ID("fechar"), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 40 })) {
-					gv_app_sair(app);
-				}
-				reg("fechar", CLAY_ID("fechar"));
+	if (H < 200) {
+		H = 720;
+	}
+	tela_w = W;
+	tela_h = H;
+	if (!jan_pronta) {
+		iniciar_janela(W, H);
+	}
+	ajustar_janela(W, H);
+	tratar_arrasto(W, H);
+	if (jan_mini) {
+		CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+			pastilha(W, H);
+		}
+		debug_posicoes();
+		return;
+	}
+	cart_w = jan_max ? (int)W : jan_w;
+	cart_h = jan_max ? (int)H : jan_h;
+	int ox = jan_max ? 0 : jan_x, oy = jan_max ? 0 : jan_y, borda = jan_max ? 0 : BORDA;
+	/* a barra de título: o aperto nela começa a mover; o duplo clique maximiza. Quem pergunta por último ganha o aperto: os botões (de dentro) ganham da barra */
+	bool barra_premida = gv_premido(CLAY_ID("barra"));
+	if (barra_premida && !barra_estava) {
+		double agora = gv_agora();
+		if (agora - barra_ult_aperto < 0.4) {
+			alternar_maximizada();
+			barra_ult_aperto = 0;
+		} else {
+			barra_ult_aperto = agora;
+			if (!jan_max && !arr_modo) {
+				comecar_arrasto(16);
 			}
-			CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+		}
+	}
+	barra_estava = barra_premida;
+	CLAY(CLAY_ID("raiz"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
+		Clay_ElementId jid = CLAY_ID("janela");
+		CLAY(jid, { .layout = { .sizing = { CLAY_SIZING_FIXED((float)(cart_w + 2 * borda)), CLAY_SIZING_FIXED((float)(cart_h + 2 * borda)) }, .padding = CLAY_PADDING_ALL((uint16_t)borda) },
+			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { (float)(ox - borda), (float)(oy - borda) }, .zIndex = 10 } }) {
+			reg("janela/cartao", CLAY_ID("cartao"));
+			CLAY(CLAY_ID("cartao"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED((float)cart_w), CLAY_SIZING_FIXED((float)cart_h) } }, .backgroundColor = gv_t.superficie,
+				.cornerRadius = CLAY_CORNER_RADIUS(jan_max ? 0 : gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) },
+				.userData = gv_sombra(30, 10, 0.6f) }) {
+				CLAY(CLAY_ID("barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(56) }, .padding = { 20, 12, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+					.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
+					reg("barra", CLAY_ID("barra"));
+					gv_icone("cpu", 22, gv_t.acento);
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						gv_texto(CLAY_STRING("Gerenciador de processos"), gv_t.tamanho_corpo + 2, gv_t.texto, GV_PESO_NORMAL);
+					}
+					if (gv_botao_ext(CLAY_ID("btn-min"), &(gv_botao_opcoes){ .icone = "minus", .estilo = GV_BOTAO_SIMPLES, .altura = 40 })) {
+						definir_minimizada(true);
+					}
+					reg("btn/min", CLAY_ID("btn-min"));
+					if (gv_botao_ext(CLAY_ID("btn-max"), &(gv_botao_opcoes){ .icone = jan_max ? "restore" : "maximize", .estilo = GV_BOTAO_SIMPLES, .altura = 40 })) {
+						alternar_maximizada();
+					}
+					reg("btn/max", CLAY_ID("btn-max"));
+					if (gv_botao_ext(CLAY_ID("fechar"), &(gv_botao_opcoes){ .icone = "close", .estilo = GV_BOTAO_SIMPLES, .altura = 40 })) {
+						gv_app_sair(app);
+					}
+					reg("fechar", CLAY_ID("fechar"));
+				}
+				CLAY(CLAY_ID("corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 				CLAY(CLAY_ID("lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(220), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(12), .childGap = 6 },
 					.border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
 					static const struct { const char *id, *nome_reg, *icone, *texto; } itens[] = { { "t-processos", "aba/processos", "list", "Processos" }, { "t-desempenho", "aba/desempenho", "waves", "Desempenho" } };
@@ -1272,10 +1553,30 @@ static void desenhar(gv_app *a, void *dados) {
 					}
 				}
 			}
+				if (confirmar) {
+					dialogo_confirmar();
+				}
+			}
+			/* as bordas e cantos que mudam o tamanho: por último, para ganhar o aperto das pontas do cartão */
+			for (int i = 0; i < 8 && !jan_max; i++) {
+				int m = BORDAS[i].mascara;
+				bool canto = i >= 4;
+				float W2 = (float)(cart_w + 2 * borda), H2 = (float)(cart_h + 2 * borda), cs = 16;
+				float bx = (m & 1) ? 0 : (m & 2) ? W2 - (canto ? cs : BORDA) : (canto ? 0 : cs);
+				float by = (m & 4) ? 0 : (m & 8) ? H2 - (canto ? cs : BORDA) : (canto ? 0 : cs);
+				float bw = canto ? cs : (m & 3) ? BORDA : W2 - 2 * cs;
+				float bh = canto ? cs : (m & 12) ? BORDA : H2 - 2 * cs;
+				Clay_ElementId bid = CLAY_IDI("borda", (uint32_t)i);
+				CLAY(bid, { .layout = { .sizing = { CLAY_SIZING_FIXED(bw), CLAY_SIZING_FIXED(bh) } }, .floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .offset = { bx, by }, .zIndex = 12 } }) {}
+				char nome[16];
+				snprintf(nome, sizeof(nome), "borda/%s", BORDAS[i].nome);
+				reg(nome, bid);
+				if (gv_premido(bid) && !arr_modo) {
+					comecar_arrasto(m);
+				}
+			}
 		}
-	}
-	if (confirmar) {
-		dialogo_confirmar();
+		gv_app_entrada_em(app, jid);
 	}
 	/* Esc: fecha o diálogo, o menu, e por fim o gerenciador */
 	if (gv_tecla() == 0xff1b) {
@@ -1376,7 +1677,7 @@ static int servico(char *argv0) {
 		bool aberta = janela > 0 && viva(janela);
 		if (!strncmp(cmd, "alternar", 8)) {
 			if (aberta) {
-				kill(janela, SIGTERM);
+				kill(janela, SIGUSR1); /* minimizada, a janela volta; senão fecha */
 			} else {
 				janela = abrir_janela(argv0);
 			}
@@ -1424,7 +1725,7 @@ int main(int argc, char **argv) {
 		}
 		pid_t ja = ler_pid_janela();
 		if (ja && ja != getpid()) {
-			kill(ja, SIGTERM);
+			kill(ja, SIGUSR1);
 			return 0;
 		}
 	}
@@ -1432,7 +1733,10 @@ int main(int argc, char **argv) {
 	if (depurando) {
 		setvbuf(stdout, NULL, _IOLBF, 0);
 	}
-	signal(SIGTERM, ao_terminar); /* o serviço (ou o segundo chamado) fecha a janela assim */
+	signal(SIGTERM, ao_terminar); /* "fechar" (o serviço) encerra a janela assim */
+	if (pipe2(self_pipe, O_CLOEXEC | O_NONBLOCK) == 0) {
+		signal(SIGUSR1, sinal_alternar); /* o atalho: minimizada, a janela volta; senão fecha */
+	}
 	FILE *f = fopen(caminho_pid(), "w");
 	if (f) {
 		fprintf(f, "%d\n", getpid());
@@ -1446,6 +1750,9 @@ int main(int argc, char **argv) {
 		.zona_exclusiva = -1, .teclado = true, .teclado_exclusivo = true });
 	if (!app) {
 		return 1;
+	}
+	if (self_pipe[0] >= 0) {
+		gv_app_vigiar(app, self_pipe[0], pipe_pronto, NULL);
 	}
 	int r = gv_app_correr(app, desenhar, NULL);
 	unlink(caminho_pid());
