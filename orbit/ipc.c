@@ -475,6 +475,11 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			fail(b, "uso: espaco 1-N [saida] (N = espaços ligados, ver `areas`)");
 			return;
 		}
+		if (output->tag >= ORBIT_TAGS) {
+			/* como o Alt+número: Gaming e Mídia têm um espaço só; sair deles é pelo modo (que guarda o espaço do Desktop) */
+			fail(b, "a tela está em Gaming ou Mídia: use `modo desktop` para voltar ao Desktop");
+			return;
+		}
 		output->tag = n - 1;
 		orbit_arrange(server);
 		focus_top(server, output);

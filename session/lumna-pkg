@@ -36,8 +36,12 @@ snapshot_antes() {
 voltar() {
   local alvo="${1:-}"
   if [ -z "$alvo" ]; then alvo="$(ls -1d "$SNAPDIR"/antes-* 2>/dev/null | sort | tail -1)"; fi
-  case "$alvo" in */*) ;; *) alvo="$SNAPDIR/$alvo" ;; esac
-  [ -n "$alvo" ] && [ -d "$alvo" ] || { echo "não achei esse snapshot (veja: lumna-pkg snapshots)" >&2; exit 1; }
+  alvo="${alvo##*/}"
+  # só um snapshot que este script tirou: um caminho qualquer (um subvolume que o usuário criou na pasta dele) viraria o sistema do próximo boot
+  case "$alvo" in antes-[0-9]*) ;; *) echo "não achei esse snapshot (veja: lumna-pkg snapshots)" >&2; exit 1 ;; esac
+  case "$alvo" in *[!A-Za-z0-9-]*) echo "nome de snapshot estranho: $alvo" >&2; exit 1 ;; esac
+  alvo="$SNAPDIR/$alvo"
+  [ -d "$alvo" ] || { echo "não achei esse snapshot (veja: lumna-pkg snapshots)" >&2; exit 1; }
   local dev top novo
   dev="$(findmnt -no SOURCE / | sed 's/\[.*//')"
   top="$(mktemp -d)"
@@ -49,6 +53,27 @@ voltar() {
   umount "$top"
   rmdir "$top" 2>/dev/null || true
   echo "Pronto: o sistema volta a ${alvo##*/} no próximo boot. Reinicie. O estado de antes ficou em $novo (apague com 'btrfs subvolume delete' quando não precisar)."
+}
+
+# O que o makepkg pede ao pacman (instalar o pacote que compilou, as dependências, marcar como dependência, remover as de compilação) e nada mais:
+# as opções que mudam onde o pacman lê ou escreve (outra configuração, outra raiz, outro banco, ganchos, o arquivo de log) fariam do
+# "lumna-pkg pacman" um root qualquer, inclusive sem senha nos minutos em que o pkexec lembra dela.
+pacman_confere() {
+  local op="" a
+  for a in "$@"; do
+    case "$a" in
+      --config|--config=*|--root|--root=*|--dbpath|--dbpath=*|--hookdir|--hookdir=*|--gpgdir|--gpgdir=*|--cachedir|--cachedir=*|--sysroot|--sysroot=*|--logfile|--logfile=*|--overwrite|--overwrite=*)
+        echo "lumna-pkg: a opção $a não é permitida" >&2; exit 2 ;;
+      --*) ;;
+      -*)
+        case "$a" in *r*|*b*) echo "lumna-pkg: a opção $a não é permitida (-r e -b mudam a raiz e o banco)" >&2; exit 2 ;; esac
+        [ -z "$op" ] && op="${a:1:1}" ;;
+    esac
+  done
+  case "$op" in
+    U|S|D|R|T|Q) ;;
+    *) echo "lumna-pkg: operação do pacman não permitida: -$op" >&2; exit 2 ;;
+  esac
 }
 
 case "${1:-}" in
@@ -83,6 +108,7 @@ case "${1:-}" in
     shift
     # O makepkg chama "$PACMAN_AUTH pacman ARGS": o caminho do pacman vem junto.
     if [ "${1:-}" = /usr/bin/pacman ] || [ "${1:-}" = pacman ]; then shift; fi
+    pacman_confere "$@"
     exec pacman "$@"
     ;;
   *)

@@ -337,6 +337,13 @@ bool modos_nao_perturbe(void) {
 		return false;
 	}
 	modos_cfg_ler(&c);
-	int m = modos_em_foco(&e);
-	return m > 0 && c.m[m].nao_perturbe;
+	/* qualquer tela num modo com "não perturbe" (o jogo na TV com o cursor no monitor do Desktop também conta): o cursor muda de tela sem
+	 * evento nenhum, e o que a pessoa ligou foi "enquanto a tela está em Gaming" */
+	for (int i = 0; i < e.n; i++) {
+		int m = e.saidas[i].modo;
+		if (m > 0 && m < MODO_N && c.m[m].nao_perturbe) {
+			return true;
+		}
+	}
+	return false;
 }

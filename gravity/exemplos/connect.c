@@ -77,6 +77,10 @@ struct dispositivo {
 
 static GPtrArray *dispositivos;
 static char codigo[8];
+/* tentativas erradas com o código de agora: são 6 dígitos (um milhão de chances) e a janela é de 5 minutos; sem limite, alguém na mesma
+ * rede testaria todos até acertar e ganharia o controle do PC. Com CODIGO_MAX_ERROS erros o código é gasto e a pessoa abre o pareamento de novo. */
+static int codigo_erros;
+#define CODIGO_MAX_ERROS 5
 static gint64 codigo_ate;
 
 static char *caminho_dispositivos(void) {
@@ -1141,6 +1145,10 @@ static void pareamento(struct cliente *c, const struct json *msg, GString *r) {
 	if (!codigo[0]) {
 		erro(r, "abra o pareamento na tela de Mídia da TV", false);
 	} else if (g_get_monotonic_time() > codigo_ate || !igual(codigo, enviado)) {
+		if (++codigo_erros >= CODIGO_MAX_ERROS) {
+			codigo[0] = '\0'; /* gasto: tentativas demais */
+			fprintf(stderr, "lumna-connect: %d códigos errados: o pareamento fechou (abra de novo para um código novo)\n", codigo_erros);
+		}
 		erro(r, "código inválido ou expirado", false);
 	} else {
 		codigo[0] = '\0'; /* gasto */
@@ -1538,6 +1546,7 @@ static void pedido_local(const char *linha, GString *r) {
 		gerar_bytes(&n, sizeof(n));
 		snprintf(codigo, sizeof(codigo), "%06u", n % 1000000);
 		codigo_ate = g_get_monotonic_time() + CODIGO_VALE_US;
+		codigo_erros = 0;
 		char ends[8][16];
 		int ne = mdns_enderecos(ends, 8);
 		g_string_printf(r, "{\"ok\":true,\"codigo\":\"%s\",\"porta\":%d,\"expira\":%d,\"enderecos\":[", codigo, PORTA, (int)(CODIGO_VALE_US / G_USEC_PER_SEC));

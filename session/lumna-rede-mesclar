@@ -14,7 +14,7 @@
 # de UMA conexao e preciso um servidor do outro lado (MPTCP), que fica para depois.
 #
 # LUMNA_MESCLAR_SECO=1 so mostra os comandos de `ip` (para testar sem root).
-CONF=/etc/lumna/mesclar.conf
+CONF=${LUMNA_MESCLAR_CONF:-/etc/lumna/mesclar.conf} # (a variável é só para os testes: o pkexec limpa o ambiente)
 HOOK=/etc/NetworkManager/dispatcher.d/90-lumna-mesclar
 IP=ip
 [ -n "$LUMNA_MESCLAR_SECO" ] && IP="echo ip"
@@ -33,9 +33,16 @@ limpar() {
 	return 0
 }
 
+# um nome de interface (até 15 letras, números, ponto, traço e sublinhado) e um peso (1 a 255, o que o ip aceita): o que vai para o
+# mesclar.conf é dado, nunca código (o arquivo é lido como root a cada vez que uma rede sobe)
+iface_ok() { case "$1" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ ${#1} -le 15 ]; }
+peso_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1 ] && [ "$1" -le 255 ]; }
+
 divisao() {
 	IF1=$1 IF2=$2 P1=${3:-1} P2=${4:-1}
 	[ -n "$IF1" ] && [ -n "$IF2" ] && [ "$IF1" != "$IF2" ] || { echo "uso: divisao IF1 IF2 [PESO1 PESO2]" >&2; exit 2; }
+	iface_ok "$IF1" && iface_ok "$IF2" || { echo "nome de interface estranho: $IF1 / $IF2" >&2; exit 2; }
+	peso_ok "$P1" && peso_ok "$P2" || { echo "peso fora de 1 a 255: $P1 / $P2" >&2; exit 2; }
 	G1=$(gateway "$IF1")
 	G2=$(gateway "$IF2")
 	[ -n "$G1" ] || { echo "$IF1 nao tem gateway (esta conectada?)" >&2; exit 3; }
@@ -49,12 +56,13 @@ divisao() {
 		nexthop via "$G2" dev "$IF2" weight "$P2"
 }
 
+# lê uma chave do mesclar.conf como texto (sem executar o arquivo)
+conf() { sed -n "s/^$1=//p" "$CONF" | head -n1; }
+
 aplicar() {
 	[ -f "$CONF" ] || exit 0
-	# shellcheck disable=SC1090
-	. "$CONF"
-	[ "$modo" = divisao ] || exit 0
-	divisao "$if1" "$if2" "$peso1" "$peso2"
+	[ "$(conf modo)" = divisao ] || exit 0
+	divisao "$(conf if1)" "$(conf if2)" "$(conf peso1)" "$(conf peso2)"
 }
 
 case "$1" in

@@ -76,7 +76,7 @@ void modos_assinar_ler(int fd);
 
 /* o modo desta saída (NULL: a em foco) pede a dock escondida / avisos em silêncio? (lê o Orbit e o modos.ini) */
 bool modos_esconde_dock(const char *saida);
-bool modos_nao_perturbe(void);
+bool modos_nao_perturbe(void); /* alguma tela está num modo com "não perturbe" ligado */
 
 /* modos.ini */
 void modos_cfg_ler(struct modos_cfg *c);

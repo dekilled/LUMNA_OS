@@ -14,6 +14,7 @@ static void spawn(const char *command) {
 		return;
 	}
 	if (fork() == 0) {
+		setsid(); /* como no mode.c: o programa aberto não fica no grupo do Orbit */
 		execl("/bin/sh", "/bin/sh", "-c", command, (char *)NULL);
 		_exit(1);
 	}
@@ -43,7 +44,7 @@ static void go_tag(struct orbit_server *server, struct orbit_view *focused, int 
 	if (output->tag >= ORBIT_TAGS) {
 		return; /* Gaming e Mídia têm um espaço só: o Alt+número é do Desktop */
 	}
-	if (move && focused && !orbit_view_isolated(focused)) {
+	if (move && focused && focused->output == output && !orbit_view_isolated(focused)) { /* a janela com foco de outra tela não some do monitor dela */
 		focused->tag = tag;
 		focused->fullscreen = false;
 	}

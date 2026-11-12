@@ -434,10 +434,7 @@ static void views_to(struct orbit_server *server, struct orbit_output *from, str
 	struct orbit_view *view;
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == from) {
-			orbit_split_release(server, view);
-			orbit_view_set_output(view, to, true);
-			view->fullscreen = false;
-			view->tag = to->tag;
+			orbit_view_adopt(server, view, to);
 		}
 	}
 }
@@ -502,4 +499,5 @@ void orbit_disposicao_apply(struct orbit_server *server) {
 	orbit_soft_off_refresh(server);
 	orbit_outputs_publish(server);
 	orbit_arrange(server);
+	orbit_focus_visible(server); /* o foco não fica numa janela que o desligar escondeu (a Mídia de uma tela que saiu) */
 }

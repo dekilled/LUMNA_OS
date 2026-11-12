@@ -4,7 +4,7 @@ import asyncio, base64, json, os, subprocess, sys, tempfile, time
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
-from celular_falso import entrar, pedir  # noqa: E402
+from celular_falso import entrar, pedir, URL as URL_CELULAR  # noqa: E402
 
 CONTROLE = sys.argv[1]
 T = tempfile.mkdtemp(prefix="connect-teste-")
@@ -46,6 +46,20 @@ async def principal():
     try:
         confere(await espera(lambda: os.path.exists(os.path.join(run, "lumna-connect.sock"))), "o serviço não subiu")
         await asyncio.sleep(0.5)
+        # força bruta: com 5 códigos errados o código certo também deixa de valer (é preciso abrir o pareamento de novo)
+        import websockets as _ws
+        certo = ctl("parear")["codigo"]
+        errado = "%06d" % ((int(certo) + 1) % 1000000)
+        for _ in range(5):
+            async with _ws.connect(URL_CELULAR) as w:
+                await w.send(json.dumps({"type": "pair", "code": errado, "name": "Intruso"}))
+                r = json.loads(await w.recv())
+                confere(r.get("type") == "error", f"código errado devia ser recusado: {r}")
+        async with _ws.connect(URL_CELULAR) as w:
+            await w.send(json.dumps({"type": "pair", "code": certo, "name": "Intruso"}))
+            r = json.loads(await w.recv())
+            confere(r.get("type") == "error", f"depois de 5 erros, nem o código certo vale (força bruta): {r}")
+        confere(ctl("connect")["pareando"] is False, "o pareamento fecha depois de 5 erros")
         codigo = ctl("parear")["codigo"]
         ws, token = await entrar(codigo=codigo)
         est = ctl("connect")

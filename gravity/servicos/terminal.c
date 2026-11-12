@@ -912,10 +912,12 @@ char *terminal_texto(terminal *t, int l1, int c1, int l2, int c2) {
 			size_t k = strlen(txt);
 			if (n + k + 2 > cap) {
 				cap = (n + k + 2) * 2;
-				s = realloc(s, cap);
-				if (!s) {
+				char *maior = realloc(s, cap);
+				if (!maior) {
+					free(s); /* sem memória: não vaza o que já tinha */
 					return NULL;
 				}
+				s = maior;
 			}
 			memcpy(s + n, txt, k);
 			n += k;
@@ -927,10 +929,12 @@ char *terminal_texto(terminal *t, int l1, int c1, int l2, int c2) {
 		if (l < l2) {
 			if (n + 2 > cap) {
 				cap = (n + 2) * 2;
-				s = realloc(s, cap);
-				if (!s) {
+				char *maior = realloc(s, cap);
+				if (!maior) {
+					free(s); /* sem memória: não vaza o que já tinha */
 					return NULL;
 				}
+				s = maior;
 			}
 			s[n++] = '\n';
 		}

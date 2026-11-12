@@ -116,9 +116,8 @@ void pn_modos_desenhar(void) {
 			gv_texto(CLAY_STRING("O modo de todo dia: janelas livres, dock e avisos como estão."), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 			continue;
 		}
-		pn_linha_comecar(CLAY_IDI("md-dock", (uint32_t)m), "dock", "Esconder a dock", "A dock some enquanto este modo estiver ligado");
-		gv_interruptor(CLAY_IDI("md-dock-v", (uint32_t)m), &cfg.m[m].esconder_dock);
-		pn_linha_acabar();
+		/* (a dock, a barra e o papel de parede nunca aparecem numa tela em Gaming ou Mídia: é o Orbit que esconde; não há o que escolher) */
+		gv_texto(CLAY_STRING("Numa tela neste modo, a barra e a dock não aparecem: só a janela do modo, em tela cheia."), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 		pn_linha_comecar(CLAY_IDI("md-dnd", (uint32_t)m), "bell", "Não perturbe", "Só os avisos urgentes aparecem");
 		gv_interruptor(CLAY_IDI("md-dnd-v", (uint32_t)m), &cfg.m[m].nao_perturbe);
 		pn_linha_acabar();

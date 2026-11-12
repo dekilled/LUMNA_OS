@@ -224,12 +224,7 @@ void orbit_output_release(struct orbit_server *server, struct orbit_output *outp
 	}
 	wl_list_for_each(view, &server->views, link) {
 		if (view->output == output) {
-			orbit_split_release(server, view);
-			orbit_view_set_output(view, fallback, true); /* leva a posição para a tela que fica */
-			view->fullscreen = false;
-			if (fallback) {
-				view->tag = fallback->tag;
-			}
+			orbit_view_adopt(server, view, fallback);
 		}
 	}
 }
@@ -257,6 +252,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	free(output);
 	orbit_outputs_publish(server);
 	orbit_arrange(server);
+	orbit_focus_visible(server); /* o foco não fica numa janela que ficou escondida (um jogo de uma tela que saiu) */
 	pin_touch(server);
 }
 

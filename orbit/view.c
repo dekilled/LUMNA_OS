@@ -234,10 +234,22 @@ void orbit_unfocus(struct orbit_server *server) {
 	orbit_ipc_sync(server);
 }
 
+/* a janela com o foco sumiu da tela (o espaço dela não é o que a tela mostra): o foco vai para o que a tela mostra */
+void orbit_focus_visible(struct orbit_server *server) {
+	struct orbit_view *f = server->focused;
+	if (f && f->output && (!f->mapped || f->minimized || f->tag != f->output->tag)) {
+		focus_top(server, f->output);
+		if (server->focused == f) {
+			orbit_unfocus(server);
+		}
+	}
+}
+
 void focus_top(struct orbit_server *server, struct orbit_output *output) {
 	struct orbit_view *view;
-	if (output && output->mode == ORBIT_MODE_GAMING && orbit_output_isolated(output)) {
-		/* no Gaming: o jogo, senão a biblioteca, senão a última usada (e não a primeira da lista, que podia ser a Steam) */
+	if (output && orbit_output_isolated(output)) {
+		/* no Gaming e na Mídia, o mesmo critério do quiosque: o jogo, senão a biblioteca, senão a última usada (e não a primeira da lista,
+		 * que podia ser a Steam ou a janela mais antiga da Mídia) */
 		struct orbit_view *pick = orbit_kiosk_pick(server, output);
 		if (pick && pick != server->focused) {
 			orbit_focus(pick);

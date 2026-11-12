@@ -112,7 +112,7 @@ static void leitura_fim(struct leitura *l, bool guardar) {
 	wl_event_source_remove(l->prazo);
 	close(l->fd);
 	if (guardar && l->tam > 0) {
-		l->dados = realloc(l->dados, l->tam + 1);
+		/* a leitura sempre deixa um byte a mais no fim: cabe o '\0' sem crescer */
 		l->dados[l->tam] = '\0';
 		adicionar(l->dados, l->tam);
 	} else {
@@ -131,7 +131,12 @@ static int leitura_pronta(int fd, uint32_t mascara, void *dados) {
 				leitura_fim(l, false); /* grande demais: não guarda */
 				return 0;
 			}
-			l->dados = realloc(l->dados, l->tam + (size_t)n + 1);
+			char *maior = realloc(l->dados, l->tam + (size_t)n + 1);
+			if (!maior) {
+				leitura_fim(l, false); /* sem memória: desiste desta cópia (e não perde o que já tinha nem escreve em NULL) */
+				return 0;
+			}
+			l->dados = maior;
 			memcpy(l->dados + l->tam, tmp, (size_t)n);
 			l->tam += (size_t)n;
 		} else if (n == 0) {
@@ -278,7 +283,12 @@ char *orbit_copiados_lista(void) {
 		size_t precisa = len + pv * 6 + 128;
 		if (precisa > cap) {
 			cap = precisa * 2;
-			s = realloc(s, cap);
+			char *maior = realloc(s, cap);
+			if (!maior) {
+				free(s);
+				return NULL; /* o ipc responde que não deu */
+			}
+			s = maior;
 		}
 		len += (size_t)snprintf(s + len, cap - len, "%s{\"n\":%d,\"tam\":%zu,\"em\":%ld,\"texto\":\"", i ? "," : "", i, it->tam, (long)it->em);
 		for (size_t k = 0; k < pv; k++) {

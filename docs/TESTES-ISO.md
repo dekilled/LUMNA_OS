@@ -586,6 +586,19 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.454 | Mostrar o teclado (botão ⠿) e fazer `7 × 6 =` só com cliques/toques; apagar; `C` | Escreve no campo, mostra 42 ao vivo, `=` manda para a fita; as teclas são fáceis de acertar com o dedo | ☐ |
 | 2.455 | Fechar e abrir a Calculadora | A fita e a escolha do teclado voltam; a lixeira > Limpar a fita esvazia | ☐ |
 | 2.456 | Esc com texto no campo, e voltar a digitar | Limpa, e dá para digitar de novo sem clicar | ☐ |
+
+### 2t. Auditoria: o que só o PC de verdade prova
+
+| # | O que fazer | O que deve acontecer | OK |
+|---|---|---|---|
+| 2.457 | Dois monitores: a TV na **Mídia** e um app comum aberto no monitor. Desligar (ou desconectar) o **monitor** | O app comum **não** aparece em tela cheia na TV: fica no Desktop dela. Trocar a TV para o Desktop mostra o app | ☐ |
+| 2.458 | Dois monitores: a TV no **Gaming** com um jogo aberto. Desligar a **TV** | O jogo não cai no Desktop do monitor: fica no Gaming, escondido. Pedir o Gaming no monitor (Super+Tab ou a barra) mostra o jogo. O teclado não fica digitando no jogo escondido | ☐ |
+| 2.459 | Na **Mídia**, fechar a última janela dela (o Início) | Em até uns 2 s o Início volta sozinho (a TV não fica preta) | ☐ |
+| 2.460 | Com a TV na **Mídia**, um app do Desktop pedindo atenção (um link clicado no celular que abre o navegador, uma notificação que abre um app) | A TV **continua na Mídia**: o app abre no monitor ou fica esperando, sem tirar a TV do modo | ☐ |
+| 2.461 | Lançador > um app instalado pelo sistema > **Desinstalar** | Pede a senha e remove o pacote. Um app Flatpak sai pelo Flatpak. Um app avulso mostra um aviso "Não deu para desinstalar" | ☐ |
+| 2.462 | Parear o celular no Connect digitando **5 códigos errados** e depois o certo | O certo também é recusado (o pareamento fecha); abrir o pareamento de novo dá um código novo que funciona | ☐ |
+| 2.463 | Painel > Modos | Não há mais "Esconder a dock" no Gaming e na Mídia (a dock nunca aparece nessas telas); o "Não perturbe" segue lá | ☐ |
+| 2.464 | Jogando na TV (Gaming, "Não perturbe" ligado) com o mouse no outro monitor, receber uma notificação comum | Não aparece no canto (só as urgentes), esteja o mouse onde estiver | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

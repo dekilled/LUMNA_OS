@@ -117,7 +117,7 @@ int main(void) {
 	char *img = ls_imagem("http://127.0.0.1:1/x/capa.jpg");
 	CONFERE(img == NULL, "imagem que não baixa devolve NULL (sem travar)");
 	char url[200];
-	g_snprintf(url, sizeof(url), "%s/steam/apps/620/capsule_616x353.jpg", g_getenv("LUMNA_LOJA_STEAM_URL"));
+	g_snprintf(url, sizeof(url), "%s/steam/apps/621/capsule_616x353.jpg" /* ímpar: o servidor falso dá 404 na cápsula dos pares (jogo sem cápsula) */, g_getenv("LUMNA_LOJA_STEAM_URL"));
 	img = ls_imagem(url);
 	CONFERE(img && g_file_test(img, G_FILE_TEST_IS_REGULAR), "a imagem vai para o cache");
 	char *img2 = ls_imagem(url);

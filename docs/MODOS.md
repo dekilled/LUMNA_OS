@@ -24,6 +24,21 @@ Uma tela em Gaming ou Mídia é uma **ilha** (`orbit_output_isolated`):
   (avisos, teclado na tela, gerenciador de processos, capa e seletor da Mídia) e uma camada que pegou o teclado só para ela (o lançador que a pessoa
   abriu ali). Para conferir: `orbit-msg camadas`.
 
+## As mesmas regras nos três modos
+
+Desktop, Gaming e Mídia são um componente só (`orbit/mode.c`). O que vale para os três:
+
+- **Uma janela pertence a um espaço e o espaço diz o modo dela.** Ela nunca muda de modo sozinha:
+  - **monitor que sai** (desligado, desconectado, "só esquerdo/direito", espelhar): a janela vai para a tela que fica, **no mesmo modo** (`orbit_view_adopt`).
+    A do Desktop entra no Desktop dessa tela; a do Gaming ou da Mídia continua no espaço do modo dela, escondida até alguma tela abrir esse modo.
+    O foco do teclado não fica numa janela que sumiu (`orbit_focus_visible`);
+  - **um app pedindo atenção** (xdg-activation no Wayland, `_NET_ACTIVE_WINDOW` no X11) troca o espaço do Desktop numa tela no Desktop,
+    **nunca o modo de uma tela** (`orbit_activation_may_switch`);
+  - **o Alt+número e o `orbit-msg espaco N`** só valem numa tela no Desktop. Sair do Gaming ou da Mídia é pelo modo, que guarda o espaço do Desktop.
+- **Quem aparece numa ilha** (Gaming ou Mídia), e quem ganha o foco ao entrar nela, seguem o mesmo critério: a janela com o foco, o jogo (Gaming), a
+  biblioteca (Gaming), a última usada, a última aberta (`orbit_kiosk_pick`).
+- **Uma ilha nunca fica vazia:** fechou a última janela, a tela do modo volta (a biblioteca no Gaming, o Início na Mídia; no máximo uma vez a cada 5 s).
+
 ## Onde abre uma janela nova
 
 1. **Jogo** vai para a tela do Gaming (veja "O que é um jogo"), e o mesmo vale para a biblioteca, a Steam, o Lutris e o Heroic.
@@ -59,9 +74,9 @@ Com isso:
   o jogo fecha ou quando a pessoa a pede.
 - **Clicar no Desktop do outro monitor não troca o que o Gaming mostra:** o jogo continua lá.
 - **O jogo fecha e volta a biblioteca,** e não a Steam.
-- **Se a tela do Gaming fica vazia** (biblioteca e Steam fechadas), a biblioteca volta sozinha, no máximo uma vez a cada 5 s.
+- **Se a tela do Gaming fica vazia** (biblioteca e Steam fechadas), a biblioteca volta sozinha, no máximo uma vez a cada 5 s (o mesmo vale para a Mídia, com o Início).
 
-A Mídia segue como era: a janela com o foco, ou a última que abriu.
+A Mídia usa o mesmo critério, sem o jogo e a biblioteca: a janela com o foco, a última usada, a última que abriu.
 
 ## Diagnóstico
 
@@ -80,6 +95,9 @@ journalctl -b | grep -E 'xwl:|por trás do jogo|ficou vazia'
   e um app comum. Antes, a animação da troca recortava a janela X11 e o wlroots abortava, derrubando a sessão para o login. Com o Orbit antigo o teste
   reproduz o crash. Aceita um binário com ASAN: `sh trocas_x11.sh orbit orbit-asan`.
 - `gravity/testes/modos_telas.sh`: modos em dois monitores (mover, trocar).
+- `gravity/testes/modos_componente.sh`: o componente como um só, em dois monitores: monitor que sai com a outra tela na Mídia (o app comum não vira janela
+  da Mídia) e com a Mídia nele (a janela da Mídia continua no modo, sem o foco), o `espaco` recusado numa tela em Mídia, a Mídia vazia que traz o Início
+  de volta. Com o Orbit de antes, 8 das 17 verificações falham. Aceita um binário com ASAN: `sh modos_componente.sh <pasta> orbit-asan`.
 - `gravity/testes/xwayland.sh`: as janelas X11 e o tamanho do jogo.
 
 ## O que não está coberto

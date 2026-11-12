@@ -1,7 +1,7 @@
 #ifndef ORBIT_H
 #define ORBIT_H
 
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L /* o strdup (clip.c) é de 2008: com 200112L ele ficava sem declaração */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -644,6 +644,9 @@ void orbit_mode_sync_output(struct orbit_output *output);
  * dela e nenhuma janela de outra saída entra nela. A ponte é só orbit_outputs_swap (trocar as telas). */
 bool orbit_output_isolated(const struct orbit_output *output);
 bool orbit_view_isolated(const struct orbit_view *view);
+void orbit_view_adopt(struct orbit_server *server, struct orbit_view *view, struct orbit_output *to);
+bool orbit_activation_may_switch(const struct orbit_view *view);
+void orbit_focus_visible(struct orbit_server *server);
 /* onde abre uma janela nova: as da Mídia e dos jogos vão para a tela do modo delas; as outras não entram numa tela
  * em Gaming ou Mídia (vão para a de Desktop mais à mão), a não ser que seja a única */
 struct orbit_output *orbit_output_for_new_view(struct orbit_server *server, const char *app_id);

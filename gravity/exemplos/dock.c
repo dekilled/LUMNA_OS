@@ -44,6 +44,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <glib/gstdio.h>
 #include "gravity.h"
 #include "modos.h"
 
@@ -188,9 +189,7 @@ static void carregar(void) {
 
 /* grava os fixos (cria a pasta se for preciso) */
 static void salvar(void) {
-	char cmd[1100];
-	snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta_config);
-	if (system(cmd) != 0) {
+	if (g_mkdir_with_parents(pasta_config, 0700) != 0) { /* sem shell: um nome de pasta com aspa não quebra */
 		fprintf(stderr, "dock: não deu para criar %s\n", pasta_config);
 	}
 	FILE *f = fopen(caminho_config, "w");
@@ -779,9 +778,7 @@ static void config_mudou(gv_app *app, int fd, void *dados) {
 }
 
 static void vigiar_config(gv_app *app) {
-	char cmd[1100];
-	snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta_config);
-	if (system(cmd) != 0) {
+	if (g_mkdir_with_parents(pasta_config, 0700) != 0) { /* sem shell: um nome de pasta com aspa não quebra */
 		return;
 	}
 	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);

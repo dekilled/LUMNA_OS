@@ -613,11 +613,19 @@ static void host_porta(const char *hp, char *host, size_t th, int *porta) {
 	}
 }
 
+/* gsettings set, sem shell: o valor vai como argumento (um texto digitado com aspas ou ";" não quebra nem vira comando) */
 static void gs(const char *esquema, const char *chave, const char *valor) {
-	char *cmd = g_strdup_printf("gsettings set %s %s %s 2>/dev/null", esquema, chave, valor);
-	if (system(cmd) != 0) {
-	}
-	g_free(cmd);
+	char *argv[] = { "gsettings", "set", (char *)esquema, (char *)chave, (char *)valor, NULL };
+	g_spawn_sync(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
+/* um texto como valor do gsettings (GVariant: com as aspas e os escapes certos) */
+static void gs_texto(const char *esquema, const char *chave, const char *texto) {
+	GVariant *v = g_variant_ref_sink(g_variant_new_string(g_utf8_validate(texto, -1, NULL) ? texto : ""));
+	char *s = g_variant_print(v, FALSE);
+	gs(esquema, chave, s);
+	g_free(s);
+	g_variant_unref(v);
 }
 
 void pn_proxy_aplicar(void) {
@@ -675,19 +683,16 @@ void pn_proxy_aplicar(void) {
 		struct { const char *esquema, *valor; } alvo[] = { { "org.gnome.system.proxy.http", proxy.http }, { "org.gnome.system.proxy.https", proxy.https },
 			{ "org.gnome.system.proxy.socks", proxy.socks } };
 		for (int i = 0; i < 3; i++) {
-			char host[96], quoted[110], porta[12];
+			char host[96], porta[12];
 			int p;
 			host_porta(alvo[i].valor, host, sizeof(host), &p);
-			snprintf(quoted, sizeof(quoted), "'%s'", host);
 			snprintf(porta, sizeof(porta), "%d", p);
-			gs(alvo[i].esquema, "host", quoted);
+			gs_texto(alvo[i].esquema, "host", host);
 			gs(alvo[i].esquema, "port", porta);
 		}
 	}
 	if (proxy.modo == 2) {
-		char q[200];
-		snprintf(q, sizeof(q), "'%s'", proxy.pac);
-		gs("org.gnome.system.proxy", "autoconfig-url", q);
+		gs_texto("org.gnome.system.proxy", "autoconfig-url", proxy.pac);
 	}
 }
 

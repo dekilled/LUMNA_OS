@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -303,9 +304,8 @@ static void carregar_favoritos(void) {
 }
 
 static void gravar_favoritos(void) {
-	char caminho[1100], cmd[1100];
-	snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", pasta_config);
-	if (system(cmd) != 0) {
+	char caminho[1100];
+	if (g_mkdir_with_parents(pasta_config, 0700) != 0) { /* sem shell: um nome de pasta com aspa não quebra */
 		return;
 	}
 	snprintf(caminho, sizeof(caminho), "%s/favoritos", pasta_config);
@@ -836,14 +836,23 @@ static void detalhes(void) {
 					}
 					if (gv_botao_ext(CLAY_ID("det-sim"), &(gv_botao_opcoes){ .icone = "trash", .texto = "Desinstalar",
 							.estilo = GV_BOTAO_PERIGO, .crescer = true })) {
-						/* quem desinstala é o gestor de pacotes do LUMNA, pelo .desktop do app */
-						gchar *q = g_shell_quote(a->caminho);
-						char cmd[1200];
-						snprintf(cmd, sizeof(cmd), "lumna-pkg desinstalar %s", q);
+						/* quem desinstala: o pacote do sistema dono do .desktop (pacman -Qo, e a remoção pelo lumna-pkg com a senha do pkexec),
+						 * ou o Flatpak; senão, um aviso (o app não veio de nenhum dos dois). O "lumna-pkg desinstalar" de antes não existia. */
+						char *base = g_path_get_basename(a->caminho);
+						if (g_str_has_suffix(base, ".desktop")) {
+							base[strlen(base) - 8] = '\0';
+						}
+						gchar *q = g_shell_quote(a->caminho), *qid = g_shell_quote(base);
+						char *cmd = g_strdup_printf("p=$(pacman -Qoq -- %s 2>/dev/null) && exec pkexec /usr/lib/lumna/lumna-pkg remove \"$p\"; "
+							"case %s in */flatpak/*) exec flatpak uninstall -y --noninteractive %s;; esac; "
+							"notify-send -a LUMNA 'Não deu para desinstalar' 'Este app não veio de um pacote do sistema nem do Flatpak.'", q, q, qid);
 						g_free(q);
+						g_free(qid);
+						g_free(base);
 						printf("desinstalar: %s\n", cmd);
 						fflush(stdout);
 						executar(cmd);
+						g_free(cmd);
 						confirmar_remocao = false;
 					}
 				}

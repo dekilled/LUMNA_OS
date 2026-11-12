@@ -62,8 +62,15 @@ papel)
 		case "$2" in *.jpg|*.jpeg|*.png|*.webp) ;; *) die "só imagens (jpg, png, webp)" ;; esac
 		ext=${2##*.}
 		mkdir -p "$ETC/lumna"
-		rm -f "$ETC"/lumna/entrada-papel.*
-		cp "$2" "$ETC/lumna/entrada-papel.$ext" && chmod 644 "$ETC/lumna/entrada-papel.$ext"
+		# lido com os direitos de quem pediu (o pkexec diz quem foi): um link "foto.png -> /etc/shadow" não vira um arquivo que todos leem
+		if [ -n "${PKEXEC_UID:-}" ]; then
+			setpriv --reuid="$PKEXEC_UID" --regid="$(id -g "$PKEXEC_UID")" --clear-groups cat -- "$2" > "$ETC/lumna/entrada-papel.$ext.novo" \
+				|| { rm -f "$ETC/lumna/entrada-papel.$ext.novo"; die "não consegui ler $2"; }
+		else
+			cat -- "$2" > "$ETC/lumna/entrada-papel.$ext.novo" || die "não consegui ler $2"
+		fi
+		find "$ETC/lumna" -maxdepth 1 -name 'entrada-papel.*' ! -name '*.novo' -delete # o de antes sai só depois de ler o novo
+		chmod 644 "$ETC/lumna/entrada-papel.$ext.novo" && mv "$ETC/lumna/entrada-papel.$ext.novo" "$ETC/lumna/entrada-papel.$ext"
 		poe_chave papel "$ETC/lumna/entrada-papel.$ext"
 	fi
 	;;

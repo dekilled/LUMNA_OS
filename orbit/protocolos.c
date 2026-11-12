@@ -79,6 +79,12 @@ static void request_activate(struct wl_listener *listener, void *data) {
 			if (!orbit_view_may_take_focus(view)) {
 				return; /* no Gaming, com um jogo rodando, outra janela não o tira da frente sozinha */
 			}
+			if (!orbit_activation_may_switch(view)) {
+				/* a janela é de outro modo (do Desktop, numa tela em Mídia ou Gaming; ou da Mídia, numa tela no Desktop): um app não troca o modo
+				 * da tela sozinho. Fica como está, como no X11 (a pessoa a traz pela dock, pelo seletor ou pelo modo) */
+				wlr_log(WLR_INFO, "ativação da janela %u ignorada: trocaria o modo da tela %s", view->id, view->output->wlr->name);
+				return;
+			}
 			if (view->minimized) {
 				orbit_view_set_minimized(view, false);
 			}

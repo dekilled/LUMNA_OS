@@ -41,11 +41,9 @@ static const struct atalho atalhos[] = {
 	{ "espaco_1", "Ir para a área 1", "Alt+1", "Áreas de trabalho" },
 	{ "espaco_2", "Ir para a área 2", "Alt+2", "Áreas de trabalho" },
 	{ "espaco_3", "Ir para a área 3", "Alt+3", "Áreas de trabalho" },
-	{ "espaco_4", "Ir para a área 4", "Alt+4", "Áreas de trabalho" },
 	{ "mover_1", "Mandar a janela para a área 1", "Alt+Shift+1", "Áreas de trabalho" },
 	{ "mover_2", "Mandar a janela para a área 2", "Alt+Shift+2", "Áreas de trabalho" },
 	{ "mover_3", "Mandar a janela para a área 3", "Alt+Shift+3", "Áreas de trabalho" },
-	{ "mover_4", "Mandar a janela para a área 4", "Alt+Shift+4", "Áreas de trabalho" },
 };
 #define NATALHOS ((int)(sizeof(atalhos) / sizeof(atalhos[0])))
 

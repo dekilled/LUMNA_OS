@@ -506,7 +506,7 @@ static bool primario(struct ctx *c, struct val *r) {
 		}
 		if (!strcmp(f->s, "raiz") || !strcmp(f->s, "sqrt")) {
 			c->i++;
-			struct val x;
+			struct val x = { 0 };
 			bool par = eh_op(c, '(');
 			if (par) {
 				c->i++;
