@@ -1584,7 +1584,7 @@ static void depurar(void) {
 	g_array_free(ids, TRUE);
 }
 
-/* lumna-jogos vigia: sobe com a sessão; quando uma tela entra em Gaming e a biblioteca não está aberta, abre (como o serviço da Mídia faz com as telas dela) */
+/* lumna-jogos vigia: sobe com a sessão e ajusta a energia enquanto alguma tela está no Gaming (abrir a biblioteca é do Orbit: orbit_mode_ensure_shell) */
 /* o perfil de energia do Gaming (gamepad.ini [gaming] energia): muda ao entrar e devolve ao sair */
 static char energia_antes[24];
 static bool energia_mudada;
@@ -1624,15 +1624,7 @@ static int vigia(void) {
 			}
 		}
 		energia_ajustar(gaming);
-		if (gaming) {
-			int estado = 0;
-			char *pg[] = { "pgrep", "-x", "lumna-jogos", NULL };
-			g_spawn_sync(NULL, pg, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, NULL, NULL, &estado, NULL);
-			if (estado != 0) {
-				char *ab[] = { "lumna-jogos", NULL };
-				g_spawn_async(NULL, ab, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
-			}
-		}
+		/* (abrir a biblioteca quando uma tela entra no Gaming, ou quando ela fica vazia, é do Orbit: um dono só) */
 		char b[256];
 		if (read(fd, b, sizeof(b)) <= 0) {
 			sleep(1);

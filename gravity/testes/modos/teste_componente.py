@@ -51,6 +51,10 @@ def abre(cmd):
     return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def abre_com(extra, cmd):
+    return subprocess.Popen(cmd, env=dict(os.environ, **extra), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 CALC = "lumna-calculadora"
 MIDIA = "lumna-midia"
 
@@ -100,7 +104,33 @@ if j:
 confere(lambda: janela(MIDIA) is None or janela(MIDIA)["id"] != j["id"], "a janela da Mídia fecha", 4)
 confere(lambda: janela(MIDIA) is not None and janela(MIDIA)["saida"] == DIR and janela(MIDIA)["visivel"], "a tela da Mídia que ficou vazia traz o Início de volta", 8)
 
-for p in (calc, midia):
+# --- 5. o Gaming pula para a tela que ficou (se ela está no Desktop) ---
+JOGO = "lumna-signals"
+modo_de = lambda saida: next((x["modo"] for x in msg("modo").get("saidas", []) if x["saida"] == saida), None)
+msg("disposicao", "estender")
+confere(lambda: len(msg("modo").get("saidas", [])) == 2, "os dois monitores de volta (5)")
+ESQ, DIR = saidas()[:2]
+msg("modo", "desktop", DIR)
+msg("modo", "gaming", ESQ)
+jogo = abre_com({"LUMNA_JOGO": "1"}, [f"{gravity}/signals"])
+confere(lambda: janela(JOGO) and janela(JOGO)["saida"] == ESQ and janela(JOGO)["espaco"] == 4 and janela(JOGO)["visivel"], "o jogo abre no Gaming da tela da esquerda")
+msg("disposicao", "direita")  # a tela do Gaming sai
+confere(lambda: modo_de(DIR) == "gaming", "a tela que ficou passa para o Gaming")
+confere(lambda: janela(JOGO) and janela(JOGO)["saida"] == DIR and janela(JOGO)["visivel"] and janela(JOGO)["foco"], "o jogo aparece nela, com o foco")
+msg("modo", "desktop", DIR)
+confere(lambda: janela(CALC) and janela(CALC)["visivel"], "voltando ao Desktop, o app comum continua lá")
+# --- 6. ... mas não interrompe a Mídia da outra tela ---
+msg("disposicao", "estender")
+confere(lambda: len(msg("modo").get("saidas", [])) == 2, "os dois monitores de volta (6)")
+ESQ, DIR = saidas()[:2]
+msg("modo", "gaming", ESQ)
+confere(lambda: janela(JOGO) and janela(JOGO)["saida"] == ESQ and janela(JOGO)["visivel"], "o Gaming (com o jogo) na tela da esquerda")
+msg("modo", "midia", DIR)
+msg("disposicao", "direita")
+confere(lambda: modo_de(DIR) == "midia", "com a outra tela na Mídia, ela continua na Mídia")
+confere(lambda: janela(JOGO) and janela(JOGO)["espaco"] == 4 and not janela(JOGO)["visivel"], "e o jogo espera no Gaming, escondido")
+
+for p in (calc, midia, jogo):
     p.terminate()
 print(f"modos (componente): {verificacoes} verificações, {len(falhas)} falhas")
 sys.exit(1 if falhas else 0)

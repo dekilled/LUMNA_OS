@@ -30,9 +30,9 @@ Tudo aqui foi verificado num Orbit sem tela, com clientes de verdade (apps do Gr
 | M10 | Baixa | O "Não perturbe" dos modos valia pela tela **do cursor**, mas só era reavaliado quando um modo trocava, nunca quando o cursor passava de tela: jogando na TV com o mouse no outro monitor, os avisos apareciam ou não conforme onde o mouse estava. | Vale se **alguma** tela está num modo com "Não perturbe" (o que o Gaming promete: "enquanto a tela está em Gaming"). |
 | M11 | Baixa | Os atalhos abriam programas sem `setsid` (o `mode.c` já fazia): o programa ficava no grupo de processos do Orbit. | `setsid` nos dois. |
 
-**Prova:** `gravity/testes/modos_componente.sh` (dois monitores, a Calculadora como app comum e a janela de verdade da Mídia): 17 verificações. No Orbit de
-antes: **8 falhas** (a Calculadora aparecendo em tela cheia no espaço da Mídia, a janela da Mídia virando janela do Desktop, `espaco` tirando a TV da Mídia, a Mídia
-vazia que não volta). No de agora: 0.
+**Prova:** `gravity/testes/modos_componente.sh` (dois monitores, a Calculadora como app comum, a janela de verdade da Mídia e o Signals marcado como jogo):
+26 verificações. No Orbit de antes: **11 falhas** (a Calculadora aparecendo em tela cheia no espaço da Mídia, a janela da Mídia virando janela do Desktop,
+`espaco` tirando a TV da Mídia, a Mídia vazia que não volta, o Gaming que não passa para a tela que ficou). No de agora: 0, também com ASAN.
 
 **Não coberto por teste (só leitura):** M4 (precisa de um cliente que peça xdg-activation), M6, M7, M10, M11.
 
@@ -78,16 +78,22 @@ Lidos todos: `lumna-pkg`, `lumna-rede-mesclar`, `lumna-usuarios`, `lumna-entrada
   Não é falha, mas é uma API fácil de usar errado (anotado abaixo).
 - Orbit: nenhum aviso sério do analisador (só os `realloc` de O2).
 
-## Para decidir (não mexi)
+## O que o Eric decidiu (e foi feito)
 
-1. **O jogo de um monitor que sai.** Com M1, o jogo de uma TV em Gaming que é desligada fica **escondido** no Gaming (o modo não "pula" sozinho para a tela que
-   ficou, para não tomar o Desktop da pessoa). A alternativa é o Gaming passar para a tela que ficou automaticamente. Qual prefere?
-2. **Três processos relançam a biblioteca do Gaming** (o vigia do `lumna-jogos`, o `orbit_mode_set` e o `orbit_mode_ensure_shell`). É inofensivo (a biblioteca
-   recusa a segunda cópia), mas dá para deixar um dono só.
-3. **`lj_buscar`** poderia devolver só quanto coube, para não depender de cada chamador se proteger.
-4. **`auth_admin_keep` na política do `lumna-pkg`.** Mesmo com S1, instalar um pacote compilado do AUR (`-U arquivo`) é, por natureza, rodar código como root;
-   com o "lembrar a senha por uns minutos", um programa da pessoa pode aproveitar a janela. Trocar para `auth_admin` (senha toda vez) é mais seguro e mais chato
-   (uma atualização com AUR pede a senha várias vezes). Qual prefere?
+1. **O Gaming pula para a tela que ficou.** O monitor que tinha o Gaming sai: a tela que fica vira Gaming, com o jogo na frente e o foco nele
+   (`orbit_mode_output_leaving`). Só se ela estava no **Desktop**: um filme na Mídia da outra tela não é interrompido (o jogo espera no Gaming até a
+   pessoa pedir). As janelas do Desktop dessa tela continuam no Desktop dela. A Mídia de um monitor que sai **não** pula (fica guardada, como antes).
+2. **A senha da Loja continua lembrada por alguns minutos; o AUR pede toda vez.** O AUR do shell antigo (o `PACMAN_AUTH` do makepkg) passou para um ajudante
+   próprio, `/usr/lib/lumna/lumna-pkg-aur`, com a ação `os.lumna.pkg.aur` (`auth_admin`, sem lembrar). O `lumna-pkg pacman` direto agora recusa: só aceita
+   vindo do `lumna-pkg-aur` (que, já como root, põe uma marca no ambiente; o pkexec limpa o ambiente de quem chama, então ninguém a forja). A Loja nova
+   já instalava do AUR com `paru/yay --sudo pkexec` (o `pkexec pacman` direto, que pede a senha toda vez).
+3. **A biblioteca do Gaming tem um dono só: o Orbit.** Entrar no Gaming, a tela do Gaming ficar vazia e o Gaming pular de tela passam pela mesma função
+   (`orbit_mode_ensure_shell`), que só abre a biblioteca se o Gaming não tem nada para mostrar. O vigia do `lumna-jogos` ficou só com a energia.
+
+## Ainda em aberto
+
+- **`lj_buscar`** poderia devolver só quanto coube, para não depender de cada chamador se proteger.
+- **O passo dos discos no teste do Atlas** falha quando roda logo depois do teste de menu (antigo; ver a tabela).
 
 ## As baterias de teste
 
@@ -107,7 +113,7 @@ Todas as de `gravity/testes/` (os ajudantes `*-falso.sh` não são testes), uma 
 | processos_app | ok | falhou uma vez com a máquina carregada (eu compilava o Orbit ao mesmo tempo: o menu de prioridade demorou a abrir); sozinho passa |
 | trocas_x11 (normal e **ASAN**) | ok | no Orbit de agora |
 | xwayland | ok em 10 de 11 rodadas no Orbit de agora; 5 de 5 no de antes | a uma falha: um app X11 comum não apareceu em 4 s (a lista de janelas veio vazia). O caminho que abre janela X11 não mudou nesta auditoria; **não provei a causa**. Se aparecer em casa, anote. |
-| **modos_componente** (novo; normal e **ASAN**) | ok, 17 verificações | no Orbit de antes: 8 falhas |
+| **modos_componente** (novo; normal e **ASAN**) | ok, 26 verificações | no Orbit de antes: 11 falhas |
 | pkg/snapshot, painel/testa_entrada_ajustar | ok | depois de S2 e S4 |
 
 ASAN no Orbit corrigido (`trocas_x11` e `modos_componente`): nenhum erro de memória.

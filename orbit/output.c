@@ -227,6 +227,7 @@ void orbit_output_release(struct orbit_server *server, struct orbit_output *outp
 			orbit_view_adopt(server, view, fallback);
 		}
 	}
+	orbit_mode_output_leaving(server, output, fallback); /* o Gaming pula para a tela que ficou (se ela está no Desktop) */
 }
 
 static void output_destroy(struct wl_listener *listener, void *data) {

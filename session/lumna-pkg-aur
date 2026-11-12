@@ -1,0 +1,6 @@
+#!/bin/sh
+# O caminho do AUR: o makepkg instalando o pacote que compilou (PACMAN_AUTH=(pkexec /usr/lib/lumna/lumna-pkg-aur pacman)).
+# Tem a sua própria ação no polkit (os.lumna.pkg.aur), que pede a senha TODA vez: instalar um pacote compilado é rodar código como
+# root, e a senha lembrada por alguns minutos das outras operações da Loja não vale aqui. O lumna-pkg só aceita o "pacman" vindo daqui.
+export LUMNA_PKG_VIA_AUR=1
+exec /usr/lib/lumna/lumna-pkg pacman "$@"

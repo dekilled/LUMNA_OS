@@ -645,6 +645,7 @@ void orbit_mode_sync_output(struct orbit_output *output);
 bool orbit_output_isolated(const struct orbit_output *output);
 bool orbit_view_isolated(const struct orbit_view *view);
 void orbit_view_adopt(struct orbit_server *server, struct orbit_view *view, struct orbit_output *to);
+void orbit_mode_output_leaving(struct orbit_server *server, struct orbit_output *leaving, struct orbit_output *to);
 bool orbit_activation_may_switch(const struct orbit_view *view);
 void orbit_focus_visible(struct orbit_server *server);
 /* onde abre uma janela nova: as da Mídia e dos jogos vão para a tela do modo delas; as outras não entram numa tela

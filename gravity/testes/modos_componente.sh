@@ -13,7 +13,7 @@ sleep 2.5
 export WAYLAND_DISPLAY=$(ls "$run" | grep -m1 '^wayland-[0-9]*$')
 rc=0
 python3 "$(dirname "$0")/modos/teste_componente.py" "$orbit" "$run" "$gravity" || rc=$?
-pkill -x "$bin"; pkill -f "$gravity/midia"; pkill -x calculadora
+pkill -x "$bin"; pkill -f "$gravity/midia"; pkill -x calculadora; pkill -x signals
 [ $rc -eq 0 ] || { echo "(log em $run)"; grep -E 'ativação|ficou vazia|saída' "$run/log" | tail -5; }
 echo "rc=$rc"
 exit $rc

@@ -25,6 +25,8 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 const HELPER: &str = "/usr/lib/lumna/lumna-pkg";
+/// O AUR passa por um ajudante próprio, que pede a senha toda vez (a do HELPER fica lembrada por alguns minutos).
+const HELPER_AUR: &str = "/usr/lib/lumna/lumna-pkg-aur";
 const FLATHUB: &str = "https://dl.flathub.org/repo/flathub.flatpakrepo";
 const AUR: &str = "https://aur.archlinux.org";
 /// Os ícones dos apps do Flathub (o caminho tem a arquitetura: x86_64 no PC, aarch64 no celular).
@@ -658,7 +660,7 @@ fn build_aur(app: &AppHandle, key: &str, base: &str) -> Result<(), String> {
     }
     // O makepkg usa o PACMAN_AUTH para virar administrador só na hora de instalar.
     let conf = root.join("makepkg.conf");
-    std::fs::write(&conf, format!("source /etc/makepkg.conf\nPACMAN_AUTH=(pkexec {HELPER} pacman)\n"))
+    std::fs::write(&conf, format!("source /etc/makepkg.conf\nPACMAN_AUTH=(pkexec {HELPER_AUR} pacman)\n"))
         .map_err(|e| e.to_string())?;
     let mut makepkg = Command::new("makepkg");
     makepkg.current_dir(&dir).arg("--config").arg(&conf).args(["-si", "--noconfirm", "--needed", "--noprogressbar"]);

@@ -24,6 +24,8 @@
 
 static const char *const nomes[ORBIT_MODES] = { "desktop", "gaming", "midia" };
 
+static void gaming_shell(struct orbit_server *server, struct orbit_output *output, bool espacar);
+
 const char *orbit_mode_name(int mode) {
 	return mode >= 0 && mode < ORBIT_MODES ? nomes[mode] : "desktop";
 }
@@ -128,6 +130,28 @@ void orbit_view_adopt(struct orbit_server *server, struct orbit_view *view, stru
 		view->tag = to->desktop_tag < server->areas ? to->desktop_tag : server->areas - 1;
 		view->fullscreen = false;
 	}
+}
+
+/*
+ * O monitor que tinha o Gaming saiu (desligado, desconectado, "só esquerdo/direito"): o Gaming pula para a tela que ficou, com o jogo na
+ * frente. Só se ela estava no Desktop: um filme na Mídia da outra tela não é interrompido (o jogo espera no Gaming até a pessoa pedir).
+ * As janelas do Desktop dessa tela ficam no Desktop dela (desktop_tag), como numa troca de modo comum.
+ */
+void orbit_mode_output_leaving(struct orbit_server *server, struct orbit_output *leaving, struct orbit_output *to) {
+	(void)server;
+	if (!leaving || !to || leaving == to || leaving->mode != ORBIT_MODE_GAMING || output_is_phone(leaving->wlr) || output_is_phone(to->wlr) ||
+		to->mode != ORBIT_MODE_DESKTOP) {
+		return;
+	}
+	if (to->tag < ORBIT_TAGS) {
+		to->desktop_tag = to->tag;
+	}
+	to->tag = ORBIT_TAGS + ORBIT_MODE_GAMING - 1;
+	to->shown_tag = to->tag; /* sem deslizar: o que muda é a tela, não o espaço */
+	to->mode = ORBIT_MODE_GAMING;
+	write_mode_file(ORBIT_MODE_GAMING);
+	wlr_log(WLR_INFO, "a tela do Gaming (%s) saiu: o Gaming passa para %s", leaving->wlr->name, to->wlr->name);
+	gaming_shell(server, to, false); /* sem jogo nem biblioteca, a biblioteca abre */
 }
 
 /* um pedido de ativação (xdg-activation, _NET_ACTIVE_WINDOW) não troca o modo de uma tela: só o espaço do Desktop, numa tela no Desktop */
@@ -235,9 +259,13 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 		focus_top(server, from);
 	}
 	write_mode_file(from->mode);
-	if (mode == ORBIT_MODE_GAMING) {
-		/* o Gaming abre a biblioteca por conta própria (não depende do vigia da sessão estar de pé); o LUMNA Jogos recusa a segunda cópia */
-		spawn("lumna-jogos");
+	/* a biblioteca do Gaming tem um dono só: o Orbit, por aqui e quando a tela fica vazia (orbit_mode_ensure_shell); só abre se o Gaming
+	 * não tem nada para mostrar (nem a biblioteca escondida, nem um jogo) */
+	if (from->mode == ORBIT_MODE_GAMING) {
+		gaming_shell(server, from, false);
+	}
+	if (holder && holder->mode == ORBIT_MODE_GAMING) {
+		gaming_shell(server, holder, false);
 	}
 	/* o seletor aparece mesmo se o modo já era esse (Super+Tab de novo), na saída que trocou */
 	setenv("LUMNA_SAIDA", from->wlr->name, 1);
@@ -541,8 +569,9 @@ bool orbit_view_may_take_focus(struct orbit_view *view) {
 
 static uint32_t shell_spawned_ms[ORBIT_MODES];
 
-/* a tela de Gaming ou Mídia que ficou vazia (a última janela do modo fechou) traz de volta a tela do modo: a biblioteca, ou o Início da Mídia */
-void orbit_mode_ensure_shell(struct orbit_server *server, struct orbit_output *output) {
+/* a tela de Gaming ou Mídia que ficou vazia (a última janela do modo fechou) traz de volta a tela do modo: a biblioteca, ou o Início da Mídia.
+ * espaçar: o intervalo de 5 s contra laço (uma tela que fecha sozinha ao abrir); ao entrar no modo ou o Gaming pular de tela, não conta */
+static void shell_garantir(struct orbit_server *server, struct orbit_output *output, bool espacar) {
 	if (!output || output->mode == ORBIT_MODE_DESKTOP || !orbit_output_isolated(output) || server->session_locked) {
 		return;
 	}
@@ -554,11 +583,24 @@ void orbit_mode_ensure_shell(struct orbit_server *server, struct orbit_output *o
 	}
 	uint32_t now = mode_now_ms();
 	uint32_t *ultimo = &shell_spawned_ms[output->mode];
-	if (*ultimo && now - *ultimo < 5000) {
-		return; /* a tela do modo acabou de ser chamada (ou fecha sozinha ao abrir): não insistir em laço */
+	if (espacar) {
+		if (*ultimo && now - *ultimo < 5000) {
+			return; /* a tela do modo acabou de ser chamada (ou fecha sozinha ao abrir): não insistir em laço */
+		}
+		*ultimo = now;
 	}
-	*ultimo = now;
 	bool gaming = output->mode == ORBIT_MODE_GAMING;
 	wlr_log(WLR_INFO, "a tela de %s %s ficou vazia: %s volta", gaming ? "Gaming" : "Mídia", output->wlr->name, gaming ? "a biblioteca" : "o Início");
 	spawn(gaming ? "lumna-jogos" : "lumna-midia tela inicio");
+}
+
+void orbit_mode_ensure_shell(struct orbit_server *server, struct orbit_output *output) {
+	shell_garantir(server, output, true);
+}
+
+/* a biblioteca do Gaming tem um dono só (o Orbit): ao entrar no Gaming, ao ele pular de tela e quando ele fica vazio */
+static void gaming_shell(struct orbit_server *server, struct orbit_output *output, bool espacar) {
+	if (output && output->mode == ORBIT_MODE_GAMING) {
+		shell_garantir(server, output, espacar);
+	}
 }

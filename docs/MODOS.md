@@ -31,6 +31,8 @@ Desktop, Gaming e Mídia são um componente só (`orbit/mode.c`). O que vale par
 - **Uma janela pertence a um espaço e o espaço diz o modo dela.** Ela nunca muda de modo sozinha:
   - **monitor que sai** (desligado, desconectado, "só esquerdo/direito", espelhar): a janela vai para a tela que fica, **no mesmo modo** (`orbit_view_adopt`).
     A do Desktop entra no Desktop dessa tela; a do Gaming ou da Mídia continua no espaço do modo dela, escondida até alguma tela abrir esse modo.
+    **O Gaming pula:** se a tela que fica está no Desktop, ela vira Gaming e o jogo aparece com o foco (se ela está na Mídia, o filme não é interrompido
+    e o jogo espera no Gaming). A Mídia não pula.
     O foco do teclado não fica numa janela que sumiu (`orbit_focus_visible`);
   - **um app pedindo atenção** (xdg-activation no Wayland, `_NET_ACTIVE_WINDOW` no X11) troca o espaço do Desktop numa tela no Desktop,
     **nunca o modo de uma tela** (`orbit_activation_may_switch`);
@@ -38,6 +40,7 @@ Desktop, Gaming e Mídia são um componente só (`orbit/mode.c`). O que vale par
 - **Quem aparece numa ilha** (Gaming ou Mídia), e quem ganha o foco ao entrar nela, seguem o mesmo critério: a janela com o foco, o jogo (Gaming), a
   biblioteca (Gaming), a última usada, a última aberta (`orbit_kiosk_pick`).
 - **Uma ilha nunca fica vazia:** fechou a última janela, a tela do modo volta (a biblioteca no Gaming, o Início na Mídia; no máximo uma vez a cada 5 s).
+  Quem abre a biblioteca do Gaming é só o Orbit (`orbit_mode_ensure_shell`): ao entrar no Gaming, quando ele fica vazio e quando ele pula de tela.
 
 ## Onde abre uma janela nova
 
@@ -97,7 +100,7 @@ journalctl -b | grep -E 'xwl:|por trás do jogo|ficou vazia'
 - `gravity/testes/modos_telas.sh`: modos em dois monitores (mover, trocar).
 - `gravity/testes/modos_componente.sh`: o componente como um só, em dois monitores: monitor que sai com a outra tela na Mídia (o app comum não vira janela
   da Mídia) e com a Mídia nele (a janela da Mídia continua no modo, sem o foco), o `espaco` recusado numa tela em Mídia, a Mídia vazia que traz o Início
-  de volta. Com o Orbit de antes, 8 das 17 verificações falham. Aceita um binário com ASAN: `sh modos_componente.sh <pasta> orbit-asan`.
+  de volta, e o Gaming que pula para a tela que ficou (e não interrompe a Mídia). Com o Orbit de antes, 11 das 26 verificações falham. Aceita um binário com ASAN: `sh modos_componente.sh <pasta> orbit-asan`.
 - `gravity/testes/xwayland.sh`: as janelas X11 e o tamanho do jogo.
 
 ## O que não está coberto

@@ -6,7 +6,7 @@
 #   lumna-pkg snapshots           lista os snapshots de antes das atualizações (os 5 últimos ficam)
 #   lumna-pkg voltar [SNAPSHOT]   volta o sistema ao estado de um snapshot (o último, se não disser): reinicie depois
 #   lumna-pkg multilib on|off     liga/desliga o repositório de 32 bits (Steam, Wine)
-#   lumna-pkg pacman ARGS...      o pacman puro, para o makepkg instalar pacotes do AUR
+#   lumna-pkg pacman ARGS...      o pacman do makepkg (AUR): só pelo lumna-pkg-aur, que pede a senha toda vez
 set -euo pipefail
 export LC_ALL=C
 
@@ -108,6 +108,9 @@ case "${1:-}" in
     shift
     # O makepkg chama "$PACMAN_AUTH pacman ARGS": o caminho do pacman vem junto.
     if [ "${1:-}" = /usr/bin/pacman ] || [ "${1:-}" = pacman ]; then shift; fi
+    # só pelo lumna-pkg-aur (a ação do polkit que pede a senha toda vez): direto aqui, a senha lembrada da Loja valeria para o AUR.
+    # (o pkexec limpa o ambiente de quem chama: só o lumna-pkg-aur, já como root, consegue pôr esta variável)
+    [ "${LUMNA_PKG_VIA_AUR:-}" = 1 ] || { echo "lumna-pkg: o pacman do AUR é pelo /usr/lib/lumna/lumna-pkg-aur" >&2; exit 2; }
     pacman_confere "$@"
     exec pacman "$@"
     ;;

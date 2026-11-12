@@ -66,6 +66,9 @@ package() {
   # ajudantes de administrador (o Painel e a Loja chamam por pkexec) e as políticas deles
   install -Dm755 lumna-pkg "$pkgdir/usr/lib/lumna/lumna-pkg"
   install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
+  # o AUR: um ajudante e uma ação próprios, que pedem a senha toda vez
+  install -Dm755 lumna-pkg-aur "$pkgdir/usr/lib/lumna/lumna-pkg-aur"
+  install -Dm644 os.lumna.pkg.aur.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.aur.policy"
   install -Dm755 lumna-confirm "$pkgdir/usr/lib/lumna/lumna-confirm"
   install -Dm644 os.lumna.confirm.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.confirm.policy"
   install -Dm755 lumna-entrada-ajustar "$pkgdir/usr/lib/lumna/lumna-entrada-ajustar"

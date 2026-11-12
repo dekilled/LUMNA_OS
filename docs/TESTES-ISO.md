@@ -592,7 +592,9 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | # | O que fazer | O que deve acontecer | OK |
 |---|---|---|---|
 | 2.457 | Dois monitores: a TV na **Mídia** e um app comum aberto no monitor. Desligar (ou desconectar) o **monitor** | O app comum **não** aparece em tela cheia na TV: fica no Desktop dela. Trocar a TV para o Desktop mostra o app | ☐ |
-| 2.458 | Dois monitores: a TV no **Gaming** com um jogo aberto. Desligar a **TV** | O jogo não cai no Desktop do monitor: fica no Gaming, escondido. Pedir o Gaming no monitor (Super+Tab ou a barra) mostra o jogo. O teclado não fica digitando no jogo escondido | ☐ |
+| 2.458 | Dois monitores: a TV no **Gaming** com um jogo aberto e o monitor no Desktop. Desligar a **TV** | O monitor vira **Gaming** e o jogo aparece nele, com o teclado e o controle funcionando. Voltar ao Desktop (Super+Tab) mostra as janelas de antes | ☐ |
+| 2.458b | O mesmo, mas com o monitor na **Mídia** (um vídeo passando) | O vídeo **continua**; o jogo espera no Gaming (pedir o Gaming mostra o jogo) | ☐ |
+| 2.458c | Instalar um pacote do **AUR** pela Loja duas vezes seguidas | Pede a senha **as duas vezes** (os pacotes normais pedem uma vez e lembram por uns minutos) | ☐ |
 | 2.459 | Na **Mídia**, fechar a última janela dela (o Início) | Em até uns 2 s o Início volta sozinho (a TV não fica preta) | ☐ |
 | 2.460 | Com a TV na **Mídia**, um app do Desktop pedindo atenção (um link clicado no celular que abre o navegador, uma notificação que abre um app) | A TV **continua na Mídia**: o app abre no monitor ou fica esperando, sem tirar a TV do modo | ☐ |
 | 2.461 | Lançador > um app instalado pelo sistema > **Desinstalar** | Pede a senha e remove o pacote. Um app Flatpak sai pelo Flatpak. Um app avulso mostra um aviso "Não deu para desinstalar" | ☐ |
