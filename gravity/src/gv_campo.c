@@ -302,6 +302,11 @@ static int teclas(char *t, size_t cap, struct campo *c, enum gv_campo_tipo tipo,
 
 /* ---- o componente ---- */
 
+void gv_campo_cursor_no_fim(Clay_ElementId id) {
+	struct campo *c = campo_de(id.id);
+	c->cursor = c->ancora = -1; /* o próximo quadro põe no fim do texto */
+}
+
 static int campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo,
 		int linhas_min, int linhas_max) {
 	struct campo *c = campo_de(id.id);

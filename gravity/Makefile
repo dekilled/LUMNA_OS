@@ -276,3 +276,7 @@ signals: exemplos/signals.c servicos/sgbuffer.c servicos/sgbuffer.h servicos/sel
 # a área de trabalho (lumna-desktop): os ícones e pastas de ~/Desktop
 desktop: exemplos/desktop.c servicos/aricone.c servicos/aricone.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-unix-2.0) -o $@ exemplos/desktop.c servicos/aricone.c servicos/arquivos.c servicos/arquivos_op.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-unix-2.0) -lm
+
+# a calculadora-fita (lumna-calculadora): o motor (servicos/calc.c) e a janela
+calculadora: exemplos/calculadora.c servicos/calc.c servicos/calc.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo glib-2.0) -o $@ exemplos/calculadora.c servicos/calc.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo glib-2.0) -lm

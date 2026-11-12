@@ -297,6 +297,8 @@ enum gv_campo_tipo {
 };
 enum { GV_CAMPO_MUDOU = 1, GV_CAMPO_ENTER = 2, GV_CAMPO_IMAGEM = 4 /* Ctrl+V com uma imagem copiada: o app decide o que fazer (gv_colar_imagem) */ };
 int gv_campo(Clay_ElementId id, char *texto, size_t capacidade, const char *dica, enum gv_campo_tipo tipo);
+/* A app mudou o texto do campo por fora (um botão que escreve, um resultado que se insere): o cursor vai para o fim no próximo quadro. */
+void gv_campo_cursor_no_fim(Clay_ElementId id);
 /* Um campo de várias linhas (uma mensagem, uma nota): o texto quebra na largura, o campo cresce
  * de linhas_min até linhas_max (0, 0: de 3 a 8) e depois rola por dentro. Enter quebra a linha;
  * Ctrl+Enter devolve GV_CAMPO_ENTER. */

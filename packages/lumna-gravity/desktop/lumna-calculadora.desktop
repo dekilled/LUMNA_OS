@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Calculadora
+GenericName=Calculadora
+Comment=Escreva a conta e veja o resultado na hora: porcentagens, unidades e uma fita de histórico
+Exec=lumna-calculadora
+Icon=lumna-calculadora
+StartupWMClass=lumna-calculadora
+Terminal=false
+Categories=Utility;Calculator;
+Keywords=calculadora;calculator;conta;contas;matematica;porcentagem;converter;unidades;calc;

@@ -569,6 +569,23 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.442 | Abrir uma janela cobrindo parte dos ícones; clicar fora dela | As janelas ficam por cima; clicar no ícone visível ainda seleciona | ☐ |
 | 2.443 | Com os widgets (relógio, mídia) ligados | Os widgets continuam recebendo clique (se o desktop engolir o clique deles, anote) | ☐ |
 | 2.444 | Mudar a resolução ou trocar de monitor | Os ícones que não cabem aparecem em outro lugar e voltam ao lugar certo quando a tela cresce | ☐ |
+
+### 2s. Calculadora (a calculadora-fita)
+
+| # | O que fazer | O que deve acontecer | OK |
+|---|---|---|---|
+| 2.445 | Abrir a **Calculadora** pelo lançador ou pela dock | Janela com a fita vazia, quatro exemplos clicáveis e o campo da conta com foco | ☐ |
+| 2.446 | Digitar `128*3` | O resultado `= 384` aparece embaixo enquanto digita; Enter manda para a fita como `128 × 3` | ☐ |
+| 2.447 | Depois do 384, digitar `+ 16` | Mostra `= 400` (continua do resultado de cima); Enter grava `384 + 16` | ☐ |
+| 2.448 | `15% de 89,90`, `200 + 10%`, `200 - 10%` | 13,485; 220; 180 | ☐ |
+| 2.449 | `89,90 + 39,90` | `129,80` (com o zero, como no desenho) | ☐ |
+| 2.450 | `5 km em milhas`, `100 °C em °F`, `2 GB em MB`, `90 km/h em m/s` | 3,1068559612 mi; 212 °F; 2.000 MB; 25 m/s | ☐ |
+| 2.451 | `3h20 × 4` e `3 horas e 20 min` | 13 h 20 min; 3 h 20 min | ☐ |
+| 2.452 | Digitar uma conta pela metade (`128 ×`) e depois uma errada (`5 km + 3 kg`, `1/0`) | A pela metade só espera; as erradas mostram o motivo em amarelo; Enter nelas não grava | ☐ |
+| 2.453 | Na fita: clicar numa conta, num resultado, e no ícone de copiar (passando o mouse) | A conta volta para editar; o resultado entra no campo; copiar avisa "Copiado" e dá para colar em outro app | ☐ |
+| 2.454 | Mostrar o teclado (botão ⠿) e fazer `7 × 6 =` só com cliques/toques; apagar; `C` | Escreve no campo, mostra 42 ao vivo, `=` manda para a fita; as teclas são fáceis de acertar com o dedo | ☐ |
+| 2.455 | Fechar e abrir a Calculadora | A fita e a escolha do teclado voltam; a lixeira > Limpar a fita esvazia | ☐ |
+| 2.456 | Esc com texto no campo, e voltar a digitar | Limpa, e dá para digitar de novo sem clicar | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)
