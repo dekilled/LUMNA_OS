@@ -101,6 +101,16 @@ def arrasta(nome_ini, dx, dy, ox=6, oy=6):
     msg("mouse", "botao", "cima"); time.sleep(0.6)
 
 
+def seleciona(pid, tentativas=4):
+    """marca a linha do processo: a lista reordena a cada 2 s, e a posição que o teste leu pode já ter mudado; clica e confere, e repete se não marcou"""
+    for _ in range(tentativas):
+        toca(f"linha/{pid}")
+        if espera(lambda: estado().get("sel") == str(pid), 1.5):
+            return True
+    falha(f"não consegui marcar a linha do processo {pid}")
+    return False
+
+
 def viva(p):
     try:
         os.kill(p, 0)
@@ -221,7 +231,7 @@ subprocess.run(["wtype", "-s", "250", str(ocupado)], stdout=subprocess.DEVNULL)
 time.sleep(0.8)
 confere(lambda: str(ocupado) in [x.rstrip("*") for l in log().splitlines() if l.startswith("ordem") for x in l.split()[1:]] and int(estado().get("n", 99)) <= 4, "a busca devia achar o processo ocupado")
 # marca a linha e encerra
-toca(f"linha/{ocupado}")
+seleciona(ocupado)
 confere(lambda: estado().get("sel") == str(ocupado), "tocar na linha devia selecioná-la")
 toca("encerrar", 1.5)
 confere(lambda: not viva(ocupado), "'Encerrar processo' devia encerrar o processo ocupado", 6)
@@ -235,12 +245,12 @@ toca("busca")
 subprocess.run(["wtype", "-s", "250", "-M", "ctrl", "-k", "a", "-m", "ctrl", "-k", "BackSpace"], stdout=subprocess.DEVNULL)
 subprocess.run(["wtype", "-s", "250", str(novo.pid)], stdout=subprocess.DEVNULL)
 confere(lambda: str(novo.pid) in [x.rstrip("*") for l in log().splitlines() if l.startswith("ordem") for x in l.split()[1:]], "o processo novo devia aparecer na lista (atualiza sozinha)", 6)
-toca(f"linha/{novo.pid}")
+seleciona(novo.pid)
 toca("mais")
 toca("prio/0", 1.5)
 nice = lambda p: int(open(f"/proc/{p}/stat").read().split(") ")[1].split()[16])
 confere(lambda: nice(novo.pid) == 10, f"'Baixa' devia pôr nice 10 (nice {nice(novo.pid)})")
-toca(f"linha/{novo.pid}")
+seleciona(novo.pid)
 toca("mais")
 toca("prio/4", 1.5)
 pol2 = lambda p: open(f"/proc/{p}/stat").read().split(") ")[1].split()[38]
@@ -253,7 +263,7 @@ toca("busca")
 subprocess.run(["wtype", "-s", "250", "-M", "ctrl", "-k", "a", "-m", "ctrl", "-k", "BackSpace"], stdout=subprocess.DEVNULL)
 subprocess.run(["wtype", "-s", "250", str(infra.pid)], stdout=subprocess.DEVNULL)
 confere(lambda: pos(f"linha/{infra.pid}") is not None, "a busca devia mostrar o processo da sessão")
-toca(f"linha/{infra.pid}")
+seleciona(infra.pid)
 toca("encerrar", 0.8)
 confere(lambda: estado().get("confirmar") == "1", "encerrar um processo da sessão devia pedir confirmação")
 toca("confirmar-nao", 0.6)

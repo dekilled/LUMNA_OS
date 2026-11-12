@@ -5,10 +5,10 @@
   <vendor>LUMNA OS</vendor>
   <vendor_url>https://github.com/dekilled/LUMNA_OS</vendor_url>
   <action id="os.lumna.processos">
-    <description>Close processes and change their priority</description>
-    <description xml:lang="pt_BR">Encerrar processos e mudar a prioridade deles</description>
-    <message>Your password is needed to close or change the priority of system processes.</message>
-    <message xml:lang="pt_BR">A sua senha é necessária para encerrar ou mudar a prioridade de processos do sistema.</message>
+    <description>Close processes, change their priority and control system services</description>
+    <description xml:lang="pt_BR">Encerrar processos, mudar a prioridade deles e controlar os serviços do sistema</description>
+    <message>Your password is needed to close or change the priority of system processes, or to start, stop, restart or pause system services.</message>
+    <message xml:lang="pt_BR">A sua senha é necessária para encerrar ou mudar a prioridade de processos do sistema, ou para iniciar, parar, reiniciar ou pausar serviços do sistema.</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

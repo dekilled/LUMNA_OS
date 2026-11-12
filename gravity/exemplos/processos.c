@@ -76,7 +76,8 @@ static int meu_uid;
 static bool confirmar;
 static int confirmar_pid;
 static bool confirmar_forcar, confirmar_arvore;
-static bool ocupado;        /* esperando o ajudante (pkexec) */
+static bool ocupado;
+static bool recarregar_servicos; /* uma ação em serviço terminou: a tela Serviços lê de novo */        /* esperando o ajudante (pkexec) */
 static double cpu_total, gpu_total, disco_total;
 static int64_t mem_total_kb, mem_usada_kb;
 
@@ -648,6 +649,7 @@ static void priv_pronto(void *d) {
 	}
 	g_free(p);
 	ler_tudo();
+	recarregar_servicos = true;
 	gv_app_redesenhar(app);
 }
 
@@ -658,23 +660,34 @@ static gpointer thread_priv(gpointer d) {
 	return NULL;
 }
 
-/* pede ao ajudante (pkexec: a senha vale por uma sessão) */
-static void pedir_ao_ajudante(char **argumentos_do_ajudante, const char *resumo) {
+/* roda um comando numa linha à parte e avisa o resultado (resumo, se deu certo); a senha, se o comando a pede (pkexec), é do polkit */
+static void executar_pedido(char **argv, const char *resumo, const char *espera) {
 	struct pedido_priv *p = g_new0(struct pedido_priv, 1);
-	const char *aj = g_getenv("LUMNA_PROCESSOS_AJUDANTE");
 	int k = 0;
-	if (!aj || !*aj) {
-		p->args[k++] = g_strdup("pkexec");
-		aj = AJUDANTE_PADRAO;
-	}
-	p->args[k++] = g_strdup(aj);
-	for (int i = 0; argumentos_do_ajudante[i] && k < 8; i++) {
-		p->args[k++] = g_strdup(argumentos_do_ajudante[i]);
+	for (int i = 0; argv[i] && k < 9; i++) {
+		p->args[k++] = g_strdup(argv[i]);
 	}
 	g_strlcpy(p->resumo, resumo, sizeof(p->resumo));
 	ocupado = true;
-	avisar("Pedindo permissão…");
+	avisar("%s", espera);
 	g_thread_unref(g_thread_new("processos-priv", thread_priv, p));
+}
+
+/* pede ao ajudante (pkexec: a senha vale por uma sessão) */
+static void pedir_ao_ajudante(char **argumentos_do_ajudante, const char *resumo) {
+	const char *aj = g_getenv("LUMNA_PROCESSOS_AJUDANTE");
+	char *argv[10];
+	int k = 0;
+	if (!aj || !*aj) {
+		argv[k++] = "pkexec";
+		aj = AJUDANTE_PADRAO;
+	}
+	argv[k++] = (char *)aj;
+	for (int i = 0; argumentos_do_ajudante[i] && k < 8; i++) {
+		argv[k++] = argumentos_do_ajudante[i];
+	}
+	argv[k] = NULL;
+	executar_pedido(argv, resumo, "Pedindo permissão…");
 }
 
 static const struct linha *linha_de(int pid) {
@@ -813,6 +826,10 @@ static char sv_erro[160];
 static bool sv_lendo, sv_leu[2];
 static double sv_ultima;
 static int sv_visiveis;
+static char sv_sel[112];             /* a unidade marcada (do escopo sv_sel_escopo) */
+static int sv_sel_escopo;
+static bool conf_sv;                 /* a confirmação de parar, reiniciar ou pausar um serviço do sistema */
+static char conf_acao[12], conf_unidade[112];
 
 /* a janela dentro da camada (mais abaixo): posição e tamanho do cartão, em pixels da tela */
 static int cart_w, cart_h; /* o cartão de agora (a tela toda se maximizado) */
@@ -844,7 +861,7 @@ static void debug_posicoes(void) {
 	}
 	n_regs = 0;
 	static char *estado_antes;
-	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f win=%d,%d,%d,%d max=%d mini=%d sv=%d,%d,%d,%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, jan_x, jan_y, jan_w, jan_h, jan_max, jan_mini, sv_escopo, sv_filtro, sv_visiveis, sv_dados[sv_escopo].n, mensagem);
+	char *estado = g_strdup_printf("estado tela=%d n=%d sel=%d busca=[%s] filtro=%d ordem=%d%s confirmar=%d ocupado=%d jogo=%d rol=%.0f win=%d,%d,%d,%d max=%d mini=%d sv=%d,%d,%d,%d svsel=[%s] svconf=%d msg=[%s]", tela, n_linhas, sel_pid, busca, filtro, ordem, decrescente ? "-" : "+", confirmar, ocupado, jogo.ativo ? jogo.appid : 0, (double)gv_rolagem_posicao(CLAY_ID("p-rolagem")).y, jan_x, jan_y, jan_w, jan_h, jan_max, jan_mini, sv_escopo, sv_filtro, sv_visiveis, sv_dados[sv_escopo].n, sv_sel, conf_sv, mensagem);
 	if (!estado_antes || strcmp(estado_antes, estado)) {
 		printf("%s\n", estado);
 		g_free(estado_antes);
@@ -1289,6 +1306,52 @@ static void sv_atualizar(void) {
 	g_thread_unref(g_thread_new("processos-servicos", sv_thread_e_avisa, r));
 }
 
+static const struct sv_item *sv_marcado(void) {
+	if (!sv_sel[0] || sv_sel_escopo != sv_escopo) {
+		return NULL;
+	}
+	const struct sv_lista *L = &sv_dados[sv_escopo];
+	for (int i = 0; i < L->n; i++) {
+		if (!strcmp(L->v[i].unidade, sv_sel)) {
+			return &L->v[i];
+		}
+	}
+	return NULL;
+}
+
+static const char *sv_verbo(const char *acao) {
+	return !strcmp(acao, "start") ? "Iniciar" : !strcmp(acao, "stop") ? "Parar" : !strcmp(acao, "restart") ? "Reiniciar" : !strcmp(acao, "freeze") ? "Pausar" : "Retomar";
+}
+
+/* faz a ação: os da sessão direto (é do próprio usuário), os do sistema pelo ajudante (pkexec: senha uma vez por sessão) */
+static void sv_executar(const char *acao, const char *unidade, int escopo) {
+	char resumo[120];
+	snprintf(resumo, sizeof(resumo), "%s: %s", sv_verbo(acao), unidade);
+	if (escopo == 1) {
+		char *args[] = { "systemctl", "--user", "--no-ask-password", (char *)acao, "--", (char *)unidade, NULL };
+		executar_pedido(args, resumo, "Executando…");
+	} else {
+		char *args[] = { "servico", (char *)acao, (char *)unidade, NULL };
+		pedir_ao_ajudante(args, resumo);
+	}
+}
+
+/* parar, reiniciar e pausar um serviço do sistema pedem confirmação (podem cortar a rede, o áudio, o login); o resto vai direto */
+static void sv_pedir(const char *acao) {
+	const struct sv_item *x = sv_marcado();
+	if (!x || ocupado) {
+		return;
+	}
+	bool derruba = strcmp(acao, "start") && strcmp(acao, "thaw");
+	if (derruba && sv_escopo == 0) {
+		conf_sv = true;
+		g_strlcpy(conf_acao, acao, sizeof(conf_acao));
+		g_strlcpy(conf_unidade, x->unidade, sizeof(conf_unidade));
+		return;
+	}
+	sv_executar(acao, x->unidade, sv_escopo);
+}
+
 static bool sv_casa(const struct sv_item *x) {
 	if (sv_filtro >= 0 && (int)x->estado != sv_filtro) {
 		return false;
@@ -1328,8 +1391,14 @@ static void linha_servico(const struct sv_item *x, int i) {
 	if (x->falhou) {
 		ponto = (Clay_Color){ 248, 113, 113, 255 };
 	}
+	bool marcada = sv_sel_escopo == sv_escopo && !strcmp(sv_sel, x->unidade);
+	if (gv_tocado(id)) {
+		g_strlcpy(sv_sel, x->unidade, sizeof(sv_sel));
+		sv_sel_escopo = sv_escopo;
+		gv_app_redesenhar(app);
+	}
 	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(ALTURA_SERVICO) }, .padding = { 20, 16, 0, 0 }, .childGap = 12, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
-		.backgroundColor = gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 } }) {
+		.backgroundColor = marcada ? gv_alfa(gv_t.acento, 0.18f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 } }) {
 		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_FIXED(10), CLAY_SIZING_FIXED(10) } }, .backgroundColor = ponto, .cornerRadius = CLAY_CORNER_RADIUS(5) }) {}
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 }, .clip = { .horizontal = true } }) {
 			gv_texto(gv_str(x->descricao[0] ? x->descricao : x->unidade), gv_t.tamanho_corpo, gv_t.texto, GV_PESO_MEDIO);
@@ -1355,6 +1424,10 @@ static void linha_servico(const struct sv_item *x, int i) {
 }
 
 static void tela_servicos(void) {
+	if (recarregar_servicos && !sv_lendo) {
+		recarregar_servicos = false;
+		sv_atualizar();
+	}
 	if (!sv_leu[sv_escopo] && !sv_lendo) {
 		sv_atualizar();
 	}
@@ -1378,16 +1451,28 @@ static void tela_servicos(void) {
 			}
 		}
 		reg("sv/busca", CLAY_ID("sv-busca"));
-		static const char *const ESCOPOS[] = { "Serviços do sistema", "Serviços da sessão" };
-		CLAY(CLAY_ID("sv-escopo-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(250) } } }) {
-			int antes = sv_escopo;
-			if (gv_lista_suspensa(CLAY_ID("sv-escopo"), ESCOPOS, 2, &sv_escopo) && sv_escopo != antes) {
-				sv_erro[0] = '\0';
-				sv_filtro = -1;
-				sv_ultima = 0;
+		/* Sistema | Sessão */
+		CLAY(CLAY_ID("sv-escopo-caixa"), { .layout = { .sizing = { CLAY_SIZING_FIT(0), CLAY_SIZING_FIXED(44) }, .padding = CLAY_PADDING_ALL(4), .childGap = 4, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+			static const char *const ESCOPOS[2] = { "Sistema", "Sessão" };
+			for (int e = 0; e < 2; e++) {
+				Clay_ElementId id = CLAY_IDI("sv-escopo", (uint32_t)e);
+				bool sel = sv_escopo == e;
+				char nome[24];
+				snprintf(nome, sizeof(nome), "sv/escopo/%d", e);
+				reg(nome, id);
+				CLAY(id, { .layout = { .sizing = { CLAY_SIZING_FIT(0), CLAY_SIZING_GROW(0) }, .padding = { 18, 18, 0, 0 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+					.backgroundColor = sel ? gv_alfa(gv_t.acento, 0.22f) : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio - 2) }) {
+					gv_texto(gv_str(ESCOPOS[e]), gv_t.tamanho_corpo - 1, sel ? gv_t.texto : gv_t.texto_secundario, sel ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				}
+				if (gv_tocado(id) && !sel) {
+					sv_escopo = e;
+					sv_erro[0] = '\0';
+					sv_filtro = -1;
+					sv_ultima = 0;
+				}
 			}
 		}
-		reg("sv/escopo", CLAY_ID("sv-escopo"));
 	}
 	/* os estados, com a contagem de cada um */
 	CLAY(CLAY_ID("sv-chips"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
@@ -1465,28 +1550,57 @@ static void tela_servicos(void) {
 		}
 		g_free(ix);
 	}
-	CLAY(CLAY_ID("sv-rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 0, 0 } } }) {
-		gv_texto(gv_str(gv_fmt("%d de %d serviços · Atualização: 5 s · Só leitura", sv_visiveis, L->n).chars), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+	/* o rodapé: o resumo (ou o resultado da última ação) e as ações no serviço marcado */
+	const struct sv_item *m = sv_marcado();
+	bool tem = m != NULL && !ocupado;
+	bool exec = m && m->estado == SV_EXECUCAO, parado = m && m->estado == SV_PARADO, pausa = m && m->estado == SV_PAUSA, prog = m && m->estado == SV_PROGRAMADO;
+	CLAY(CLAY_ID("sv-rodape"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(44) }, .padding = { 4, 0, 0, 0 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		bool msg = mensagem[0] && gv_agora() < mensagem_ate;
+		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+			gv_texto(gv_str(msg ? mensagem : m ? gv_fmt("%s", m->unidade).chars : gv_fmt("%d de %d serviços · Atualização: 5 s", sv_visiveis, L->n).chars), gv_t.tamanho_corpo - 1, msg ? gv_t.texto : gv_t.texto_suave, GV_PESO_NORMAL);
+		}
+		static const struct { const char *acao, *rotulo, *nome; } AC[4] = { { "start", "Iniciar", "sv/acao/start" }, { "stop", "Parar", "sv/acao/stop" }, { "restart", "Reiniciar", "sv/acao/restart" },
+			{ "freeze", "Pausar", "sv/acao/pausa" } };
+		for (int i = 0; i < 4; i++) {
+			bool pode = tem && (i == 0 ? parado : i == 1 ? (exec || pausa || prog) : i == 2 ? (exec || prog) : (exec || pausa));
+			const char *acao = AC[i].acao, *rotulo = AC[i].rotulo;
+			if (i == 3 && pausa) {
+				acao = "thaw";
+				rotulo = "Retomar";
+			}
+			Clay_ElementId id = CLAY_IDI("sv-acao", (uint32_t)i);
+			reg(AC[i].nome, id);
+			if (gv_botao_ext(id, &(gv_botao_opcoes){ .texto = rotulo, .estilo = i == 0 || i == 3 ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO, .altura = 36, .desativado = !pode })) {
+				sv_pedir(acao);
+			}
+		}
 	}
 }
 
 static void dialogo_confirmar(void) {
-	const struct linha *l = linha_de(confirmar_pid);
+	const struct linha *l = conf_sv ? NULL : linha_de(confirmar_pid);
+	const char *aviso_sv = !strcmp(conf_acao, "freeze") ? "Pausar congela o serviço (e tudo o que ele iniciou) até você retomar." : !strcmp(conf_acao, "stop") ? "O que depende dele pode parar de funcionar (a rede, o som, o login...)." : "O serviço fica fora do ar por uns instantes e o que depende dele pode falhar.";
 	CLAY(CLAY_ID("dlg"), { .layout = { .sizing = { CLAY_SIZING_FIXED((float)cart_w), CLAY_SIZING_FIXED((float)cart_h) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
 		.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .zIndex = 95, .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE }, .backgroundColor = gv_t.veu, .cornerRadius = CLAY_CORNER_RADIUS(jan_max ? 0 : gv_t.raio_grande) }) {
 		CLAY(CLAY_ID("dlg-cartao"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(500), CLAY_SIZING_FIT(0) }, .padding = CLAY_PADDING_ALL(24), .childGap = 14 },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda_controle, .width = GV_BORDA(1) } }) {
-			gv_texto(gv_str(confirmar_forcar ? "Forçar o encerramento?" : "Encerrar este processo?"), gv_t.tamanho_destaque + 2, gv_t.texto, GV_PESO_MEDIO);
-			gv_texto(gv_str(l ? gv_fmt("\"%s\" (PID %d, de %s) é da sessão ou do sistema. Encerrá-lo pode derrubar aplicativos, a sessão ou o computador.", l->nome, l->pid, l->usuario).chars : "Este processo é da sessão ou do sistema."),
+			gv_texto(gv_str(conf_sv ? gv_fmt("%s este serviço?", sv_verbo(conf_acao)).chars : confirmar_forcar ? "Forçar o encerramento?" : "Encerrar este processo?"), gv_t.tamanho_destaque + 2, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(gv_str(conf_sv ? gv_fmt("\"%s\" é um serviço do sistema. %s", conf_unidade, aviso_sv).chars : l ? gv_fmt("\"%s\" (PID %d, de %s) é da sessão ou do sistema. Encerrá-lo pode derrubar aplicativos, a sessão ou o computador.", l->nome, l->pid, l->usuario).chars : "Este processo é da sessão ou do sistema."),
 				gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
 			CLAY(CLAY_ID("dlg-botoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .x = CLAY_ALIGN_X_RIGHT } } }) {
 				if (gv_botao_ext(CLAY_ID("dlg-nao"), &(gv_botao_opcoes){ .texto = "Cancelar", .estilo = GV_BOTAO_ELEVADO })) {
 					confirmar = false;
+					conf_sv = false;
 				}
 				reg("confirmar-nao", CLAY_ID("dlg-nao"));
-				if (gv_botao_ext(CLAY_ID("dlg-sim"), &(gv_botao_opcoes){ .texto = confirmar_forcar ? "Forçar" : "Encerrar", .estilo = GV_BOTAO_CHEIO })) {
-					confirmar = false;
-					encerrar(confirmar_pid, confirmar_forcar, confirmar_arvore);
+				if (gv_botao_ext(CLAY_ID("dlg-sim"), &(gv_botao_opcoes){ .texto = conf_sv ? sv_verbo(conf_acao) : confirmar_forcar ? "Forçar" : "Encerrar", .estilo = GV_BOTAO_CHEIO })) {
+					if (conf_sv) {
+						conf_sv = false;
+						sv_executar(conf_acao, conf_unidade, 0);
+					} else {
+						confirmar = false;
+						encerrar(confirmar_pid, confirmar_forcar, confirmar_arvore);
+					}
 				}
 				reg("confirmar-sim", CLAY_ID("dlg-sim"));
 			}
@@ -1822,7 +1936,7 @@ static void desenhar(gv_app *a, void *dados) {
 					}
 				}
 			}
-				if (confirmar) {
+				if (confirmar || conf_sv) {
 					dialogo_confirmar();
 				}
 			}
@@ -1849,8 +1963,9 @@ static void desenhar(gv_app *a, void *dados) {
 	}
 	/* Esc: fecha o diálogo, o menu, e por fim o gerenciador */
 	if (gv_tecla() == 0xff1b) {
-		if (confirmar) {
+		if (confirmar || conf_sv) {
 			confirmar = false;
+			conf_sv = false;
 		} else if (gv_popup_aberto(CLAY_ID("menu-acoes")) || gv_popup_aberto(CLAY_ID("menu-linha"))) {
 			gv_popup_fechar(CLAY_ID("menu-acoes"));
 			gv_popup_fechar(CLAY_ID("menu-linha"));

@@ -7,6 +7,9 @@ run=$(mktemp -d); chmod 700 "$run"; mkdir -p "$run/bin"
 cp "$aqui/processos/bin/systemctl" "$run/bin/systemctl"
 # um lumna-painel de mentira: só anota os argumentos
 printf '#!/bin/sh\necho "$@" > "%s/painel.args"\n' "$run" > "$run/bin/lumna-painel"; chmod +x "$run/bin/lumna-painel"
+# o ajudante com privilégio de mentira (anota o que recebeu) e o log do systemctl de mentira (as ações dos serviços da sessão)
+printf '#!/bin/sh\necho "$@" >> "%s/ajudante.log"\nexit 0\n' "$run" > "$run/bin/ajudante"; chmod +x "$run/bin/ajudante"
+export LUMNA_PROCESSOS_AJUDANTE="$run/bin/ajudante" FAKE_LOG="$run/systemctl.log"
 export PATH="$run/bin:$PATH" XDG_RUNTIME_DIR=$run HOME=$run WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 LUMNA_PROCESSOS_DEBUG=1
 unset XDG_CONFIG_HOME
 (cd "$orbit_dir" && ./orbit > "$run/orbit.log" 2>&1 &)

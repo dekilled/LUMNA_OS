@@ -47,5 +47,6 @@ case " $* " in
 		printf 'Id=fstrim.timer\nMainPID=0\nFreezerState=running\nNextElapseUSecRealtime=@1900003600\nLastTriggerUSec=@1899400000\n\n'
 		printf 'Id=logrotate.timer\nMainPID=0\nFreezerState=running\nNextElapseUSecRealtime=\nLastTriggerUSec=\n\n'
 	fi ;;
+*" start "*|*" stop "*|*" restart "*|*" freeze "*|*" thaw "*) [ -n "$FAKE_LOG" ] && echo "$@" >> "$FAKE_LOG"; exit 0 ;;
 *) exit 2 ;;
 esac

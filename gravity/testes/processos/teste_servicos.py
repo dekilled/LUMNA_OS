@@ -88,6 +88,81 @@ subprocess.run(["wtype", "-s", "250", "network"], stdout=subprocess.DEVNULL)
 confere(lambda: sv() and sv()[2] == 1, f"buscar 'network' devia achar só o NetworkManager ({sv()})")
 subprocess.run(["wtype", "-s", "250", "-M", "ctrl", "-k", "a", "-m", "ctrl", "-k", "BackSpace"], stdout=subprocess.DEVNULL)
 confere(lambda: sv() and sv()[2] == 11, f"limpar a busca devia voltar aos 11 ({sv()})")
+# ---- as ações ----
+def estado_campo(c):
+    r = None
+    for l in log().splitlines():
+        m = re.search(rf" {c}=(\[[^\]]*\]|\S+)", l) if l.startswith("estado ") else None
+        if m:
+            r = m[1]
+    return r
+
+
+def ler(arq):
+    return open(f"{run}/{arq}").read().strip().splitlines() if os.path.exists(f"{run}/{arq}") else []
+
+
+def busca(texto):
+    toca("sv/busca")
+    subprocess.run(["wtype", "-s", "250", "-M", "ctrl", "-k", "a", "-m", "ctrl", "-k", "BackSpace"], stdout=subprocess.DEVNULL)
+    if texto:
+        subprocess.run(["wtype", "-s", "250", texto], stdout=subprocess.DEVNULL)
+    time.sleep(0.6)
+
+
+# parar um serviço do sistema: pede confirmação; cancelar não faz nada; confirmar chama o ajudante
+busca("networkman")
+confere(lambda: sv() and sv()[2] == 1, "a busca devia isolar o NetworkManager")
+toca("sv/acao/stop", 0.5)
+if ler("ajudante.log"):
+    falha("sem serviço marcado, 'Parar' devia estar desativado e não chamar nada")
+toca("sv/linha/0")
+confere(lambda: estado_campo("svsel") == "[NetworkManager.service]", f"tocar na linha devia marcar o serviço ({estado_campo('svsel')})")
+toca("sv/acao/stop", 0.8)
+confere(lambda: estado_campo("svconf") == "1", "parar um serviço do sistema devia pedir confirmação")
+toca("confirmar-nao", 0.6)
+confere(lambda: estado_campo("svconf") == "0", "Cancelar devia fechar a confirmação")
+if ler("ajudante.log"):
+    falha(f"cancelar não devia chamar o ajudante ({ler('ajudante.log')})")
+toca("sv/acao/stop", 0.8)
+toca("confirmar-sim", 1.2)
+confere(lambda: "servico stop NetworkManager.service" in ler("ajudante.log"), f"confirmar devia chamar o ajudante com 'servico stop NetworkManager.service' ({ler('ajudante.log')})")
+# reiniciar e pausar também pedem; Esc cancela
+toca("sv/acao/restart", 0.8)
+confere(lambda: estado_campo("svconf") == "1", "reiniciar também pede confirmação")
+subprocess.run(["wtype", "-s", "250", "-k", "Escape"], stdout=subprocess.DEVNULL); time.sleep(0.6)
+confere(lambda: estado_campo("svconf") == "0", "Esc devia cancelar a confirmação")
+if any("restart" in c for c in ler("ajudante.log")):
+    falha("Esc não devia reiniciar nada")
+# retomar um serviço em pausa: direto, sem confirmação
+busca("pausada")
+toca("sv/linha/0")
+toca("sv/acao/pausa", 1.0)
+confere(lambda: "servico thaw jogo-sync.service" in ler("ajudante.log"), f"o serviço em pausa devia ter o botão 'Retomar' (thaw, sem confirmação) ({ler('ajudante.log')})")
+if estado_campo("svconf") != "0":
+    falha("retomar não devia pedir confirmação")
+# iniciar um parado: direto; e 'Parar' fica desativado nele
+busca("cups")
+toca("sv/linha/0")
+toca("sv/acao/stop", 0.5)
+if any("stop cups" in c for c in ler("ajudante.log")) or estado_campo("svconf") != "0":
+    falha("um serviço parado não tem 'Parar' (botão desativado)")
+toca("sv/acao/start", 1.0)
+confere(lambda: "servico start cups.service" in ler("ajudante.log"), f"iniciar um serviço parado devia chamar o ajudante, sem confirmação ({ler('ajudante.log')})")
+# os da sessão: direto pelo systemctl --user, sem ajudante e sem confirmação
+n_ajud = len(ler("ajudante.log"))
+toca("sv/escopo/1", 1.5)
+confere(lambda: sv() and sv()[0] == 1 and sv()[3] == 4, f"o escopo da sessão devia listar 4 unidades (3 serviços e 1 timer) ({sv()})")
+busca("barra")
+toca("sv/linha/0")
+toca("sv/acao/stop", 1.2)
+confere(lambda: any("--user" in c and "stop -- lumna-barra.service" in c for c in ler("systemctl.log")), f"um serviço da sessão devia ir direto pelo 'systemctl --user' ({ler('systemctl.log')})")
+if estado_campo("svconf") != "0":
+    falha("um serviço da sessão não pede confirmação")
+if len(ler("ajudante.log")) != n_ajud:
+    falha("a sessão não usa o ajudante (é do próprio usuário)")
+toca("sv/escopo/0", 1.0)
+busca("")
 # uma linha mostra a descrição, o estado em português e o PID
 primeira = pos("sv/linha/0")
 if not primeira:
