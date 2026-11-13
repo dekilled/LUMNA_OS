@@ -370,6 +370,23 @@ static void enter_views(struct orbit_server *server, struct orbit_output *output
 	}
 }
 
+/*
+ * Para que lado a troca de espaço desliza: +1 (o novo chega da direita e o conteúdo vai para a esquerda) ao avançar, -1 ao voltar.
+ * Os espaços do Desktop dão a volta em círculo (1 → 2 → 3 → 1): do último para o primeiro continua indo para a esquerda; pelo caminho mais curto.
+ * Os demais (um modo especial, por exemplo) seguem a ordem simples.
+ */
+static int slide_direction(struct orbit_server *server, int from, int to) {
+	if (from == to) {
+		return 0;
+	}
+	int n = server->areas;
+	if (n > 1 && from >= 0 && to >= 0 && from < n && to < n) {
+		int ahead = (to - from + n) % n;
+		return ahead * 2 <= n ? 1 : -1;
+	}
+	return to > from ? 1 : -1;
+}
+
 void orbit_arrange(struct orbit_server *server) {
 	struct orbit_output *output;
 	orbit_soft_off_refresh(server);
@@ -394,11 +411,12 @@ void orbit_arrange(struct orbit_server *server) {
 		orbit_mode_sync_output(output);
 		orbit_lock_configure(output);
 		/* a troca de espaço (ou de modo) desliza: para a direita se o novo vem depois do que estava */
-		int dir = output->tag == output->shown_tag ? 0 : output->tag > output->shown_tag ? 1 : -1;
+		int dir = slide_direction(server, output->shown_tag, output->tag);
 		output->shown_tag = output->tag;
-		bool animate = dir != 0 && server->anim_ms > 0 && !output_is_phone(output->wlr);
+		bool animate = dir != 0 && orbit_anim_ms(server) > 0 && !output_is_phone(output->wlr);
 		if (animate) {
 			server->slide_count++;
+			server->slide_dir = dir;
 		}
 		/* Gaming e Mídia são de tela cheia: toda janela do modo ocupa a tela, e só a que tem o foco aparece */
 		bool kiosk = output->mode != ORBIT_MODE_DESKTOP && !output_is_phone(output->wlr);

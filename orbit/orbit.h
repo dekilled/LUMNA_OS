@@ -310,6 +310,8 @@ struct orbit_server {
 	char carousel_output[32];         /* ...na saída com este nome... */
 	int carousel_target;              /* ...com este modo em destaque */
 	int carousel_end;                 /* como acabou o último: 0 aberto/nunca, 1 confirmado, 2 cancelado (o carrossel precisa saber para crescer ou esmaecer) */
+	bool anim_off;                    /* animacoes.ini [geral] deslize = nao: nada desliza (o Painel > Animações grava) */
+	int slide_dir;                    /* o lado do último deslize (+1 conteúdo para a esquerda, -1 para a direita; para os testes) */
 	int slide_count;                  /* quantas trocas de espaço/modo deslizaram (para os testes; o carrossel troca sem deslizar) */
 	bool mode_instant;                /* a troca de modo em curso vem do carrossel: sem deslizar e sem o seletor antigo (o carrossel já fez o efeito) */
 	struct orbit_output *mode_osd_output; /* o seletor está aberto nesta saída... */
@@ -685,6 +687,8 @@ bool orbit_carousel_key(struct orbit_server *server, const xkb_keysym_t *syms, i
 void orbit_carousel_end(struct orbit_server *server, uint32_t mods);
 void orbit_carousel_confirm(struct orbit_server *server, int mode); /* mode < 0: o alvo */
 void orbit_carousel_cancel(struct orbit_server *server);
+void orbit_animations_config_load(struct orbit_server *server);
+int orbit_anim_ms(const struct orbit_server *server); /* a duração dos deslizes: 0 quando desligados */
 void orbit_ipc_emit(const char *json);
 struct orbit_output *orbit_output_for_layer(struct orbit_server *server, const char *app_id);
 void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, int dir);

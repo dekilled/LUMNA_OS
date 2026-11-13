@@ -130,6 +130,13 @@ void pn_tema_descartar(void), pn_cores_descartar(void), pn_tamanho_descartar(voi
 void pn_tema_restaurar(void), pn_cores_restaurar(void), pn_tamanho_restaurar(void);
 void pn_tema_desenhar(void), pn_cores_desenhar(void), pn_tamanho_desenhar(void);
 
+void pn_animacoes_abrir(void);
+bool pn_animacoes_pendente(void);
+void pn_animacoes_aplicar(void);
+void pn_animacoes_descartar(void);
+void pn_animacoes_restaurar(void);
+void pn_animacoes_desenhar(void);
+
 void pn_bloqueio_abrir(void);
 bool pn_bloqueio_pendente(void);
 void pn_bloqueio_aplicar(void);
@@ -151,6 +158,9 @@ static const pn_secao secoes[] = {
 		pn_tema_aplicar, pn_tema_descartar, pn_tema_restaurar, pn_estilo_abrir },
 	{ "cores", "brush", "Cores", "Defina as cores dos controles e dos destaques.", pn_cores_desenhar, NULL, pn_cores_pendente,
 		pn_cores_aplicar, pn_cores_descartar, pn_cores_restaurar, pn_estilo_abrir },
+	{ "animacoes", "play", "Animações", "O que se move: deslizes, carrossel e transições.", pn_animacoes_desenhar,
+		"Nível de animação;Deslize;Carrossel", pn_animacoes_pendente, pn_animacoes_aplicar, pn_animacoes_descartar, pn_animacoes_restaurar,
+		pn_animacoes_abrir },
 	{ "papel", "image", "Papel de parede", "Escolha o fundo de cada tela e modo.", pn_papel_desenhar,
 		"Um por tela;Um por modo;Coleção LUMNA;Trocar automaticamente", pn_papel_pendente, pn_papel_aplicar,
 		pn_papel_descartar, pn_papel_restaurar, pn_papel_abrir },

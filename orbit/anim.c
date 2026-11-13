@@ -112,7 +112,7 @@ static int slide_tick(void *data) {
 
 void orbit_slide(struct orbit_view *view, int x, int y) {
 	struct orbit_server *server = view->server;
-	if (!view->placed || server->anim_ms <= 0) {
+	if (!view->placed || orbit_anim_ms(server) <= 0) {
 		/* posta direto, sem deslizar: um recorte de animação que sobrou (uma entrada interrompida por outro arranjo) não vale mais */
 		orbit_slide_unclip(view);
 		view->placed = true;
@@ -134,7 +134,7 @@ void orbit_slide(struct orbit_view *view, int x, int y) {
 	view->slide_to_x = x;
 	view->slide_to_y = y;
 	view->slide_start = now_ms();
-	view->slide_span = (uint32_t)server->anim_ms;
+	view->slide_span = (uint32_t)orbit_anim_ms(server);
 	view->leaving = false;
 	view->sliding = true;
 	if (!server->slide_timer && server->display) {
@@ -161,7 +161,7 @@ static void slide_go(struct orbit_view *view, int fx, int fy, int tx, int ty) {
 	view->slide_to_x = tx;
 	view->slide_to_y = ty;
 	view->slide_start = now_ms();
-	view->slide_span = (uint32_t)server->anim_ms * 2;
+	view->slide_span = (uint32_t)orbit_anim_ms(server) * 2;
 	view->sliding = true;
 	if (!server->slide_timer && server->display) {
 		server->slide_timer = wl_event_loop_add_timer(

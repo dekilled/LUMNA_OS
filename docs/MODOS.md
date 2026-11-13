@@ -119,7 +119,7 @@ journalctl -b | grep -E 'xwl:|por trás do jogo|ficou vazia'
 
 ## Troca em carrossel (Super + Tab)
 
-Painel > Telas e modos > Modos > **Troca com Super + Tab**: *Rápida* (o padrão, o seletor de sempre: o segundo Super+Tab já troca) ou *Carrossel*.
+Painel > Aparência > **Animações** > **Carrossel de modos (Super + Tab)**: desligado (o padrão, a troca *Rápida*: o seletor de sempre, o segundo Super+Tab já troca) ou ligado (*Carrossel*). A opção mora na página Animações (no `modos.ini`, `[geral] troca`).
 
 No carrossel: **Super + Tab** abre o `lumna-carrossel` na tela do cursor, com o modo de agora no centro e **sem trocar nada**; **Tab** (ou a seta direita) gira para o próximo, **Shift+Tab** (ou a seta esquerda) para o anterior, dando a volta; **soltar o Super** traz o modo do centro para a tela inteira; **Esc** cancela; **Enter** ou um clique no cartão confirma na hora; um clique fora dos cartões cancela. Soltar só o Tab não faz nada. O Super sozinho continua abrindo o Início.
 
@@ -134,3 +134,12 @@ Ilusão a saber: ao entrar, o cartão de tela cheia é a **ilustração** do mod
 Limites: os cartões são ilustrações de cada modo, **não miniaturas da tela de verdade** (decisão do Eric: mais leve); sem toque nem gamepad (só teclado e mouse).
 
 Testes: `gravity/testes/carrossel_orbit.sh` (o Orbit: abre/gira/confirma/cancela, o Início não abre, sem deslizar e sem o seletor antigo, e o Rápido continua como antes) e `gravity/testes/carrossel_app.sh` (o programa de verdade: cobre a tela com a barra e a dock rodando, o cartão fica na tela enquanto cresce, clique no cartão, clique fora, saída do processo).
+
+
+## Espaços do Desktop em círculo
+
+Os 3 espaços do Desktop dão a volta: 1 → 2 → 3 → 1. Avançar desliza o conteúdo para a esquerda (inclusive o 3 → 1), voltar desliza para a direita; vai-se pelo caminho mais curto (1 → 3 volta pela direita). Os modos (Gaming, Mídia) seguem a ordem simples. Código: `slide_direction` em `orbit/arrange.c`. Teste: `gravity/testes/workspaces_deslize.sh`.
+
+## Painel > Aparência > Animações
+
+Uma página própria com o **Nível** (Completa, Simples, Desligada; Personalizada quando os ajustes finos não batem com nenhum) e o ajuste fino: animações dos apps (tema.ini), deslize ao trocar de espaço/modo (`~/.config/lumna/animacoes.ini`, `[geral] deslize`, que o Orbit lê na hora) e o carrossel. Simples = tudo menos o carrossel; Desligada = nada se move. As animações novas (janelas, lançador) entram nessa página. Teste: `gravity/testes/painel_animacoes.sh`.

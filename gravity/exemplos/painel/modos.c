@@ -110,9 +110,6 @@ void pn_modos_desenhar(void) {
 		nomes[i] = modos_nome(i);
 	}
 	pn_ajuste_lista(CLAY_ID("md-ligar"), "power", "Modo ao ligar", "O modo em que o desktop abre", nomes, MODO_N, &cfg.ao_ligar);
-	static const char *const trocas[] = { "Rápida", "Carrossel" };
-	pn_ajuste_lista(CLAY_ID("md-troca"), "grid", "Troca com Super + Tab",
-		"Rápida: troca na hora, como sempre. Carrossel: Super + Tab mostra os modos, Tab gira e soltar o Super traz o escolhido (Esc cancela)", trocas, 2, &cfg.troca);
 	for (int m = 0; m < MODO_N; m++) {
 		pn_subtitulo(CLAY_IDI("md-t", (uint32_t)m), gv_fmt("Modo %s", modos_nome(m)).chars);
 		if (m == MODO_DESKTOP) {

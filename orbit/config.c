@@ -389,12 +389,39 @@ void orbit_config_load(struct orbit_server *server) {
 		}
 	}
 	apply_env(server);
+	orbit_animations_config_load(server);
+}
+
+/* ~/.config/lumna/animacoes.ini (o Painel > Animações grava): [geral] deslize = sim|nao */
+int orbit_anim_ms(const struct orbit_server *server) {
+	return server->anim_off ? 0 : server->anim_ms;
+}
+
+void orbit_animations_config_load(struct orbit_server *server) {
+	server->anim_off = false;
+	char dir[400], path[460];
+	if (!orbit_lumna_dir(dir, sizeof(dir))) {
+		return;
+	}
+	snprintf(path, sizeof(path), "%s/animacoes.ini", dir);
+	FILE *f = fopen(path, "r");
+	if (!f) {
+		return;
+	}
+	char line[256];
+	while (fgets(line, sizeof(line), f)) {
+		char key[64], value[64];
+		if (sscanf(line, " %63[^= ] = %63s", key, value) == 2 && !strcmp(key, "deslize")) {
+			server->anim_off = !strcmp(value, "nao") || !strcmp(value, "não") || !strcmp(value, "0");
+		}
+	}
+	fclose(f);
 }
 
 static int config_changed(int fd, uint32_t mask, void *data) {
 	struct orbit_server *server = data;
 	char buf[4096];
-	bool ours = false, input = false, screens = false, disposicao = false;
+	bool ours = false, input = false, screens = false, disposicao = false, animations = false;
 	ssize_t n;
 	while ((n = read(fd, buf, sizeof(buf))) > 0) {
 		for (char *p = buf; p < buf + n;) {
@@ -407,6 +434,8 @@ static int config_changed(int fd, uint32_t mask, void *data) {
 				screens = true;
 			} else if (event->len && !strcmp(event->name, "disposicao.ini")) {
 				disposicao = true;
+			} else if (event->len && !strcmp(event->name, "animacoes.ini")) {
+				animations = true;
 			}
 			p += sizeof(*event) + event->len;
 		}
@@ -415,6 +444,10 @@ static int config_changed(int fd, uint32_t mask, void *data) {
 		wlr_log(WLR_INFO, "a configuração mudou: relida");
 		orbit_config_load(server);
 		orbit_arrange(server);
+	}
+	if (animations) {
+		orbit_animations_config_load(server);
+		wlr_log(WLR_INFO, "animacoes.ini mudou: deslizes %s", server->anim_off ? "desligados" : "ligados");
 	}
 	if (input && !ours) {
 		wlr_log(WLR_INFO, "entrada.ini mudou: teclado e ponteiro reaplicados");

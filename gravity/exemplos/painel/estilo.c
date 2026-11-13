@@ -251,6 +251,38 @@ void pn_estilo_abrir(void) {
 	}
 }
 
+/* A página Animações liga e desliga as animações dos apps (o [movimento] do tema.ini) sem mexer no que está pendente na Aparência */
+bool pn_estilo_animacoes_ler(void) {
+	struct estilo atual = e, grav = gravado;
+	bool era_lido = lido;
+	char hex_atual[sizeof(hex)];
+	memcpy(hex_atual, hex, sizeof(hex));
+	ler();
+	bool r = e.animacoes;
+	e = atual;
+	gravado = grav;
+	lido = era_lido;
+	memcpy(hex, hex_atual, sizeof(hex));
+	return r;
+}
+
+void pn_estilo_animacoes_gravar(bool ligado) {
+	struct estilo atual = e, grav = gravado;
+	bool era_lido = lido;
+	char hex_atual[sizeof(hex)];
+	memcpy(hex_atual, hex, sizeof(hex));
+	ler(); /* o que está no arquivo: o resto do estilo fica como estava gravado */
+	e.animacoes = ligado;
+	gravado = e;
+	gravar();
+	atual.animacoes = ligado;
+	grav.animacoes = ligado;
+	e = atual;
+	gravado = grav;
+	lido = era_lido;
+	memcpy(hex, hex_atual, sizeof(hex));
+}
+
 bool pn_tema_pendente(void) {
 	return e.estilo != gravado.estilo || e.densidade != gravado.densidade || e.cantos != gravado.cantos ||
 		e.animacoes != gravado.animacoes;
@@ -388,9 +420,6 @@ void pn_tema_desenhar(void) {
 		static const char *const op[] = { "Suaves", "Retos" };
 		pn_segmentos(CLAY_ID("tema-cantos-v"), op, 2, &e.cantos);
 	}
-	pn_linha_acabar();
-	pn_linha_comecar(CLAY_ID("tema-anim"), "play", "Animações", "Transições entre janelas e painéis");
-	gv_interruptor(CLAY_ID("tema-anim-v"), &e.animacoes);
 	pn_linha_acabar();
 	pn_linha_comecar(CLAY_ID("tema-atual"), NULL, "Tema atual",
 		gravado.estilo == 1 ? "LUMNA Claro" : gravado.estilo == 2 ? "LUMNA Automático (claro de dia)" : "LUMNA Escuro");

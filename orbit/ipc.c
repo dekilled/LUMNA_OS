@@ -509,8 +509,8 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		}
 		put(b, "{\"ok\":true,\"aberto\":%s,\"saida\":", server->carousel_open ? "true" : "false");
 		put_str(b, server->carousel_output);
-		put(b, ",\"alvo\":\"%s\",\"fim\":\"%s\",\"deslizes\":%d}", orbit_mode_name(server->carousel_target),
-			server->carousel_end == 1 ? "confirmado" : server->carousel_end == 2 ? "cancelado" : "", server->slide_count); /* deslizes: só para os testes */
+		put(b, ",\"alvo\":\"%s\",\"fim\":\"%s\",\"deslizes\":%d,\"dir_deslize\":%d}", orbit_mode_name(server->carousel_target),
+			server->carousel_end == 1 ? "confirmado" : server->carousel_end == 2 ? "cancelado" : "", server->slide_count, server->slide_dir); /* deslizes: só para os testes */
 	} else if (!strcmp(cmd, "ocioso")) {
 		/* quem segura o idle (vídeo tocando pelo idle-inhibit do Wayland); o D-Bus (Firefox, VLC) é do lumna-ocioso */
 		char lista[1024];

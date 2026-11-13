@@ -10,6 +10,26 @@ Regras de sempre: perguntar antes de decisão estrutural; app novo começa por e
 - **Cliente de e-mail do LUMNA** (algo como o Thunderbird: várias contas, receber e enviar). Primeiro para Linux; depois Windows; o Eric também quer usá-lo fora do LUMNA. Precisa de esboço antes de codar. Até lá, o "Enviar para > E-mail" usa o cliente que estiver instalado (mailto).
 - **Fone Bluetooth** que conectava sozinho ao ligar o PC e parou: o `bluetooth.service` não era ligado pela ISO nem pela sessão (corrigido em `iso/build.sh` e `lumna-session.install`); falta o Eric confirmar no PC.
 
+## Animações (página própria no Painel: Animações)
+
+Decisões do Eric (2026): o ajuste fica numa **página própria** do Painel, com a versão simples como alternativa para máquina fraca.
+
+- **Workspaces do Desktop:** feito. Os 3 espaços dão a volta em círculo (1→2→3→1); avançar desliza para a esquerda, voltar para a direita (3→1 também desliza para a esquerda). A página **Animações** do Painel também está feita (Nível + ajuste fino).
+- **Janelas:** abrem em tamanho fixo, nascem um pouco maiores e transparentes e reduzem ao tamanho final já opacas ("cartão jogado na mesa"). Perguntas abertas: todas as janelas ou só as normais? efeito reverso ao fechar? duração (~180 ms)?
+- **Lançador de apps:** o conteúdo nasce menor e cresce ao tamanho normal; o fundo vai de 100% transparente até a transparência atual. Pergunta aberta: reverso ao fechar? (Precisa ver se o Gravity sabe escalar conteúdo.)
+- **Carrossel dos modos:** feito (zoom contínuo).
+- Depois: boot, pós-login (abaixo).
+
+## Para fazer (anotado em 2026-11)
+
+- **Animação de boot** e **animação pós-login** (entre a senha e a área de trabalho).
+- **Estilização do GRUB** (tema do LUMNA).
+- **Barra de título do Firefox:** hoje tem a própria dele, com um único ícone de fechar; falta uma barra de título completa (minimizar, maximizar, fechar) no estilo do LUMNA.
+- **Modo Mídia:** mudar um pouco o estilo (o Eric vai dizer o quê; pedir esboço).
+- **Modo Mídia vinculado a um monitor/projetor** (escolher a tela da Mídia e mantê-la lá).
+- **Wi-Fi:** placa interna do notebook conecta mas não transmite (talvez driver ou economia de energia); o adaptador USB funciona como alternativa. Ver `nmcli`/`dmesg` se voltar a incomodar.
+- **Fone USB (dongle) que às vezes não toca:** pedir `wpctl status`, `pactl list cards` e o `dmesg` quando falhar; suspeitas: perfil da placa não escolhido, timing do dongle, suspensão.
+
 ## Para fazer
 
 - Papel de parede em vídeo.

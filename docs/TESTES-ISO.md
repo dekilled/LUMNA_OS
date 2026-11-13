@@ -619,6 +619,11 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.468h | Abrir o carrossel com a barra e a dock na tela | O carrossel cobre a **tela inteira** (barra e dock não aparecem por baixo), com fundo escuro próprio; sem faixa vazia embaixo | ☐ |
 | 2.468i | Super + Tab (entrar) e soltar o Super (confirmar) | **Entrar:** o cartão do centro vem da tela cheia encolhendo e os vizinhos chegam de fora. **Confirmar:** os vizinhos saem para fora da tela e o do centro dá zoom até a tela, esmaecendo sobre o modo novo (que trocou na hora, sem deslizar). O seletor antigo não aparece | ☐ |
 | 2.468j | Clicar num cartão lateral para confirmar, e cancelar com Esc | Clique: o cartão vem para o centro e cresce; Esc: só esmaece, nada troca | ☐ |
+| 2.471 | Pôr os 3 espaços do Desktop em círculo: trocar 1→2→3 e depois 3→1 (atalhos de área ou o botão da barra) | Sempre desliza para a **esquerda** ao avançar, inclusive 3→1; voltando (1→3, 3→2, 2→1) desliza para a **direita** | ☐ |
+| 2.472 | Painel > Aparência > **Animações** | Página nova com o Nível e 3 ajustes (apps, deslize, carrossel); o carrossel e o deslize que já estavam como você deixou aparecem certos | ☐ |
+| 2.472b | Nível **Desligada** + Aplicar | Trocar de espaço e de modo não desliza mais, o Super + Tab troca na hora, os apps não animam; vale na hora, sem reiniciar | ☐ |
+| 2.472c | Nível **Simples** + Aplicar | Desliza e anima os apps, mas o Super + Tab volta ao seletor rápido (sem carrossel) | ☐ |
+| 2.472d | Em Aparência > Tema | A linha antiga "Animações" saiu (agora é só na página Animações) | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |
