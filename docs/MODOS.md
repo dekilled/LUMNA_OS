@@ -125,6 +125,8 @@ No carrossel: **Super + Tab** abre o `lumna-carrossel` na tela do cursor, com o 
 
 Como funciona: o Orbit guarda o estado (`server->carousel_*` em `mode.c`) e lê `[geral] troca` do `modos.ini` a cada Super+Tab (então mudar no Painel vale na hora). A troca em si é a `orbit_mode_set` de sempre (a mesma do modo Rápido). O `lumna-carrossel` só desenha: ouve o evento `carrossel` do Orbit, pergunta `orbit-msg carrossel` e anima; se ele morrer, soltar o Super ainda confirma. Trocar o modo por qualquer outro caminho (barra, Painel) fecha o carrossel aberto.
 
-Limites desta primeira versão: os cartões são ilustrações de cada modo, **não miniaturas da tela de verdade**; ao confirmar o carrossel esmaece (não há ainda o cartão que cresce até a tela cheia); sem toque nem gamepad (só teclado e mouse).
+Ao confirmar, o Orbit troca o modo **na hora e sem deslizar** (o `orbit_mode_set` com `mode_instant`), e o carrossel, que fica opaco por cima (a camada pede zona exclusiva -1: cobre a barra e a dock), faz o efeito: o cartão escolhido **cresce do centro até a tela** e na segunda metade tudo esmaece, mostrando o modo novo que já está atrás. O seletor antigo (`lumna-modos`) **não abre** depois dessa troca. Cancelar só esmaece.
 
-Testes: `gravity/testes/carrossel_orbit.sh` (o Orbit: abre/gira/confirma/cancela, o Início não abre, e o Rápido continua como antes) e `gravity/testes/carrossel_app.sh` (o programa de verdade: camada, clique no cartão, clique fora, saída do processo).
+Limites: os cartões são ilustrações de cada modo, **não miniaturas da tela de verdade** (decisão do Eric: mais leve); sem toque nem gamepad (só teclado e mouse).
+
+Testes: `gravity/testes/carrossel_orbit.sh` (o Orbit: abre/gira/confirma/cancela, o Início não abre, sem deslizar e sem o seletor antigo, e o Rápido continua como antes) e `gravity/testes/carrossel_app.sh` (o programa de verdade: cobre a tela com a barra e a dock rodando, o cartão fica na tela enquanto cresce, clique no cartão, clique fora, saída do processo).

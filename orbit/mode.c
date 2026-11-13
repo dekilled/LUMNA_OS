@@ -251,6 +251,8 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	if (holder) {
 		holder->shown_tag = holder->tag; /* sem deslizar: o que muda é a tela, não o espaço */
 		from->shown_tag = from->tag;
+	} else if (server->mode_instant) {
+		from->shown_tag = from->tag; /* o carrossel já fez o efeito: sem deslizar */
 	}
 	special_views_follow(server);
 	orbit_arrange(server);
@@ -267,6 +269,9 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	}
 	if (holder && holder->mode == ORBIT_MODE_GAMING) {
 		gaming_shell(server, holder, false);
+	}
+	if (server->mode_instant) {
+		return; /* o carrossel substituiu o seletor: não abre o antigo por cima */
 	}
 	/* o seletor aparece mesmo se o modo já era esse (Super+Tab de novo), na saída que trocou */
 	setenv("LUMNA_SAIDA", from->wlr->name, 1);
@@ -354,6 +359,7 @@ void orbit_carousel_cancel(struct orbit_server *server) {
 		return;
 	}
 	server->carousel_open = false;
+	server->carousel_end = 2;
 	carousel_notify();
 }
 
@@ -363,9 +369,14 @@ void orbit_carousel_confirm(struct orbit_server *server, int mode) {
 	}
 	struct orbit_output *output = carousel_output(server);
 	int target = mode >= 0 ? mode : server->carousel_target;
+	server->carousel_target = target;
 	server->carousel_open = false; /* antes: o orbit_mode_set fecha o que ainda estiver aberto */
-	if (output && is_mode_output(output)) {
+	server->carousel_end = 1;
+	if (output && is_mode_output(output) && output->mode != target) {
+		/* o carrossel faz o efeito (o cartão cresce até a tela): a troca é na hora, atrás dele, sem deslizar e sem o seletor antigo */
+		server->mode_instant = true;
 		orbit_mode_set(server, output, target);
+		server->mode_instant = false;
 	}
 	carousel_notify();
 }
@@ -378,6 +389,7 @@ static void carousel_step(struct orbit_server *server, int dir) {
 	}
 	if (!server->carousel_open) {
 		server->carousel_open = true;
+		server->carousel_end = 0;
 		snprintf(server->carousel_output, sizeof(server->carousel_output), "%s", from->wlr->name);
 		server->carousel_target = from->mode;
 		setenv("LUMNA_SAIDA", from->wlr->name, 1);

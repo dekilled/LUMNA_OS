@@ -15,11 +15,23 @@ msg() { "$orbit/orbit-msg" -s "$sock" "$@"; }
 tecla() { msg tecla_falsa 0 "$@" >/dev/null; sleep 0.2; }
 modo() { msg modo | grep -o '"modo":"[a-z]*"' | head -1 | cut -d'"' -f4; }
 camada() { msg camadas | grep -c 'lumna-carrossel'; }
+tela() { msg camadas | tr '{' '\n' | grep "\"nome\":\"$1\"" | grep -o '"largura":[0-9]*,"altura":[0-9]*' | head -1; }
 SUPER=125; TAB=15; ESC=1
+# a barra de cima e a dock (têm zona exclusiva): o carrossel precisa cobrir a tela mesmo assim
+temfaixas=0
+if [ -x "$gravity/barra" ] && [ -x "$gravity/dock" ]; then
+	"$gravity/barra" >/dev/null 2>&1 & "$gravity/dock" >/dev/null 2>&1 &
+	sleep 2.5; temfaixas=1
+fi
 # 1. abre: a camada aparece; Esc: some e o programa sai
 tecla $SUPER baixo; tecla $TAB; sleep 0.8
 [ "$(camada)" -ge 1 ] || falha "o carrossel devia aparecer na camada ao apertar Super+Tab"
 pgrep -x lumna-carrossel >/dev/null || falha "o programa lumna-carrossel devia estar rodando"
+if [ $temfaixas = 1 ]; then
+	saida=$(msg saidas | grep -o '"largura":[0-9]*,"altura":[0-9]*' | head -1)
+	[ "$(tela lumna-carrossel)" = "$saida" ] || falha "o carrossel devia cobrir a tela inteira, por cima da barra e da dock (carrossel $(tela lumna-carrossel), tela $saida)"
+	[ "$(tela lumna-barra)" != "$saida" ] || falha "o teste esperava a barra menor que a tela (barra $(tela lumna-barra))"
+fi
 tecla $ESC; sleep 0.8
 [ "$(camada)" = 0 ] || falha "Esc devia tirar o carrossel da tela"
 pgrep -x lumna-carrossel >/dev/null && falha "o programa devia sair depois do Esc"
@@ -27,7 +39,9 @@ tecla $SUPER cima
 [ "$(modo)" = desktop ] || falha "Esc não podia trocar o modo (está $(modo))"
 # 2. soltar o Super confirma e o carrossel some
 tecla $SUPER baixo; tecla $TAB; tecla $TAB; sleep 0.6
-tecla $SUPER cima; sleep 0.8
+tecla $SUPER cima
+[ "$(camada)" -ge 1 ] || falha "confirmado, o carrossel devia ficar um instante na tela (o cartão cresce) antes de sumir"
+sleep 0.8
 [ "$(modo)" = gaming ] || falha "soltar o Super devia trazer o Gaming (está $(modo))"
 [ "$(camada)" = 0 ] || falha "o carrossel devia sumir depois de confirmar"
 msg modo desktop >/dev/null; sleep 0.5
@@ -45,5 +59,5 @@ msg mouse mover 640 120 >/dev/null; sleep 0.3; msg mouse botao baixo >/dev/null;
 [ "$(camada)" = 0 ] || falha "um clique fora dos cartões devia fechar o carrossel"
 tecla $SUPER cima
 [ "$(modo)" = desktop ] || falha "cancelar não podia trocar o modo (está $(modo))"
-pkill -x orbit; pkill -x lumna-carrossel
+pkill -x orbit; pkill -x lumna-carrossel; pkill -x barra; pkill -x dock
 [ $ok = 1 ] && { echo "carrossel_app: ok"; rm -rf "$run"; } || { echo "(log em $run)"; exit 1; }

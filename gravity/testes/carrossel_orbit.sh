@@ -4,7 +4,7 @@
 orbit=${1:?}
 run=$(mktemp -d); chmod 700 "$run"; mkdir -p "$run/cfg/lumna" "$run/home" "$run/bin"
 printf '#!/bin/sh\necho "$LUMNA_SAIDA $LUMNA_MODO" >> %s/carrossel.chamadas\n' "$run" > "$run/bin/lumna-carrossel"; chmod +x "$run/bin/lumna-carrossel"
-printf '#!/bin/sh\nexit 0\n' > "$run/bin/lumna-modos"; chmod +x "$run/bin/lumna-modos"
+printf '#!/bin/sh\necho "$LUMNA_MODO" >> %s/seletor.chamadas\n' "$run" > "$run/bin/lumna-modos"; chmod +x "$run/bin/lumna-modos"
 printf 'lancador = touch %s/lancou\n' "$run" > "$run/orbit.conf"
 export PATH="$run/bin:$PATH" HOME="$run/home" XDG_CONFIG_HOME="$run/cfg" XDG_RUNTIME_DIR="$run" ORBIT_CONFIG="$run/orbit.conf"
 ok=1
@@ -57,6 +57,26 @@ tecla $SUPER baixo; tecla $TAB; msg carrossel confirmar desktop >/dev/null; tecl
 # 6. o carrossel só abriu o programa: um por abertura, na saída certa
 n=$(wc -l < "$run/carrossel.chamadas" 2>/dev/null || echo 0)
 [ "$n" -ge 3 ] || falha "o lumna-carrossel devia ter sido chamado a cada abertura (chamadas: $n)"
+# 8. confirmar no carrossel troca na hora, SEM deslizar e SEM abrir o seletor antigo (o carrossel já fez o efeito); pelo caminho de sempre (orbit-msg modo) ainda abre
+msg modo desktop >/dev/null; sleep 0.6; rm -f "$run/seletor.chamadas"
+printf '[geral]\ntroca = carrossel\n' > "$run/cfg/lumna/modos.ini"
+desliz0=$(msg carrossel | grep -o '"deslizes":[0-9]*' | cut -d: -f2)
+tecla $SUPER baixo; tecla $TAB; tecla $TAB; tecla $SUPER cima
+desliz1=$(msg carrossel | grep -o '"deslizes":[0-9]*' | cut -d: -f2)
+[ "$desliz0" = "$desliz1" ] || falha "a troca do carrossel não devia deslizar (deslizes de $desliz0 para $desliz1)"
+sleep 0.6
+[ -e "$run/seletor.chamadas" ] && falha "a troca do carrossel não devia abrir o seletor antigo ($(cat "$run/seletor.chamadas"))"
+msg modo desktop >/dev/null; sleep 0.6
+[ -e "$run/seletor.chamadas" ] || falha "a troca pelo caminho de sempre (orbit-msg modo) devia continuar abrindo o seletor"
+desliz2=$(msg carrossel | grep -o '"deslizes":[0-9]*' | cut -d: -f2)
+[ "$desliz2" -gt "$desliz1" ] || falha "a troca pelo caminho de sempre devia continuar deslizando (deslizes $desliz1 -> $desliz2)"
+# 9. a resposta diz como acabou: confirmado (o carrossel cresce) ou cancelado (esmaece)
+tecla $SUPER baixo; tecla $TAB; tecla $TAB; tecla $ESC
+msg carrossel | grep -q '"fim":"cancelado"' || falha "depois do Esc o estado devia dizer fim=cancelado ($(msg carrossel))"
+tecla $SUPER cima
+tecla $SUPER baixo; tecla $TAB; tecla $TAB; tecla $SUPER cima
+msg carrossel | grep -q '"fim":"confirmado"' || falha "depois de soltar o Super o estado devia dizer fim=confirmado ($(msg carrossel))"
+msg modo desktop >/dev/null
 # 7. a configuração volta para rapida: tudo como antes
 printf '[geral]\ntroca = rapida\n' > "$run/cfg/lumna/modos.ini"
 tecla $SUPER baixo; tecla $TAB; tecla $SUPER cima

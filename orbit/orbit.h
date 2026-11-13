@@ -309,6 +309,9 @@ struct orbit_server {
 	bool carousel_open;               /* o carrossel está aberto: o Super+Tab move o alvo e soltar o Super confirma */
 	char carousel_output[32];         /* ...na saída com este nome... */
 	int carousel_target;              /* ...com este modo em destaque */
+	int carousel_end;                 /* como acabou o último: 0 aberto/nunca, 1 confirmado, 2 cancelado (o carrossel precisa saber para crescer ou esmaecer) */
+	int slide_count;                  /* quantas trocas de espaço/modo deslizaram (para os testes; o carrossel troca sem deslizar) */
+	bool mode_instant;                /* a troca de modo em curso vem do carrossel: sem deslizar e sem o seletor antigo (o carrossel já fez o efeito) */
 	struct orbit_output *mode_osd_output; /* o seletor está aberto nesta saída... */
 	uint32_t mode_osd_until;              /* ...até este instante (ms): um Super+Tab dentro disso vai para o próximo modo */
 	int areas;                    /* quantos espaços do Desktop estão ligados (1 a ORBIT_TAGS) */

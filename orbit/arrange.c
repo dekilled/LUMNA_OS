@@ -397,6 +397,9 @@ void orbit_arrange(struct orbit_server *server) {
 		int dir = output->tag == output->shown_tag ? 0 : output->tag > output->shown_tag ? 1 : -1;
 		output->shown_tag = output->tag;
 		bool animate = dir != 0 && server->anim_ms > 0 && !output_is_phone(output->wlr);
+		if (animate) {
+			server->slide_count++;
+		}
 		/* Gaming e Mídia são de tela cheia: toda janela do modo ocupa a tela, e só a que tem o foco aparece */
 		bool kiosk = output->mode != ORBIT_MODE_DESKTOP && !output_is_phone(output->wlr);
 		struct wlr_box usable = orbit_layer_usable(output, &box);

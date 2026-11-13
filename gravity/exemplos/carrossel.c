@@ -20,17 +20,23 @@
 
 #define CHAVE_FUNDO 0x6c630001u
 #define CHAVE_POS 0x6c630002u
+#define CHAVE_EXP 0x6c630003u
 #define CHAVE_CARTAO 0x6c630010u /* + 8 por cartão */
 
 static char saida[32];
 static int atual = MODO_DESKTOP; /* o modo desta tela ao abrir */
 static int alvo = MODO_DESKTOP;  /* o cartão do centro (o que o Orbit disse) */
 static int virtual_i;            /* o alvo sem dar a volta (0, 1, 2, 3...): a animação gira sempre pelo caminho curto */
-static bool fechando, iniciado;
+static bool fechando, confirmando, iniciado; /* fechando: cancelou, esmaece; confirmando: o cartão do centro cresce até a tela */
+static float galfa = 1.0f;                     /* a transparência de tudo, no quadro de agora (entrar, crescer e sair) */
 
 static Clay_Color mult(Clay_Color c, float f) {
-	c.a = (float)c.a * (f < 0 ? 0 : f > 1 ? 1 : f);
+	c.a = (float)c.a * (f < 0 ? 0 : f > 1 ? 1 : f) * galfa;
 	return c;
+}
+
+static float lerp(float a, float b, float t) {
+	return a + (b - a) * t;
 }
 
 /* pergunta ao Orbit o que está acontecendo */
@@ -38,11 +44,6 @@ static void perguntar(gv_app *app) {
 	char r[256];
 	if (!orbit_pedido("carrossel", r, sizeof(r)) || !strstr(r, "\"ok\":true")) {
 		fechando = true; /* sem Orbit: nada a mostrar */
-		return;
-	}
-	if (!strstr(r, "\"aberto\":true")) {
-		fechando = true;
-		gv_app_redesenhar(app);
 		return;
 	}
 	const char *a = strstr(r, "\"alvo\":\"");
@@ -54,6 +55,13 @@ static void perguntar(gv_app *app) {
 			int delta = ((novo - alvo + 1 + MODO_N * 4) % MODO_N) - 1; /* -1, 0 ou 1: o caminho curto na volta de três */
 			virtual_i += delta;
 			alvo = novo;
+		}
+	}
+	if (!strstr(r, "\"aberto\":true")) {
+		if (strstr(r, "\"fim\":\"confirmado\"")) {
+			confirmando = true; /* o Orbit já trocou, atrás deste fundo: o cartão cresce e o fundo some, mostrando o modo novo */
+		} else {
+			fechando = true;
 		}
 	}
 	gv_app_redesenhar(app);
@@ -109,7 +117,7 @@ static void miniatura(int m, float w, float h, float a, bool centro) {
 	}
 }
 
-static void cartao(int m, float pos, float largura, bool *tocado_algum) {
+static void cartao(int m, float pos, float largura, bool *tocado_algum, float e, float tela_w, float tela_h, float dy) {
 	float d = (float)m - pos;
 	d -= (float)MODO_N * roundf(d / (float)MODO_N); /* o cartão mais perto da posição, na volta de três */
 	float ad = fabsf(d);
@@ -117,8 +125,22 @@ static void cartao(int m, float pos, float largura, bool *tocado_algum) {
 	float a = ad <= 1.0f ? 1.0f - 0.45f * ad : fmaxf(0.0f, 0.55f - (ad - 1.0f) * 1.1f); /* some ao dar a volta por trás */
 	float w = largura * esc, h = w * 9.0f / 16.0f;
 	float centro = fmaxf(0.0f, 1.0f - ad); /* 1 no centro, 0 nos lados */
+	/* confirmado: o do centro cresce até o tamanho da tela (e a moldura some); os outros esmaecem */
+	float resto = 1.0f; /* o que sobra de moldura */
+	float texto = 1.0f; /* e de nome (some mais depressa: o cartão cobre o lugar dele) */
+	bool cresce = e > 0.0f && centro > 0.5f;
+	float rapido = fmaxf(0.0f, 1.0f - 3.0f * e);
+	if (cresce) {
+		w = lerp(w, tela_w, e);
+		h = lerp(h, tela_h, e);
+		resto = 1.0f - e;
+		texto = rapido;
+	} else if (e > 0.0f) {
+		a *= rapido;
+	}
+	float desloc_y = cresce ? e * dy : 0.0f; /* leva o centro do cartão ao centro da tela (o palco fica entre o título e as teclas) */
 	Clay_ElementId id = CLAY_IDI("cartao", (uint32_t)m);
-	if (gv_tocado(id) && a > 0.5f) {
+	if (gv_tocado(id) && a > 0.5f && !confirmando) {
 		*tocado_algum = true;
 		pedir_confirmar(m);
 	}
@@ -127,12 +149,12 @@ static void cartao(int m, float pos, float largura, bool *tocado_algum) {
 	}
 	CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 14, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } },
 		.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .zIndex = 30 - (int16_t)(ad * 10),
-			.attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_CENTER, .parent = CLAY_ATTACH_POINT_CENTER_CENTER }, .offset = { d * largura * 0.92f, 0 } } }) {
+			.attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_CENTER, .parent = CLAY_ATTACH_POINT_CENTER_CENTER }, .offset = { d * largura * 0.92f * (cresce ? 1.0f - e : 1.0f), desloc_y } } }) {
 		/* o brilho de fora e a borda: só o do centro acende */
-		CLAY_AUTO_ID({ .layout = { .padding = CLAY_PADDING_ALL(6) }, .backgroundColor = mult(gv_t.acento, 0.20f * centro * a),
-			.cornerRadius = CLAY_CORNER_RADIUS(h * 0.1f + 6) }) {
-			CLAY_AUTO_ID({ .layout = { .padding = CLAY_PADDING_ALL(3) }, .backgroundColor = mult(gv_t.borda, a * (1.0f - centro)),
-				.cornerRadius = CLAY_CORNER_RADIUS(h * 0.1f), .border = { .color = mult(gv_t.acento, a * centro), .width = GV_BORDA(2) } }) {
+		CLAY_AUTO_ID({ .layout = { .padding = CLAY_PADDING_ALL((uint16_t)(6.0f * resto)) }, .backgroundColor = mult(gv_t.acento, 0.20f * centro * a * resto),
+			.cornerRadius = CLAY_CORNER_RADIUS((h * 0.1f + 6) * resto) }) {
+			CLAY_AUTO_ID({ .layout = { .padding = CLAY_PADDING_ALL((uint16_t)(3.0f * resto)) }, .backgroundColor = mult(gv_t.borda, a * (1.0f - centro)),
+				.cornerRadius = CLAY_CORNER_RADIUS(h * 0.1f * resto), .border = { .color = mult(gv_t.acento, a * centro), .width = GV_BORDA(2.0f * resto) } }) {
 				miniatura(m, w, h, a, centro > 0.5f);
 			}
 		}
@@ -141,13 +163,13 @@ static void cartao(int m, float pos, float largura, bool *tocado_algum) {
 			.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .zIndex = 30 - (int16_t)(ad * 10), .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
 				.attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_TOP, .parent = CLAY_ATTACH_POINT_CENTER_BOTTOM }, .offset = { 0, 14 } } }) {
 			CLAY_AUTO_ID({ .layout = { .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-				gv_icone(modos_icone(m), 22.0f + 8.0f * centro, mult(centro > 0.5f ? gv_t.acento : gv_t.icone, a));
-				gv_texto(gv_str(modos_nome(m)), 17.0f + 7.0f * centro, mult(centro > 0.5f ? gv_t.texto : gv_t.texto_secundario, a), centro > 0.5f ? GV_PESO_MEDIO : GV_PESO_NORMAL);
+				gv_icone(modos_icone(m), 22.0f + 8.0f * centro, mult(centro > 0.5f ? gv_t.acento : gv_t.icone, a * texto));
+				gv_texto(gv_str(modos_nome(m)), 17.0f + 7.0f * centro, mult(centro > 0.5f ? gv_t.texto : gv_t.texto_secundario, a * texto), centro > 0.5f ? GV_PESO_MEDIO : GV_PESO_NORMAL);
 			}
 			if (centro > 0.6f) {
-				gv_texto(gv_str(modos_descricao(m)), gv_t.tamanho_corpo - 1, mult(gv_t.texto_suave, centro * a), GV_PESO_NORMAL);
+				gv_texto(gv_str(modos_descricao(m)), gv_t.tamanho_corpo - 1, mult(gv_t.texto_suave, centro * a * texto), GV_PESO_NORMAL);
 				if (m == atual) {
-					gv_texto(CLAY_STRING("Modo atual desta tela"), gv_t.tamanho_corpo - 2, mult(gv_t.acento, centro * a), GV_PESO_MEDIO);
+					gv_texto(CLAY_STRING("Modo atual desta tela"), gv_t.tamanho_corpo - 2, mult(gv_t.acento, centro * a * texto), GV_PESO_MEDIO);
 				}
 			}
 		}
@@ -160,44 +182,52 @@ static void desenhar(gv_app *app, void *dados) {
 		iniciado = true;
 		gv_anim(CHAVE_FUNDO, 0.0f, 0); /* nasce transparente e acende */
 		gv_anim(CHAVE_POS, (float)virtual_i, 0);
+		gv_anim(CHAVE_EXP, 0.0f, 0);
 	}
 	float fundo = gv_anim(CHAVE_FUNDO, fechando ? 0.0f : 1.0f, fechando ? 140 : 180);
-	if (fechando && fundo < 0.02f) {
+	float e = gv_anim(CHAVE_EXP, confirmando ? 1.0f : 0.0f, 360); /* 0 a 1: o quanto o cartão escolhido já cresceu */
+	if ((fechando && fundo < 0.02f) || (confirmando && e > 0.995f)) {
 		gv_app_sair(app);
 		return;
 	}
+	/* crescendo, na segunda metade tudo esmaece e deixa ver o modo novo, que o Orbit já pôs atrás */
+	float s = e < 0.6f ? 0.0f : fminf(1.0f, (e - 0.6f) / 0.4f);
+	galfa = fundo * (1.0f - s * s * (3.0f - 2.0f * s));
 	float pos = gv_anim(CHAVE_POS, (float)virtual_i, 280);
 	Clay_BoundingBox caixa = gv_caixa(CLAY_ID("raiz"));
-	float largura_tela = caixa.width > 100 ? caixa.width : 1280;
-	float largura = fminf(largura_tela * 0.34f, 640.0f);
+	Clay_BoundingBox palco = gv_caixa(CLAY_ID("palco"));
+	float tela_w = caixa.width > 100 ? caixa.width : 1280, tela_h = caixa.height > 100 ? caixa.height : 720;
+	float largura = fminf(tela_w * 0.34f, 640.0f);
+	float dy = palco.height > 0 ? (tela_h / 2.0f) - (palco.y - caixa.y + palco.height / 2.0f) : 0.0f;
+	float resto = fmaxf(0.0f, 1.0f - 3.0f * e); /* o título e as teclas somem logo que o cartão começa a crescer */
 	bool sobre_cartao = false;
 	CLAY(CLAY_ID("raiz"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
 			.padding = { 40, 40, 36, 30 }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } },
-		.backgroundColor = mult((Clay_Color){ 8, 6, 18, 255 }, 0.82f * fundo) }) {
+		.backgroundColor = mult((Clay_Color){ 7, 6, 16, 255 }, 1.0f) }) { /* o fundo é do carrossel: opaco, cobre a barra, a dock e o modo de trás */
 		/* em cima: o título e a hora */
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 6, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } } }) {
 			CLAY_AUTO_ID({ .layout = { .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-				gv_icone("grid", 22, mult(gv_t.acento, fundo));
-				gv_texto(CLAY_STRING("Workspaces"), 22, mult(gv_t.texto, fundo), GV_PESO_MEDIO);
+				gv_icone("grid", 22, mult(gv_t.acento, resto));
+				gv_texto(CLAY_STRING("Workspaces"), 22, mult(gv_t.texto, resto), GV_PESO_MEDIO);
 			}
 			char hora[16];
 			time_t t = time(NULL);
 			struct tm tm;
 			localtime_r(&t, &tm);
 			strftime(hora, sizeof(hora), "%H:%M", &tm);
-			gv_texto(gv_str(hora), gv_t.tamanho_corpo, mult(gv_t.texto_suave, fundo), GV_PESO_NORMAL);
+			gv_texto(gv_str(hora), gv_t.tamanho_corpo, mult(gv_t.texto_suave, resto), GV_PESO_NORMAL);
 			gv_acordar_em(20.0);
 		}
 		/* o palco: os cartões flutuam em volta do centro dele */
 		CLAY(CLAY_ID("palco"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 			for (int m = 0; m < MODO_N; m++) {
-				cartao(m, pos, largura, &sobre_cartao);
+				cartao(m, pos, largura, &sobre_cartao, e, tela_w, tela_h, dy);
 			}
 		}
 		/* embaixo: as teclas */
-		gv_texto(CLAY_STRING("Tab ou ← →  gira     Soltar o Super  traz o modo     Esc  cancela"), gv_t.tamanho_corpo - 1, mult(gv_t.texto_suave, 0.8f * fundo), GV_PESO_NORMAL);
+		gv_texto(CLAY_STRING("Tab ou ← →  gira     Soltar o Super  traz o modo     Esc  cancela"), gv_t.tamanho_corpo - 1, mult(gv_t.texto_suave, 0.8f * resto), GV_PESO_NORMAL);
 	}
-	if (!fechando && gv_tocado(CLAY_ID("raiz")) && !sobre_cartao) {
+	if (!fechando && !confirmando && gv_tocado(CLAY_ID("raiz")) && !sobre_cartao) {
 		char r[64];
 		orbit_pedido("carrossel cancelar", r, sizeof(r)); /* um clique fora dos cartões cancela */
 	}
@@ -212,7 +242,7 @@ int main(void) {
 	}
 	virtual_i = alvo;
 	gv_app *app = gv_app_criar(&(gv_opcoes){ .titulo = "Workspaces", .app_id = "lumna-carrossel", .tipo = GV_CAMADA, .nivel = GV_NIVEL_OVERLAY,
-		.ancoras = GV_ANCORA_TUDO, .largura = 0, .altura = 0, .saida = saida[0] ? saida : NULL });
+		.ancoras = GV_ANCORA_TUDO, .zona_exclusiva = -1 /* por cima da barra e da dock */, .largura = 0, .altura = 0, .saida = saida[0] ? saida : NULL });
 	if (!app) {
 		return 1;
 	}

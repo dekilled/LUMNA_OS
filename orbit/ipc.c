@@ -255,7 +255,8 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			put_str(b, layer->surface->namespace ? layer->surface->namespace : "");
 			put(b, ",\"saida\":");
 			put_str(b, layer->surface->output ? layer->surface->output->name : "");
-			put(b, ",\"nivel\":\"%s\",\"mapeada\":%s,\"visivel\":%s}", nivel >= 0 && nivel < 4 ? niveis[nivel] : "?", mapeada ? "true" : "false", visivel ? "true" : "false");
+			put(b, ",\"nivel\":\"%s\",\"mapeada\":%s,\"visivel\":%s,\"largura\":%d,\"altura\":%d}", nivel >= 0 && nivel < 4 ? niveis[nivel] : "?", mapeada ? "true" : "false",
+				visivel ? "true" : "false", layer->surface->surface ? layer->surface->surface->current.width : 0, layer->surface->surface ? layer->surface->surface->current.height : 0);
 			first = false;
 		}
 		put(b, "]}");
@@ -508,7 +509,8 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		}
 		put(b, "{\"ok\":true,\"aberto\":%s,\"saida\":", server->carousel_open ? "true" : "false");
 		put_str(b, server->carousel_output);
-		put(b, ",\"alvo\":\"%s\"}", orbit_mode_name(server->carousel_target));
+		put(b, ",\"alvo\":\"%s\",\"fim\":\"%s\",\"deslizes\":%d}", orbit_mode_name(server->carousel_target),
+			server->carousel_end == 1 ? "confirmado" : server->carousel_end == 2 ? "cancelado" : "", server->slide_count); /* deslizes: só para os testes */
 	} else if (!strcmp(cmd, "ocioso")) {
 		/* quem segura o idle (vídeo tocando pelo idle-inhibit do Wayland); o D-Bus (Firefox, VLC) é do lumna-ocioso */
 		char lista[1024];

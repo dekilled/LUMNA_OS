@@ -616,6 +616,9 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.468e | Super+Tab, Tab, depois **Esc**; e Super+Tab, depois clicar num cartão; e clicar fora dos cartões | Esc e clique fora cancelam (modo igual); o clique no cartão troca na hora | ☐ |
 | 2.468f | Carrossel numa tela em Gaming (com jogo) e em Mídia; com dois monitores | Aparece sobre o jogo/vídeo na tela do cursor; a outra tela não é tocada; confirmar troca só a tela do cursor | ☐ |
 | 2.468g | Voltar para *Rápida* no Painel e usar Super+Tab | Volta ao comportamento de antes, sem reiniciar nada | ☐ |
+| 2.468h | Abrir o carrossel com a barra e a dock na tela | O carrossel cobre a **tela inteira** (barra e dock não aparecem por baixo), com fundo escuro próprio; sem faixa vazia embaixo | ☐ |
+| 2.468i | Confirmar um modo (soltar o Super) | O modo troca **sem deslizar por trás**: o cartão escolhido **cresce do centro até a tela** e esmaece mostrando o modo novo; o nome e os vizinhos somem rápido; **o seletor antigo não aparece** depois | ☐ |
+| 2.468j | Clicar num cartão lateral para confirmar, e cancelar com Esc | Clique: o cartão vem para o centro e cresce; Esc: só esmaece, nada troca | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |
