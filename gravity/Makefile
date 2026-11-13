@@ -81,8 +81,8 @@ painel: $(PAINEL) exemplos/painel/painel.h servicos/papelini.h servicos/entrar.h
 apps: exemplos/apps.c servicos/desktopenv.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos -o $@ $< libgravity.a $(LDLIBS)
 
-papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c libgravity.a $(LDLIBS)
+papel: exemplos/papel.c servicos/papelini.c servicos/papelini.h servicos/modos.c servicos/modos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos -o $@ exemplos/papel.c servicos/papelini.c servicos/modos.c libgravity.a $(LDLIBS)
 
 barra: exemplos/barra.c servicos/mpris.c servicos/mpris.h servicos/bateria.c servicos/bateria.h servicos/emmac.c servicos/emmac.h servicos/emma_ativa.c servicos/emma_ativa.h servicos/json.c servicos/json.h servicos/hora.c servicos/hora.h servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c servicos/bandeja.h servicos/modos.h servicos/rede.h servicos/bluetooth.h servicos/som.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags gio-2.0 libpulse) -o $@ exemplos/barra.c servicos/mpris.c servicos/bateria.c servicos/emmac.c servicos/emma_ativa.c servicos/json.c servicos/hora.c servicos/rede.c servicos/bluetooth.c servicos/som.c servicos/bandeja.c servicos/modos.c \

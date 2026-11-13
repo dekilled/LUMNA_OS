@@ -29,8 +29,9 @@ principal. É um serviço Gravity que roda na camada de fundo, logo acima do pap
 
 ## Como se encaixa
 
-- Sobe depois do `lumna-papel` na sessão (mesmo nível: quem nasce depois fica por cima e recebe o clique). Sem a espera, o papel de parede engoliria os cliques;
-  por isso o serviço espera 0,9 s ao iniciar (`LUMNA_DESKTOP_SEM_ESPERA=1` pula, só em teste).
+- Fica no mesmo nível do papel de parede (o fundo), e **o Orbit o mantém sempre por cima do papel** (`orbit_layers_sync_hidden`), não importa quem nasceu
+  primeiro. Antes valia a ordem de criação (com uma espera de 0,9 s ao iniciar): no PC do Eric o papel nascia depois e engolia os cliques, e o menu que
+  aparecia era o do papel de parede, sem Nova pasta.
 - Só na tela principal. Nas telas de Gaming e Mídia ele some junto com o resto do desktop (camada de fundo).
 - O menu do vazio do papel de parede continua existindo nas outras telas.
 

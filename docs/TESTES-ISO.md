@@ -601,6 +601,9 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.462 | Parear o celular no Connect digitando **5 códigos errados** e depois o certo | O certo também é recusado (o pareamento fecha); abrir o pareamento de novo dá um código novo que funciona | ☐ |
 | 2.463 | Painel > Modos | Não há mais "Esconder a dock" no Gaming e na Mídia (a dock nunca aparece nessas telas); o "Não perturbe" segue lá | ☐ |
 | 2.464 | Jogando na TV (Gaming, "Não perturbe" ligado) com o mouse no outro monitor, receber uma notificação comum | Não aparece no canto (só as urgentes), esteja o mouse onde estiver | ☐ |
+| 2.465 | Dois monitores, Painel > Papel de parede com **uma imagem por tela**. Pôr a TV na **Mídia** (ou no Gaming) e voltar | O papel do monitor que ficou no Desktop **não muda**; ao voltar, cada tela continua com a imagem dela (antes as duas caíam na mesma imagem) | ☐ |
+| 2.466 | Botão direito num lugar vazio da área de trabalho, **na tela principal** | O menu começa por **Nova pasta** e **Novo documento** (antes aparecia o menu do papel de parede, sem elas). Nas outras telas o menu é o do papel de parede: os ícones ficam só na principal | ☐ |
+| 2.467 | Criar uma pasta pelo menu, pôr um arquivo em `~/Desktop`, clicar, arrastar, duplo clique | Os ícones respondem (os itens 2.432 a 2.444 agora dão para testar) | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

@@ -1157,10 +1157,7 @@ int main(void) {
 	g_mkdir_with_parents(pasta_desktop, 0755);
 	lugares_ler();
 	ar_op_conflito_padrao(AR_C_MANTER_AMBOS);
-	/* sobe depois do papel de parede (que é do mesmo nível e ficaria por cima, engolindo os cliques): a ordem de criação decide */
-	if (!getenv("LUMNA_DESKTOP_SEM_ESPERA")) {
-		g_usleep(900 * 1000);
-	}
+	/* (o Orbit mantém esta camada por cima do papel de parede, que é do mesmo nível: não depende de quem nasce primeiro) */
 	app = gv_app_criar(&(gv_opcoes){ .titulo = "Área de trabalho", .app_id = "lumna-desktop", .tipo = GV_CAMADA, .nivel = GV_NIVEL_FUNDO, .ancoras = GV_ANCORA_TUDO,
 		.zona_exclusiva = 0, .teclado = true, .saida = "@principal" });
 	if (!app) {

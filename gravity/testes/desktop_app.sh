@@ -3,7 +3,7 @@
 orbit_dir=${1:?}
 aqui=$(cd "$(dirname "$0")" && pwd); gravity=$(dirname "$aqui")
 run=$(mktemp -d); chmod 700 "$run"
-export XDG_RUNTIME_DIR=$run HOME=$run WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 LUMNA_DESKTOP_DEBUG=1 LUMNA_DESKTOP_SEM_ESPERA=1
+export XDG_RUNTIME_DIR=$run HOME=$run WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 LUMNA_DESKTOP_DEBUG=1
 unset XDG_CONFIG_HOME XDG_DATA_HOME
 mkdir -p "$run/Desktop/Projetos" "$run/Desktop/Fotos" "$run/bin"
 printf oi > "$run/Desktop/nota.txt"; printf x > "$run/Desktop/relatorio.pdf"; printf x > "$run/Desktop/um arquivo com um nome bem comprido que quebra.png"

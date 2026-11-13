@@ -42,6 +42,12 @@ Desktop, Gaming e Mídia são um componente só (`orbit/mode.c`). O que vale par
 - **Uma ilha nunca fica vazia:** fechou a última janela, a tela do modo volta (a biblioteca no Gaming, o Início na Mídia; no máximo uma vez a cada 5 s).
   Quem abre a biblioteca do Gaming é só o Orbit (`orbit_mode_ensure_shell`): ao entrar no Gaming, quando ele fica vazio e quando ele pula de tela.
 
+## O papel de parede segue o modo de cada tela
+
+O `lumna-papel` de cada tela pergunta ao Orbit o modo **daquela** tela e ouve as trocas (`servicos/modos.c`). O arquivo `~/.config/lumna/modo` guarda só
+a última troca feita em qualquer tela (é do tempo em que o modo era um só): usá-lo fazia o papel de todas as telas seguir a última troca, e as imagens
+"por tela" do Desktop deixavam de valer quando uma tela ia para a Mídia ou o Gaming. Teste: `gravity/testes/papel_telas.sh`.
+
 ## Onde abre uma janela nova
 
 1. **Jogo** vai para a tela do Gaming (veja "O que é um jogo"), e o mesmo vale para a biblioteca, a Steam, o Lutris e o Heroic.

@@ -76,6 +76,12 @@ static bool layer_hidden(struct orbit_layer *layer) {
 void orbit_layers_sync_hidden(struct orbit_server *server) {
 	struct orbit_layer *layer;
 	wl_list_for_each(layer, &server->layers, link) {
+		/* a área de trabalho (os ícones) fica sempre por cima das outras camadas do nível dela, o papel de parede: sem isto valia a ordem em que
+		 * nasceram, e o papel (que demora a carregar a imagem, ou renasce ao trocar de monitor) ficava por cima e engolia os cliques */
+		if (layer->holder && layer->surface && layer->surface->namespace && !strcmp(layer->surface->namespace, "lumna-desktop") &&
+			layer->holder->node.parent && layer->holder->node.link.next != &layer->holder->node.parent->children) {
+			wlr_scene_node_raise_to_top(&layer->holder->node);
+		}
 		if (layer->holder) {
 			bool hide = layer_hidden(layer);
 			if (layer->holder->node.enabled == hide) {

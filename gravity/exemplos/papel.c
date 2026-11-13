@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "gravity.h"
+#include "modos.h"
 #include "papelini.h"
 
 #define MAX_FILHAS 8
@@ -60,6 +61,20 @@ static int indice_tela(void) {
 	return 0;
 }
 
+/* o modo DESTA tela (cada tela tem o seu: a TV na Mídia não muda o papel do monitor que segue no Desktop). O arquivo ~/.config/lumna/modo
+ * guarda só o último modo trocado em qualquer tela: com ele, todas as telas seguiam a última troca e os papéis "por tela" do Desktop
+ * deixavam de valer. Só se o Orbit não responde é que vale o arquivo. */
+static const char *modo_desta_tela(void) {
+	struct modos_estado e;
+	if (modos_ler(&e) && e.orbit) {
+		int m = modos_da_saida(&e, esta_tela());
+		if (m >= 0) {
+			return modos_id(m);
+		}
+	}
+	return papel_modo_atual();
+}
+
 /* decide a imagem desta tela agora */
 static void escolher(void) {
 	if (forcada[0]) {
@@ -70,11 +85,15 @@ static void escolher(void) {
 	struct papel_cfg cfg;
 	papel_ler(&cfg);
 	/* a principal vale pelo papel, não pelo monitor: o que se pôs para "Tela principal" segue a tela marcada como principal */
-	const struct papel_item *it = minha_saida ? papel_para(&cfg, papel_modo_atual(), minha_saida)
-		: papel_para2(&cfg, papel_modo_atual(), "@principal", esta_tela());
+	const char *modo = modo_desta_tela();
+	const struct papel_item *it = minha_saida ? papel_para(&cfg, modo, minha_saida) : papel_para2(&cfg, modo, "@principal", esta_tela());
 	snprintf(imagem, sizeof(imagem), "%s", it && access(it->imagem, R_OK) == 0 ? it->imagem : papel_padrao());
 	ajuste = it ? it->ajuste : PAPEL_PREENCHER;
 	proxima_troca = 0;
+	if (getenv("LUMNA_PAPEL_DEBUG")) { /* para os testes: o que esta tela escolheu */
+		printf("papel tela=%s modo=%s imagem=%s\n", esta_tela(), modo, imagem);
+		fflush(stdout);
+	}
 	if (cfg.trocar) {
 		/* todas as telas pela mesma conta do relógio: trocam juntas; com um por tela, cada uma
 		 * vai numa imagem diferente da coleção */
@@ -97,6 +116,18 @@ static void mudou(gv_app *app, int fd, void *dados) {
 	}
 	escolher();
 	gv_app_redesenhar(app);
+}
+
+/* o Orbit trocou o modo de alguma tela: se foi o desta, o papel é outro */
+static void modo_mudou(gv_app *app, int fd, void *dados) {
+	modos_assinar_ler(fd);
+	char antes[sizeof(imagem)];
+	snprintf(antes, sizeof(antes), "%s", imagem);
+	int ajuste_antes = ajuste;
+	escolher();
+	if (strcmp(antes, imagem) || ajuste_antes != ajuste) {
+		gv_app_redesenhar(app);
+	}
 }
 
 /* ---- um papel por tela (o da principal abre os outros) ---- */
@@ -254,5 +285,9 @@ int main(int argc, char **argv) {
 		gv_app_vigiar(app, fd, mudou, NULL);
 	}
 	g_free(pasta);
+	int fd_modos = modos_assinar();
+	if (fd_modos >= 0) {
+		gv_app_vigiar(app, fd_modos, modo_mudou, NULL);
+	}
 	return gv_app_correr(app, desenhar, NULL);
 }
