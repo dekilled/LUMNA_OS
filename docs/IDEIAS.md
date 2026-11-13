@@ -6,7 +6,7 @@ Regras de sempre: perguntar antes de decisão estrutural; app novo começa por e
 
 ## Em andamento
 
-- **Menu de contexto de arquivos** (Atlas e área de trabalho): "Abrir com…", "Abrir local do arquivo", "Enviar para" com sublista (Área de trabalho, Documentos, E-mail, provedores de nuvem já conectados, pastas compartilhadas da rede) e, no Connect, um botão "Enviar para dispositivo…" com os aparelhos conectados.
+- **Menu de contexto de arquivos**: feito no Atlas e na área de trabalho (Abrir com…, Abrir local do arquivo, Enviar para com Área de trabalho, Documentos, E-mail, nuvens e redes conectadas, e Enviar para dispositivo…). Falta o Eric testar no PC (itens 2.469). Pendente: Enviar para na Galeria e no menu de outros apps; o Atlas ainda tem a própria cópia da lista de celulares (pode usar `env_celulares`).
 - **Cliente de e-mail do LUMNA** (algo como o Thunderbird: várias contas, receber e enviar). Primeiro para Linux; depois Windows; o Eric também quer usá-lo fora do LUMNA. Precisa de esboço antes de codar. Até lá, o "Enviar para > E-mail" usa o cliente que estiver instalado (mailto).
 - **Fone Bluetooth** que conectava sozinho ao ligar o PC e parou: o `bluetooth.service` não era ligado pela ISO nem pela sessão (corrigido em `iso/build.sh` e `lumna-session.install`); falta o Eric confirmar no PC.
 

@@ -37,6 +37,7 @@
 #include "arquivos_op.h"
 #include "arquivos_prop.h"
 #include "arquivos_rede.h"
+#include "enviar.h"
 #include "connectc.h"
 #include "gravity.h"
 #include "json.h"
@@ -141,6 +142,7 @@ static int cont_filtros[6];
 #define ID_CONTEUDO CLAY_ID("conteudo")
 
 static void avisar(const char *formato, ...) __attribute__((format(printf, 1, 2)));
+static void enviar_para_itens(bool so_arquivos); /* o conteúdo do submenu "Enviar para" (adiante, onde a rede e a nuvem são conhecidas) */
 static void avisar(const char *formato, ...) {
 	va_list ap;
 	va_start(ap, formato);
@@ -2966,7 +2968,7 @@ static void separador(const char *nome, uint32_t i) {
 /* ---- submenus: abrem num popup ao lado do menu (o parâmetro .pai liga os dois) ---- */
 
 /* os submenus do menu de um item e os do menu do espaço vazio (ids diferentes: um menu fechado não pode fechar o submenu do outro) */
-static const char *const SUBMENUS_ITEM[] = { "sub-cor", "sub-icone", "sub-fixar", "sub-compart", NULL };
+static const char *const SUBMENUS_ITEM[] = { "sub-cor", "sub-icone", "sub-fixar", "sub-compart", "sub-enviar", NULL };
 static const char *const SUBMENUS_FUNDO[] = { "sub-cor-f", "sub-icone-f", "sub-ordem", NULL };
 static Clay_ElementId id_de(const char *nome) {
 	Clay_String cs = { .chars = nome, .length = (int)strlen(nome) };
@@ -3162,9 +3164,13 @@ static void menu_do_item(void) {
 			so_arquivos = false;
 		}
 	}
+	linha_submenu(CLAY_ID("mi-enviar"), "send", "Enviar para", "sub-enviar", SUBMENUS_ITEM);
+	GV_POPUP(CLAY_ID("sub-enviar"), CLAY_ID("mi-enviar"), .pai = CLAY_ID("menu-item"), .lado = GV_POPUP_DIREITA, .largura = 300, .distancia = 4) {
+		enviar_para_itens(so_arquivos);
+	}
 	if (so_arquivos) {
 		bool abrindo = !gv_popup_aberto(CLAY_ID("sub-compart"));
-		linha_submenu(CLAY_ID("mi-compart"), "share", "Compartilhar", "sub-compart", SUBMENUS_ITEM);
+		linha_submenu(CLAY_ID("mi-compart"), "phone", "Enviar para dispositivo…", "sub-compart", SUBMENUS_ITEM);
 		if (abrindo && gv_popup_aberto(CLAY_ID("sub-compart"))) {
 			celulares_ler();
 		}
@@ -5555,6 +5561,65 @@ static void rede_atualizar_montados(void) {
 	rede_montado_em = gv_agora();
 }
 
+/* ---- Enviar para: Área de trabalho, Documentos, e-mail, as contas na nuvem e os compartilhamentos de rede conectados (servicos/enviar.c) ---- */
+
+static void enviar_copiar_para(const env_destino *d) {
+	GPtrArray *v = caminhos_selecionados();
+	if (!v->len || !env_preparar(d)) {
+		avisar("Não deu para enviar para %s", d->rotulo);
+	} else {
+		iniciar_op(AR_OP_COPIAR, v, d->caminho);
+	}
+	g_ptr_array_free(v, TRUE);
+}
+
+static void enviar_por_email(void) {
+	GPtrArray *v = caminhos_selecionados();
+	if (v->len && !env_email((const char *const *)v->pdata, (int)v->len)) {
+		avisar("Não deu para abrir o e-mail: não há um cliente de e-mail instalado");
+	}
+	g_ptr_array_free(v, TRUE);
+}
+
+static void enviar_item_email(void) {
+	if (gv_menu_item(CLAY_ID("ev-email"), "mail", "E-mail", NULL)) {
+		enviar_por_email();
+		FECHAR_MENU();
+	}
+}
+
+static void enviar_para_itens(bool so_arquivos) {
+	env_destino d[ENV_MAX];
+	int n = env_destinos(d, ENV_MAX);
+	int fora = 0, k_nuvem = 0, k_rede = 0; /* fora: quantos são nuvem ou rede; os outros, a ordem de cada tipo (os ids dos testes) */
+	bool email = !so_arquivos; /* o E-mail entra depois dos locais da máquina (e só para arquivos, pastas não anexam) */
+	for (int i = 0; i < n; i++) {
+		if (d[i].tipo != ENV_LOCAL) {
+			if (!email) {
+				enviar_item_email();
+				email = true;
+			}
+			if (!fora++) {
+				separador("ev-sep", 0);
+			}
+		}
+		const char *icone = d[i].tipo == ENV_NUVEM ? "cloud" : d[i].tipo == ENV_REDE ? "network" : i == 0 ? "desktop" : "file";
+		const char *dica = d[i].tipo == ENV_NUVEM ? "nuvem" : d[i].tipo == ENV_REDE ? "rede" : NULL;
+		Clay_ElementId id = d[i].tipo == ENV_NUVEM ? CLAY_IDI("ev-nuvem", (uint32_t)k_nuvem++) : d[i].tipo == ENV_REDE ? CLAY_IDI("ev-rede", (uint32_t)k_rede++) :
+			i == 0 ? CLAY_ID("ev-desktop") : CLAY_ID("ev-docs");
+		if (gv_menu_item(id, icone, gv_fmt("%s", d[i].rotulo).chars, dica)) {
+			enviar_copiar_para(&d[i]);
+			FECHAR_MENU();
+		}
+	}
+	if (!email) {
+		enviar_item_email();
+	}
+	if (!fora) {
+		gv_menu_item(CLAY_ID("ev-nada"), "info", "Nenhuma nuvem ou rede conectada", NULL);
+	}
+}
+
 static void rede_salvar(void) {
 	ar_rede_gravar(&rede);
 }
@@ -6501,7 +6566,7 @@ static void debug_posicoes(void) {
 		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "esc-cancelar", "esc-ok", "esc-nome", "esc-filtro", "esc-sub-sim", "esc-sub-nao", "mi-abrir", "mi-abrir-com", "ac-todos", "ac-sempre", "ac-ok", "ac-cancelar", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
 		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "l-lixeira", "l-rede", "ml-abrir", "ml-aba", "ml-janela", "ml-esvaziar", "ml-esconder", "ml-remover", "ml-personalizar", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
-		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
+		"mi-renomear", "mi-fixar", "mi-fix-espacos", "mi-fix-colecoes", "mi-fix-favoritos", "mi-compart", "mi-enviar", "ev-desktop", "ev-docs", "ev-email", "ev-nada", "mi-cel-nenhum", "mi-compactar", "mi-extrair", "mi-caminho",
 		"mi-terminal", "mi-lixeira", "mi-cor", "mi-icone", "mf-cor", "mf-icone", "sub-ic-nenhum", "mf-ordenar", "mf-ord/0", "mf-git", "mf-props", "cl-url", "cl-ok", "cl-cancelar", "cfg-aplicar", "cfg-cancelar", "cfg-voltar", "cfg-restaurar", "ex-r1", "ex-r2", "ex-tam-sl", "cfg-corpo", "mf-arquivo", "mf-colar", "mf-tudo", "mf-caminho", "mf-terminal", "mf-esvaziar", "renome", NULL };
 	for (int i = 0; FIXOS[i]; i++) {
 		g_ptr_array_add(nomes, g_strdup(FIXOS[i]));
@@ -6513,7 +6578,7 @@ static void debug_posicoes(void) {
 		Clay_String cs = { .chars = "filtro", .length = 6 };
 		g_ptr_array_add(ids, GUINT_TO_POINTER(Clay__HashStringWithOffset(cs, (uint32_t)i, 0).id));
 	}
-	static const struct { const char *base; int n; } SERIES[] = { { "ac-app", 12 }, { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "in-disco", 4 }, { "in-unid", 4 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
+	static const struct { const char *base; int n; } SERIES[] = { { "ac-app", 12 }, { "ev-nuvem", 4 }, { "ev-rede", 8 }, { "mf-ord", 4 }, { "l-it", 16 }, { "cel-mais", 24 }, { "lin-mais", 24 }, { "rd-share", 8 }, { "rd-mais", 8 }, { "rd-conta", 4 }, { "rd-conta-mais", 4 }, { "rd-cartao", 8 }, { "cx-opcao", 4 }, { "pr-aba", 4 }, { "pr-nivel", 3 }, { "sub-cor-i", 9 }, { "sub-ic", 16 }, { "aba", 12 }, { "aba-x", 12 }, { "in-cartao", 16 }, { "in-disco", 4 }, { "in-unid", 4 }, { "ex-modo", 3 }, { "cfg-pg", 5 },
 		{ "bl-vis", 20 }, { "bl-up", 20 }, { "bl-dn", 20 }, { "bl-edit", 20 }, { "bl-add", 2 }, { "bl-rm", 20 }, { "pi-pi", 20 } };
 	for (size_t k = 0; k < sizeof(SERIES) / sizeof(SERIES[0]); k++) {
 		for (int i = 0; i < SERIES[k].n; i++) {

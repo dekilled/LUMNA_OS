@@ -64,3 +64,12 @@ depois de criar uma pasta.
 - Não tem os ícones de sistema (Pasta pessoal, Lixeira, Computador), nem **Propriedades**, nem miniatura de imagem, nem ordenar/organizar por nome/tipo/data, nem
   tamanho de ícone ajustável, nem arrastar para a lixeira. O ícone de um `.desktop` é a folha com "APP", não o ícone do aplicativo.
 - Navegar por setas entre ícones.
+
+
+## Menu de um ícone
+
+Botão direito num ícone: **Abrir**, **Abrir com…** (os aplicativos do tipo do arquivo; não aparece em pastas nem em atalhos), **Abrir local do arquivo** (chama `lumna-atlas ARQUIVO`, que abre a pasta com ele selecionado), Copiar, Recortar, Renomear, **Enviar para**, **Enviar para dispositivo…** (só arquivos) e Lixeira.
+
+**Enviar para** mostra a Área de trabalho, Documentos, **E-mail** (só arquivos; o cliente do sistema pelo `xdg-email`, com os arquivos anexados), as contas na nuvem (copia para a pasta local da conta, que sobe na próxima sincronização) e as pastas de rede **conectadas** (a pasta montada pelo gvfs). A lista vem de `servicos/enviar.c`, o mesmo módulo do Atlas; é lida uma vez ao abrir o submenu. A cópia usa o mesmo caminho do colar (com progresso e conflito "manter os dois").
+
+Teste: `gravity/testes/desktop_menu.sh`.

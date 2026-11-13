@@ -210,8 +210,8 @@ jogos: exemplos/jogos.c servicos/jogos.c servicos/jogos.h servicos/json.c servic
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 gio-2.0 sqlite3) -o $@ exemplos/jogos.c servicos/jogos.c servicos/json.c servicos/modos.c servicos/gamepad.c servicos/gamepadc.c servicos/bluetooth.c servicos/loja_steam.c servicos/loja_gog.c servicos/loja_epic.c libgravity.a $(LDLIBS) $(shell pkg-config --libs glib-2.0 gio-2.0 sqlite3) -lpthread
 
 # o explorador de arquivos (lumna-atlas)
-atlas: exemplos/atlas.c servicos/aricone.c servicos/aricone.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ exemplos/atlas.c servicos/aricone.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm
+atlas: exemplos/atlas.c servicos/aricone.c servicos/aricone.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_cfg.c servicos/arquivos_cfg.h servicos/arquivos_prop.c servicos/arquivos_prop.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/enviar.c servicos/enviar.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_discos.c servicos/arquivos_discos.h servicos/armazenamento.c servicos/armazenamento.h servicos/connectc.c servicos/json.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-2.0 gdk-pixbuf-2.0) -o $@ exemplos/atlas.c servicos/aricone.c servicos/arquivos.c servicos/arquivos_cfg.c servicos/arquivos_prop.c servicos/arquivos_rede.c servicos/enviar.c servicos/arquivos_op.c servicos/arquivos_discos.c servicos/armazenamento.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0 gdk-pixbuf-2.0) -lm
 
 # a montagem automática de pendrives e discos externos (lumna-discos): só GIO, sem tela
 discos: exemplos/discos.c servicos/discos_cfg.c servicos/discos_cfg.h
@@ -277,8 +277,8 @@ signals: exemplos/signals.c servicos/sgbuffer.c servicos/sgbuffer.h servicos/sel
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo glib-2.0 gio-2.0) -o $@ exemplos/signals.c servicos/sgbuffer.c servicos/seletor.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-2.0) -lm
 
 # a área de trabalho (lumna-desktop): os ícones e pastas de ~/Desktop
-desktop: exemplos/desktop.c servicos/aricone.c servicos/aricone.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h libgravity.a
-	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-unix-2.0) -o $@ exemplos/desktop.c servicos/aricone.c servicos/arquivos.c servicos/arquivos_op.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-unix-2.0) -lm
+desktop: exemplos/desktop.c servicos/aricone.c servicos/aricone.h servicos/arquivos.c servicos/arquivos.h servicos/arquivos_op.c servicos/arquivos_op.h servicos/arquivos_rede.c servicos/arquivos_rede.h servicos/enviar.c servicos/enviar.h servicos/connectc.c servicos/json.c libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags pangocairo gio-unix-2.0) -o $@ exemplos/desktop.c servicos/aricone.c servicos/arquivos.c servicos/arquivos_op.c servicos/arquivos_rede.c servicos/enviar.c servicos/connectc.c servicos/json.c libgravity.a $(LDLIBS) $(shell pkg-config --libs pangocairo gio-unix-2.0) -lm
 
 # a calculadora-fita (lumna-calculadora): o motor (servicos/calc.c) e a janela
 calculadora: exemplos/calculadora.c servicos/calc.c servicos/calc.h libgravity.a

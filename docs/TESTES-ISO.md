@@ -616,6 +616,14 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.468e | Super+Tab, Tab, depois **Esc**; e Super+Tab, depois clicar num cartão; e clicar fora dos cartões | Esc e clique fora cancelam (modo igual); o clique no cartão troca na hora | ☐ |
 | 2.468f | Carrossel numa tela em Gaming (com jogo) e em Mídia; com dois monitores | Aparece sobre o jogo/vídeo na tela do cursor; a outra tela não é tocada; confirmar troca só a tela do cursor | ☐ |
 | 2.468g | Voltar para *Rápida* no Painel e usar Super+Tab | Volta ao comportamento de antes, sem reiniciar nada | ☐ |
+| 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
+| 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
+| 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |
+| 2.469d | Enviar para uma conta na nuvem e para uma pasta de rede conectada | O arquivo aparece lá (a nuvem sobe na próxima sincronização) | ☐ |
+| 2.469e | **Enviar para dispositivo…** com o celular conectado no Connect; e sem celular | Lista o celular e oferece o arquivo; sem celular diz "Nenhum dispositivo conectado" | ☐ |
+| 2.469f | No Atlas, botão direito num arquivo (e em busca/recentes) | Tem **Enviar para** (mesmos destinos) e **Enviar para dispositivo…** (era "Compartilhar"); em busca/recentes, **Mostrar na pasta** | ☐ |
+| 2.469g | Botão direito numa **pasta** (área de trabalho e Atlas) | Tem Enviar para (sem E-mail), sem Abrir com… e sem Enviar para dispositivo… | ☐ |
+| 2.470 | Reiniciar o PC com o fone Bluetooth ligado e pareado | O fone **conecta sozinho** (o `bluetooth.service` agora liga com o sistema). `systemctl is-enabled bluetooth` diz `enabled`; os botões do fone controlam a música | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

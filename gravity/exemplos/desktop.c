@@ -31,6 +31,7 @@
 #include "aricone.h"
 #include "arquivos.h"
 #include "arquivos_op.h"
+#include "enviar.h"
 #include "gravity.h"
 
 #define MIME_URIS "text/uri-list"
@@ -890,17 +891,100 @@ static void tratar_clique(int idx, Clay_ElementId id, bool *tocou) {
 
 /* ---- menus ---- */
 
+/* os submenus do menu de um ícone: abrem ao lado, num popup ligado ao menu (um abrir fecha os outros) */
+static const char *const SUBMENUS[] = { "dk-sub-com", "dk-sub-enviar", "dk-sub-disp", NULL };
+
+static Clay_ElementId id_de(const char *nome) {
+	Clay_String cs = { .chars = nome, .length = (int)strlen(nome) };
+	return (Clay_ElementId){ .id = Clay__HashString(cs, 0).id };
+}
+
+/* a linha que abre (ou fecha) um submenu; true quando acabou de abrir (para ler o que vai dentro uma vez só, não a cada quadro) */
+static bool linha_submenu(Clay_ElementId id, const char *icone, const char *texto, const char *sub) {
+	Clay_ElementId sid = id_de(sub);
+	bool aberto = gv_popup_aberto(sid);
+	if (gv_menu_item(id, icone, texto, aberto ? "‹" : "›")) {
+		for (int k = 0; SUBMENUS[k]; k++) {
+			gv_popup_fechar(id_de(SUBMENUS[k]));
+		}
+		if (!aberto) {
+			gv_popup_abrir(sid);
+			return true;
+		}
+	}
+	return false;
+}
+
+/* o que os submenus mostram, lido ao abrir */
+static env_destino env_lista[ENV_MAX];
+static int env_n;
+static env_celular env_cel[8];
+static int env_ncel;
+static GList *abrir_com_apps; /* os aplicativos do tipo do arquivo selecionado */
+
+static void abrir_com_ler(const char *caminho) {
+	g_list_free_full(abrir_com_apps, g_object_unref);
+	abrir_com_apps = NULL;
+	GFile *f = g_file_new_for_path(caminho);
+	GFileInfo *info = g_file_query_info(f, G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+	const char *tipo = info ? g_file_info_get_content_type(info) : NULL;
+	if (tipo) {
+		abrir_com_apps = g_app_info_get_all_for_type(tipo);
+	}
+	if (info) {
+		g_object_unref(info);
+	}
+	g_object_unref(f);
+}
+
+static void abrir_com_lancar(GAppInfo *app, const char *caminho) {
+	GFile *f = g_file_new_for_path(caminho);
+	GList *arquivos = g_list_append(NULL, f);
+	GError *err = NULL;
+	if (!g_app_info_launch(app, arquivos, NULL, &err)) {
+		avisar("Não consegui abrir com %s%s%s", g_app_info_get_display_name(app), err ? ": " : "", err ? err->message : "");
+		g_clear_error(&err);
+	}
+	g_list_free(arquivos);
+	g_object_unref(f);
+}
+
 static void menu_do_item(void) {
 	Clay_ElementId m = CLAY_ID("dk-menu-item");
 	GV_MENU_PONTEIRO(m) {
 		int n = quantos_selecionados();
-		if (n == 1) {
-			int idx = -1;
-			for (int i = 0; i < n_itens; i++) {
-				idx = itens[i].sel ? i : idx;
-			}
-			if (idx >= 0 && gv_menu_item(CLAY_ID("dk-m-abrir"), "folder", "Abrir", "Enter")) {
+		int idx = -1;
+		for (int i = 0; i < n_itens; i++) {
+			idx = itens[i].sel ? i : idx;
+		}
+		if (n == 1 && idx >= 0) {
+			if (gv_menu_item(CLAY_ID("dk-m-abrir"), "folder", "Abrir", "Enter")) {
 				abrir_item(idx);
+				gv_popup_fechar(m);
+			}
+			if (!itens[idx].e.pasta && !itens[idx].atalho) {
+				if (linha_submenu(CLAY_ID("dk-m-com"), "external", "Abrir com…", "dk-sub-com")) {
+					abrir_com_ler(itens[idx].caminho);
+				}
+				GV_POPUP(id_de("dk-sub-com"), CLAY_ID("dk-m-com"), .pai = m, .lado = GV_POPUP_DIREITA, .largura = 260, .distancia = 4) {
+					int k = 0;
+					for (GList *l = abrir_com_apps; l && k < 12; l = l->next, k++) {
+						GAppInfo *app = l->data;
+						if (gv_menu_item(CLAY_IDI("dk-ac", (uint32_t)k), "external", g_app_info_get_display_name(app), NULL)) {
+							abrir_com_lancar(app, itens[idx].caminho);
+							gv_popup_fechar(m);
+						}
+					}
+					if (!k) {
+						gv_menu_item(CLAY_ID("dk-ac-nada"), "info", "Nenhum aplicativo para este tipo", NULL);
+					}
+				}
+			}
+			if (gv_menu_item(CLAY_ID("dk-m-local"), "folder", "Abrir local do arquivo", NULL)) {
+				char *q = g_shell_quote(itens[idx].caminho), *cmd = g_strdup_printf("lumna-atlas %s", q); /* o Atlas abre a pasta com ele selecionado */
+				executar(cmd);
+				g_free(cmd);
+				g_free(q);
 				gv_popup_fechar(m);
 			}
 		}
@@ -919,6 +1003,88 @@ static void menu_do_item(void) {
 				}
 			}
 			gv_popup_fechar(m);
+		}
+		gv_separador(false, 0);
+		bool so_arquivos = true;
+		for (int i = 0; i < n_itens; i++) {
+			if (itens[i].sel && (itens[i].e.pasta || itens[i].atalho)) {
+				so_arquivos = false;
+			}
+		}
+		if (linha_submenu(CLAY_ID("dk-m-enviar"), "send", "Enviar para", "dk-sub-enviar")) {
+			env_n = env_destinos(env_lista, ENV_MAX);
+		}
+		GV_POPUP(id_de("dk-sub-enviar"), CLAY_ID("dk-m-enviar"), .pai = m, .lado = GV_POPUP_DIREITA, .largura = 300, .distancia = 4) {
+			int fora = 0, k_nuvem = 0, k_rede = 0;
+			bool email = !so_arquivos;
+			for (int i = 0; i < env_n; i++) {
+				if (env_lista[i].tipo != ENV_LOCAL) {
+					if (!email) {
+						if (gv_menu_item(CLAY_ID("dk-ev-email"), "mail", "E-mail", NULL)) {
+							GPtrArray *v = caminhos_selecionados();
+							if (!env_email((const char *const *)v->pdata, (int)v->len)) {
+								avisar("Não deu para abrir o e-mail: não há um cliente de e-mail instalado");
+							}
+							g_ptr_array_free(v, TRUE);
+							gv_popup_fechar(m);
+						}
+						email = true;
+					}
+					if (!fora++) {
+						gv_separador(false, 0);
+					}
+				}
+				const env_destino *d = &env_lista[i];
+				const char *icone = d->tipo == ENV_NUVEM ? "cloud" : d->tipo == ENV_REDE ? "network" : i == 0 ? "desktop" : "file";
+				Clay_ElementId id = d->tipo == ENV_NUVEM ? CLAY_IDI("dk-ev-nuvem", (uint32_t)k_nuvem++) : d->tipo == ENV_REDE ? CLAY_IDI("dk-ev-rede", (uint32_t)k_rede++) :
+					i == 0 ? CLAY_ID("dk-ev-desktop") : CLAY_ID("dk-ev-docs");
+				if (gv_menu_item(id, icone, gv_fmt("%s", d->rotulo).chars, d->tipo == ENV_NUVEM ? "nuvem" : d->tipo == ENV_REDE ? "rede" : NULL)) {
+					GPtrArray *v = caminhos_selecionados();
+					if (v->len && env_preparar(d)) {
+						iniciar_op(AR_OP_COPIAR, v, d->caminho);
+					} else {
+						avisar("Não deu para enviar para %s", d->rotulo);
+					}
+					g_ptr_array_free(v, TRUE);
+					gv_popup_fechar(m);
+				}
+			}
+			if (!email) {
+				if (gv_menu_item(CLAY_ID("dk-ev-email"), "mail", "E-mail", NULL)) {
+					GPtrArray *v = caminhos_selecionados();
+					if (!env_email((const char *const *)v->pdata, (int)v->len)) {
+						avisar("Não deu para abrir o e-mail: não há um cliente de e-mail instalado");
+					}
+					g_ptr_array_free(v, TRUE);
+					gv_popup_fechar(m);
+				}
+			}
+			if (!fora) {
+				gv_menu_item(CLAY_ID("dk-ev-nada"), "info", "Nenhuma nuvem ou rede conectada", NULL);
+			}
+		}
+		if (so_arquivos) {
+			if (linha_submenu(CLAY_ID("dk-m-disp"), "phone", "Enviar para dispositivo…", "dk-sub-disp")) {
+				env_ncel = env_celulares(env_cel, 8);
+			}
+			GV_POPUP(id_de("dk-sub-disp"), CLAY_ID("dk-m-disp"), .pai = m, .lado = GV_POPUP_DIREITA, .largura = 280, .distancia = 4) {
+				if (!env_ncel) {
+					gv_menu_item(CLAY_ID("dk-disp-nenhum"), "phone", "Nenhum dispositivo conectado", NULL);
+				}
+				for (int c = 0; c < env_ncel; c++) {
+					if (gv_menu_item(CLAY_IDI("dk-disp", (uint32_t)c), "phone", env_cel[c].nome, NULL)) {
+						GPtrArray *v = caminhos_selecionados();
+						char erro[256];
+						if (env_enviar_celular(env_cel[c].id, (const char *const *)v->pdata, (int)v->len, erro, sizeof(erro))) {
+							avisar("Oferecido a %s (veja o progresso no Painel > LUMNA Connect)", env_cel[c].nome);
+						} else {
+							avisar("%s", erro);
+						}
+						g_ptr_array_free(v, TRUE);
+						gv_popup_fechar(m);
+					}
+				}
+			}
 		}
 		gv_separador(false, 0);
 		if (gv_menu_item(CLAY_ID("dk-m-lixeira"), "trash", "Lixeira", "Delete")) {
@@ -1058,6 +1224,30 @@ static void depurar(void) {
 			g_hash_table_insert(antes, g_strdup(itens[i].nome), l);
 		} else {
 			g_free(l);
+		}
+	}
+	/* o menu de um ícone e os submenus: onde está cada linha (nome/índice) */
+	static const struct { const char *nome; int n; } LINHAS[] = { { "dk-m-abrir", 1 }, { "dk-m-com", 1 }, { "dk-m-local", 1 }, { "dk-m-enviar", 1 }, { "dk-m-disp", 1 },
+		{ "dk-ac", 4 }, { "dk-ac-nada", 1 }, { "dk-ev-desktop", 1 }, { "dk-ev-docs", 1 }, { "dk-ev-email", 1 }, { "dk-ev-nada", 1 }, { "dk-ev-nuvem", 3 }, { "dk-ev-rede", 3 },
+		{ "dk-disp", 3 }, { "dk-disp-nenhum", 1 }, { NULL, 0 } };
+	for (int k = 0; LINHAS[k].nome; k++) {
+		for (int j = 0; j < LINHAS[k].n; j++) {
+			char *nome = LINHAS[k].n > 1 ? g_strdup_printf("%s/%d", LINHAS[k].nome, j) : g_strdup(LINHAS[k].nome);
+			Clay_String cs = { .chars = LINHAS[k].nome, .length = (int)strlen(LINHAS[k].nome) };
+			Clay_BoundingBox b = gv_caixa(LINHAS[k].n > 1 ? Clay__HashStringWithOffset(cs, (uint32_t)j, 0) : Clay__HashString(cs, 0));
+			if (b.width > 0) {
+				char *l = g_strdup_printf("%.0f %.0f %.0f %.0f", b.x, b.y, b.width, b.height);
+				char *chave = g_strdup_printf("menu/%s", nome);
+				char *ant = g_hash_table_lookup(antes, chave);
+				if (!ant || strcmp(ant, l)) {
+					printf("%spos %s %s\n", pref, chave, l);
+					g_hash_table_insert(antes, chave, l);
+				} else {
+					g_free(l);
+					g_free(chave);
+				}
+			}
+			g_free(nome);
 		}
 	}
 	GString *e = g_string_new(pref);

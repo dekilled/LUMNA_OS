@@ -38,7 +38,7 @@ O explorador de arquivos do LUMNA OS, em Gravity (C/Clay). Fatias prontas: **a n
 - **Desfazer** (Ctrl+Z, botão na barra de status por 10 s): mover volta, lixeira restaura, cópia/compactar/extrair/criar vão para a lixeira, renomear volta o nome. Apagar para sempre (Shift+Del, com confirmação) não tem volta.
 - **Renomear** (F2, menu): o nome vira um campo; Enter confirma, Esc cancela. Recusa nome vazio, com `/`, ou que já existe.
 - **Compactar** (`.zip`, pelo `bsdtar`) e **Extrair aqui** (qualquer pacote que o `bsdtar` abra; se o pacote já traz uma pasta só, não faz "Projetos/Projetos").
-- Também no menu: Abrir em nova janela, Abrir no terminal (Pulse na pasta), Copiar caminho, Compartilhar > celulares conectados (LUMNA Connect), Propriedades (Ctrl+I), Fixar na barra lateral (Espaços, Coleções, Favoritos; o submenu abre no lugar, não ao lado).
+- Também no menu: Abrir em nova janela, Abrir no terminal (Pulse na pasta), Copiar caminho, Enviar para (Área de trabalho, Documentos, E-mail, contas na nuvem e redes conectadas; `servicos/enviar.c`, o mesmo da área de trabalho) e Enviar para dispositivo… > celulares conectados (LUMNA Connect), Propriedades (Ctrl+I), Fixar na barra lateral (Espaços, Coleções, Favoritos; o submenu abre no lugar, não ao lado).
 
 ## O menu do espaço vazio
 
