@@ -195,6 +195,15 @@ static bool keymap_build(struct orbit_server *server) {
 		.variant = c->variant[0] ? c->variant : NULL,
 		.options = c->options[0] ? c->options : NULL,
 	};
+	/* a mesma configuração: o mapa que já está em uso vale (refazê-lo, e depois pô-lo em todos os teclados, apagaria o NumLock e o CapsLock
+	 * de quem os ligou, e isso aconteceria a cada teclado novo que aparece) */
+	static char chave_atual[700];
+	char chave[700];
+	snprintf(chave, sizeof(chave), "%s|%s|%s|%s|%s", names.rules ? names.rules : "", names.model ? names.model : "", names.layout ? names.layout : "",
+		names.variant ? names.variant : "", names.options ? names.options : "");
+	if (shared_keymap && !strcmp(chave, chave_atual)) {
+		return false;
+	}
 	struct xkb_keymap *novo = xkb_keymap_new_from_names(shared_context, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
 	if (!novo) {
 		wlr_log(WLR_ERROR, "keymap XKB falhou (layout \"%s\" variante \"%s\" opções \"%s\"): fico com o que tinha", c->layout, c->variant, c->options);
@@ -204,6 +213,7 @@ static bool keymap_build(struct orbit_server *server) {
 		xkb_keymap_unref(shared_keymap);
 	}
 	shared_keymap = novo;
+	snprintf(chave_atual, sizeof(chave_atual), "%s", chave);
 	return true;
 }
 
@@ -269,6 +279,18 @@ static void apply_one(struct orbit_server *server, struct orbit_pointer *p) {
 	}
 }
 
+/* os LEDs do teclado (NumLock, CapsLock, ScrollLock) como o estado diz */
+static void leds_atualizar(struct wlr_keyboard *kb) {
+	static const char *const nomes[] = { XKB_LED_NAME_NUM, XKB_LED_NAME_CAPS, XKB_LED_NAME_SCROLL };
+	uint32_t leds = 0;
+	for (int i = 0; i < 3 && i < WLR_LED_COUNT; i++) {
+		if (xkb_state_led_name_is_active(kb->xkb_state, nomes[i]) > 0) {
+			leds |= 1u << i;
+		}
+	}
+	wlr_keyboard_led_update(kb, leds);
+}
+
 /* liga o NumLock uma vez por teclado: ao ligar o PC, no login e depois do logoff (cada um é um Orbit novo, com teclados novos) */
 static void numlock_ligar(struct orbit_keyboard *k) {
 	struct wlr_keyboard *kb = k->wlr_keyboard;
@@ -282,14 +304,7 @@ static void numlock_ligar(struct orbit_keyboard *k) {
 	k->numlock_done = true;
 	uint32_t locked = kb->modifiers.locked | (1u << idx);
 	wlr_keyboard_notify_modifiers(kb, kb->modifiers.depressed, kb->modifiers.latched, locked, kb->modifiers.group);
-	uint32_t leds = 0;
-	for (int i = 0; i < WLR_LED_COUNT; i++) {
-		static const char *const nomes[] = { XKB_LED_NAME_NUM, XKB_LED_NAME_CAPS, XKB_LED_NAME_SCROLL };
-		if (i < 3 && xkb_state_led_name_is_active(kb->xkb_state, nomes[i]) > 0) {
-			leds |= 1u << i;
-		}
-	}
-	wlr_keyboard_led_update(kb, leds);
+	leds_atualizar(kb);
 	wlr_log(WLR_INFO, "NumLock ligado no teclado \"%s\"", k->wlr_keyboard->base.name ? k->wlr_keyboard->base.name : "?");
 }
 
@@ -301,7 +316,16 @@ void orbit_input_apply(struct orbit_server *server) {
 			if (!k->shared) {
 				continue;
 			}
-			wlr_keyboard_set_keymap(k->wlr_keyboard, shared_keymap);
+			struct wlr_keyboard *kb = k->wlr_keyboard;
+			if (kb->keymap != shared_keymap) {
+				/* trocar o mapa cria um estado novo, com o NumLock e o CapsLock destravados: guarda o que estava travado e devolve */
+				uint32_t travadas = kb->keymap ? kb->modifiers.locked : 0;
+				wlr_keyboard_set_keymap(kb, shared_keymap);
+				if (travadas) {
+					wlr_keyboard_notify_modifiers(kb, 0, 0, travadas, 0);
+					leds_atualizar(kb);
+				}
+			}
 			numlock_ligar(k);
 			wlr_keyboard_set_repeat_info(k->wlr_keyboard, server->input.repeat_rate, server->input.repeat_delay);
 		}
@@ -350,4 +374,21 @@ int orbit_input_describe(struct orbit_server *server, void (*cb)(void *ctx, cons
 		n++;
 	}
 	return n;
+}
+
+/* Só para os testes (LUMNA_TESTE_TECLADOS=N): N teclados falsos, como os de um PC de verdade (o teclado, as teclas de mídia, o botão de ligar...).
+ * O backend headless do wlroots não cria teclados. */
+static const struct wlr_keyboard_impl teclado_falso_impl = { .name = "teclado-falso" };
+
+void orbit_input_fake_keyboards(struct orbit_server *server, int n) {
+	for (int i = 0; i < n; i++) {
+		struct wlr_keyboard *kb = calloc(1, sizeof(*kb));
+		if (!kb) {
+			return;
+		}
+		char nome[32];
+		snprintf(nome, sizeof(nome), "teclado-falso-%d", i);
+		wlr_keyboard_init(kb, &teclado_falso_impl, nome);
+		orbit_keyboard_add(server, kb, true);
+	}
 }

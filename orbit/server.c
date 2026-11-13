@@ -193,6 +193,9 @@ int main(int argc, char *argv[]) {
 	if (!wlr_backend_start(server.backend)) {
 		return fail(&server, "falha ao arrancar o backend");
 	}
+	if (getenv("LUMNA_TESTE_TECLADOS")) {
+		orbit_input_fake_keyboards(&server, atoi(getenv("LUMNA_TESTE_TECLADOS")));
+	}
 	setenv("WAYLAND_DISPLAY", socket, 1);
 	orbit_ipc_bind(&server, socket);
 	wlr_log(WLR_INFO, "WAYLAND_DISPLAY=%s intervalo %d mestre %d%% escala %.2f arranjo %s",

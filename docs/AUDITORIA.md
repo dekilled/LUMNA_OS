@@ -117,3 +117,12 @@ Todas as de `gravity/testes/` (os ajudantes `*-falso.sh` não são testes), uma 
 | pkg/snapshot, painel/testa_entrada_ajustar | ok | depois de S2 e S4 |
 
 ASAN no Orbit corrigido (`trocas_x11` e `modos_componente`): nenhum erro de memória.
+
+## NumLock que nunca ligava (achado depois, no uso)
+
+O Orbit ligava o NumLock uma vez por teclado, mas **refazia o mapa do teclado em todos os teclados a cada teclado novo que aparecia** (e a cada vez que o
+`entrada.ini` mudava). No wlroots, trocar o mapa cria um estado novo, com o NumLock e o CapsLock destravados, e o "já liguei" ficava marcado: nunca religava.
+Um PC de verdade expõe vários dispositivos de teclado (o teclado, as teclas de mídia, o botão de ligar...), então o do teclado em que se digita era apagado
+pelos que apareciam depois. Agora o mapa só é refeito quando a configuração mudou e, quando muda, as teclas travadas são guardadas e devolvidas
+(`orbit/entrada.c`). Teste: `gravity/testes/numlock.sh`, com teclados falsos (`LUMNA_TESTE_TECLADOS=N`) e o estado em `orbit-msg entrada` (`"numlock":[...]`).
+Com o código de antes ele mostra `[true,false,false]` e, depois de mudar o layout, `[false,false,false]`.

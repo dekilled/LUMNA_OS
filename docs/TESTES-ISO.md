@@ -474,6 +474,8 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.356 | Configurações > Epic > "Sair da conta" | Volta a "Sem login" | ☐ |
 | 2.357 | Ligar o PC e olhar a tela de login, sem apertar nada | O NumLock já está aceso (LED do teclado ligado) e o teclado numérico digita números | ☐ |
 | 2.358 | Entrar na sessão, depois sair (logoff) e voltar à tela de login | NumLock aceso no login, na sessão e depois do logoff; se você desligar no meio, ele não religa sozinho | ☐ |
+| 2.358b | Na sessão, apertar o NumLock para apagar, depois abrir o Painel > Teclado e trocar o layout | O NumLock continua como você deixou (apagado); com ele aceso antes de trocar, continua aceso | ☐ |
+| 2.358c | Espetar um teclado USB depois de entrar | O NumLock dele acende, e o do teclado que já estava **não** apaga | ☐ |
 | 2.359 | `~/.config/lumna/entrada.ini` com `[teclado]` `numlock=0`, reentrar | O NumLock começa apagado (a opção desliga o padrão) | ☐ |
 | 2.360 | Gaming: a barra de cima sobre um fundo claro (laranja, branco) | Os textos Gaming/Início/Biblioteca/Loja continuam legíveis, o degradê escuro cobre a barra | ☐ |
 | 2.361 | Dois monitores: Mídia no 1, depois pedir a Mídia no 2 (dropdown ou Super+Tab) | A Mídia vai pro 2 e o monitor 1 volta ao Desktop dele (barra diz Desktop, janelas dele no lugar) | ☐ |

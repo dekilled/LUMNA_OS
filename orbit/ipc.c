@@ -355,6 +355,15 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		wl_list_for_each(kb, &server->keyboards, link) {
 			teclados += kb->shared;
 		}
+		put(b, ",\"numlock\":[");
+		bool primeiro_nl = true;
+		wl_list_for_each(kb, &server->keyboards, link) {
+			if (kb->shared && kb->wlr_keyboard->xkb_state) {
+				put(b, "%s%s", primeiro_nl ? "" : ",", xkb_state_mod_name_is_active(kb->wlr_keyboard->xkb_state, XKB_MOD_NAME_NUM, XKB_STATE_MODS_LOCKED) > 0 ? "true" : "false");
+				primeiro_nl = false;
+			}
+		}
+		put(b, "]");
 		put(b, ",\"teclado_fisico\":%s,\"ultima_entrada\":\"%s\"", teclados ? "true" : "false",
 			server->last_input == ORBIT_INPUT_TOQUE ? "toque" : server->last_input == ORBIT_INPUT_MOUSE ? "mouse" : "teclado");
 		put(b, ",\"repeticao\":[%d,%d],\"dispositivos\":[", server->input.repeat_rate, server->input.repeat_delay);

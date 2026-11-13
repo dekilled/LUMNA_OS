@@ -566,6 +566,7 @@ void orbit_xkb_prepare(struct orbit_server *server);
 /* entrada.c: lê entrada.ini, refaz o mapa do teclado e reaplica a repetição e os ajustes do ponteiro */
 void orbit_input_config_load(struct orbit_server *server);
 void orbit_input_apply(struct orbit_server *server);
+void orbit_input_fake_keyboards(struct orbit_server *server, int n);
 void orbit_pointer_add(struct orbit_server *server, struct wlr_input_device *device);
 const char *orbit_input_layout_name(struct orbit_server *server);
 int orbit_input_describe(struct orbit_server *server, void (*cb)(void *ctx, const char *name, const char *kind, bool configurable), void *ctx);
