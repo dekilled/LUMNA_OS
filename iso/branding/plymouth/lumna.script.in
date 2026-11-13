@@ -1,0 +1,64 @@
+# Tema de boot do LUMNA OS (Plymouth, módulo script). Os números (órbita, período, caixas) vêm de gera-tema.py, acima.
+Window.SetBackgroundTopColor(FUNDO_R, FUNDO_G, FUNDO_B);
+Window.SetBackgroundBottomColor(FUNDO_R, FUNDO_G, FUNDO_B);
+Plymouth.SetRefreshRate(30);
+
+tela_l = Window.GetWidth();
+tela_a = Window.GetHeight();
+# a placa inteira sempre cabe: pela altura, ou pela largura numa tela mais estreita que 16:9 (o que sobra tem a cor do fundo)
+escala = tela_a / PLACA_A;
+if (PLACA_L * escala > tela_l)
+  escala = tela_l / PLACA_L;
+ox = (tela_l - PLACA_L * escala) / 2;
+oy = (tela_a - PLACA_A * escala) / 2;
+
+fun escalar(img) {
+  return img.Scale(img.GetWidth() * escala, img.GetHeight() * escala);
+}
+
+placa = Sprite(escalar(Image("placa.png")));
+placa.SetPosition(ox, oy, 0);
+brilho = Sprite(escalar(Image("brilho.png")));
+brilho.SetPosition(ox + BRILHO_X * escala, oy + BRILHO_Y * escala, 1);
+ponto = Sprite(escalar(Image("ponto.png")));
+ponto.SetZ(3);
+anel = Sprite();
+anel.SetZ(2);
+anel.SetPosition(ox + ANEL_X * escala, oy + ANEL_Y * escala, 2);
+
+for (i = 0; i < ANEL_QUADROS; i++) {
+  if (i < 10)
+    nome = "anel-0" + i + ".png";
+  else
+    nome = "anel-" + i + ".png";
+  anel_img[i] = escalar(Image(nome));
+}
+
+quadro = 0;
+ca = Math.Cos(PONTO_ANG);
+sa = Math.Sin(PONTO_ANG);
+
+fun atualizar() {
+  quadro++;
+  t = quadro / 30.0;
+  # entra com um fade rápido
+  entrada = Math.Min(1.0, t / 0.5);
+  placa.SetOpacity(entrada);
+  # o brilho da gema pulsa no ritmo do vídeo
+  p = 0.5 + 0.5 * Math.Sin(2 * Math.Pi * t / BRILHO_PERIODO + BRILHO_FASE);
+  brilho.SetOpacity(p * entrada);
+  # o ponto percorre a órbita (elipse inclinada)
+  a = PONTO_OMEGA * t + PONTO_FASE;
+  ex = PONTO_A * Math.Cos(a);
+  ey = PONTO_B * Math.Sin(a);
+  x = PONTO_CX + ca * ex - sa * ey - PONTO_MEIO;
+  y = PONTO_CY + sa * ex + ca * ey - PONTO_MEIO;
+  ponto.SetPosition(ox + x * escala, oy + y * escala, 3);
+  ponto.SetOpacity(entrada);
+  # o anel: o ciclo do vídeo, em laço
+  k = Math.Int(t * ANEL_FPS) % ANEL_QUADROS;
+  anel.SetImage(anel_img[k]);
+  anel.SetOpacity(entrada);
+}
+
+Plymouth.SetRefreshFunction(atualizar);

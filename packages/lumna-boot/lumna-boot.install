@@ -1,0 +1,8 @@
+post_install() {
+  echo ">> LUMNA: o visual de boot está instalado. Para ligá-lo neste sistema:  sudo lumna-boot-tema aplicar"
+}
+
+post_upgrade() {
+  # (não liga sozinho em quem já usa: mexer no carregador de boot é uma decisão da pessoa)
+  :
+}

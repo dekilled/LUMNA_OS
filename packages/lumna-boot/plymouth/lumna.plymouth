@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=LUMNA OS
+Description=A gema do LUMNA com o ponto orbitando e o anel de carregamento
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/lumna
+ScriptFile=/usr/share/plymouth/themes/lumna/lumna.script

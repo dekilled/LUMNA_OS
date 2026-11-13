@@ -22,8 +22,8 @@ Decisões do Eric (2026): o ajuste fica numa **página própria** do Painel, com
 
 ## Para fazer (anotado em 2026-11)
 
-- **Animação de boot** e **animação pós-login** (entre a senha e a área de trabalho).
-- **Estilização do GRUB** (tema do LUMNA).
+- **Animação pós-login** (entre a senha e a área de trabalho; o segundo vídeo do Eric, com a voz da Emma sussurrando LUMNA): a ideia é uma sequência só do boot ao desktop.
+- **Boot e GRUB:** feitos (pacote `lumna-boot`, ver docs/BOOT.md); falta o Eric aplicar no PC (2.476) e decidir o tema na ISO live.
 - **Barra de título do Firefox:** hoje tem a própria dele, com um único ícone de fechar; falta uma barra de título completa (minimizar, maximizar, fechar) no estilo do LUMNA.
 - **Modo Mídia:** mudar um pouco o estilo (o Eric vai dizer o quê; pedir esboço).
 - **Modo Mídia vinculado a um monitor/projetor** (escolher a tela da Mídia e mantê-la lá).

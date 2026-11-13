@@ -1,0 +1,22 @@
+# Gerado por iso/branding/plymouth/gera-tema.py a partir do vídeo do boot: não edite à mão.
+PLACA_L = 1280;
+PLACA_A = 720;
+FUNDO_R = 0.0356;
+FUNDO_G = 0.0308;
+FUNDO_B = 0.0631;
+BRILHO_X = 470;
+BRILHO_Y = 80;
+BRILHO_PERIODO = 5.1667;
+BRILHO_FASE = -2.5225;
+PONTO_CX = 657.14;
+PONTO_CY = 214.52;
+PONTO_A = 187.69;
+PONTO_B = 72.48;
+PONTO_ANG = 2.77716;
+PONTO_OMEGA = 1.20242;
+PONTO_FASE = -0.33766;
+PONTO_MEIO = 12;
+ANEL_X = 600;
+ANEL_Y = 485;
+ANEL_QUADROS = 57;
+ANEL_FPS = 24;

@@ -246,6 +246,8 @@ default_image="/boot/initramfs-linux.img"
 fallback_image="/boot/initramfs-linux-fallback.img"
 fallback_options="-S autodetect"
 PRESET
+# a animação de boot (Plymouth) entra no initramfs: o ajudante põe o gancho e o tema; o initramfs sai logo abaixo
+arch-chroot "$TARGET" lumna-boot-tema plymouth --sem-initramfs >/dev/null 2>&1 || true
 arch-chroot "$TARGET" mkinitcpio -P >/dev/null 2>&1 || arch-chroot "$TARGET" mkinitcpio -P
 
 step 94 "Instalando o carregador de boot (GRUB, $FW)"
@@ -269,6 +271,8 @@ else
   [ -e "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" ] || fail "o GRUB não ficou na partição EFI"
 fi
 arch-chroot "$TARGET" grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+# o tema do GRUB (fundo, itens, resolução e o "splash" do kernel) e o menu refeito com os ícones; sem o pacote lumna-boot, fica o menu de texto
+arch-chroot "$TARGET" lumna-boot-tema grub >/dev/null 2>&1 || true
 [ -s "$TARGET/boot/grub/grub.cfg" ] || fail "o GRUB não gerou o menu de boot"
 
 step 98 "Terminando"

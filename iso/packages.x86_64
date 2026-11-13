@@ -3,6 +3,7 @@
 lumna-orbit
 lumna-gravity
 lumna-session
+lumna-boot
 greetd
 # A rede (o Painel > Rede fala com ele); o build liga o serviço e desliga o systemd-networkd e o iwd do releng
 networkmanager

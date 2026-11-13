@@ -1,0 +1,26 @@
+# Tema do GRUB do LUMNA OS. Gerado por iso/branding/grub/gera-tema.py: não edite à mão.
+# O fundo (estrelas, logo, painel, título e dicas) é uma imagem; o GRUB desenha só os itens do menu por cima.
+desktop-image: "background.png"
+desktop-image-scale-method: "stretch"
+desktop-color: "#07060f"
+title-text: ""
+terminal-font: "Inter Regular 24"
+
++ boot_menu {
+	left = 9%+14
+	top = 19%+10
+	width = 29%+18
+	height = 61%+11
+	item_font = "Inter Regular 24"
+	selected_item_font = "Inter Medium 24"
+	item_color = "#aeb0cc"
+	selected_item_color = "#ffffff"
+	icon_width = 32
+	icon_height = 32
+	item_icon_space = 24
+	item_height = 68
+	item_padding = 22
+	item_spacing = 28
+	selected_item_pixmap_style = "select_*.png"
+	scrollbar = false
+}

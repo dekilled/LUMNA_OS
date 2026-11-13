@@ -1,0 +1,14 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = grub
+Target = linux
+Target = linux-lts
+Target = linux-zen
+Target = linux-hardened
+
+[Action]
+Description = Refazendo o menu do GRUB com o tema do LUMNA (se ele estiver aplicado)...
+When = PostTransaction
+Exec = /usr/bin/lumna-boot-tema regerar

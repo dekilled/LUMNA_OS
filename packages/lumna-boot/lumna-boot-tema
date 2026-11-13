@@ -1,0 +1,131 @@
+#!/bin/sh
+# lumna-boot-tema: o visual de boot do LUMNA (tema do GRUB e animação do Plymouth) no sistema em uso.
+#
+#   lumna-boot-tema aplicar      põe o tema no GRUB (o fundo e os itens, o menu na resolução 1920x1080 se a tela deixar, "splash" no kernel) e a
+#                                animação de boot no initramfs (o gancho plymouth do mkinitcpio), e regera o menu e o initramfs
+#   lumna-boot-tema grub         só a parte do GRUB
+#   lumna-boot-tema plymouth     só a parte do Plymouth (e o initramfs)
+#   lumna-boot-tema regerar      regera o menu do GRUB e refaz os ícones das entradas (o gancho do pacman chama isto depois de um kernel novo)
+#   lumna-boot-tema desfazer     tira o tema do GRUB e a animação de boot
+#
+# Não mexe na detecção de outros sistemas nem nas entradas que você já tem: só o tema, a resolução e o "splash". Precisa de root.
+# Opções: --sem-initramfs e --sem-menu (para o instalador, que refaz os dois depois); LUMNA_RAIZ=/pasta roda sobre outra raiz (testes).
+set -e
+RAIZ=${LUMNA_RAIZ:-}
+TEMA_GRUB_ORIGEM=${LUMNA_TEMA_GRUB:-/usr/share/lumna/grub/lumna}
+ACAO=${1:-}
+[ $# -gt 0 ] && shift
+SEM_INITRAMFS=0; SEM_MENU=0
+for a in "$@"; do
+	case "$a" in
+	--sem-initramfs) SEM_INITRAMFS=1 ;;
+	--sem-menu) SEM_MENU=1 ;;
+	*) echo "lumna-boot-tema: opção desconhecida: $a" >&2; exit 2 ;;
+	esac
+done
+[ -z "$RAIZ" ] && [ "$(id -u)" != 0 ] && { echo "lumna-boot-tema: precisa de root (sudo lumna-boot-tema $ACAO)" >&2; exit 1; }
+
+DEFAULT="$RAIZ/etc/default/grub"
+MKINIT="$RAIZ/etc/mkinitcpio.conf"
+GRUB_DIR="$RAIZ/boot/grub"
+TEMA_GRUB="$GRUB_DIR/themes/lumna"
+
+dizer() { echo "lumna-boot-tema: $*"; }
+
+# põe CHAVE=VALOR no /etc/default/grub (troca a linha, ou acrescenta no fim)
+grub_definir() {
+	chave=$1; valor=$2
+	if grep -q "^$chave=" "$DEFAULT"; then
+		sed -i "s|^$chave=.*|$chave=$valor|" "$DEFAULT"
+	else
+		printf '%s=%s\n' "$chave" "$valor" >> "$DEFAULT"
+	fi
+}
+grub_tirar() { sed -i "/^$1=/d" "$DEFAULT"; }
+
+# acrescenta (ou tira) uma palavra de GRUB_CMDLINE_LINUX_DEFAULT
+cmdline() { # cmdline add|del palavra
+	linha=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$DEFAULT" || true)
+	[ -z "$linha" ] && { [ "$1" = add ] && printf 'GRUB_CMDLINE_LINUX_DEFAULT="%s"\n' "$2" >> "$DEFAULT"; return 0; }
+	atual=$(printf '%s' "$linha" | sed 's/^GRUB_CMDLINE_LINUX_DEFAULT=//; s/^"//; s/"$//')
+	novo=$(printf '%s\n' $atual | grep -vx -- "$2" | tr '\n' ' ' | sed 's/ $//')
+	[ "$1" = add ] && novo="$novo $2"
+	novo=$(printf '%s' "$novo" | sed 's/^ //')
+	sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$novo\"|" "$DEFAULT"
+}
+
+# os ícones: o GRUB só dá ícone pela classe da entrada, e a de opções avançadas e a do firmware não vêm com uma
+classes_no_menu() {
+	cfg="$GRUB_DIR/grub.cfg"
+	[ -f "$cfg" ] || return 0
+	sed -i -e "s|^\([[:space:]]*submenu '[^']*'\)\([[:space:]]\)|\1 --class advanced\2|" \
+		-e "s|^\([[:space:]]*menuentry 'UEFI Firmware Settings'\)\([[:space:]]\)|\1 --class firmware\2|" \
+		-e "s|^\([[:space:]]*menuentry 'Configurações do firmware UEFI'\)\([[:space:]]\)|\1 --class firmware\2|" "$cfg"
+	# uma entrada que já tinha a classe não a repete
+	sed -i -e 's/ --class advanced --class advanced/ --class advanced/' -e 's/ --class firmware --class firmware/ --class firmware/' "$cfg"
+}
+
+gerar_menu() {
+	[ "$SEM_MENU" = 1 ] && return 0
+	if [ -n "$RAIZ" ]; then
+		grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1
+	else
+		# em português (os nomes das entradas), se o sistema tem o idioma
+		LANG=${LUMNA_LANG_GRUB:-pt_BR.UTF-8} grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1 || grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1
+	fi
+	classes_no_menu
+}
+
+parte_grub() {
+	[ -f "$DEFAULT" ] || { dizer "não achei $DEFAULT: este sistema não usa o GRUB?" >&2; return 1; }
+	[ -d "$TEMA_GRUB_ORIGEM" ] || { dizer "faltam os arquivos do tema ($TEMA_GRUB_ORIGEM): o pacote lumna-boot está instalado?" >&2; return 1; }
+	mkdir -p "$GRUB_DIR/themes"
+	rm -rf "$TEMA_GRUB"
+	cp -r "$TEMA_GRUB_ORIGEM" "$TEMA_GRUB"
+	grub_definir GRUB_THEME '"/boot/grub/themes/lumna/theme.txt"'
+	grub_definir GRUB_GFXMODE '"1920x1080,auto"'
+	grub_definir GRUB_GFXPAYLOAD_LINUX keep
+	grub_definir GRUB_TERMINAL_OUTPUT gfxterm
+	cmdline add splash
+	gerar_menu
+	dizer "tema do GRUB aplicado"
+}
+
+parte_plymouth() {
+	# o gancho do mkinitcpio, logo depois do udev (ou do systemd): é ele que põe a animação no initramfs
+	if [ -f "$MKINIT" ] && ! grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth; then
+		sed -i -E 's/^(HOOKS=\(.*\b(udev|systemd)\b)/\1 plymouth/' "$MKINIT"
+		grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth || dizer "aviso: não achei o udev nem o systemd nos HOOKS de $MKINIT; ponha o gancho plymouth à mão" >&2
+	fi
+	mkdir -p "$RAIZ/etc/plymouth"
+	printf '[Daemon]\nTheme=lumna\nShowDelay=0\n' > "$RAIZ/etc/plymouth/plymouthd.conf"
+	if [ "$SEM_INITRAMFS" != 1 ]; then
+		mkinitcpio -P >/dev/null 2>&1 || dizer "aviso: o mkinitcpio falhou; refaça o initramfs com 'sudo mkinitcpio -P'" >&2
+	fi
+	dizer "animação de boot aplicada"
+}
+
+desfazer() {
+	if [ -f "$DEFAULT" ]; then
+		grub_tirar GRUB_THEME
+		grub_tirar GRUB_GFXMODE
+		grub_tirar GRUB_GFXPAYLOAD_LINUX
+		cmdline del splash
+		[ -n "$(grep '^GRUB_TERMINAL_OUTPUT=gfxterm$' "$DEFAULT")" ] && grub_tirar GRUB_TERMINAL_OUTPUT
+	fi
+	rm -rf "$TEMA_GRUB"
+	gerar_menu 2>/dev/null || true
+	[ -f "$MKINIT" ] && sed -i -E '/^HOOKS=/ s/ plymouth\b//' "$MKINIT"
+	rm -f "$RAIZ/etc/plymouth/plymouthd.conf"
+	[ "$SEM_INITRAMFS" != 1 ] && { mkinitcpio -P >/dev/null 2>&1 || true; }
+	dizer "o visual de boot do LUMNA foi tirado"
+}
+
+case "$ACAO" in
+aplicar) parte_grub; parte_plymouth ;;
+grub) parte_grub ;;
+plymouth) parte_plymouth ;;
+regerar) [ -d "$TEMA_GRUB" ] && gerar_menu || true ;; # (sem o tema aplicado, o gancho do pacman não mexe no menu de ninguém)
+desfazer) desfazer ;;
+*) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

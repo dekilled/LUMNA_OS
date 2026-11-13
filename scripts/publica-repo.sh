@@ -57,6 +57,7 @@ principal() {
   build lumna-orbit --syncdeps
   build lumna-gravity --syncdeps
   build lumna-session --nodeps
+  build lumna-boot --nodeps
   build lumna-classico --nodeps
   pacman -S --needed --noconfirm python python-pip >/dev/null
   EMMA_SRC="$tree/emma-servidor" build lumna-emma --nodeps
