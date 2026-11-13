@@ -511,6 +511,10 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		put_str(b, server->carousel_output);
 		put(b, ",\"alvo\":\"%s\",\"fim\":\"%s\",\"deslizes\":%d,\"dir_deslize\":%d}", orbit_mode_name(server->carousel_target),
 			server->carousel_end == 1 ? "confirmado" : server->carousel_end == 2 ? "cancelado" : "", server->slide_count, server->slide_dir); /* deslizes: só para os testes */
+	} else if (!strcmp(cmd, "animacoes")) {
+		/* os contadores das animações (para os testes): deslizes, o lado do último e as janelas que animaram ao abrir e ao fechar */
+		put(b, "{\"ok\":true,\"deslizes\":%d,\"dir_deslize\":%d,\"janelas_abertas\":%d,\"janelas_fechadas\":%d,\"fantasmas\":%d}", server->slide_count, server->slide_dir,
+			server->wanim_opens, server->wanim_closes, server->nghosts);
 	} else if (!strcmp(cmd, "ocioso")) {
 		/* quem segura o idle (vídeo tocando pelo idle-inhibit do Wayland); o D-Bus (Firefox, VLC) é do lumna-ocioso */
 		char lista[1024];
@@ -649,12 +653,14 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		}
 		put(b, "{\"ok\":true}");
 	} else if (!strcmp(cmd, "mouse")) {
-		/* mouse mover X Y | mouse botao baixo|cima (o mesmo caminho de um mouse de verdade: serve para testar arrastos) */
+		/* mouse mover X Y | mouse rolar DELTA | mouse botao baixo|cima (o mesmo caminho de um mouse de verdade: serve para testar arrastos) */
 		char *kind = arg1;
 		char *a = arg2;
 		char *b2 = strtok_r(NULL, " \t", &save);
 		if (kind && !strcmp(kind, "mover") && a && b2) {
 			orbit_pointer_warp(server, atof(a), atof(b2));
+		} else if (kind && !strcmp(kind, "rolar") && a) {
+			orbit_pointer_scroll(server, now_ms(), atof(a));
 		} else if (kind && !strcmp(kind, "botao") && a && (!strcmp(a, "baixo") || !strcmp(a, "cima"))) {
 			orbit_pointer_button(server, now_ms(), b2 && !strcmp(b2, "direito") ? 0x111 /* BTN_RIGHT */ : 0x110 /* BTN_LEFT */, !strcmp(a, "baixo") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
 		} else {

@@ -624,6 +624,12 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.472b | Nível **Desligada** + Aplicar | Trocar de espaço e de modo não desliza mais, o Super + Tab troca na hora, os apps não animam; vale na hora, sem reiniciar | ☐ |
 | 2.472c | Nível **Simples** + Aplicar | Desliza e anima os apps, mas o Super + Tab volta ao seletor rápido (sem carrossel) | ☐ |
 | 2.472d | Em Aparência > Tema | A linha antiga "Animações" saiu (agora é só na página Animações) | ☐ |
+| 2.473 | Abrir um app comum (Atlas, Painel, Calculadora, terminal) | A janela nasce um pouco maior e **transparente** e assenta no tamanho final já opaca, em ~180 ms ("cartão jogado na mesa") | ☐ |
+| 2.473b | Fechar a janela (X, Alt+F4 ou Ctrl+Q do app) | A última imagem cresce um pouco e esmaece e some; nada fica preso na tela depois | ☐ |
+| 2.473c | Abrir e fechar um **jogo** (Steam/Lutris) e a biblioteca do Gaming | **Sem** animação (desempenho); nada piscando | ☐ |
+| 2.473d | Abrir o Firefox, um diálogo (Abrir arquivo) e um app X11 | Animam também; o app que redesenha sem parar (vídeo, jogo de navegador) não treme durante os 180 ms | ☐ |
+| 2.473e | Painel > Animações > desligar "Abrir e fechar janelas" + Aplicar; ou Nível Simples/Desligada | As janelas passam a abrir e fechar na hora, sem reiniciar | ☐ |
+| 2.473f | Abrir várias janelas seguidas e uma em tela cheia (F11) e na Mídia | Nenhuma falha, nenhum fantasma esquecido na tela; tela cheia e Mídia sem animar | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |

@@ -142,4 +142,15 @@ Os 3 espaços do Desktop dão a volta: 1 → 2 → 3 → 1. Avançar desliza o c
 
 ## Painel > Aparência > Animações
 
-Uma página própria com o **Nível** (Completa, Simples, Desligada; Personalizada quando os ajustes finos não batem com nenhum) e o ajuste fino: animações dos apps (tema.ini), deslize ao trocar de espaço/modo (`~/.config/lumna/animacoes.ini`, `[geral] deslize`, que o Orbit lê na hora) e o carrossel. Simples = tudo menos o carrossel; Desligada = nada se move. As animações novas (janelas, lançador) entram nessa página. Teste: `gravity/testes/painel_animacoes.sh`.
+Uma página própria com o **Nível** (Completa, Simples, Desligada; Personalizada quando os ajustes finos não batem com nenhum) e o ajuste fino: animações dos apps (tema.ini), deslize ao trocar de espaço/modo (`~/.config/lumna/animacoes.ini`, `[geral] deslize`, que o Orbit lê na hora), abrir e fechar janelas (`[geral] janelas`) e o carrossel. Simples = sem o carrossel e sem animar as janelas; Desligada = nada se move. As animações novas (lançador) entram nessa página. Teste: `gravity/testes/painel_animacoes.sh`.
+
+
+## Animações das janelas (Orbit, `orbit/winanim.c`)
+
+Ao abrir, a janela nasce 6% maior e transparente e assenta no tamanho já opaca ("um cartão jogado na mesa"); ao fechar, o contrário: no `unmap` a última imagem fica num **fantasma** que cresce 6% e esmaece. 180 ms, desaceleração no fim. Liga e desliga em Painel > Aparência > Animações > "Abrir e fechar janelas" (`animacoes.ini` `[geral] janelas = sim|nao`, lido na hora).
+
+Não anima: **jogos** (`view->game`: marcas da Steam e `LUMNA_JOGO`), janelas em tela cheia, as telas de Gaming e Mídia, as telas do celular e janelas que não estão à vista (minimizadas, em outro espaço). Menus e popups dos apps não são tocados (só as janelas).
+
+Como: o wlroots não escala uma árvore; cada imagem (scene buffer) da janela é escalada em volta do centro delas (tamanho de destino e posição) e ganha opacidade; as medidas de partida ficam guardadas e tudo volta ao exato no fim. O app que redesenha a cada quadro faz o wlroots refazer o tamanho a cada commit; por isso o estado da animação é reaplicado logo depois de cada commit da janela. No fechar, o iterador padrão do wlroots pula os nós desligados (no unmap a árvore da superfície já está desligada), então o fantasma usa uma varredura própria.
+
+Limites conhecidos: uma janela X11 pode mostrar um quadro no tamanho final antes de começar (o X11 não tem commit do Orbit: a animação começa no relógio seguinte); subsuperfícies e a barra do servidor escalam junto (até 48 imagens por janela); a barra de título do lado do servidor e as bordas do Orbit entram só se forem imagens (a borda em retângulo não escala). Teste: `gravity/testes/janelas_animacao.sh` (o renderizador de software dos testes não aplica transparência: prova-se o tamanho e os contadores; a transparência só no PC de verdade).

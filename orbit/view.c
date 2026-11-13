@@ -470,12 +470,15 @@ void orbit_view_map(struct orbit_view *view) {
 		 * escondia esta; sem arrumar de novo ela só aparecia quando outro evento refazia o arranjo (o jogo abria "por trás" e depois vinha à frente) */
 		orbit_arrange(server);
 	}
+	orbit_win_anim_open(view);
 }
 
 void orbit_view_unmap(struct orbit_view *view) {
 	if (!view->mapped) {
 		return;
 	}
+	orbit_win_anim_forget(view);
+	orbit_win_anim_close(view); /* a última imagem fica num fantasma que esmaece (antes de a janela sair da arrumação) */
 	struct orbit_server *server = view->server;
 	bool was_focused = server->focused == view;
 	struct orbit_view *partner = view == server->split_top ? server->split_bottom
@@ -529,6 +532,7 @@ static void xdg_destroy(struct wl_listener *listener, void *data) {
 }
 
 void orbit_view_release(struct orbit_view *view) {
+	orbit_win_anim_forget(view);
 	if (view->mapped) {
 		orbit_split_release(view->server, view);
 		wl_list_remove(&view->link);
@@ -581,6 +585,7 @@ static void xdg_commit(struct wl_listener *listener, void *data) {
 	} else if (view->mapped) {
 		orbit_foreign_sync(view);
 		orbit_deco_update(view); /* o cliente mudou de tamanho: a barra acompanha a largura */
+		orbit_win_anim_commit(view);
 	}
 }
 

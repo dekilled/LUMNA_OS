@@ -15,7 +15,7 @@ Regras de sempre: perguntar antes de decisão estrutural; app novo começa por e
 Decisões do Eric (2026): o ajuste fica numa **página própria** do Painel, com a versão simples como alternativa para máquina fraca.
 
 - **Workspaces do Desktop:** feito. Os 3 espaços dão a volta em círculo (1→2→3→1); avançar desliza para a esquerda, voltar para a direita (3→1 também desliza para a esquerda). A página **Animações** do Painel também está feita (Nível + ajuste fino).
-- **Janelas:** abrem em tamanho fixo, nascem um pouco maiores e transparentes e reduzem ao tamanho final já opacas ("cartão jogado na mesa"). Perguntas abertas: todas as janelas ou só as normais? efeito reverso ao fechar? duração (~180 ms)?
+- **Janelas:** feito (Orbit, `winanim.c`): nascem 6% maiores e transparentes e assentam no tamanho final (180 ms); ao fechar, o contrário, com um fantasma da última imagem. Jogos, telas de Gaming/Mídia e tela cheia não animam; tudo mais anima. Falta o Eric ver no PC (2.473). Ideias futuras: curva com leve "quicar", animar minimizar/restaurar, popups.
 - **Lançador de apps:** o conteúdo nasce menor e cresce ao tamanho normal; o fundo vai de 100% transparente até a transparência atual. Pergunta aberta: reverso ao fechar? (Precisa ver se o Gravity sabe escalar conteúdo.)
 - **Carrossel dos modos:** feito (zoom contínuo).
 - Depois: boot, pós-login (abaixo).

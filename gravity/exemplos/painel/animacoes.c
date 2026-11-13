@@ -2,9 +2,10 @@
  * Aparência → Animações: o que se move no LUMNA. Tudo é escolhido aqui (e vale ao Aplicar):
  *   - as animações dos apps Gravity   (tema.ini [movimento], pela Aparência: estilo.c);
  *   - o deslize ao trocar de espaço ou de modo (~/.config/lumna/animacoes.ini [geral] deslize, que o Orbit lê na hora);
+ *   - abrir e fechar janelas, em animacoes.ini [geral] janelas (o Orbit também lê na hora; jogos nunca animam);
  *   - o carrossel do Super+Tab         (modos.ini [geral] troca = carrossel; desligado, a troca é na hora).
- * O "Nível" é um atalho que liga ou desliga os três de uma vez: Completa (tudo), Simples (sem o carrossel, mais leve) e Desligada (nada se move).
- * As animações novas (janelas, lançador) entram aqui quando existirem.
+ * O "Nível" é um atalho que liga ou desliga todos de uma vez: Completa (tudo), Simples (sem o carrossel e sem as janelas animadas, mais leve) e
+ * Desligada (nada se move). As animações novas (o lançador) entram aqui quando existirem.
  */
 #include "painel.h"
 
@@ -18,16 +19,16 @@ bool pn_estilo_animacoes_ler(void);
 void pn_estilo_animacoes_gravar(bool ligado);
 
 struct animacoes {
-	bool apps, deslize, carrossel;
+	bool apps, deslize, carrossel, janelas;
 };
 
 static struct animacoes cfg, gravada;
 static int nivel; /* 0 Completa, 1 Simples, 2 Desligada, 3 Personalizada (só mostra) */
 
 static const struct animacoes predefinidas[3] = {
-	{ true, true, true },   /* Completa */
-	{ true, true, false },  /* Simples: sem o carrossel */
-	{ false, false, false } /* Desligada */
+	{ true, true, true, true },    /* Completa */
+	{ true, true, false, false },  /* Simples: sem o carrossel e sem as janelas animadas */
+	{ false, false, false, false } /* Desligada */
 };
 
 static int nivel_de(const struct animacoes *c) {
@@ -39,30 +40,36 @@ static int nivel_de(const struct animacoes *c) {
 	return 3;
 }
 
-static bool deslize_ler(void) {
+/* animacoes.ini: [geral] deslize e janelas (sim por padrão) */
+static void ini_ler(bool *deslize, bool *janelas) {
+	*deslize = *janelas = true;
 	char caminho[1024];
 	pn_caminho(caminho, sizeof(caminho), "animacoes.ini");
 	char *texto = NULL;
-	bool r = true;
 	if (g_file_get_contents(caminho, &texto, NULL, NULL)) {
 		char **linhas = g_strsplit(texto, "\n", -1);
 		for (char **l = linhas; *l; l++) {
 			char chave[64], valor[64];
-			if (sscanf(*l, " %63[^= ] = %63s", chave, valor) == 2 && !strcmp(chave, "deslize")) {
-				r = strcmp(valor, "nao") && strcmp(valor, "não") && strcmp(valor, "0");
+			if (sscanf(*l, " %63[^= ] = %63s", chave, valor) != 2) {
+				continue;
+			}
+			bool sim = strcmp(valor, "nao") && strcmp(valor, "não") && strcmp(valor, "0");
+			if (!strcmp(chave, "deslize")) {
+				*deslize = sim;
+			} else if (!strcmp(chave, "janelas")) {
+				*janelas = sim;
 			}
 		}
 		g_strfreev(linhas);
 		g_free(texto);
 	}
-	return r;
 }
 
 void pn_animacoes_abrir(void) {
 	struct modos_cfg m;
 	modos_cfg_ler(&m);
 	gravada.apps = pn_estilo_animacoes_ler();
-	gravada.deslize = deslize_ler();
+	ini_ler(&gravada.deslize, &gravada.janelas);
 	gravada.carrossel = m.troca == 1;
 	cfg = gravada;
 	nivel = nivel_de(&cfg);
@@ -74,8 +81,8 @@ bool pn_animacoes_pendente(void) {
 
 void pn_animacoes_aplicar(void) {
 	char texto[256];
-	snprintf(texto, sizeof(texto), "# O que se move no LUMNA (o Painel > Animações grava este arquivo; o Orbit o lê na hora)\n[geral]\ndeslize = %s\n",
-		cfg.deslize ? "sim" : "nao");
+	snprintf(texto, sizeof(texto), "# O que se move no LUMNA (o Painel > Animações grava este arquivo; o Orbit o lê na hora)\n[geral]\ndeslize = %s\njanelas = %s\n",
+		cfg.deslize ? "sim" : "nao", cfg.janelas ? "sim" : "nao");
 	if (!pn_gravar("animacoes.ini", texto)) {
 		return;
 	}
@@ -102,7 +109,7 @@ void pn_animacoes_desenhar(void) {
 	static const char *const niveis[] = { "Completa", "Simples", "Desligada", "Personalizada" };
 	int escolha = nivel;
 	if (pn_ajuste_lista(CLAY_ID("an-nivel"), "play", "Nível de animação",
-		    "Completa usa todos os efeitos; Simples é mais leve (sem o carrossel); Desligada não move nada. Serve para máquinas mais fracas.", niveis,
+		    "Completa usa todos os efeitos; Simples é mais leve (sem o carrossel e sem animar as janelas); Desligada não move nada. Serve para máquinas mais fracas.", niveis,
 		    nivel == 3 ? 4 : 3, &escolha) &&
 		escolha < 3) {
 		cfg = predefinidas[escolha];
@@ -116,6 +123,9 @@ void pn_animacoes_desenhar(void) {
 	pn_linha_comecar(CLAY_ID("an-deslize"), "stack", "Deslizar ao trocar de espaço ou de modo", "As janelas deslizam; os três espaços do Desktop dão a volta (1, 2, 3 e de novo 1)");
 	mudou |= gv_interruptor(CLAY_ID("an-deslize-v"), &cfg.deslize);
 	pn_linha_acabar();
+	pn_linha_comecar(CLAY_ID("an-janelas"), "window", "Abrir e fechar janelas", "A janela nasce um pouco maior e transparente e assenta no tamanho; ao fechar, o contrário. Jogos ficam de fora");
+	mudou |= gv_interruptor(CLAY_ID("an-janelas-v"), &cfg.janelas);
+	pn_linha_acabar();
 	pn_linha_comecar(CLAY_ID("an-carrossel"), "desktop", "Carrossel de modos (Super + Tab)",
 		"Mostra os modos em cartões com zoom e solta o Super para entrar. Desligado, o Super + Tab troca na hora");
 	mudou |= gv_interruptor(CLAY_ID("an-carrossel-v"), &cfg.carrossel);
@@ -123,5 +133,5 @@ void pn_animacoes_desenhar(void) {
 	if (mudou) {
 		nivel = nivel_de(&cfg);
 	}
-	gv_texto(CLAY_STRING("Em breve: animação ao abrir janelas e no menu de aplicativos."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
+	gv_texto(CLAY_STRING("Em breve: animação do menu de aplicativos."), gv_t.tamanho_corpo - 1, gv_t.texto_suave, GV_PESO_NORMAL);
 }

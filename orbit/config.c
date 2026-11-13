@@ -399,6 +399,7 @@ int orbit_anim_ms(const struct orbit_server *server) {
 
 void orbit_animations_config_load(struct orbit_server *server) {
 	server->anim_off = false;
+	server->anim_windows = true;
 	char dir[400], path[460];
 	if (!orbit_lumna_dir(dir, sizeof(dir))) {
 		return;
@@ -411,8 +412,14 @@ void orbit_animations_config_load(struct orbit_server *server) {
 	char line[256];
 	while (fgets(line, sizeof(line), f)) {
 		char key[64], value[64];
-		if (sscanf(line, " %63[^= ] = %63s", key, value) == 2 && !strcmp(key, "deslize")) {
-			server->anim_off = !strcmp(value, "nao") || !strcmp(value, "não") || !strcmp(value, "0");
+		if (sscanf(line, " %63[^= ] = %63s", key, value) != 2) {
+			continue;
+		}
+		bool off = !strcmp(value, "nao") || !strcmp(value, "não") || !strcmp(value, "0");
+		if (!strcmp(key, "deslize")) {
+			server->anim_off = off;
+		} else if (!strcmp(key, "janelas")) {
+			server->anim_windows = !off;
 		}
 	}
 	fclose(f);

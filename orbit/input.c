@@ -243,6 +243,13 @@ void orbit_pointer_button(struct orbit_server *server, uint32_t time, uint32_t b
 	wlr_seat_pointer_notify_frame(server->seat);
 }
 
+/* a roda do mouse (para os testes e o orbit-msg): delta em unidades de rolagem, positivo desce */
+void orbit_pointer_scroll(struct orbit_server *server, uint32_t time, double delta) {
+	wlr_seat_pointer_notify_axis(server->seat, time, WL_POINTER_AXIS_VERTICAL_SCROLL, delta, (int32_t)(delta / 15), WL_POINTER_AXIS_SOURCE_WHEEL,
+		WL_POINTER_AXIS_RELATIVE_DIRECTION_IDENTICAL);
+	wlr_seat_pointer_notify_frame(server->seat);
+}
+
 static void cursor_button(struct orbit_server *server, const struct orbit_button_event *event) {
 	server->last_input = ORBIT_INPUT_MOUSE;
 	orbit_idle_activity(server);

@@ -310,6 +310,11 @@ struct orbit_server {
 	char carousel_output[32];         /* ...na saída com este nome... */
 	int carousel_target;              /* ...com este modo em destaque */
 	int carousel_end;                 /* como acabou o último: 0 aberto/nunca, 1 confirmado, 2 cancelado (o carrossel precisa saber para crescer ou esmaecer) */
+	bool anim_windows;                /* animacoes.ini [geral] janelas = sim|nao: abrir e fechar janelas animados */
+	int wanim_opens, wanim_closes;    /* quantas janelas animaram ao abrir e ao fechar (para os testes) */
+	struct wl_event_source *win_timer;
+	struct orbit_ghost *ghosts[8];    /* as imagens de janelas que acabaram de fechar e estão esmaecendo */
+	int nghosts;
 	bool anim_off;                    /* animacoes.ini [geral] deslize = nao: nada desliza (o Painel > Animações grava) */
 	int slide_dir;                    /* o lado do último deslize (+1 conteúdo para a esquerda, -1 para a direita; para os testes) */
 	int slide_count;                  /* quantas trocas de espaço/modo deslizaram (para os testes; o carrossel troca sem deslizar) */
@@ -380,6 +385,9 @@ struct orbit_output {
 	bool host_fs;                          /* esta janela está em tela cheia lá fora */
 };
 
+struct orbit_winanim; /* winanim.c */
+struct orbit_ghost;
+
 struct orbit_view {
 	enum orbit_node_kind kind;
 	uint32_t id; /* o do orbit-msg, nunca reaproveitado */
@@ -430,6 +438,8 @@ struct orbit_view {
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
 	struct wl_listener request_minimize;
+	struct orbit_winanim *wanim; /* a animação de abrir em curso (winanim.c) */
+	uint32_t wanim_pending;      /* quer abrir animada mas as imagens ainda não chegaram: a hora em que pediu (ms) */
 	bool placed;
 	bool sliding;
 	int slide_x, slide_y;
@@ -555,6 +565,7 @@ bool orbit_dnd_touch_motion(struct orbit_server *server, uint32_t time, int32_t 
 /* para os testes (orbit-msg mouse): o ponteiro vai para lá e o botão desce ou sobe como se viessem de um mouse */
 void orbit_pointer_warp(struct orbit_server *server, double x, double y);
 void orbit_pointer_button(struct orbit_server *server, uint32_t time, uint32_t button, enum wl_pointer_button_state state);
+void orbit_pointer_scroll(struct orbit_server *server, uint32_t time, double delta);
 void orbit_touch_up(struct orbit_server *server, uint32_t time, int32_t id);
 void orbit_touch_frame(struct orbit_server *server);
 
@@ -688,6 +699,10 @@ void orbit_carousel_end(struct orbit_server *server, uint32_t mods);
 void orbit_carousel_confirm(struct orbit_server *server, int mode); /* mode < 0: o alvo */
 void orbit_carousel_cancel(struct orbit_server *server);
 void orbit_animations_config_load(struct orbit_server *server);
+void orbit_win_anim_open(struct orbit_view *view);
+void orbit_win_anim_close(struct orbit_view *view);
+void orbit_win_anim_forget(struct orbit_view *view);
+void orbit_win_anim_commit(struct orbit_view *view);
 int orbit_anim_ms(const struct orbit_server *server); /* a duração dos deslizes: 0 quando desligados */
 void orbit_ipc_emit(const char *json);
 struct orbit_output *orbit_output_for_layer(struct orbit_server *server, const char *app_id);
