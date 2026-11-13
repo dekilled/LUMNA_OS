@@ -630,6 +630,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.473d | Abrir o Firefox, um diálogo (Abrir arquivo) e um app X11 | Animam também; o app que redesenha sem parar (vídeo, jogo de navegador) não treme durante os 180 ms | ☐ |
 | 2.473e | Painel > Animações > desligar "Abrir e fechar janelas" + Aplicar; ou Nível Simples/Desligada | As janelas passam a abrir e fechar na hora, sem reiniciar | ☐ |
 | 2.473f | Abrir várias janelas seguidas e uma em tela cheia (F11) e na Mídia | Nenhuma falha, nenhum fantasma esquecido na tela; tela cheia e Mídia sem animar | ☐ |
+| 2.474 | Abrir o menu de aplicativos (Super sozinho ou o botão da dock) | O fundo sai de **transparente** até a cor de sempre e o conteúdo (título, abas, lista) **nasce um pouco menor e cresce** até o tamanho normal, em ~240 ms | ☐ |
+| 2.474b | Fechar o menu (Esc, abrir um app, ou tocar na dock de novo) | O contrário: o conteúdo encolhe e o fundo some em ~160 ms; tocar na dock de novo durante a animação não abre outro por cima | ☐ |
+| 2.474c | Painel > Animações > desligar "Animações dos apps" + Aplicar, e abrir o menu | Abre e fecha na hora, sem animação | ☐ |
+| 2.474d | Digitar na busca logo ao abrir e arrastar um app para a dock | A busca recebe as letras; o arraste continua funcionando como antes | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |

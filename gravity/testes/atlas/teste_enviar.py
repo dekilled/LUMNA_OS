@@ -28,6 +28,16 @@ def abre_enviar(arquivo="notas.md"):
     toca("mi-enviar", 0.6)
 
 
+# começa do zero: o Atlas é reaberto sem as redes e nuvens que outros testes deixaram (este teste roda por último e deixa o app fechado)
+subprocess.run(["pkill", "-x", "atlas"])
+time.sleep(0.8)
+for f in (f"{cfgdir}/rede.ini",):
+    if os.path.exists(f):
+        os.remove(f)
+atlas = subprocess.Popen([os.environ.get("ATLAS_BIN", f"{gravity}/atlas"), docs], env=dict(os.environ, LUMNA_ATLAS_DEBUG="1"),
+                         stdout=open(f"{run}/ar.out", "w"), stderr=subprocess.DEVNULL)
+time.sleep(2.5)
+
 vai_para(docs)
 tecla("Escape")
 segura_sel("notas.md")
@@ -68,11 +78,11 @@ toca("ev-rede/0", 1.2)
 confere(lambda: os.path.exists(f"{servidor}/notas.md"), "enviar para o compartilhamento copia o arquivo para lá", 6)
 
 # 5. uma conta na nuvem (pasta local da conta): reabre o app com a conta no rede.ini
-subprocess.run(["pkill", "-x", "atlas"])
+atlas.kill()
 time.sleep(0.8)
 nuvem = f"{casa}/Nuvem/Conta"
 os.makedirs(nuvem, exist_ok=True)
-ini = open(f"{cfgdir}/rede.ini").read()
+ini = open(f"{cfgdir}/rede.ini").read() if os.path.exists(f"{cfgdir}/rede.ini") else ""
 open(f"{cfgdir}/rede.ini", "w").write(ini + f"\n[conta000]\nnome=Minha nuvem\ntipo=webdav\nremote=minha-nuvem\npasta={nuvem}\n")
 atlas = subprocess.Popen([os.environ.get("ATLAS_BIN", f"{gravity}/atlas"), docs], env=dict(os.environ, LUMNA_ATLAS_DEBUG="1"),
                          stdout=open(f"{run}/ar.out", "w"), stderr=subprocess.DEVNULL)
@@ -81,14 +91,5 @@ abre_enviar()
 confere(lambda: pos("ev-nuvem/0") is not None, "a conta na nuvem aparece no 'Enviar para'")
 toca("ev-nuvem/0", 1.2)
 confere(lambda: os.path.exists(f"{nuvem}/notas.md"), "enviar para a nuvem copia o arquivo para a pasta da conta", 6)
-# devolve tudo como estava (os testes seguintes contam com o app aberto, sem a conta nem a cópia)
 atlas.kill()
-time.sleep(0.8)
-open(f"{cfgdir}/rede.ini", "w").write(ini)
-for f in (f"{desktop}/notas.md", f"{servidor}/notas.md", f"{nuvem}/notas.md"):
-    if os.path.exists(f):
-        os.remove(f)
-subprocess.Popen([os.environ.get("ATLAS_BIN", f"{gravity}/atlas"), docs], env=dict(os.environ, LUMNA_ATLAS_DEBUG="1"),
-                 stdout=open(f"{run}/ar.out", "w"), stderr=subprocess.DEVNULL)
-time.sleep(2.5)
 sys.exit(1 if falhas else 0)

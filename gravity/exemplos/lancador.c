@@ -22,6 +22,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <signal.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -530,9 +531,13 @@ static void soltar_marca(void) {
 
 /* sai, e larga já a marca de aberto: quem abrir logo a seguir abre um novo, em vez de achar que
  * é um toque para fechar este (que ainda está a fechar) */
+/* fechar anima ao contrário da abertura (o fundo e o conteúdo somem) e só então o programa acaba; o desenho chama gv_app_sair no fim */
+static volatile sig_atomic_t fechando;
+#define CHAVE_ENTRADA 0x6c6e0001u
+
 static void sair(void) {
-	soltar_marca();
-	gv_app_sair(app_lancador);
+	fechando = 1;
+	gv_app_redesenhar(app_lancador);
 }
 
 /* ---- abrir ---- */
@@ -886,6 +891,19 @@ static void desenhar(gv_app *app, void *dados) {
 		marca_tempo(quadros == 1 ? "primeiro quadro" : quadros == 2 ? "segundo quadro" : "terceiro quadro");
 	}
 	(void)dados;
+	/* a abertura: o fundo vai de transparente até o que ele é, e o conteúdo nasce um pouco menor e cresce até o tamanho; fechar é o contrário */
+	static bool entrou;
+	if (!entrou) {
+		entrou = true;
+		gv_anim(CHAVE_ENTRADA, 0.0f, 0);
+	}
+	float ent = gv_anim(CHAVE_ENTRADA, fechando ? 0.0f : 1.0f, fechando ? 160 : 240);
+	if (fechando && ent < 0.02f) {
+		soltar_marca();
+		gv_app_sair(app);
+		return;
+	}
+	gv_grupo_transformar(CLAY_ID("conteudo"), 0.92f + 0.08f * ent, fminf(1.0f, ent * 1.6f));
 	/* arrastando um app para a dock: o Início some de vista e deixa passar o ponteiro; se o destino aceitou, ele fecha */
 	static bool estava_arrastando;
 	if (getenv("GV_DEBUG_DND")) {
@@ -944,8 +962,10 @@ static void desenhar(gv_app *app, void *dados) {
 	CLAY(tela, {
 		.layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
 			.padding = { lado, lado, 56, 24 } },
-		.backgroundColor = gv_alfa(gv_t.fundo, 0.985f),
+		.backgroundColor = gv_alfa(gv_t.fundo, 0.985f * ent),
 	}) {
+	CLAY(CLAY_ID("conteudo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
+		.clip = { .horizontal = true, .vertical = true } }) {
 		/* o título e a busca */
 		CLAY(CLAY_ID("topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 			CLAY(CLAY_ID("titulo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
@@ -1055,6 +1075,7 @@ static void desenhar(gv_app *app, void *dados) {
 			}
 		}
 	}
+	}
 	fflush(stdout);
 
 	/* teclado: Esc limpa a busca e depois fecha; "/" vai à busca */
@@ -1124,8 +1145,9 @@ static bool alternar_instancia(void) {
 
 static void ao_terminar(int s) {
 	(void)s;
+	fechando = 1; /* (num sinal: só uma marca e o pedido de um quadro novo; quem desenha fecha, depois da animação) */
 	if (app_lancador) {
-		gv_app_sair(app_lancador); /* (num sinal: a marca sai no fim do main) */
+		gv_app_redesenhar(app_lancador);
 	}
 }
 

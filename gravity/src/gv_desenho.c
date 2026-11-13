@@ -156,11 +156,22 @@ static void barra(cairo_t *cr, Clay_BoundingBox b, const struct gv_extra *e) {
 
 #define GV_MAX_CORTES 32
 
+/* o grupo escalado e esmaecido (gv_grupo_transformar) */
+static uint32_t grupo_id;
+static float grupo_escala = 1.0f, grupo_alfa = 1.0f;
+
+void gv_grupo_transformar(Clay_ElementId id, float escala, float alfa) {
+	grupo_id = id.id;
+	grupo_escala = escala;
+	grupo_alfa = alfa < 0 ? 0 : alfa > 1 ? 1 : alfa;
+}
+
 void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, int16_t zmax) {
 	struct {
 		Clay_BoundingBox caixa;
 		const struct gv_extra *rolagem;
 	} cortes[GV_MAX_CORTES];
+	bool grupos[GV_MAX_CORTES] = { false }; /* o corte de mesmo nível é o grupo transformado: no fim o grupo é pintado com a opacidade dele */
 	int ncortes = 0;
 	for (int i = 0; i < comandos.length; i++) {
 		Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&comandos, i);
@@ -223,13 +234,29 @@ void gv__desenhar(cairo_t *cr, Clay_RenderCommandArray comandos, int16_t zmin, i
 				cortes[ncortes].caixa = b;
 				cortes[ncortes].rolagem = extra && extra->tipo == GV_EXTRA_ROLAGEM ? extra : NULL;
 			}
+			bool grupo = grupo_id && cmd->id == grupo_id && (grupo_escala != 1.0f || grupo_alfa < 1.0f);
+			if (ncortes < GV_MAX_CORTES) {
+				grupos[ncortes] = grupo;
+			}
 			ncortes++;
 			cairo_save(cr);
+			if (grupo) {
+				cairo_translate(cr, b.x + b.width / 2, b.y + b.height / 2);
+				cairo_scale(cr, grupo_escala, grupo_escala);
+				cairo_translate(cr, -(b.x + b.width / 2), -(b.y + b.height / 2));
+			}
 			cairo_rectangle(cr, b.x, b.y, b.width, b.height);
 			cairo_clip(cr);
+			if (grupo && grupo_alfa < 1.0f) {
+				cairo_push_group(cr);
+			}
 			break;
 		}
 		case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
+			if (ncortes > 0 && ncortes <= GV_MAX_CORTES && grupos[ncortes - 1] && grupo_alfa < 1.0f) {
+				cairo_pop_group_to_source(cr);
+				cairo_paint_with_alpha(cr, grupo_alfa);
+			}
 			cairo_restore(cr);
 			/* a barra da rolagem vai por cima do conteúdo, já fora do corte */
 			if (ncortes > 0 && --ncortes < GV_MAX_CORTES && cortes[ncortes].rolagem) {

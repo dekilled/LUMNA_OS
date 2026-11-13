@@ -211,6 +211,10 @@ bool gv_icone_existe(const char *nome);
 /* O valor de agora a caminho do alvo. A chave identifica a animação (use o id do elemento:
  * id.id, ou id.id + 1, + 2... para mais de uma). Muda o alvo e ela parte do valor de agora. */
 float gv_anim(uint32_t chave, float alvo, int duracao_ms);
+/* Escala e esmaece um trecho da tela: o elemento com este id (que precisa ter .clip, o corte é o que o delimita) é desenhado reduzido ou
+ * ampliado em volta do centro dele e com a opacidade alfa (0 a 1). Vale para o desenho de agora: quem anima chama a cada quadro (e termina
+ * chamando com 1 e 1). Só o desenho muda; o clique ainda usa o layout sem escala. */
+void gv_grupo_transformar(Clay_ElementId id, float escala, float alfa);
 Clay_Color gv_anim_cor(uint32_t chave, Clay_Color alvo, int duracao_ms);
 
 /* ---- interação (do quadro anterior: o modo imediato decide com o layout já desenhado) ---- */

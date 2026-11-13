@@ -3,6 +3,7 @@
  * imediato não há objectos para guardar o estado, por isso cada animação vive numa tabela pela
  * chave; uma que não é pedida há uns quadros cede o lugar.
  */
+#include <stdlib.h>
 #include "gv_interno.h"
 
 #include <math.h>
@@ -66,7 +67,18 @@ static struct anim *achar(uint32_t chave, float alvo) {
 	return a;
 }
 
+/* GV_ANIM_ESCALA=N alonga todas as animações N vezes (só para os testes poderem ver os quadros do meio) */
+static float escala_de_tempo(void) {
+	static float e;
+	if (e <= 0) {
+		const char *v = getenv("GV_ANIM_ESCALA");
+		e = v && atof(v) > 0 ? (float)atof(v) : 1.0f;
+	}
+	return e;
+}
+
 float gv_anim(uint32_t chave, float alvo, int duracao_ms) {
+	duracao_ms = (int)(duracao_ms * escala_de_tempo());
 	struct anim *a = achar(chave, alvo);
 	a->visto = quadro;
 	double agora = gv_agora();

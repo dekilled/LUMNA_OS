@@ -16,7 +16,7 @@ Decisões do Eric (2026): o ajuste fica numa **página própria** do Painel, com
 
 - **Workspaces do Desktop:** feito. Os 3 espaços dão a volta em círculo (1→2→3→1); avançar desliza para a esquerda, voltar para a direita (3→1 também desliza para a esquerda). A página **Animações** do Painel também está feita (Nível + ajuste fino).
 - **Janelas:** feito (Orbit, `winanim.c`): nascem 6% maiores e transparentes e assentam no tamanho final (180 ms); ao fechar, o contrário, com um fantasma da última imagem. Jogos, telas de Gaming/Mídia e tela cheia não animam; tudo mais anima. Falta o Eric ver no PC (2.473). Ideias futuras: curva com leve "quicar", animar minimizar/restaurar, popups.
-- **Lançador de apps:** o conteúdo nasce menor e cresce ao tamanho normal; o fundo vai de 100% transparente até a transparência atual. Pergunta aberta: reverso ao fechar? (Precisa ver se o Gravity sabe escalar conteúdo.)
+- **Lançador de apps:** feito (Gravity): o fundo vai de transparente até a opacidade dele e o conteúdo nasce menor e cresce; ao fechar, o contrário. O Gravity ganhou `gv_grupo_transformar` (escala e opacidade de um trecho), que outras telas podem usar (menus, popups, diálogos). Falta o Eric ver no PC (2.474).
 - **Carrossel dos modos:** feito (zoom contínuo).
 - Depois: boot, pós-login (abaixo).
 

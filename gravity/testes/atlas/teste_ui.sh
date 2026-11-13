@@ -8,6 +8,8 @@ mkdir -p "$casa/Documentos/Projetos/a" "$casa/Documentos/Projetos/b" "$casa/Docu
 	"$casa/Documentos/Modelos" "$casa/Documentos/Arquivados" "$casa/Imagens" "$casa/Downloads" "$casa/.config"
 for f in planejamento.pdf notas.md orçamento.ods apresentação.odp; do echo "x" > "$casa/Documentos/$f"; done
 printf 'XDG_DOCUMENTS_DIR="$HOME/Documentos"\nXDG_PICTURES_DIR="$HOME/Imagens"\nXDG_DOWNLOAD_DIR="$HOME/Downloads"\n' > "$casa/.config/user-dirs.dirs"
+# a animação das janelas (180 ms) não é o que esta suíte testa e desloca os alvos dos cliques logo na abertura: desligada aqui (ela tem o teste dela, janelas_animacao.sh)
+mkdir -p "$casa/.config/lumna"; printf '[geral]\njanelas = nao\n' > "$casa/.config/lumna/animacoes.ini"
 export XDG_RUNTIME_DIR=$run HOME=$casa WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1
 unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_DOCUMENTS_DIR XDG_DOWNLOAD_DIR XDG_PICTURES_DIR
 # um rclone de mentira (só registra o que recebeu) e uma pasta que faz de ponto de montagem dos compartilhamentos
@@ -43,10 +45,6 @@ python3 "$aqui/teste_ui.py" "$orbit_dir" "$run" "$casa"
 rc=$?
 if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_ops.py" "$orbit_dir" "$run" "$casa"
-	rc=$?
-fi
-if [ $rc -eq 0 ]; then
-	python3 "$aqui/teste_enviar.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
 if [ $rc -eq 0 ]; then
@@ -111,6 +109,11 @@ if [ $rc -eq 0 ]; then
 fi
 if [ $rc -eq 0 ]; then
 	python3 "$aqui/teste_abas.py" "$orbit_dir" "$run" "$casa"
+	rc=$?
+fi
+# o último: reabre o Atlas do zero (sem as redes e nuvens que os testes anteriores deixaram), então não pode atrapalhar nenhum outro
+if [ $rc -eq 0 ]; then
+	python3 "$aqui/teste_enviar.py" "$orbit_dir" "$run" "$casa"
 	rc=$?
 fi
 pkill -x orbit; pkill -x atlas

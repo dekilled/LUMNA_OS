@@ -154,3 +154,10 @@ Não anima: **jogos** (`view->game`: marcas da Steam e `LUMNA_JOGO`), janelas em
 Como: o wlroots não escala uma árvore; cada imagem (scene buffer) da janela é escalada em volta do centro delas (tamanho de destino e posição) e ganha opacidade; as medidas de partida ficam guardadas e tudo volta ao exato no fim. O app que redesenha a cada quadro faz o wlroots refazer o tamanho a cada commit; por isso o estado da animação é reaplicado logo depois de cada commit da janela. No fechar, o iterador padrão do wlroots pula os nós desligados (no unmap a árvore da superfície já está desligada), então o fantasma usa uma varredura própria.
 
 Limites conhecidos: uma janela X11 pode mostrar um quadro no tamanho final antes de começar (o X11 não tem commit do Orbit: a animação começa no relógio seguinte); subsuperfícies e a barra do servidor escalam junto (até 48 imagens por janela); a barra de título do lado do servidor e as bordas do Orbit entram só se forem imagens (a borda em retângulo não escala). Teste: `gravity/testes/janelas_animacao.sh` (o renderizador de software dos testes não aplica transparência: prova-se o tamanho e os contadores; a transparência só no PC de verdade).
+
+
+## Animação do lançador de apps (Gravity)
+
+Ao abrir, o fundo do Início vai de 100% transparente até a opacidade dele (0,985) e o **conteúdo nasce menor (92%) e cresce até o tamanho**, em 240 ms; ao fechar (Esc, abrir um app, ou o toque da dock, que manda SIGTERM) é o contrário em 160 ms, e só depois o processo acaba. Fica ligada pela chave "Animações dos apps" (Painel > Animações): desligada, abre e fecha na hora.
+
+Como: o Gravity ganhou `gv_grupo_transformar(id, escala, alfa)`: o elemento com este id (precisa de `.clip`) é desenhado escalado em volta do centro e com a opacidade dada (um grupo do cairo, pintado com alfa no fim do corte). Vale só para o desenho; o clique ainda usa o layout sem escala (são 240 ms). `GV_ANIM_ESCALA=N` alonga todas as animações N vezes, só para os testes verem os quadros do meio. Teste: `gravity/testes/lancador_animacao.sh`.
