@@ -1,7 +1,15 @@
 # Área de trabalho (ícones e pastas)
 
-`lumna-desktop` mostra o que está na pasta **Área de trabalho** da pessoa (`~/Desktop`, ou a que o `xdg-user-dirs` disser) como ícones numa grade, na tela
-principal. É um serviço Gravity que roda na camada de fundo, logo acima do papel de parede (`exemplos/desktop.c`).
+`lumna-desktop` mostra o que está na pasta **Área de trabalho** da pessoa como ícones numa grade, **em cada tela**. É um serviço Gravity que roda na camada de
+fundo, logo acima do papel de parede (`exemplos/desktop.c`).
+
+- **A pasta é própria e começa vazia: `~/Desktop`.** Se o `xdg-user-dirs` aponta a Área de trabalho para a pasta pessoal inteira (é o que ele grava quando a
+  pessoa não tem uma pasta de desktop), isso é ignorado: senão os ícones seriam tudo o que há na casa (cache, programas instalados...). Uma pasta de desktop
+  de verdade (diferente da casa) é respeitada.
+- **Uma área de trabalho por tela.** A da tela principal abre uma instância para cada outra tela (como o papel de parede) e as fecha quando a tela sai.
+  **Cada ícone mora numa tela só**: o lugar é guardado por tela no `~/.config/lumna/desktop.ini` (`[posicoes]` é a principal, `[posicoes NOME]` as outras).
+  Arrastar um ícone de uma tela para a outra muda o ícone de tela (o arquivo não sai da pasta). Ícone sem lugar, ou de uma tela que saiu, fica na principal.
+  Soltar em cima de uma pasta, de qualquer tela, move o arquivo para dentro dela.
 
 ## Decisões (do Eric)
 
@@ -32,10 +40,13 @@ principal. É um serviço Gravity que roda na camada de fundo, logo acima do pap
 - Fica no mesmo nível do papel de parede (o fundo), e **o Orbit o mantém sempre por cima do papel** (`orbit_layers_sync_hidden`), não importa quem nasceu
   primeiro. Antes valia a ordem de criação (com uma espera de 0,9 s ao iniciar): no PC do Eric o papel nascia depois e engolia os cliques, e o menu que
   aparecia era o do papel de parede, sem Nova pasta.
-- Só na tela principal. Nas telas de Gaming e Mídia ele some junto com o resto do desktop (camada de fundo).
-- O menu do vazio do papel de parede continua existindo nas outras telas.
+- Nas telas de Gaming e Mídia ele some junto com o resto do desktop (camada de fundo).
 
 ## Testes
+
+`sh testes/desktop_telas.sh PASTA_DO_ORBIT`: dois monitores e um `xdg-user-dirs` apontando para a pasta pessoal: a área de trabalho nasce vazia, o ícone mora
+numa tela só, arrastar de uma tela para a outra (e de volta) e soltar numa pasta. Voltar a aceitar a casa como Desktop faz o teste falhar.
+
 
 `sh testes/desktop_app.sh PASTA_DO_ORBIT` (Orbit sem tela, com clientes reais): lista e posições, seleção, retângulo, duplo clique em atalho e em pasta, renomear (e o lugar
 acompanha o nome novo), lixeira e desfazer, nova pasta com nome, arrastar para outro lugar, arrastar para dentro de uma pasta, arquivo criado e apagado por fora.

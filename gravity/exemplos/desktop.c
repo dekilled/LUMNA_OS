@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/inotify.h>
+#include <sys/prctl.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -50,6 +52,13 @@ struct item {
 
 static gv_app *app;
 static char *pasta_desktop;
+static const char *minha_saida;  /* NULL: a tela principal (que abre as instâncias das outras) */
+static char grupo[96] = "posicoes"; /* o grupo do desktop.ini com os lugares desta tela */
+static char pref[80] = "";          /* nas linhas de depuração: "[SAIDA] " nas instâncias das outras telas */
+static char *ini_texto;             /* o que o desktop.ini tinha na última leitura/gravação (a outra tela mexe nele) */
+#define MAX_FILHAS 8
+static struct { char saida[64]; pid_t pid; } filhas[MAX_FILHAS];
+static int nfilhas;
 static struct item *itens;
 static int n_itens;
 static GKeyFile *lugares;
@@ -112,25 +121,42 @@ static void lugares_ler(void) {
 	char *c = arquivo_lugares();
 	g_key_file_load_from_file(lugares, c, G_KEY_FILE_NONE, NULL);
 	g_free(c);
+	g_free(ini_texto);
+	ini_texto = g_key_file_to_data(lugares, NULL, NULL);
 }
 
 static void lugares_gravar(void) {
 	char *c = arquivo_lugares(), *pai = g_path_get_dirname(c);
 	g_mkdir_with_parents(pai, 0700);
 	g_key_file_save_to_file(lugares, c, NULL);
+	g_free(ini_texto);
+	ini_texto = g_key_file_to_data(lugares, NULL, NULL);
 	g_free(pai);
 	g_free(c);
 }
 
+/* o item mora numa tela só: o lugar vale no grupo desta e sai dos grupos das outras */
+static void lugar_gravar_nome(const char *nome, int col, int row) {
+	gsize n = 0;
+	char **gs = g_key_file_get_groups(lugares, &n);
+	for (gsize i = 0; i < n; i++) {
+		if ((!strcmp(gs[i], "posicoes") || g_str_has_prefix(gs[i], "posicoes ")) && strcmp(gs[i], grupo)) {
+			g_key_file_remove_key(lugares, gs[i], nome, NULL);
+		}
+	}
+	g_strfreev(gs);
+	g_key_file_set_integer_list(lugares, grupo, nome, (int[]){ col, row }, 2);
+}
+
 static void lugar_guardar(const struct item *it) {
 	if (it->col >= 0) {
-		g_key_file_set_integer_list(lugares, "posicoes", it->nome, (int[]){ it->col, it->row }, 2);
+		lugar_gravar_nome(it->nome, it->col, it->row);
 	}
 }
 
 static bool lugar_ler(struct item *it) {
 	gsize n = 0;
-	int *v = g_key_file_get_integer_list(lugares, "posicoes", it->nome, &n, NULL);
+	int *v = g_key_file_get_integer_list(lugares, grupo, it->nome, &n, NULL);
 	bool ok = v && n == 2 && v[0] >= 0 && v[1] >= 0;
 	if (ok) {
 		it->col = v[0];
@@ -140,6 +166,31 @@ static bool lugar_ler(struct item *it) {
 	}
 	g_free(v);
 	return ok;
+}
+
+/* o item é desta tela? Tem lugar no grupo dela; sem lugar em nenhuma, ou num grupo de uma tela que não existe mais, é da principal */
+static bool item_e_daqui(const char *nome) {
+	if (g_key_file_has_key(lugares, grupo, nome, NULL)) {
+		return true;
+	}
+	if (minha_saida) {
+		return false;
+	}
+	const char *saidas[8];
+	int n = gv_saidas(app, saidas, 8);
+	gsize ng = 0;
+	char **gs = g_key_file_get_groups(lugares, &ng);
+	bool de_outra = false;
+	for (gsize i = 0; i < ng && !de_outra; i++) {
+		if (!g_str_has_prefix(gs[i], "posicoes ") || !g_key_file_has_key(lugares, gs[i], nome, NULL)) {
+			continue;
+		}
+		for (int k = 1; k < n; k++) { /* as outras telas (a 0 é a principal) */
+			de_outra |= !strcmp(saidas[k], gs[i] + 9);
+		}
+	}
+	g_strfreev(gs);
+	return !de_outra;
 }
 
 static bool celula_ocupada(int col, int row, int ignorar) {
@@ -272,6 +323,9 @@ static void ler_pasta(void) {
 	struct item *novos = g_new0(struct item, l.n > 0 ? l.n : 1);
 	int n = 0;
 	for (int i = 0; i < l.n; i++) {
+		if (!item_e_daqui(l.v[i].nome)) {
+			continue; /* mora na área de trabalho de outra tela */
+		}
 		struct item *it = &novos[n];
 		it->e = l.v[i];
 		g_strlcpy(it->nome, l.v[i].nome, sizeof(it->nome));
@@ -528,11 +582,9 @@ static void confirmar_renome(void) {
 	int col = itens[idx].col, row = itens[idx].row;
 	if (ar_renomear(itens[idx].caminho, nome_edicao, &novo, &erro)) {
 		/* o lugar passa para o nome novo */
-		g_key_file_remove_key(lugares, "posicoes", antigo, NULL);
-		struct item tmp = { .col = col, .row = row };
+		g_key_file_remove_key(lugares, grupo, antigo, NULL);
 		char *n = g_path_get_basename(novo);
-		g_strlcpy(tmp.nome, n, sizeof(tmp.nome));
-		lugar_guardar(&tmp);
+		lugar_gravar_nome(n, col, row);
 		lugares_gravar();
 		g_free(n);
 		recarregar_pedido = true;
@@ -579,7 +631,10 @@ static void arrastar_ver(int idx, Clay_ElementId id) {
 		limpar_selecao();
 		itens[idx].sel = true;
 	}
+	/* uma linha de comentário (a spec do text/uri-list permite; o Atlas e os outros ignoram) diz de qual instância o arraste saiu: o destino
+	 * distingue "mudar de lugar nesta tela" de "veio da área de trabalho de outra tela" */
 	GString *g = g_string_new(NULL);
+	g_string_append_printf(g, "# lumna-desktop %d\r\n", (int)getpid());
 	int n = 0;
 	for (int i = 0; i < n_itens; i++) {
 		if (itens[i].sel) {
@@ -630,11 +685,18 @@ static void soltar_ver(void) {
 	}
 	(void)ultimo_p;
 	int col = ultimo_col, row = ultimo_row, alvo = ultimo_item_alvo;
+	if (depurando) {
+		printf("%ssolta col=%d row=%d alvo=%d\n", pref, col, row, alvo);
+	}
 	ultimo_col = ultimo_row = ultimo_item_alvo = -1;
-	bool daqui = dnd_daqui;
+	bool daqui = false;
 	int ancora_idx = dnd_ancora;
 	dnd_daqui = false;
 	dnd_ancora = -1;
+	{ /* de qual instância o arraste saiu (a linha de comentário que o arrastar_ver põe) */
+		const char *m = strstr(dados, "# lumna-desktop ");
+		daqui = m && atoi(m + 16) == (int)getpid();
+	}
 	GPtrArray *v = g_ptr_array_new_with_free_func(g_free);
 	bool todos_do_desktop = true;
 	char **ls = g_strsplit_set(dados, "\r\n", -1);
@@ -669,7 +731,7 @@ static void soltar_ver(void) {
 			}
 		}
 		if (vai->len) {
-			iniciar_op(todos_do_desktop && daqui ? AR_OP_MOVER : AR_OP_COPIAR, vai, itens[alvo].caminho);
+			iniciar_op(todos_do_desktop ? AR_OP_MOVER : AR_OP_COPIAR, vai, itens[alvo].caminho);
 		}
 		g_ptr_array_free(vai, TRUE);
 	} else if (todos_do_desktop && daqui && ancora_idx >= 0 && ancora_idx < n_itens) {
@@ -706,6 +768,16 @@ static void soltar_ver(void) {
 		}
 		lugares_gravar();
 		arrumar();
+	} else if (todos_do_desktop && !daqui) {
+		/* veio da área de trabalho de outra tela: os ícones passam a morar nesta, a partir de onde se soltou */
+		for (guint i = 0; i < v->len; i++) {
+			char *nome = g_path_get_basename(g_ptr_array_index(v, i));
+			int r = row + (int)i;
+			lugar_gravar_nome(nome, col, r < linhas ? r : linhas - 1); /* se bater em outro, o arrumar acha o livre mais perto */
+			g_free(nome);
+		}
+		lugares_gravar();
+		recarregar_pedido = true;
 	} else if (!todos_do_desktop) {
 		/* de fora: copia para a Área de trabalho e os que aparecerem ficam onde se soltou */
 		pendente_col = col;
@@ -982,13 +1054,14 @@ static void depurar(void) {
 		char *l = g_strdup_printf("%.0f %.0f %.0f %.0f", b.x, b.y, b.width, b.height);
 		char *a = g_hash_table_lookup(antes, itens[i].nome);
 		if (!a || strcmp(a, l)) {
-			printf("pos cel/%s %s\n", itens[i].nome, l);
+			printf("%spos cel/%s %s\n", pref, itens[i].nome, l);
 			g_hash_table_insert(antes, g_strdup(itens[i].nome), l);
 		} else {
 			g_free(l);
 		}
 	}
-	GString *e = g_string_new("estado ");
+	GString *e = g_string_new(pref);
+	g_string_append(e, "estado ");
 	g_string_append_printf(e, "total=%d grade=%dx%d ops=%d sel=[", n_itens, colunas, linhas, n_ops);
 	bool primeiro = true;
 	for (int i = 0; i < n_itens; i++) {
@@ -1012,12 +1085,80 @@ static void depurar(void) {
 	fflush(stdout);
 }
 
+/* ---- uma área de trabalho por tela (a da principal abre as das outras, como o papel de parede) ---- */
+
+static void filha_abrir(const char *saida) {
+	pid_t p = fork();
+	if (p == 0) {
+		prctl(PR_SET_PDEATHSIG, SIGTERM); /* a principal fechou: esta também */
+		execl("/proc/self/exe", "desktop", "--saida", saida, (char *)NULL);
+		_exit(127);
+	}
+	if (p > 0 && nfilhas < MAX_FILHAS) {
+		snprintf(filhas[nfilhas].saida, sizeof(filhas[0].saida), "%s", saida);
+		filhas[nfilhas++].pid = p;
+	}
+}
+
+static void filhas_rever(void) {
+	const char *saidas[8];
+	int n = gv_saidas(app, saidas, 8);
+	for (int i = 0; i < nfilhas; i++) {
+		bool existe = false;
+		for (int k = 1; k < n; k++) {
+			existe |= !strcmp(saidas[k], filhas[i].saida);
+		}
+		bool morreu = waitpid(filhas[i].pid, NULL, WNOHANG) == filhas[i].pid;
+		if (!existe || morreu) {
+			if (!morreu) {
+				kill(filhas[i].pid, SIGTERM);
+				waitpid(filhas[i].pid, NULL, 0);
+			}
+			filhas[i--] = filhas[--nfilhas];
+		}
+	}
+	for (int k = 1; k < n; k++) {
+		bool tem = false;
+		for (int i = 0; i < nfilhas; i++) {
+			tem |= !strcmp(filhas[i].saida, saidas[k]);
+		}
+		if (!tem) {
+			filha_abrir(saidas[k]);
+		}
+	}
+}
+
+/* o desktop.ini mudou (a área de trabalho de outra tela moveu um ícone para cá ou daqui): lê de novo, se o conteúdo é outro */
+static void ini_mudou(gv_app *a, int fd, void *dados) {
+	(void)a;
+	(void)dados;
+	char buf[4096];
+	while (read(fd, buf, sizeof(buf)) > 0) {
+	}
+	char *c = arquivo_lugares(), *texto = NULL;
+	GKeyFile *kf = g_key_file_new();
+	char *novo = g_key_file_load_from_file(kf, c, G_KEY_FILE_NONE, NULL) ? g_key_file_to_data(kf, NULL, NULL) : NULL;
+	if (novo && (!ini_texto || strcmp(novo, ini_texto))) {
+		lugares_ler();
+		recarregar_pedido = true;
+		gv_app_redesenhar(app);
+	}
+	g_free(novo);
+	g_free(texto);
+	g_key_file_free(kf);
+	g_free(c);
+}
+
 /* ---- o quadro ---- */
 
 static void desenhar(gv_app *a, void *dados) {
 	(void)a;
 	(void)dados;
 	ops_ver();
+	if (!minha_saida && gv_saidas_mudaram(app)) {
+		filhas_rever();
+		recarregar_pedido = true; /* os ícones de uma tela que saiu voltam para a principal */
+	}
 	if (recarregar_pedido) {
 		ler_pasta();
 	}
@@ -1144,22 +1285,40 @@ static void desenhar(gv_app *a, void *dados) {
 	depurar();
 }
 
-int main(void) {
+/* a pasta da Área de trabalho: a do xdg-user-dirs, a não ser que ela seja a pasta pessoal inteira (o xdg-user-dirs grava XDG_DESKTOP_DIR="$HOME"
+ * quando a pessoa não tem uma pasta de desktop: os ícones seriam tudo o que há na casa, o cache, os programas...). Aí vale ~/Desktop, que começa vazia. */
+static char *achar_pasta_desktop(void) {
+	const char *d = g_get_user_special_dir(G_USER_DIRECTORY_DESKTOP);
+	const char *casa = g_get_home_dir();
+	if (d && *d) {
+		char *limpa = g_canonicalize_filename(d, NULL), *casa_limpa = g_canonicalize_filename(casa, NULL);
+		bool e_casa = !strcmp(limpa, casa_limpa) || !strcmp(limpa, "/");
+		g_free(casa_limpa);
+		if (!e_casa) {
+			return limpa;
+		}
+		g_free(limpa);
+	}
+	return g_build_filename(casa, "Desktop", NULL);
+}
+
+int main(int argc, char **argv) {
+	if (argc >= 3 && !strcmp(argv[1], "--saida")) {
+		minha_saida = argv[2];
+		snprintf(grupo, sizeof(grupo), "posicoes %s", minha_saida);
+		snprintf(pref, sizeof(pref), "[%s] ", minha_saida);
+	}
 	depurando = getenv("LUMNA_DESKTOP_DEBUG") != NULL;
 	if (depurando) {
 		setvbuf(stdout, NULL, _IOLBF, 0);
 	}
-	const char *d = g_get_user_special_dir(G_USER_DIRECTORY_DESKTOP);
-	pasta_desktop = g_strdup(d && *d ? d : NULL);
-	if (!pasta_desktop) {
-		pasta_desktop = g_build_filename(g_get_home_dir(), "Desktop", NULL);
-	}
+	pasta_desktop = achar_pasta_desktop();
 	g_mkdir_with_parents(pasta_desktop, 0755);
 	lugares_ler();
 	ar_op_conflito_padrao(AR_C_MANTER_AMBOS);
 	/* (o Orbit mantém esta camada por cima do papel de parede, que é do mesmo nível: não depende de quem nasce primeiro) */
 	app = gv_app_criar(&(gv_opcoes){ .titulo = "Área de trabalho", .app_id = "lumna-desktop", .tipo = GV_CAMADA, .nivel = GV_NIVEL_FUNDO, .ancoras = GV_ANCORA_TUDO,
-		.zona_exclusiva = 0, .teclado = true, .saida = "@principal" });
+		.zona_exclusiva = 0, .teclado = true, .saida = minha_saida ? minha_saida : "@principal" });
 	if (!app) {
 		return 1;
 	}
@@ -1167,6 +1326,18 @@ int main(void) {
 	int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
 	if (fd >= 0 && inotify_add_watch(fd, pasta_desktop, IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_CLOSE_WRITE | IN_ATTRIB) >= 0) {
 		gv_app_vigiar(app, fd, pasta_mudou, NULL);
+	}
+	/* o desktop.ini é compartilhado entre as telas: uma mexe, as outras leem */
+	char *ini = arquivo_lugares(), *pasta_ini = g_path_get_dirname(ini);
+	g_mkdir_with_parents(pasta_ini, 0700);
+	int fd_ini = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+	if (fd_ini >= 0 && inotify_add_watch(fd_ini, pasta_ini, IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE) >= 0) {
+		gv_app_vigiar(app, fd_ini, ini_mudou, NULL);
+	}
+	g_free(pasta_ini);
+	g_free(ini);
+	if (!minha_saida) {
+		filhas_rever();
 	}
 	return gv_app_correr(app, desenhar, NULL);
 }
