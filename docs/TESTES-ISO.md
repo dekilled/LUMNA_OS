@@ -634,6 +634,10 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.474b | Fechar o menu (Esc, abrir um app, ou tocar na dock de novo) | O contrário: o conteúdo encolhe e o fundo some em ~160 ms; tocar na dock de novo durante a animação não abre outro por cima | ☐ |
 | 2.474c | Painel > Animações > desligar "Animações dos apps" + Aplicar, e abrir o menu | Abre e fecha na hora, sem animação | ☐ |
 | 2.474d | Digitar na busca logo ao abrir e arrastar um app para a dock | A busca recebe as letras; o arraste continua funcionando como antes | ☐ |
+| 2.475 | Apertar **Print** duas vezes seguidas (ou segurar de leve), várias vezes | Abre **uma** escolha só, nunca duas por cima; Esc fecha e a próxima abre normal | ☐ |
+| 2.475b | Escolher **Vídeo**, começar a gravar e apertar **Print** durante a contagem de 3 s; depois durante a gravação | Na contagem: nada abre por cima. Durante a gravação: Print para a gravação, como antes | ☐ |
+| 2.475c | Com **dois monitores**: abrir a escolha e tocar em **Todas as telas** | Sai **uma imagem só** com as duas telas coladas lado a lado (esquerda para a direita), na prévia, com Copiar/Salvar como sempre. Com um monitor só o botão não aparece | ☐ |
+| 2.475d | `lumna-captura --todas` num terminal | Vai direto para a prévia da imagem das duas telas | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |

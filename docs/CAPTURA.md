@@ -1,5 +1,9 @@
 # Captura de tela (lumna-captura)
 
+**Uma captura de cada vez:** a escolha (e a contagem de 3 s da gravação) abre **uma vez só**. Apertar Print duas vezes, ou apertar Print durante a contagem (antes de haver uma gravação para parar), não abre outra escolha por cima: a segunda chamada some sem fazer nada. A trava é `$XDG_RUNTIME_DIR/lumna-captura-escolha.pid` (criada com `O_EXCL`; um pid que já morreu é ignorado; a contagem e a gravação herdam a trava de quem as abriu). Com a gravação rodando, Print continua parando-a.
+
+**Todas as telas:** com mais de um monitor ligado, a barra da escolha ganha o botão **Todas as telas** (só em Foto): captura cada monitor e cola as imagens **lado a lado**, da esquerda para a direita, numa imagem só, e abre a prévia. Telas de alturas diferentes ficam alinhadas pelo topo (o que sobra embaixo é preto). Também existe `lumna-captura --todas` (direto para a prévia, sem a escolha) para quem quiser um atalho.
+
 Atalhos (no Orbit; mudam em `orbit.ini` ou no Painel > Teclado > Atalhos): **Print** escolhe a captura, **Shift+Print** captura a tela inteira
 direto para a prévia, **Ctrl+Print** escolhe e grava. Durante uma gravação, **Print** para.
 

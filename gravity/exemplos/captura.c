@@ -23,6 +23,7 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <pango/pangocairo.h>
 #include <glib-unix.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <glib.h>
@@ -883,6 +884,9 @@ static void capturar(void) {
 	g_free(dest);
 }
 
+static struct telas_estado todas_telas; /* (definida adiante, com o botão "Todas as telas") */
+static void capturar_todas(void);
+
 static void definir_modo(enum modo m, float W, float H) {
 	modo = m;
 	arrasto = A_NADA;
@@ -1028,7 +1032,7 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 		if (ha && ty + 100 > H) {
 			ty = v.y > 120 ? v.y - 108 : H - 110;
 		}
-		tx = fmaxf(8, fminf(tx, W - 700));
+		tx = fmaxf(8, fminf(tx, W - (todas_telas.n >= 2 ? 860 : 700)));
 		CLAY(CLAY_ID("cs-barra"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIT(0) }, .padding = { 8, 8, 8, 8 }, .childGap = 6 },
 			.backgroundColor = gv_t.elevada, .cornerRadius = CLAY_CORNER_RADIUS(14), .border = { .color = gv_t.borda_controle, .width = { 1, 1, 1, 1, 0 } },
 			.floating = { .attachTo = CLAY_ATTACH_TO_ROOT, .offset = { tx, ty }, .zIndex = 30 } }) {
@@ -1043,6 +1047,9 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 					if (gv_botao_ext(CLAY_IDI("cs-modo", (uint32_t)i), &(gv_botao_opcoes){ .icone = ico[i], .texto = rot[i], .estilo = modo == (enum modo)i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 }) && modo != (enum modo)i) {
 						definir_modo((enum modo)i, W, H);
 					}
+				}
+				if (todas_telas.n >= 2 && !modo_video && gv_botao_ext(CLAY_ID("cs-todas"), &(gv_botao_opcoes){ .icone = "screens", .texto = "Todas as telas", .estilo = GV_BOTAO_SIMPLES, .altura = 36 })) {
+					capturar_todas();
 				}
 				if (gv_botao_ext(CLAY_ID("cs-capturar"), &(gv_botao_opcoes){ .icone = modo_video ? "video" : "image", .texto = modo_video ? "Gravar" : "Capturar", .estilo = GV_BOTAO_CHEIO, .altura = 36, .desativado = !tem_sel })) {
 					capturar();
@@ -1080,10 +1087,174 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 }
 
 /* a foto da tela do monitor do ponteiro; false se não deu (e o aviso diz por quê) */
+/* ---------- uma captura de cada vez ---------- */
+
+/*
+ * A escolha da captura (e a contagem de 3 s da gravação) é única: apertar Print duas vezes, ou apertar Print enquanto a contagem corre (antes de
+ * haver uma gravação para parar), abria outra escolha por cima da primeira. A trava é um arquivo com o pid de quem a tem, criado com O_EXCL
+ * (duas aberturas ao mesmo tempo: só uma passa); um pid que já não existe é uma trava que sobrou e vale a de quem chega. O processo que o
+ * outro abre para continuar (a contagem, a gravação) herda a trava do pai.
+ */
+static char *arq_escolha(void) {
+	const char *rt = g_get_user_runtime_dir();
+	return g_build_filename(rt && *rt ? rt : g_get_tmp_dir(), "lumna-captura-escolha.pid", NULL);
+}
+
+static void escolha_soltar(void) {
+	char *f = arq_escolha(), *t = NULL;
+	if (g_file_get_contents(f, &t, NULL, NULL) && (pid_t)atoi(t) == getpid()) {
+		g_unlink(f); /* só a minha: a do filho que herdou não é para apagar */
+	}
+	g_free(t);
+	g_free(f);
+}
+
+static bool escolha_travar(void) {
+	char *f = arq_escolha();
+	bool ok = false;
+	for (int tentativa = 0; tentativa < 4 && !ok; tentativa++) {
+		int fd = open(f, O_CREAT | O_EXCL | O_WRONLY, 0600);
+		if (fd >= 0) {
+			char num[24];
+			int n = g_snprintf(num, sizeof(num), "%d\n", (int)getpid());
+			if (write(fd, num, (size_t)n) < 0) {
+				/* sem escrever o pid a trava vale pouco, mas não impede de capturar */
+			}
+			close(fd);
+			ok = true;
+			break;
+		}
+		char *t = NULL;
+		pid_t dono = 0;
+		if (g_file_get_contents(f, &t, NULL, NULL)) {
+			dono = (pid_t)atoi(t);
+		}
+		g_free(t);
+		if (dono > 1 && dono != getpid() && kill(dono, 0) == 0) {
+			if (dono != getppid()) {
+				break; /* outra escolha está aberta */
+			}
+			g_unlink(f); /* o pai me abriu para continuar: a trava passa a ser minha */
+		} else {
+			g_unlink(f); /* sobrou de quem morreu */
+		}
+	}
+	g_free(f);
+	if (ok) {
+		atexit(escolha_soltar);
+	}
+	return ok;
+}
+
+/* ---------- todas as telas, lado a lado ---------- */
+
+static struct telas_estado todas_telas; /* as telas que havia ao congelar (para o botão "Todas as telas") */
+
+/* uma foto de cada tela, da esquerda para a direita (as lado a lado, com o topo alinhado; a tela da escolha usa a foto congelada: por cima
+ * dela está a própria escolha). Devolve o caminho do PNG novo, ou NULL. */
+static char *foto_de_todas(void) {
+	int ordem[TELAS_MAX], n = 0;
+	for (int i = 0; i < todas_telas.n; i++) {
+		if (todas_telas.v[i].ligada && !todas_telas.v[i].telemovel) {
+			ordem[n++] = i;
+		}
+	}
+	for (int a = 1; a < n; a++) { /* da esquerda para a direita (e de cima para baixo no empate) */
+		int k = ordem[a], b = a - 1;
+		while (b >= 0 && (todas_telas.v[ordem[b]].x > todas_telas.v[k].x ||
+			(todas_telas.v[ordem[b]].x == todas_telas.v[k].x && todas_telas.v[ordem[b]].y > todas_telas.v[k].y))) {
+			ordem[b + 1] = ordem[b];
+			b--;
+		}
+		ordem[b + 1] = k;
+	}
+	if (n < 2) {
+		return NULL;
+	}
+	char *pasta = pasta_temp();
+	GdkPixbuf *fotos[TELAS_MAX] = { NULL };
+	char *temp[TELAS_MAX] = { NULL };
+	int total_l = 0, max_a = 0;
+	bool ok = true;
+	for (int k = 0; k < n && ok; k++) {
+		const struct tela *t = &todas_telas.v[ordem[k]];
+		const char *arquivo;
+		if (saida_nome[0] && !strcmp(t->nome, saida_nome) && congelada[0]) {
+			arquivo = congelada;
+		} else {
+			char *nome = nome_novo("tela", "png");
+			temp[k] = g_build_filename(pasta, nome, NULL);
+			g_free(nome);
+			char *argv[] = { "grim", "-o", (char *)t->nome, "-t", "png", temp[k], NULL };
+			ok = rodar(argv);
+			arquivo = temp[k];
+		}
+		fotos[k] = ok ? gdk_pixbuf_new_from_file(arquivo, NULL) : NULL;
+		if (!fotos[k]) {
+			ok = false;
+			break;
+		}
+		total_l += gdk_pixbuf_get_width(fotos[k]);
+		max_a = gdk_pixbuf_get_height(fotos[k]) > max_a ? gdk_pixbuf_get_height(fotos[k]) : max_a;
+	}
+	char *dest = NULL;
+	if (ok && total_l > 0 && max_a > 0) {
+		GdkPixbuf *junta = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, total_l, max_a);
+		if (junta) {
+			gdk_pixbuf_fill(junta, 0x000000ff); /* o que sobra embaixo de uma tela mais baixa */
+			int x = 0;
+			for (int k = 0; k < n; k++) {
+				int w = gdk_pixbuf_get_width(fotos[k]), h = gdk_pixbuf_get_height(fotos[k]);
+				gdk_pixbuf_copy_area(fotos[k], 0, 0, w, h, junta, x, 0);
+				x += w;
+			}
+			char *nome = nome_novo("captura", "png");
+			dest = g_build_filename(pasta, nome, NULL);
+			g_free(nome);
+			if (!gdk_pixbuf_save(junta, dest, "png", NULL, NULL)) {
+				g_free(dest);
+				dest = NULL;
+			}
+			g_object_unref(junta);
+		}
+	}
+	for (int k = 0; k < n; k++) {
+		if (fotos[k]) {
+			g_object_unref(fotos[k]);
+		}
+		if (temp[k]) {
+			g_unlink(temp[k]);
+			g_free(temp[k]);
+		}
+	}
+	g_free(pasta);
+	return dest;
+}
+
+static void capturar_todas(void) {
+	char *dest = foto_de_todas();
+	if (!dest) {
+		g_strlcpy(aviso, "Não consegui capturar as telas.", sizeof(aviso));
+		return;
+	}
+	char exe[600];
+	ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+	exe[n > 0 ? n : 0] = '\0';
+	char *argv[] = { n > 0 ? exe : "lumna-captura", modo_emma[0] ? "--confirmar-emma" : "--previa", dest, modo_emma[0] ? modo_emma : NULL, NULL };
+	g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+	if (congelada[0]) {
+		g_unlink(congelada);
+		congelada[0] = '\0';
+	}
+	g_free(dest);
+	gv_app_sair(app);
+}
+
 static bool congelar(bool inteira_logo) {
 	struct telas_estado est;
 	saida_nome[0] = '\0';
 	if (telas_ler(&est) && est.n > 0) {
+		todas_telas = est;
 		int alvo = 0;
 		for (int i = 0; i < est.n; i++) {
 			if (est.v[i].ponteiro) {
@@ -1479,7 +1650,7 @@ static int janela_foco(const char *alvo) {
 }
 
 int main(int argc, char **argv) {
-	bool so_tela = false;
+	bool so_tela = false, so_todas = false;
 	enum modo inicial = M_AREA;
 	prefs_ler();
 	for (int i = 1; i < argc; i++) {
@@ -1492,8 +1663,14 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[i], "--janela-foco") && i + 1 < argc) {
 			return janela_foco(argv[i + 1]);
 		} else if (!strcmp(argv[i], "--gravando") && i + 8 < argc) {
+			if (!escolha_travar()) {
+				return 0; /* (herda a trava da contagem; sem ela, só abre uma gravação por vez) */
+			}
 			return gravando(argv + i + 1);
 		} else if (!strcmp(argv[i], "--contagem") && i + 5 < argc) {
+			if (!escolha_travar()) {
+				return 0;
+			}
 			return contagem_ui(argv + i + 1);
 		} else if (!strcmp(argv[i], "--barra") && i + 1 < argc) {
 			return barra_ui(argv + i + 1);
@@ -1504,6 +1681,8 @@ int main(int argc, char **argv) {
 			modo_video = true;
 		} else if (!strcmp(argv[i], "--tela")) {
 			so_tela = true;
+		} else if (!strcmp(argv[i], "--todas")) {
+			so_todas = true;
 		} else if (!strcmp(argv[i], "--janela")) {
 			inicial = M_JANELA;
 		}
@@ -1511,6 +1690,9 @@ int main(int argc, char **argv) {
 	pid_t gravando_ja = pid_gravando(); /* Print enquanto grava: para a gravação (em vez de abrir outra escolha) */
 	if (gravando_ja) {
 		return kill(gravando_ja, SIGUSR1) == 0 ? 0 : 1;
+	}
+	if (!escolha_travar()) {
+		return 0; /* já há uma escolha (ou a contagem da gravação) aberta: não abre outra por cima */
 	}
 	if (!g_find_program_in_path("grim")) {
 		fprintf(stderr, "lumna-captura: falta o grim (instale o pacote grim)\n");
@@ -1521,6 +1703,22 @@ int main(int argc, char **argv) {
 	if (!congelar(so_tela)) {
 		fprintf(stderr, "lumna-captura: o grim não conseguiu capturar a tela\n");
 		return 1;
+	}
+	if (so_todas) { /* sem escolher: todas as telas, lado a lado numa imagem só, direto para a prévia */
+		char *dest = foto_de_todas();
+		if (!dest) {
+			fprintf(stderr, "lumna-captura: preciso de duas telas ligadas para juntá-las\n");
+			g_unlink(congelada);
+			return 1;
+		}
+		char exe[600];
+		ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+		exe[n > 0 ? n : 0] = '\0';
+		char *av[] = { n > 0 ? exe : "lumna-captura", "--previa", dest, NULL };
+		bool ok = g_spawn_async(NULL, av, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
+		g_unlink(congelada);
+		g_free(dest);
+		return ok ? 0 : 1;
 	}
 	if (so_tela) { /* sem escolher: a tela inteira vai direto para a prévia */
 		char exe[600];
