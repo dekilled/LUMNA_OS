@@ -17,6 +17,18 @@ printf '[teclado]\nlayout = us\n' > "$run/cfg/lumna/entrada.ini"; sleep 2
 [ "$(numlock)" = "[true,true,true]" ] || falha "depois de mudar o layout o NumLock devia continuar ligado ($(numlock))"
 printf '[teclado]\nlayout = br\n' > "$run/cfg/lumna/entrada.ini"; sleep 2
 [ "$(numlock)" = "[true,true,true]" ] || falha "depois de mudar o layout de novo o NumLock devia continuar ligado ($(numlock))"
+# 2b. teclas de verdade (o mesmo caminho do libinput): o teclado numérico não apaga o NumLock; se algo o zera, a próxima tecla o religa
+msg() { "$orbit/orbit-msg" -s "$sock" "$@" >/dev/null; }
+msg tecla_falsa 1 79
+[ "$(numlock)" = "[true,true,true]" ] || falha "apertar uma tecla do teclado numérico mexeu no NumLock ($(numlock))"
+msg zerar_teclado 1
+[ "$(numlock)" = "[true,false,true]" ] || falha "o teste não conseguiu zerar o NumLock de um teclado ($(numlock))"
+msg tecla_falsa 1 79
+[ "$(numlock)" = "[true,true,true]" ] || falha "o NumLock zerado sozinho devia ser religado na próxima tecla ($(numlock))"
+# 2c. quem aperta NumLock manda: desligado pelo usuário, fica desligado
+msg tecla_falsa 0 69
+msg tecla_falsa 0 79
+[ "$(numlock)" = "[false,true,true]" ] || falha "o NumLock desligado pelo usuário foi religado ($(numlock))"
 para
 # 3. a opção numlock=0 desliga o padrão
 printf '[teclado]\nnumlock = 0\n' > "$run/cfg/lumna/entrada.ini"

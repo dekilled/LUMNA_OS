@@ -371,6 +371,7 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 	if (keyboard->wlr_keyboard->keymap) {
 		count = xkb_keymap_key_get_syms_by_level(keyboard->wlr_keyboard->keymap, keycode, 0, 0, &syms);
 	}
+	orbit_numlock_guarda(keyboard, syms, count);
 	bool handled = false;
 	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 	if (keyboard->shared) {

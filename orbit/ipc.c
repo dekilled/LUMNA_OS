@@ -340,6 +340,32 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		put(b, "{\"ok\":true,\"disposicao\":");
 		put_str(b, orbit_disposicao_nome(server->disposicao));
 		put(b, "}");
+	} else if (!strcmp(cmd, "zerar_teclado")) {
+		int idx = rest ? atoi(rest) : 0;
+		orbit_input_test_zerar(server, idx);
+		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "tecla_falsa")) {
+		/* só para os testes: aperta e solta uma tecla (código evdev) no N-ésimo teclado falso, pelo mesmo caminho do libinput */
+		int idx = 0, codigo = 0;
+		if (!rest || sscanf(rest, " %d %d", &idx, &codigo) != 2) {
+			put(b, "{\"ok\":false,\"erro\":\"uso: tecla_falsa <teclado> <codigo>\"}");
+		} else {
+			int i = 0;
+			bool achou = false;
+			struct orbit_keyboard *kb;
+			wl_list_for_each(kb, &server->keyboards, link) {
+				if (kb->shared && i++ == idx) {
+					for (int est = 1; est >= 0; est--) {
+						struct wlr_keyboard_key_event ev = { .time_msec = 1, .keycode = codigo,
+							.update_state = true, .state = est ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED };
+						wlr_keyboard_notify_key(kb->wlr_keyboard, &ev);
+					}
+					achou = true;
+					break;
+				}
+			}
+			put(b, "{\"ok\":%s}", achou ? "true" : "false");
+		}
 	} else if (!strcmp(cmd, "entrada")) {
 		/* o que há ligado e o que o Orbit aplicou (o Painel só mostra o que existe) */
 		put(b, "{\"ok\":true,\"layout\":");

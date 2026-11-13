@@ -461,6 +461,7 @@ struct orbit_keyboard {
 	struct wl_list link;
 	struct orbit_server *server;
 	struct wlr_keyboard *wlr_keyboard;
+	bool numlock_mexeu; /* o usuário apertou NumLock neste teclado: a partir daí o estado é dele */
 	bool numlock_done; /* o NumLock já foi ligado neste teclado (não brigo com quem o desliga depois) */
 	bool shared; /* usa o mapa do Orbit (o Painel muda); o teclado virtual traz o dele */
 	struct wl_listener modifiers;
@@ -567,6 +568,8 @@ void orbit_xkb_prepare(struct orbit_server *server);
 void orbit_input_config_load(struct orbit_server *server);
 void orbit_input_apply(struct orbit_server *server);
 void orbit_input_fake_keyboards(struct orbit_server *server, int n);
+void orbit_numlock_guarda(struct orbit_keyboard *k, const xkb_keysym_t *syms, int n);
+void orbit_input_test_zerar(struct orbit_server *server, int idx);
 void orbit_pointer_add(struct orbit_server *server, struct wlr_input_device *device);
 const char *orbit_input_layout_name(struct orbit_server *server);
 int orbit_input_describe(struct orbit_server *server, void (*cb)(void *ctx, const char *name, const char *kind, bool configurable), void *ctx);

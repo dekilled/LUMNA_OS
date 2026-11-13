@@ -308,6 +308,39 @@ static void numlock_ligar(struct orbit_keyboard *k) {
 	wlr_log(WLR_INFO, "NumLock ligado no teclado \"%s\"", k->wlr_keyboard->base.name ? k->wlr_keyboard->base.name : "?");
 }
 
+/*
+ * Antes de cada tecla: se o NumLock devia estar ligado (padrão) e ninguém o desligou apertando a tecla, mas o estado está apagado,
+ * algo o zerou (um mapa refeito, um teclado que reapareceu...): religa antes da tecla ser tratada, para o teclado numérico dar números.
+ */
+void orbit_numlock_guarda(struct orbit_keyboard *k, const xkb_keysym_t *syms, int n) {
+	for (int i = 0; i < n; i++) {
+		if (syms[i] == XKB_KEY_Num_Lock) {
+			k->numlock_mexeu = true;
+		}
+	}
+	struct wlr_keyboard *kb = k->wlr_keyboard;
+	if (!k->shared || k->numlock_mexeu || !k->server->input.numlock || !kb->keymap || !kb->xkb_state) {
+		return;
+	}
+	if (xkb_state_mod_name_is_active(kb->xkb_state, XKB_MOD_NAME_NUM, XKB_STATE_MODS_LOCKED) > 0) {
+		return;
+	}
+	wlr_log(WLR_ERROR, "NumLock apagou sozinho no teclado \"%s\" (ninguém apertou a tecla): religando", kb->base.name ? kb->base.name : "?");
+	k->numlock_done = false;
+	numlock_ligar(k);
+}
+
+/* só para os testes: zera o estado do N-ésimo teclado como um mapa novo faz */
+void orbit_input_test_zerar(struct orbit_server *server, int idx) {
+	int i = 0;
+	struct orbit_keyboard *k;
+	wl_list_for_each(k, &server->keyboards, link) {
+		if (k->shared && i++ == idx && shared_keymap) {
+			wlr_keyboard_set_keymap(k->wlr_keyboard, shared_keymap);
+		}
+	}
+}
+
 void orbit_input_apply(struct orbit_server *server) {
 	/* o teclado: o mapa novo e a repetição */
 	if (keymap_build(server) || shared_keymap) {
