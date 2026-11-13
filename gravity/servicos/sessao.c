@@ -13,7 +13,7 @@
 #include "modos.h"
 
 static bool do_sistema(const char *app_id) {
-	static const char *const nao[] = { "lumna-midia", "lumna-jogos", "lumna-gaming", "lumna-modos", "lumna-lancador", "lumna-barra", "lumna-dock",
+	static const char *const nao[] = { "lumna-midia", "lumna-jogos", "lumna-gaming", "lumna-modos", "lumna-carrossel", "lumna-lancador", "lumna-barra", "lumna-dock",
 		"lumna-bloqueio", "lumna-painel", "lumna-avisos", "lumna-widgets", "lumna-papel", "lumna-desktop", "lumna-capa", NULL };
 	for (int i = 0; nao[i]; i++) {
 		if (!strncasecmp(app_id, nao[i], strlen(nao[i]))) {

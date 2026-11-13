@@ -305,6 +305,10 @@ struct orbit_server {
 	char brightness_up[ORBIT_CMD_LEN];
 	char brightness_down[ORBIT_CMD_LEN];
 	char mode_osd[ORBIT_CMD_LEN]; /* o seletor que aparece ao trocar de modo */
+	char mode_carousel[ORBIT_CMD_LEN]; /* o carrossel de modos (troca = carrossel no modos.ini): aparece enquanto o Super está apertado */
+	bool carousel_open;               /* o carrossel está aberto: o Super+Tab move o alvo e soltar o Super confirma */
+	char carousel_output[32];         /* ...na saída com este nome... */
+	int carousel_target;              /* ...com este modo em destaque */
 	struct orbit_output *mode_osd_output; /* o seletor está aberto nesta saída... */
 	uint32_t mode_osd_until;              /* ...até este instante (ms): um Super+Tab dentro disso vai para o próximo modo */
 	int areas;                    /* quantos espaços do Desktop estão ligados (1 a ORBIT_TAGS) */
@@ -674,6 +678,11 @@ bool orbit_outputs_swap(struct orbit_server *server, struct orbit_output *a, str
 bool orbit_outputs_swap_from(struct orbit_server *server, struct orbit_output *from);
 void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int mode);
 void orbit_mode_step(struct orbit_server *server, int dir);
+bool orbit_carousel_key(struct orbit_server *server, const xkb_keysym_t *syms, int n, bool pressed);
+void orbit_carousel_end(struct orbit_server *server, uint32_t mods);
+void orbit_carousel_confirm(struct orbit_server *server, int mode); /* mode < 0: o alvo */
+void orbit_carousel_cancel(struct orbit_server *server);
+void orbit_ipc_emit(const char *json);
 struct orbit_output *orbit_output_for_layer(struct orbit_server *server, const char *app_id);
 void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, int dir);
 void orbit_mode_config_load(struct orbit_server *server);

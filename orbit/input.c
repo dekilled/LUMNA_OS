@@ -373,6 +373,9 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 	}
 	orbit_numlock_guarda(keyboard, syms, count);
 	bool handled = false;
+	if (orbit_carousel_key(server, syms, count, event->state == WL_KEYBOARD_KEY_STATE_PRESSED)) {
+		return; /* o carrossel aberto ficou com a tecla (Esc, Enter, setas) */
+	}
 	uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 	if (keyboard->shared) {
 		server->last_input = ORBIT_INPUT_TECLADO; /* o teclado virtual (shared=false) não conta: pode ser o teclado na tela */
@@ -420,6 +423,7 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
 
 static void keyboard_modifiers(struct wl_listener *listener, void *data) {
 	struct orbit_keyboard *keyboard = wl_container_of(listener, keyboard, modifiers);
+	orbit_carousel_end(keyboard->server, wlr_keyboard_get_modifiers(keyboard->wlr_keyboard)); /* soltar o Super confirma (antes do método de entrada: ele pode ficar com o evento) */
 	if (orbit_im_forward_modifiers(keyboard->server, keyboard->wlr_keyboard)) {
 		return;
 	}

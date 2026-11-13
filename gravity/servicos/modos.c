@@ -253,6 +253,7 @@ static char *caminho_ini(void) {
 static void padrao(struct modos_cfg *c) {
 	memset(c, 0, sizeof(*c));
 	c->ao_ligar = MODO_DESKTOP;
+	c->troca = 0;
 	c->areas = MODOS_AREAS_MAX;
 	for (int i = 1; i < MODO_N; i++) {
 		c->m[i].esconder_dock = c->m[i].nao_perturbe = true;
@@ -284,6 +285,8 @@ void modos_cfg_ler(struct modos_cfg *c) {
 			if (secao == -1) {
 				if (!strcmp(k, "areas")) {
 					c->areas = atoi(v) < 1 ? 1 : atoi(v) > MODOS_AREAS_MAX ? MODOS_AREAS_MAX : atoi(v);
+				} else if (!strcmp(k, "troca")) {
+					c->troca = !strcmp(v, "carrossel");
 				} else if (!strcmp(k, "ao_ligar") && modos_de_id(v) >= 0) {
 					c->ao_ligar = modos_de_id(v);
 				}
@@ -303,7 +306,8 @@ void modos_cfg_ler(struct modos_cfg *c) {
 
 bool modos_cfg_gravar(const struct modos_cfg *c) {
 	GString *s = g_string_new("# Os modos do desktop (o Painel de controle grava este arquivo)\n[geral]\n");
-	g_string_append_printf(s, "areas = %d\nao_ligar = %s\n", c->areas, modos_id(c->ao_ligar));
+	g_string_append_printf(s, "areas = %d\nao_ligar = %s\ntroca = %s\n", c->areas, modos_id(c->ao_ligar),
+		c->troca ? "carrossel" : "rapida");
 	for (int i = 0; i < MODO_N; i++) {
 		g_string_append_printf(s, "\n[%s]\nesconder_dock = %s\nnao_perturbe = %s\n", modos_id(i), c->m[i].esconder_dock ? "sim" : "nao",
 			c->m[i].nao_perturbe ? "sim" : "nao");

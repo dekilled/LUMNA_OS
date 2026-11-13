@@ -5,6 +5,7 @@
  *   [geral]    (um "layout = ..." de antes é ignorado: cada tela tem sempre o seu modo)
  *              areas = 1 a 3                  quantos espaços de trabalho o Desktop usa
  *              ao_ligar = desktop|gaming|midia
+ *              troca = rapida|carrossel       como o Super+Tab troca de modo (o Orbit lê o arquivo a cada Super+Tab)
  *   [desktop] [gaming] [midia]
  *              esconder_dock = sim|nao        a dock some nesse modo
  *              nao_perturbe = sim|nao         os avisos só deixam passar os urgentes
@@ -38,6 +39,7 @@ struct modos_estado {
 
 struct modos_cfg {
 	int ao_ligar;
+	int troca; /* a troca de modo com Super+Tab: 0 rápida (o seletor de sempre), 1 carrossel (soltar o Super confirma) */
 	int areas;
 	struct {
 		bool esconder_dock, nao_perturbe;

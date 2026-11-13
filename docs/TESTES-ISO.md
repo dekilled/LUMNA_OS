@@ -609,6 +609,13 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.466b | Entrar numa sessão nova (sem `~/Desktop`) | A área de trabalho está **vazia** (a pasta pessoal não aparece); criar uma pasta pelo menu cria `~/Desktop/Nova pasta` | ☐ |
 | 2.466c | Com dois monitores, arrastar um ícone de uma tela para a outra e reabrir a sessão | O ícone passa para a outra tela, no lugar solto, e continua lá depois; o arquivo segue em `~/Desktop` | ☐ |
 | 2.467 | Criar uma pasta pelo menu, pôr um arquivo em `~/Desktop`, clicar, arrastar, duplo clique | Os ícones respondem (os itens 2.432 a 2.444 agora dão para testar) | ☐ |
+| 2.468 | Painel > Telas e modos > Modos: ver **Troca com Super + Tab** (padrão *Rápida*) e usar o Super+Tab como sempre | Nada mudou: o 1º Super+Tab mostra o seletor, o 2º troca de modo | ☐ |
+| 2.468b | Trocar para *Carrossel* e apertar **Super + Tab** | Abre o carrossel por cima de tudo, na tela do cursor, com o modo de agora no centro e brilhando; **nada trocou ainda** | ☐ |
+| 2.468c | Com o Super apertado: Tab, Tab, Shift+Tab, setas ← → | Os cartões deslizam, o do centro cresce e brilha; dá a volta (Mídia ↔ Desktop ↔ Gaming) sem pular; anima fluido | ☐ |
+| 2.468d | Soltar o Tab e manter o Super; depois soltar o Super | Soltar só o Tab não troca nada; soltar o Super traz o modo do centro e o carrossel some. O Início **não** abre | ☐ |
+| 2.468e | Super+Tab, Tab, depois **Esc**; e Super+Tab, depois clicar num cartão; e clicar fora dos cartões | Esc e clique fora cancelam (modo igual); o clique no cartão troca na hora | ☐ |
+| 2.468f | Carrossel numa tela em Gaming (com jogo) e em Mídia; com dois monitores | Aparece sobre o jogo/vídeo na tela do cursor; a outra tela não é tocada; confirmar troca só a tela do cursor | ☐ |
+| 2.468g | Voltar para *Rápida* no Painel e usar Super+Tab | Volta ao comportamento de antes, sem reiniciar nada | ☐ |
 | 2.398 | Com a CPU a 100% (ex.: `yes > /dev/null` em 4 terminais) | O Gerenciador abre e responde sem engasgar (o serviço roda com prioridade de tempo real) | ☐ |
 
 ## 3. Instalar (na VM, com `--disco`)

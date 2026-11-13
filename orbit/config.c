@@ -206,6 +206,8 @@ static void apply_general(struct orbit_server *server, const char *key, const ch
 		copy_cmd(server->media_menu, value);
 	} else if (strcasecmp(key, "modo_seletor") == 0) {
 		copy_cmd(server->mode_osd, value);
+	} else if (strcasecmp(key, "modo_carrossel") == 0) {
+		copy_cmd(server->mode_carousel, value);
 	} else {
 		wlr_log(WLR_ERROR, "config linha %d: chave %s desconhecida", line, key);
 	}
@@ -355,6 +357,7 @@ void orbit_config_load(struct orbit_server *server) {
 	copy_cmd(server->brightness_up, "brightnessctl set 5%+");
 	copy_cmd(server->brightness_down, "brightnessctl set 5%-");
 	copy_cmd(server->mode_osd, "lumna-modos");
+	copy_cmd(server->mode_carousel, "lumna-carrossel");
 	copy_cmd(server->launcher, "pkill -x lumna-lancador || lumna-lancador");
 	copy_cmd(server->media_menu, "lumna-midia tela seletor");
 	copy_cmd(server->emma, "pkill -x lumna-emma-chat || lumna-emma-chat");

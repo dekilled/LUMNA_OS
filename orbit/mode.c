@@ -211,6 +211,7 @@ void orbit_mode_set(struct orbit_server *server, struct orbit_output *from, int 
 	if (mode < 0 || mode >= ORBIT_MODES) {
 		return;
 	}
+	orbit_carousel_cancel(server); /* trocar o modo por outro caminho (a barra, o Painel) fecha o carrossel */
 	if (!from) {
 		from = cursor_output(server);
 	}
@@ -288,12 +289,148 @@ void orbit_mode_cycle(struct orbit_server *server, struct orbit_output *from, in
 }
 
 /*
+ * O carrossel de modos (modos.ini [geral] troca = carrossel; o padrão, "rapida", é o seletor de acima). Super+Tab abre, com o modo de agora
+ * no centro, e NÃO troca nada; Tab de novo, com o Super apertado, gira (Shift+Tab, ou as setas, para o outro lado); soltar o Super traz o
+ * modo do centro para a tela inteira; Esc cancela. Quem desenha é o lumna-carrossel, que ouve o evento "carrossel" e pergunta o estado
+ * (orbit-msg carrossel). A troca em si é a mesma orbit_mode_set de sempre.
+ */
+static bool carousel_configured(void) {
+	const char *config = getenv("XDG_CONFIG_HOME");
+	const char *home = getenv("HOME");
+	char path[460];
+	if (config && *config) {
+		snprintf(path, sizeof(path), "%s/lumna/modos.ini", config);
+	} else if (home) {
+		snprintf(path, sizeof(path), "%s/.config/lumna/modos.ini", home);
+	} else {
+		return false;
+	}
+	FILE *f = fopen(path, "r");
+	if (!f) {
+		return false;
+	}
+	char line[256];
+	bool general = true, on = false;
+	while (fgets(line, sizeof(line), f)) {
+		char *p = line;
+		while (*p == ' ' || *p == '\t') {
+			p++;
+		}
+		if (*p == '[') {
+			general = !strncmp(p, "[geral]", 7);
+			continue;
+		}
+		if (general && !strncmp(p, "troca", 5)) {
+			char *eq = strchr(p, '=');
+			if (eq) {
+				eq++;
+				while (*eq == ' ' || *eq == '\t') {
+					eq++;
+				}
+				on = !strncmp(eq, "carrossel", 9);
+			}
+		}
+	}
+	fclose(f);
+	return on;
+}
+
+static struct orbit_output *carousel_output(struct orbit_server *server) {
+	struct orbit_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		if (!strcmp(output->wlr->name, server->carousel_output)) {
+			return output;
+		}
+	}
+	return NULL;
+}
+
+static void carousel_notify(void) {
+	orbit_ipc_emit("{\"evento\":\"carrossel\"}");
+}
+
+void orbit_carousel_cancel(struct orbit_server *server) {
+	if (!server->carousel_open) {
+		return;
+	}
+	server->carousel_open = false;
+	carousel_notify();
+}
+
+void orbit_carousel_confirm(struct orbit_server *server, int mode) {
+	if (!server->carousel_open) {
+		return;
+	}
+	struct orbit_output *output = carousel_output(server);
+	int target = mode >= 0 ? mode : server->carousel_target;
+	server->carousel_open = false; /* antes: o orbit_mode_set fecha o que ainda estiver aberto */
+	if (output && is_mode_output(output)) {
+		orbit_mode_set(server, output, target);
+	}
+	carousel_notify();
+}
+
+static void carousel_step(struct orbit_server *server, int dir) {
+	struct orbit_output *from = server->carousel_open ? carousel_output(server) : cursor_output(server);
+	if (!is_mode_output(from)) {
+		orbit_carousel_cancel(server);
+		return;
+	}
+	if (!server->carousel_open) {
+		server->carousel_open = true;
+		snprintf(server->carousel_output, sizeof(server->carousel_output), "%s", from->wlr->name);
+		server->carousel_target = from->mode;
+		setenv("LUMNA_SAIDA", from->wlr->name, 1);
+		setenv("LUMNA_MODO", orbit_mode_name(from->mode), 1);
+		spawn(server->mode_carousel);
+	} else {
+		server->carousel_target = (server->carousel_target + dir + ORBIT_MODES) % ORBIT_MODES;
+	}
+	carousel_notify();
+}
+
+/* o Esc cancela, Enter confirma, as setas giram: só com o carrossel aberto; devolve true se ficou com a tecla */
+bool orbit_carousel_key(struct orbit_server *server, const xkb_keysym_t *syms, int n, bool pressed) {
+	if (!server->carousel_open) {
+		return false;
+	}
+	for (int i = 0; i < n; i++) {
+		xkb_keysym_t s = syms[i];
+		if (s != XKB_KEY_Escape && s != XKB_KEY_Return && s != XKB_KEY_KP_Enter && s != XKB_KEY_Left && s != XKB_KEY_Right) {
+			continue;
+		}
+		if (pressed) {
+			if (s == XKB_KEY_Escape) {
+				orbit_carousel_cancel(server);
+			} else if (s == XKB_KEY_Left || s == XKB_KEY_Right) {
+				carousel_step(server, s == XKB_KEY_Right ? 1 : -1);
+			} else {
+				orbit_carousel_confirm(server, -1);
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+/* soltou o Super: confirma o modo do centro */
+void orbit_carousel_end(struct orbit_server *server, uint32_t mods) {
+	if (server->carousel_open && !(mods & WLR_MODIFIER_LOGO)) {
+		orbit_carousel_confirm(server, -1);
+	}
+}
+
+/*
  * Super+Tab: o primeiro só ABRE o seletor, com o modo de agora em destaque, e não troca nada; outro Super+Tab com ele aberto (ORBIT_MODE_OSD_MS
  * depois do último) vai para o próximo modo (Shift+Tab, para o anterior). Assim usar o seletor de novo num monitor em Mídia não o tira da Mídia.
  */
 #define ORBIT_MODE_OSD_MS 1800
 
 void orbit_mode_step(struct orbit_server *server, int dir) {
+	if (server->carousel_open || carousel_configured()) {
+		carousel_step(server, dir);
+		return;
+	}
 	struct orbit_output *from = cursor_output(server);
 	if (!is_mode_output(from)) {
 		return;

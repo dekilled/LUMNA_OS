@@ -12,6 +12,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wlr/util/log.h>
+#include <wlr/interfaces/wlr_keyboard.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 
 /*
@@ -355,7 +356,10 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			struct orbit_keyboard *kb;
 			wl_list_for_each(kb, &server->keyboards, link) {
 				if (kb->shared && i++ == idx) {
-					for (int est = 1; est >= 0; est--) {
+					/* "baixo" só aperta, "cima" só solta (para segurar o Super); sem isso, aperta e solta */
+					char ac[16] = "";
+					sscanf(rest, " %*d %*d %15s", ac);
+					for (int est = !strcmp(ac, "cima") ? 0 : 1; est >= (!strcmp(ac, "baixo") ? 1 : 0); est--) {
 						struct wlr_keyboard_key_event ev = { .time_msec = 1, .keycode = codigo,
 							.update_state = true, .state = est ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED };
 						wlr_keyboard_notify_key(kb->wlr_keyboard, &ev);
@@ -487,6 +491,24 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			first = false;
 		}
 		put(b, "]}");
+	} else if (!strcmp(cmd, "carrossel")) {
+		/* carrossel [confirmar [modo] | cancelar]: sem argumento, o estado (o carrossel pergunta isto a cada aviso) */
+		if (arg1 && !strcmp(arg1, "confirmar")) {
+			int m = arg2 ? orbit_mode_parse(arg2) : -1;
+			if (arg2 && m < 0) {
+				fail(b, "uso: carrossel confirmar [desktop|gaming|midia]");
+				return;
+			}
+			orbit_carousel_confirm(server, m);
+		} else if (arg1 && !strcmp(arg1, "cancelar")) {
+			orbit_carousel_cancel(server);
+		} else if (arg1) {
+			fail(b, "uso: carrossel [confirmar [modo] | cancelar]");
+			return;
+		}
+		put(b, "{\"ok\":true,\"aberto\":%s,\"saida\":", server->carousel_open ? "true" : "false");
+		put_str(b, server->carousel_output);
+		put(b, ",\"alvo\":\"%s\"}", orbit_mode_name(server->carousel_target));
 	} else if (!strcmp(cmd, "ocioso")) {
 		/* quem segura o idle (vídeo tocando pelo idle-inhibit do Wayland); o D-Bus (Firefox, VLC) é do lumna-ocioso */
 		char lista[1024];
@@ -758,6 +780,19 @@ static void broadcast(struct ipc_buf *b) {
 			client_close(client);
 		}
 	}
+}
+
+static bool any_subscriber(void);
+
+/* um evento solto, já em JSON (sem a quebra de linha): quem assina o recebe */
+void orbit_ipc_emit(const char *json) {
+	if (ipc.fd < 0 || !any_subscriber()) {
+		return;
+	}
+	struct ipc_buf b = { 0 };
+	put(&b, "%s", json);
+	broadcast(&b);
+	free(b.data);
 }
 
 static bool any_subscriber(void) {

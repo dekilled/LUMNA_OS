@@ -279,6 +279,10 @@ não há modos.
   evento "modo" ({"saida","modo","layout"}) a cada troca, para quem assina
   [geral] modo_seletor = lumna-modos       o programa que mostra o seletor a cada troca
                                            (LUMNA_SAIDA e LUMNA_MODO no ambiente)
+  [geral] modo_carrossel = lumna-carrossel o carrossel de modos, aberto por Super+Tab quando o modos.ini tem
+                                           [geral] troca = carrossel (o padrão, "rapida", é o seletor de acima).
+  orbit-msg carrossel [confirmar [modo] | cancelar]   o estado ({"aberto","saida","alvo"}); o evento "carrossel"
+                                           avisa a cada giro, confirmação ou cancelamento.
   O Orbit também escreve o modo da saída que trocou em ~/.config/lumna/modo.
 
 Rodando dentro de outro Linux (o Orbit como uma janela de um GNOME, KDE, Hyprland...)

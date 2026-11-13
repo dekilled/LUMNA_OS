@@ -115,3 +115,16 @@ journalctl -b | grep -E 'xwl:|por trás do jogo|ficou vazia'
 - Uma janela de diálogo que um jogo precise mostrar **por cima** dele (aceitar termos, escolher opção de lançamento): se ela for do próprio jogo,
   ela é jogo e vem para a frente. Se for da Steam, fica por trás até o jogo fechar. Ainda não há um "diálogo flutuando sobre o jogo".
 - O gamescope (resolução e escala independentes do monitor) não é usado.
+
+
+## Troca em carrossel (Super + Tab)
+
+Painel > Telas e modos > Modos > **Troca com Super + Tab**: *Rápida* (o padrão, o seletor de sempre: o segundo Super+Tab já troca) ou *Carrossel*.
+
+No carrossel: **Super + Tab** abre o `lumna-carrossel` na tela do cursor, com o modo de agora no centro e **sem trocar nada**; **Tab** (ou a seta direita) gira para o próximo, **Shift+Tab** (ou a seta esquerda) para o anterior, dando a volta; **soltar o Super** traz o modo do centro para a tela inteira; **Esc** cancela; **Enter** ou um clique no cartão confirma na hora; um clique fora dos cartões cancela. Soltar só o Tab não faz nada. O Super sozinho continua abrindo o Início.
+
+Como funciona: o Orbit guarda o estado (`server->carousel_*` em `mode.c`) e lê `[geral] troca` do `modos.ini` a cada Super+Tab (então mudar no Painel vale na hora). A troca em si é a `orbit_mode_set` de sempre (a mesma do modo Rápido). O `lumna-carrossel` só desenha: ouve o evento `carrossel` do Orbit, pergunta `orbit-msg carrossel` e anima; se ele morrer, soltar o Super ainda confirma. Trocar o modo por qualquer outro caminho (barra, Painel) fecha o carrossel aberto.
+
+Limites desta primeira versão: os cartões são ilustrações de cada modo, **não miniaturas da tela de verdade**; ao confirmar o carrossel esmaece (não há ainda o cartão que cresce até a tela cheia); sem toque nem gamepad (só teclado e mouse).
+
+Testes: `gravity/testes/carrossel_orbit.sh` (o Orbit: abre/gira/confirma/cancela, o Início não abre, e o Rápido continua como antes) e `gravity/testes/carrossel_app.sh` (o programa de verdade: camada, clique no cartão, clique fora, saída do processo).
