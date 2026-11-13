@@ -103,6 +103,10 @@ find "$sysd" \( -name 'systemd-networkd.service' -o -name 'systemd-networkd.sock
 install -d "$sysd/multi-user.target.wants"
 ln -sf /usr/lib/systemd/system/NetworkManager.service "$sysd/multi-user.target.wants/NetworkManager.service"
 ln -sf /usr/lib/systemd/system/NetworkManager-dispatcher.service "$sysd/dbus-org.freedesktop.nm-dispatcher.service"
+# o Bluetooth liga com o sistema (no live e, como o instalador copia o live, no instalado): sem isso o fone não reconecta sozinho
+install -d "$sysd/bluetooth.target.wants"
+ln -sf /usr/lib/systemd/system/bluetooth.service "$sysd/bluetooth.target.wants/bluetooth.service"
+ln -sf /usr/lib/systemd/system/bluetooth.service "$sysd/dbus-org.bluez.service"
 grep -v '^#' "$SRC/iso/packages.x86_64" | sed '/^$/d' >> "$profile/packages.x86_64"
 [ "$with_emma" = 1 ] && echo lumna-emma >> "$profile/packages.x86_64"
 [ "$with_bars" = 1 ] && echo lumna-hyprbars >> "$profile/packages.x86_64"

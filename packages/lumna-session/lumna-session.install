@@ -1,0 +1,14 @@
+# O Bluetooth precisa ligar sozinho com o sistema: sem o bluetooth.service ligado, o fone que "conectava sempre na inicialização" não tem quem o chame.
+_ligar() {
+  systemctl enable bluetooth.service >/dev/null 2>&1 || true
+  # os botões do fone Bluetooth viram comandos de mídia (MPRIS)
+  systemctl --global enable mpris-proxy.service >/dev/null 2>&1 || true
+}
+
+post_install() {
+  _ligar
+}
+
+post_upgrade() {
+  _ligar
+}

@@ -5,6 +5,7 @@ pkgname=lumna-session
 pkgver=0.0.1
 pkgrel=1
 pkgdesc="Sessão do LUMNA OS (Orbit + Gravity): login, ajudantes de administrador, instalador e dependências"
+install=lumna-session.install
 arch=(any)
 url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
@@ -18,8 +19,8 @@ depends=(
   rclone
   mpv mpv-mpris ffmpeg playerctl wtype
   noto-fonts noto-fonts-emoji inter-font
-  # Wi-Fi, Bluetooth, impressoras (sem driver) e informações do hardware
-  iwd bluez cups cups-filters ipp-usb avahi nss-mdns pciutils
+  # Wi-Fi, Bluetooth (bluez-utils: bluetoothctl e o mpris-proxy dos botões do fone), impressoras (sem driver) e informações do hardware
+  iwd bluez bluez-utils cups cups-filters ipp-usb avahi nss-mdns pciutils
   # Loja: Flatpak, AUR (git + base-devel para compilar) e checkupdates (pacman-contrib)
   flatpak git base-devel pacman-contrib curl
   # Instalador: particionar, Btrfs, copiar o sistema, boot (grub, em UEFI e em BIOS; o efibootmgr registra o boot na UEFI)
