@@ -129,14 +129,14 @@ static void cartao(int m, float pos, float largura, bool *tocado_algum, float e,
 	float resto = 1.0f; /* o que sobra de moldura */
 	float texto = 1.0f; /* e de nome (some mais depressa: o cartão cobre o lugar dele) */
 	bool cresce = e > 0.0f && centro > 0.5f;
-	float rapido = fmaxf(0.0f, 1.0f - 3.0f * e);
+	float fuga = 0.0f; /* os vizinhos: quanto já se afastaram para fora da tela */
 	if (cresce) {
 		w = lerp(w, tela_w, e);
 		h = lerp(h, tela_h, e);
 		resto = 1.0f - e;
-		texto = rapido;
-	} else if (e > 0.0f) {
-		a *= rapido;
+		texto = fmaxf(0.0f, 1.0f - 3.0f * e);
+	} else {
+		fuga = e * 0.55f * tela_w * (d < 0 ? -1.0f : 1.0f);
 	}
 	float desloc_y = cresce ? e * dy : 0.0f; /* leva o centro do cartão ao centro da tela (o palco fica entre o título e as teclas) */
 	Clay_ElementId id = CLAY_IDI("cartao", (uint32_t)m);
@@ -149,7 +149,7 @@ static void cartao(int m, float pos, float largura, bool *tocado_algum, float e,
 	}
 	CLAY(id, { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 14, .childAlignment = { .x = CLAY_ALIGN_X_CENTER } },
 		.floating = { .attachTo = CLAY_ATTACH_TO_PARENT, .zIndex = 30 - (int16_t)(ad * 10),
-			.attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_CENTER, .parent = CLAY_ATTACH_POINT_CENTER_CENTER }, .offset = { d * largura * 0.92f * (cresce ? 1.0f - e : 1.0f), desloc_y } } }) {
+			.attachPoints = { .element = CLAY_ATTACH_POINT_CENTER_CENTER, .parent = CLAY_ATTACH_POINT_CENTER_CENTER }, .offset = { d * largura * 0.92f * (cresce ? 1.0f - e : 1.0f) + fuga, desloc_y } } }) {
 		/* o brilho de fora e a borda: só o do centro acende */
 		CLAY_AUTO_ID({ .layout = { .padding = CLAY_PADDING_ALL((uint16_t)(6.0f * resto)) }, .backgroundColor = mult(gv_t.acento, 0.20f * centro * a * resto),
 			.cornerRadius = CLAY_CORNER_RADIUS((h * 0.1f + 6) * resto) }) {
@@ -182,16 +182,16 @@ static void desenhar(gv_app *app, void *dados) {
 		iniciado = true;
 		gv_anim(CHAVE_FUNDO, 0.0f, 0); /* nasce transparente e acende */
 		gv_anim(CHAVE_POS, (float)virtual_i, 0);
-		gv_anim(CHAVE_EXP, 0.0f, 0);
+		gv_anim(CHAVE_EXP, 1.0f, 0); /* entra de tela cheia: o do centro encolhe até ser cartão e os vizinhos chegam de fora */
 	}
 	float fundo = gv_anim(CHAVE_FUNDO, fechando ? 0.0f : 1.0f, fechando ? 140 : 180);
-	float e = gv_anim(CHAVE_EXP, confirmando ? 1.0f : 0.0f, 360); /* 0 a 1: o quanto o cartão escolhido já cresceu */
+	float e = gv_anim(CHAVE_EXP, confirmando ? 1.0f : 0.0f, 420); /* o zoom: 1 é o cartão do centro na tela cheia e os vizinhos fora; 0, a seleção. Entra de 1 a 0 e confirmar vai de 0 a 1 */
 	if ((fechando && fundo < 0.02f) || (confirmando && e > 0.995f)) {
 		gv_app_sair(app);
 		return;
 	}
 	/* crescendo, na segunda metade tudo esmaece e deixa ver o modo novo, que o Orbit já pôs atrás */
-	float s = e < 0.6f ? 0.0f : fminf(1.0f, (e - 0.6f) / 0.4f);
+	float s = !confirmando || e < 0.6f ? 0.0f : fminf(1.0f, (e - 0.6f) / 0.4f);
 	galfa = fundo * (1.0f - s * s * (3.0f - 2.0f * s));
 	float pos = gv_anim(CHAVE_POS, (float)virtual_i, 280);
 	Clay_BoundingBox caixa = gv_caixa(CLAY_ID("raiz"));

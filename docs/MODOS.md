@@ -125,7 +125,11 @@ No carrossel: **Super + Tab** abre o `lumna-carrossel` na tela do cursor, com o 
 
 Como funciona: o Orbit guarda o estado (`server->carousel_*` em `mode.c`) e lê `[geral] troca` do `modos.ini` a cada Super+Tab (então mudar no Painel vale na hora). A troca em si é a `orbit_mode_set` de sempre (a mesma do modo Rápido). O `lumna-carrossel` só desenha: ouve o evento `carrossel` do Orbit, pergunta `orbit-msg carrossel` e anima; se ele morrer, soltar o Super ainda confirma. Trocar o modo por qualquer outro caminho (barra, Painel) fecha o carrossel aberto.
 
-Ao confirmar, o Orbit troca o modo **na hora e sem deslizar** (o `orbit_mode_set` com `mode_instant`), e o carrossel, que fica opaco por cima (a camada pede zona exclusiva -1: cobre a barra e a dock), faz o efeito: o cartão escolhido **cresce do centro até a tela** e na segunda metade tudo esmaece, mostrando o modo novo que já está atrás. O seletor antigo (`lumna-modos`) **não abre** depois dessa troca. Cancelar só esmaece.
+**A animação é um zoom contínuo** (`lumna-carrossel`): ao **entrar**, o cartão do centro vem da tela cheia encolhendo até ser cartão, e os dois vizinhos chegam de fora da tela; ao **confirmar**, o contrário: os vizinhos se afastam para fora da tela e o do centro dá zoom até a tela cheia, esmaecendo no fim para mostrar o modo novo. Cancelar só esmaece. Uma variável (`e`, 0 a 1) comanda tudo, então outros estilos de animação cabem como outra função dessa variável.
+
+Por trás, ao confirmar o Orbit troca o modo **na hora e sem deslizar** (o `orbit_mode_set` com `mode_instant`), e o carrossel, opaco por cima (a camada pede zona exclusiva -1: cobre a barra e a dock), faz o efeito. O seletor antigo (`lumna-modos`) **não abre** depois dessa troca.
+
+Ilusão a saber: ao entrar, o cartão de tela cheia é a **ilustração** do modo, não a tela de verdade; ela entra esmaecendo por cima da tela real, e o fundo é o do carrossel.
 
 Limites: os cartões são ilustrações de cada modo, **não miniaturas da tela de verdade** (decisão do Eric: mais leve); sem toque nem gamepad (só teclado e mouse).
 

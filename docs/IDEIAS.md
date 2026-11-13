@@ -19,7 +19,7 @@ Regras de sempre: perguntar antes de decisão estrutural; app novo começa por e
 - Teclado na tela abrindo sozinho em apps de fora do LUMNA.
 - API de `lj_buscar` devolvendo a contagem.
 - Teste do Atlas: "discos" depois do menu depende da ordem dos testes.
-- Animações do sistema em geral (o Eric tem ideias; a troca de workspace em carrossel já foi feita).
+- Animações do sistema em geral (o Eric tem ideias; "o LUMNA merece um pouco de extravagância" na fase final). Já feito: o zoom do carrossel (vizinhos saem/entram de fora da tela, o do centro dá zoom). Ideia do Eric: **estilos de animação escolhíveis** (um ajuste no Painel, com a Rápida/simples como alternativa para máquina fraca); outras animações entram como novos estilos. Perguntar antes: quais partes do sistema, e se vira um ajuste único de "nível de animação".
 
 ## Decidido
 
