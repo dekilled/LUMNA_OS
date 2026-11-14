@@ -18,6 +18,14 @@ _ini="${XDG_CONFIG_HOME:-$HOME/.config}/lumna/animacoes.ini"
 if [ -f /usr/share/lumna/abertura/abertura.mp4 ] && ! grep -Eq '^abertura[[:space:]]*=[[:space:]]*(nao|não|0)' "$_ini" 2>/dev/null; then
 	export ORBIT_CORTINA=1
 fi
+# Os navegadores sem barra de título do LUMNA: os Chromium (Chrome, Brave, Edge...) ligam "Usar a barra de título e bordas do sistema" (a do Orbit) e o Firefox, que no Wayland não
+# fala o xdg-decoration, roda em X11 (e o lumna-navegadores-barra liga a "Barra de título" dele): em X11 o Orbit dá a barra a toda janela que pede. Só onde a pessoa nunca escolheu e com
+# o navegador fechado. Desligar: ~/.config/lumna/navegadores.ini com "barra_do_sistema = nao".
+mkdir -p "$HOME/.local/state/lumna"
+lumna-navegadores-barra >>"$HOME/.local/state/lumna/orbit.log" 2>&1 || true
+if ! grep -Eiq '^[[:space:]]*barra_do_sistema[[:space:]]*=[[:space:]]*(nao|não|0|false)' "${XDG_CONFIG_HOME:-$HOME/.config}/lumna/navegadores.ini" 2>/dev/null; then
+	export MOZ_ENABLE_WAYLAND=0
+fi
 # O que o Orbit e as peças escrevem (os avisos da libseat, do wlroots) ia para o terminal e aparecia como letrinhas no canto da tela entre o login e o desktop:
 # vai para um arquivo (o do login anterior fica em orbit.log.1).
 mkdir -p "$HOME/.local/state/lumna"

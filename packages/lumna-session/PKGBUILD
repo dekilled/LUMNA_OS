@@ -10,6 +10,8 @@ arch=(any)
 url="https://github.com/dekilled/LUMNA_OS"
 license=(GPL-3.0-or-later)
 depends=(
+  # o lumna-navegadores-barra (Perl, com o JSON::PP que já vem nele)
+  perl
   lumna-orbit lumna-gravity greetd
   # portais: escolher arquivo, abrir link (gtk) e compartilhar tela (wlr; o Orbit tem o wlr-screencopy)
   xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
@@ -41,6 +43,7 @@ package() {
   cd "$_root/session"
   # a sessão do Orbit e a tela de login
   install -Dm755 lumna-orbit-session "$pkgdir/usr/bin/lumna-orbit-session"
+  install -Dm755 lumna-navegadores-barra "$pkgdir/usr/bin/lumna-navegadores-barra"
   install -Dm755 lumna-entrada-greeter "$pkgdir/usr/bin/lumna-entrada-greeter"
   install -Dm644 lumna-orbit.desktop "$pkgdir/usr/share/wayland-sessions/lumna-orbit.desktop"
   install -Dm755 lumna-modo "$pkgdir/usr/bin/lumna-modo"

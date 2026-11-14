@@ -1,0 +1,145 @@
+#!/usr/bin/perl
+# Põe os navegadores para usar a barra de título do sistema (a do LUMNA, que o Orbit desenha), quando eles ainda não têm uma escolha da pessoa.
+#   - Chromium e família (Chrome, Chromium, Brave, Edge, Vivaldi, Opera): a opção "Usar a barra de título e bordas do sistema"
+#     (browser.custom_chrome_frame = false no arquivo Preferences de cada perfil). Com ela o navegador pede a barra ao Orbit (xdg-decoration).
+#   - Firefox: browser.tabs.inTitlebar = 0 ("Barra de título" ligada) no prefs.js de cada perfil. O Firefox no Wayland não fala o xdg-decoration:
+#     a sessão o roda em X11 (MOZ_ENABLE_WAYLAND=0, no lumna-orbit-session), e aí o Orbit dá a barra como a toda janela X11.
+# Só mexe no que a pessoa nunca escolheu (a chave ausente) e só com o navegador fechado. Desligar: ~/.config/lumna/navegadores.ini com "barra_do_sistema = nao".
+# Uso: lumna-navegadores-barra [--desfazer]   (--desfazer devolve a barra própria dos navegadores: custom_chrome_frame = true e inTitlebar = 1)
+use strict;
+use warnings;
+use JSON::PP;
+use File::Path qw(make_path);
+
+my $desfazer = grep { $_ eq '--desfazer' } @ARGV;
+my $home = $ENV{HOME} or exit 0;
+my $conf = $ENV{XDG_CONFIG_HOME} || "$home/.config";
+
+# a pessoa desligou?
+if (open(my $f, '<', "$conf/lumna/navegadores.ini")) {
+	while (<$f>) {
+		exit 0 if /^\s*barra_do_sistema\s*=\s*(nao|não|0|false)\s*$/i && !$desfazer;
+	}
+	close $f;
+}
+
+sub diz { print "lumna-navegadores-barra: @_\n" }
+
+sub no_path {
+	my ($exe) = @_;
+	for my $d (split /:/, ($ENV{PATH} || '')) {
+		return 1 if -x "$d/$exe";
+	}
+	return 0;
+}
+
+# o navegador está aberto neste perfil? (o Chromium deixa SingletonLock -> "máquina-pid"; o Firefox, "lock" -> "ip:+pid" e o .parentlock)
+sub aberto {
+	my ($dir) = @_;
+	for my $lock ("$dir/SingletonLock", "$dir/lock") {
+		my $alvo = readlink($lock);
+		next unless defined $alvo;
+		if ($alvo =~ /(\d+)$/ && -d "/proc/$1") {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+# ---- Chromium e família ----
+my @chromium = (
+	['google-chrome', ['google-chrome', 'google-chrome-stable']], ['google-chrome-beta', ['google-chrome-beta']], ['google-chrome-unstable', ['google-chrome-unstable']],
+	['chromium', ['chromium', 'chromium-browser']], ['BraveSoftware/Brave-Browser', ['brave', 'brave-browser']], ['microsoft-edge', ['microsoft-edge', 'microsoft-edge-stable']],
+	['vivaldi', ['vivaldi', 'vivaldi-stable']], ['opera', ['opera']],
+);
+
+sub chromium_perfil {
+	my ($perfil, $nome) = @_;
+	my $arq = "$perfil/Preferences";
+	my $json;
+	if (-e $arq) {
+		open(my $f, '<:raw', $arq) or return;
+		local $/;
+		my $txt = <$f>;
+		close $f;
+		$json = eval { JSON::PP->new->utf8->decode($txt) };
+		return unless ref $json eq 'HASH';
+	} else {
+		return if $desfazer;
+		$json = {};
+	}
+	$json->{browser} = {} unless ref $json->{browser} eq 'HASH';
+	my $atual = $json->{browser}{custom_chrome_frame};
+	if ($desfazer) {
+		return unless defined $atual && !$atual;
+		$json->{browser}{custom_chrome_frame} = JSON::PP::true;
+	} else {
+		return if defined $atual; # a pessoa já escolheu (ou o navegador já gravou): não se mexe
+		$json->{browser}{custom_chrome_frame} = JSON::PP::false;
+	}
+	make_path($perfil);
+	my $tmp = "$arq.lumna-tmp";
+	open(my $o, '>:raw', $tmp) or return;
+	print $o JSON::PP->new->utf8->canonical->encode($json);
+	close $o;
+	rename($tmp, $arq);
+	diz("$nome ($perfil): " . ($desfazer ? 'barra própria devolvida' : 'barra de título do sistema ligada'));
+}
+
+for my $c (@chromium) {
+	my ($sub, $exes) = @$c;
+	my $raiz = "$conf/$sub";
+	my $instalado = grep { no_path($_) } @$exes;
+	next unless -d $raiz || $instalado;
+	next if aberto($raiz);
+	my @perfis = grep { -d $_ } glob("'$raiz/Default' '$raiz/Profile *'");
+	push @perfis, "$raiz/Default" unless @perfis || $desfazer;
+	chromium_perfil($_, $sub) for @perfis;
+}
+
+# ---- Firefox ----
+my @ff_raizes = ("$home/.mozilla/firefox", "$conf/mozilla/firefox");
+for my $raiz (@ff_raizes) {
+	my $ini = "$raiz/profiles.ini";
+	next unless -f $ini;
+	open(my $f, '<', $ini) or next;
+	my ($rel, $path, @perfis) = (1, undef);
+	my $fecha = sub { push @perfis, $rel ? "$raiz/$path" : $path if defined $path; ($rel, $path) = (1, undef) };
+	while (<$f>) {
+		chomp;
+		if (/^\[/) { $fecha->(); next }
+		$rel = $1 if /^IsRelative=(\d)/;
+		$path = $1 if /^Path=(.+)$/;
+	}
+	$fecha->();
+	close $f;
+	for my $p (@perfis) {
+		my $prefs = "$p/prefs.js";
+		next unless -f $prefs;
+		next if aberto($p);
+		# se o user.js (da pessoa ou de outra ferramenta) já define a chave, ela manda
+		if (-f "$p/user.js") {
+			open(my $u, '<', "$p/user.js") or next;
+			my $tem = grep { /browser\.tabs\.inTitlebar/ } <$u>;
+			close $u;
+			next if $tem;
+		}
+		open(my $r, '<', $prefs) or next;
+		my @linhas = <$r>;
+		close $r;
+		my ($i) = grep { $linhas[$_] =~ /user_pref\("browser\.tabs\.inTitlebar"/ } 0 .. $#linhas;
+		if ($desfazer) {
+			next unless defined $i && $linhas[$i] =~ /,\s*0\s*\)/;
+			$linhas[$i] = qq{user_pref("browser.tabs.inTitlebar", 1);\n};
+		} else {
+			next if defined $i; # a pessoa já escolheu
+			push @linhas, qq{user_pref("browser.tabs.inTitlebar", 0);\n};
+		}
+		open(my $w, '>', "$prefs.lumna-tmp") or next;
+		print $w @linhas;
+		close $w;
+		rename("$prefs.lumna-tmp", $prefs);
+		diz("Firefox ($p): " . ($desfazer ? 'barra própria devolvida' : 'barra de título do sistema ligada'));
+	}
+}
+exit 0;
