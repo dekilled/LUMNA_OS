@@ -46,7 +46,7 @@ Recursos pedidos:
 
 ## Para fazer
 
-- **Navegador próprio do LUMNA, em duas versões** (ideia do Eric, 2026-11-14): uma **completa** para o dia a dia do Desktop e uma **simples** para o modo **Mídia** (só o básico de streaming: menos recursos, controle por teclado/controle, nada de abas e extensões). Duas apps separadas evitam confusão de chamadas no sistema (o `lumna-midia` abre o simples; o resto do sistema abre o completo). Antes de codar: **o Eric manda o esboço** e decidimos o **motor** (WebKitGTK, Chromium/CEF ou Gecko: o que decide é o **DRM do streaming**, o Widevine) e o escopo de cada versão. Não escrever motor de navegador do zero.
+- **Navegador próprio do LUMNA, em duas versões** (ideia do Eric, 2026-11-14): uma **completa** para o dia a dia do Desktop e uma **simples** para o modo **Mídia** (só o básico de streaming: menos recursos, controle por teclado/controle, nada de abas e extensões). Duas apps separadas evitam confusão de chamadas no sistema (o `lumna-midia` abre o simples; o resto do sistema abre o completo). **Decidido: Chromium com o CEF.** O esboço da versão completa chegou (docs/navegador/esboco-completa.png) e a lista de funcionalidades para o Eric marcar está em **docs/NAVEGADOR.md** (com as perguntas técnicas: codecs H.264, Widevine, como desenhar a interface, a moldura da janela). Falta o esboço da versão simples (Mídia).
 
 - Papel de parede em vídeo.
 - Extras da Loja.
