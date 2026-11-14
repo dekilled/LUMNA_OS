@@ -20,6 +20,19 @@ Decisões do Eric (2026): o ajuste fica numa **página própria** do Painel, com
 - **Carrossel dos modos:** feito (zoom contínuo).
 - Depois: boot, pós-login (abaixo).
 
+## Polimento (anotado em 2026-11-14, depois da abertura)
+
+Bugs (o Eric viu no PC):
+- **Updater:** depois de atualizar, a área diz "atualizado", mas os botões seguem dizendo que há atualização; ao terminar, voltar ao estado "sem atualização agora".
+- **Atlas ao redimensionar:** passando de certo tamanho, os botões da barra de título e o conteúdo não acompanham a janela (cortados à direita; foto do notebook).
+- **Montar disco no boot:** o Painel tem a opção, mas o HDD e o pendrive nunca montam sozinhos.
+- **Música:** (a) crashou logo depois de tocar uma faixa com o HDD recém-montado (pedir o log); (b) a letra aparece em algumas faixas, mas sem sincronia com a música.
+
+Recursos pedidos:
+- **Captura de tela: "última área usada"** para repetir o mesmo recorte sem refazer (o Eric usa muito).
+- **Janelas lado a lado (Orbit):** o encaixe pega cedo demais ao mover a janela. Ideias do Eric: zona menor e mais perto da borda, ou um quadradinho fixo que ativa; a janela encaixada ir até a borda de baixo (dock se esconde) para dar mais espaço; depois empilhar 2 janelas por lado (grade) e arrastar para mudar largura/altura no empilhado. Perguntar antes: como ativar (zona fina ou quadrado), e a dock.
+- **Barra de título em apps de fora** (Firefox, Spotify): sem barra, ou só com o fechar; falta minimizar e maximizar no estilo do LUMNA.
+
 ## Para fazer (anotado em 2026-11)
 
 - **Animação pós-login:** feita (`lumna-abertura`, ver docs/ABERTURA.md): o Eric mandou os três vídeos (start, mid-loop, end); toca depois do login em todas as telas, com laço até o desktop ficar pronto, pulo por tecla e o interruptor (e o do som) no Painel > Animações. Falta o Eric ver no PC (2.477) e dizer se roda bem no notebook fraco.
