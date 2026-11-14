@@ -24,7 +24,7 @@ Decisões do Eric (2026): o ajuste fica numa **página própria** do Painel, com
 
 Bugs (o Eric viu no PC):
 - **Updater:** feito (2026-11-14): o "Atualizar tudo" abre um terminal e, quando ele termina, o Painel procura de novo sozinho e os botões voltam a "sem atualização" (Aplicativos > Atualizações, a página do aplicativo e Sistema > Atualizações). Falta o Eric ver no PC (2.478).
-- **Atlas ao redimensionar:** passando de certo tamanho, os botões da barra de título e o conteúdo não acompanham a janela (cortados à direita; foto do notebook).
+- **Atlas ao redimensionar:** feito (2026-11-14): a barra de título e a de ferramentas acompanham a largura da janela (as barras têm largura fixa = a da janela; o que passa é cortado), a busca encolhe, e o app pede o tamanho mínimo 560×360 (`gv_opcoes.largura_min/altura_min`, e o Orbit agora respeita o mínimo do app ao arrastar a borda). Outros apps Gravity podem pedir o mínimo e usar o mesmo invólucro se mostrarem o mesmo defeito. Falta o Eric ver no PC (2.479).
 - **Montar disco no boot:** o Painel tem a opção, mas o HDD e o pendrive nunca montam sozinhos.
 - **Música:** (a) crashou logo depois de tocar uma faixa com o HDD recém-montado (pedir o log); (b) a letra aparece em algumas faixas, mas sem sincronia com a música.
 

@@ -113,6 +113,7 @@ typedef struct gv_opcoes {
 	const char *app_id;
 	enum gv_tipo tipo;
 	int largura, altura;     /* o tamanho pedido (numa camada esticada, 0 é a saída inteira) */
+	int largura_min, altura_min; /* janela: o menor tamanho em que o app ainda funciona (xdg_toplevel.set_min_size; o Orbit não deixa arrastar para menos); 0: sem mínimo */
 	/* só camadas */
 	enum gv_nivel nivel;
 	uint32_t ancoras;

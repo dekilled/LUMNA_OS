@@ -574,6 +574,23 @@ void orbit_resize_begin(struct orbit_server *server, struct orbit_view *view, ui
 	orbit_focus(view);
 }
 
+/* o menor tamanho de uma janela: o do Orbit, ou o que o próprio app pediu (xdg_toplevel.set_min_size), o que for maior */
+static int min_largura(struct orbit_view *view) {
+	int m = ORBIT_MIN_W;
+	if (view->toplevel && view->toplevel->current.min_width > m) {
+		m = view->toplevel->current.min_width;
+	}
+	return m;
+}
+
+static int min_altura(struct orbit_view *view) {
+	int m = ORBIT_MIN_H;
+	if (view->toplevel && view->toplevel->current.min_height > m) {
+		m = view->toplevel->current.min_height;
+	}
+	return m;
+}
+
 void orbit_resize_motion(struct orbit_server *server) {
 	struct orbit_view *view = server->grabbed;
 	int dx = (int)(server->cursor->x - server->grab_x);
@@ -583,24 +600,24 @@ void orbit_resize_motion(struct orbit_server *server) {
 	uint32_t e = server->resize_edges;
 	if (e & WLR_EDGE_LEFT) {
 		l += dx;
-		if (r - l < ORBIT_MIN_W) {
-			l = r - ORBIT_MIN_W;
+		if (r - l < min_largura(view)) {
+			l = r - min_largura(view);
 		}
 	} else if (e & WLR_EDGE_RIGHT) {
 		r += dx;
-		if (r - l < ORBIT_MIN_W) {
-			r = l + ORBIT_MIN_W;
+		if (r - l < min_largura(view)) {
+			r = l + min_largura(view);
 		}
 	}
 	if (e & WLR_EDGE_TOP) {
 		t += dy;
-		if (b - t < ORBIT_MIN_H) {
-			t = b - ORBIT_MIN_H;
+		if (b - t < min_altura(view)) {
+			t = b - min_altura(view);
 		}
 	} else if (e & WLR_EDGE_BOTTOM) {
 		b += dy;
-		if (b - t < ORBIT_MIN_H) {
-			b = t + ORBIT_MIN_H;
+		if (b - t < min_altura(view)) {
+			b = t + min_altura(view);
 		}
 	}
 	view->x = l;

@@ -1902,6 +1902,9 @@ gv_app *gv_app_criar(const gv_opcoes *opcoes) {
 		xdg_toplevel_add_listener(app->janela, &janela_ouvinte, app);
 		xdg_toplevel_set_title(app->janela, opcoes->titulo ? opcoes->titulo : "Gravity");
 		xdg_toplevel_set_app_id(app->janela, opcoes->app_id ? opcoes->app_id : "gravity");
+		if (opcoes->largura_min > 0 || opcoes->altura_min > 0) {
+			xdg_toplevel_set_min_size(app->janela, opcoes->largura_min, opcoes->altura_min);
+		}
 	}
 	if (app->opcoes.tipo != GV_BLOQUEIO) {
 		/* o commit vazio pede o primeiro configure; o bloqueio já o recebe e não aceita um vazio */

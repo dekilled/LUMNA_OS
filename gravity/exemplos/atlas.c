@@ -1827,7 +1827,7 @@ static void barra_ferramentas(void) {
 		}
 		CLAY(CLAY_ID("t-div"), { .layout = { .sizing = { CLAY_SIZING_FIXED(1), CLAY_SIZING_FIXED(28) } }, .backgroundColor = gv_t.borda }) {}
 		caminho_barra();
-		CLAY(CLAY_ID("t-busca"), { .layout = { .sizing = { CLAY_SIZING_FIXED(280) } } }) {
+		CLAY(CLAY_ID("t-busca"), { .layout = { .sizing = { CLAY_SIZING_GROW(80, 280) } } }) { /* encolhe com a janela (o caminho e os botões ficam) */
 			if (gv_campo(CLAY_ID("busca"), busca, sizeof(busca), gv_fmt("Buscar em %s", nome_da_vista()).chars, GV_CAMPO_BUSCA) & GV_CAMPO_MUDOU) {
 				refiltrar();
 			}
@@ -6562,7 +6562,7 @@ static void debug_posicoes(void) {
 	}
 	GPtrArray *nomes = g_ptr_array_new_with_free_func(g_free);
 	GPtrArray *ids = g_ptr_array_new();
-	static const char *const FIXOS[] = { "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
+	static const char *const FIXOS[] = { "janela", "barra", "corpo", "lateral", "t-voltar", "t-avancar", "t-subir", "busca", "t-novo", "t-ordem", "t-grade", "t-lista", "t-ajustes", "l-inicio", "l-recentes", "l-favoritos",
 		"det-fav", "det-fechar", "zoom", "s-grade", "s-lista", "mn-pasta", "mn-nome", "mn-criar", "esc-cancelar", "esc-ok", "esc-nome", "esc-filtro", "esc-sub-sim", "esc-sub-nao", "mi-abrir", "mi-abrir-com", "ac-todos", "ac-sempre", "ac-ok", "ac-cancelar", "mi-fav", "mi-copiar", "mo-o", "mf-pasta", "mf-atualizar",
 		"caminho", "caminho-campo", "caminho-ir", "lix-esvaziar", "lix-restaurar", "st-desfazer", "st-cancelar", "cf-pular", "cf-ambos", "cf-substituir", "cf-todos", "ap-cancelar",
 		"ap-confirmar", "ev-cancelar", "ev-confirmar", "pr-fechar", "pr-aplicar", "pr-cancelar", "pr-nome", "pr-grupo", "pr-exec", "pr-recursivo", "pr-copiar", "pr-abrir-pasta", "pr-abrir-com", "pr-local-exec", "l-lixeira", "mi-restaurar", "mi-apagar", "mi-props", "mi-janela", "mi-aba", "l-lixeira", "l-rede", "ml-abrir", "ml-aba", "ml-janela", "ml-esvaziar", "ml-esconder", "ml-remover", "ml-personalizar", "rd-url", "rd-proto", "rd-conectar", "rd-conectar-topo", "rd-add-conta", "rd-pasta", "rd-seg", "rd-sync-agora", "rd-reconectar", "rd-indisp", "rd-abrir-cfg", "l-rede", "l-nuvem", "mr-abrir", "mr-conectar", "mr-desconectar", "mr-esquecer", "mr-copiar", "mc-sync", "mc-abrir", "mc-remover", "cx-usuario", "cx-senha", "cx-entrar", "cx-cancelar", "cx-lembrar", "ct-tipo", "ct-nome", "ct-url", "ct-usuario", "ct-senha", "ct-ok", "ct-cancelar", "mn-i-abrir", "mn-i-aba", "mn-i-janela", "mn-i-remover", "aba-nova", "mi-local", "mi-recortar", "mi-colar",
@@ -6681,6 +6681,13 @@ static void area_rever(void) {
 	}
 }
 
+/* A largura da janela, sem a borda: as barras (título, ferramentas, status) e o corpo têm esta largura FIXA. Sem isso, o conteúdo mais largo que a janela (a lateral de 236, os
+ * botões da barra de ferramentas) faz o Clay alargar as barras e a barra de título empurra o fechar e o maximizar para fora da janela. O que passa fica cortado. */
+static float largura_util(gv_app *a) {
+	float w = gv_app_largura(a) - 2;
+	return w < 120 ? 120 : w;
+}
+
 static void desenhar(gv_app *a, void *dados) {
 	ic_n = 0;
 	if (recarga_pendente) { /* pedida no quadro anterior, durante o desenho */
@@ -6718,9 +6725,11 @@ static void desenhar(gv_app *a, void *dados) {
 	if (pagina_cfg >= 0) {
 		/* as páginas de configurações no lugar dos arquivos: a mesma janela, com a barra de título */
 		CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
-			.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+			.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .clip = { .horizontal = true } }) {
+			CLAY(CLAY_ID("janela-fixa"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(largura_util(a)), CLAY_SIZING_GROW(0) } } }) {
 			gv_barra_janela(a, CLAY_ID("barra"), "folder", "Atlas");
 			tela_configuracoes();
+			}
 		}
 		bool dialogo_rede = rede_dialogo_aberto();
 		rede_dialogos();
@@ -6734,7 +6743,8 @@ static void desenhar(gv_app *a, void *dados) {
 	dnd_rever();
 	teclado_atalhos();
 	CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
-		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .clip = { .horizontal = true } }) {
+		CLAY(CLAY_ID("janela-fixa"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(largura_util(a)), CLAY_SIZING_GROW(0) } } }) {
 		if (modo_escolher) {
 			gv_barra_janela_sub(a, CLAY_ID("barra"), "folder", esc_titulo_janela(), esc_subtitulo());
 		} else {
@@ -6757,6 +6767,7 @@ static void desenhar(gv_app *a, void *dados) {
 			barra_escolher();
 		} else {
 			barra_status();
+		}
 		}
 	}
 	if (dnd_alvo[0] && dnd_alvo_idx < 0 && !strcmp(dnd_alvo, pasta)) { /* soltando no fundo da lista: o contorno da lista inteira */
@@ -6930,7 +6941,8 @@ int main(int argc, char **argv) {
 		detalhes = false; /* o painel do seletor é a prévia (painel_previa_escolher) */
 	}
 	app = gv_app_criar(&(gv_opcoes){ .titulo = modo_escolher ? esc_titulo_janela() : "Atlas", .app_id = modo_escolher ? "lumna-atlas-escolher" : "lumna-atlas",
-		.largura = modo_escolher ? 1040 : 1240, .altura = modo_escolher ? 700 : 760 });
+		.largura = modo_escolher ? 1040 : 1240, .altura = modo_escolher ? 700 : 760,
+		.largura_min = 560, .altura_min = 360 /* abaixo disso a barra de ferramentas não cabe: o Orbit não deixa arrastar para menos */ });
 	gv_arraste_aceitar(MIME_URIS);
 	if (!app) {
 		return 1;
