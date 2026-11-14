@@ -29,7 +29,7 @@ Bugs (o Eric viu no PC):
 - **Música:** (a) crashou logo depois de tocar uma faixa com o HDD recém-montado (pedir o log); (b) a letra aparece em algumas faixas, mas sem sincronia com a música.
 
 Recursos pedidos:
-- **Captura de tela: "última área usada"** para repetir o mesmo recorte sem refazer (o Eric usa muito).
+- **Captura de tela: "última área usada":** feito (2026-11-14): a última área capturada (ou gravada) fica em `captura.ini` (`ultima=TELA;x;y;w;h`); da próxima vez a escolha **abre já com ela** (Enter captura, ou se arrasta outra), e o botão **Última área** a traz de volta depois de mexer ou de trocar de modo. Só vale na mesma tela e se couber nela; a tela inteira não sobrescreve. Falta o Eric ver no PC (2.480).
 - **Janelas lado a lado (Orbit):** o encaixe pega cedo demais ao mover a janela. Ideias do Eric: zona menor e mais perto da borda, ou um quadradinho fixo que ativa; a janela encaixada ir até a borda de baixo (dock se esconde) para dar mais espaço; depois empilhar 2 janelas por lado (grade) e arrastar para mudar largura/altura no empilhado. Perguntar antes: como ativar (zona fina ou quadrado), e a dock.
 - **Barra de título em apps de fora** (Firefox, Spotify): sem barra, ou só com o fechar; falta minimizar e maximizar no estilo do LUMNA.
 

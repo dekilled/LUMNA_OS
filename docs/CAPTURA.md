@@ -24,3 +24,7 @@ Editar depois de salvar cria uma versão nova ainda não salva; o arquivo que vo
 
 Precisa de: `grim` (fotos), `wf-recorder` (vídeo), `wl-clipboard` (Copiar) e, opcionalmente, `ffmpeg` (um quadro do vídeo na prévia). O Orbit já fala `wlr-screencopy`.
 O motor é externo de propósito; a interface (área, alças, barra, prévia) é do Gravity. Ainda não grava o áudio (o `wf-recorder` aceita `-a`).
+
+## Última área
+
+A última área capturada ou gravada fica em `~/.config/lumna/captura.ini` (`ultima=TELA;x;y;w;h`, em pixels lógicos da tela). Na escolha seguinte, na mesma tela e se couber nela, a área já aparece escolhida: Enter captura, ou se arrasta outra. O botão **Última área** (ao lado de Área, Tela e Janela) a traz de volta depois de mexer ou de trocar de modo. A tela inteira não sobrescreve a última área. Teste: `gravity/testes/captura_ultima.sh`.

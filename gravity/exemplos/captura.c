@@ -716,7 +716,15 @@ static int previa(const char *caminho, const char *alvo_emma) {
 	return 0;
 }
 
-/* ---------- as preferências da captura (o áudio da gravação) ---------- */
+/* ---------- as preferências da captura (o áudio da gravação e a última área) ---------- */
+
+/* A última área capturada (em pixels lógicos da tela em que foi, a mesma da próxima vez): abre já escolhida, e o botão "Última área" a traz de volta. */
+struct ret_ultima {
+	float x, y, w, h;
+};
+static struct ret_ultima ultima;
+static char ultima_saida[40];
+static bool tem_ultima;
 
 static char *arq_prefs(void) {
 	return g_build_filename(g_get_user_config_dir(), "lumna", "captura.ini", NULL);
@@ -729,6 +737,24 @@ static void prefs_ler(void) {
 		if (p) {
 			audio_modo = !strncmp(p + 6, "sistema", 7) ? 1 : !strncmp(p + 6, "microfone", 9) ? 2 : 0;
 		}
+		char *u = strstr(t, "ultima=");
+		if (u) {
+			/* ultima=SAIDA;x;y;w;h (SAIDA pode estar vazia: quando não se sabia o nome da tela) */
+			char *fim = strchr(u, '\n');
+			char *linha = fim ? g_strndup(u + 7, (gsize)(fim - u - 7)) : g_strdup(u + 7);
+			char **campos = g_strsplit(linha, ";", -1);
+			if (g_strv_length(campos) == 5) {
+				float ux = (float)g_ascii_strtod(campos[1], NULL), uy = (float)g_ascii_strtod(campos[2], NULL), uw = (float)g_ascii_strtod(campos[3], NULL),
+				      uh = (float)g_ascii_strtod(campos[4], NULL);
+				if (uw >= 2 && uh >= 2) {
+					g_strlcpy(ultima_saida, campos[0], sizeof(ultima_saida));
+					ultima = (struct ret_ultima){ ux, uy, uw, uh };
+					tem_ultima = true;
+				}
+			}
+			g_strfreev(campos);
+			g_free(linha);
+		}
 	}
 	g_free(t);
 	g_free(f);
@@ -737,7 +763,9 @@ static void prefs_ler(void) {
 static void prefs_gravar(void) {
 	char *f = arq_prefs(), *pasta = g_path_get_dirname(f);
 	g_mkdir_with_parents(pasta, 0755);
-	char *t = g_strdup_printf("audio=%s\n", audio_modo == 1 ? "sistema" : audio_modo == 2 ? "microfone" : "nenhum");
+	char *t = tem_ultima ? g_strdup_printf("audio=%s\nultima=%s;%.1f;%.1f;%.1f;%.1f\n", audio_modo == 1 ? "sistema" : audio_modo == 2 ? "microfone" : "nenhum", ultima_saida,
+		ultima.x, ultima.y, ultima.w, ultima.h)
+				      : g_strdup_printf("audio=%s\n", audio_modo == 1 ? "sistema" : audio_modo == 2 ? "microfone" : "nenhum");
 	g_file_set_contents(f, t, -1, NULL);
 	g_free(t);
 	g_free(pasta);
@@ -842,10 +870,22 @@ static int alca_sob(const struct ret *r, Clay_Vector2 p) {
 
 static void gravar_area(void);
 
+/* lembra esta área como a última (só uma área de verdade: a tela inteira não sobrescreve) */
+static void lembrar_area(void) {
+	if (modo != M_AREA || !tem_sel || sel.w < 2 || sel.h < 2) {
+		return;
+	}
+	g_strlcpy(ultima_saida, saida_nome, sizeof(ultima_saida));
+	ultima = (struct ret_ultima){ sel.x, sel.y, sel.w, sel.h };
+	tem_ultima = true;
+	prefs_gravar();
+}
+
 static void capturar(void) {
 	if (!tem_sel || sel.w < 2 || sel.h < 2) {
 		return;
 	}
+	lembrar_area();
 	if (modo_video) {
 		gravar_area();
 		return;
@@ -899,9 +939,29 @@ static void definir_modo(enum modo m, float W, float H) {
 	}
 }
 
+/* a última área serve nesta tela? (a mesma tela e cabe nela) */
+static bool ultima_vale(float W, float H) {
+	return tem_ultima && (!ultima_saida[0] || !saida_nome[0] || !strcmp(ultima_saida, saida_nome)) && ultima.x >= 0 && ultima.y >= 0 && ultima.x + ultima.w <= W + 2 &&
+	       ultima.y + ultima.h <= H + 2;
+}
+
+static void usar_ultima(void) {
+	sel = (struct ret){ ultima.x, ultima.y, ultima.w, ultima.h };
+	tem_sel = true;
+	modo = M_AREA;
+	arrasto = A_NADA;
+}
+
 static void escolher_desenhar(gv_app *a, void *dados) {
 	(void)dados;
 	float W = gv_app_largura(a), H = gv_app_altura(a);
+	static bool ultima_aplicada;
+	if (!ultima_aplicada && W > 0 && H > 0) {
+		ultima_aplicada = true;
+		if (modo == M_AREA && !tem_sel && ultima_vale(W, H)) {
+			usar_ultima(); /* abre já com a área de antes: Enter captura, ou se arrasta outra */
+		}
+	}
 	uint32_t t = gv_tecla();
 	bool shift = gv_modificadores() & GV_MOD_SHIFT;
 	float passo = shift ? 10 : 1;
@@ -1047,6 +1107,10 @@ static void escolher_desenhar(gv_app *a, void *dados) {
 					if (gv_botao_ext(CLAY_IDI("cs-modo", (uint32_t)i), &(gv_botao_opcoes){ .icone = ico[i], .texto = rot[i], .estilo = modo == (enum modo)i ? GV_BOTAO_CHEIO : GV_BOTAO_SIMPLES, .altura = 36 }) && modo != (enum modo)i) {
 						definir_modo((enum modo)i, W, H);
 					}
+				}
+				if (ultima_vale(W, H) && (modo != M_AREA || !tem_sel || fabsf(sel.x - ultima.x) > 1 || fabsf(sel.y - ultima.y) > 1 || fabsf(sel.w - ultima.w) > 1 || fabsf(sel.h - ultima.h) > 1) &&
+				    gv_botao_ext(CLAY_ID("cs-ultima"), &(gv_botao_opcoes){ .icone = "refresh", .texto = "Última área", .estilo = GV_BOTAO_SIMPLES, .altura = 36 })) {
+					usar_ultima();
 				}
 				if (todas_telas.n >= 2 && !modo_video && gv_botao_ext(CLAY_ID("cs-todas"), &(gv_botao_opcoes){ .icone = "screens", .texto = "Todas as telas", .estilo = GV_BOTAO_SIMPLES, .altura = 36 })) {
 					capturar_todas();
