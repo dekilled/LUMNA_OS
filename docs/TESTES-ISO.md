@@ -645,6 +645,14 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.476e | `sudo lumna-boot-tema desfazer` e reiniciar | Volta o GRUB de texto e o boot sem animação, como antes; o sistema sobe normal | ☐ |
 | 2.476f | Atualizar o kernel (ou `sudo grub-mkconfig -o /boot/grub/grub.cfg`) com o tema aplicado | O menu continua com tema e os ícones (o gancho do pacman refaz as classes; com o `grub-mkconfig` à mão, rode `sudo lumna-boot-tema regerar` depois) | ☐ |
 | 2.476g | Instalar o LUMNA numa ISO nova (na VM ou no PC de teste) | O sistema recém-instalado já nasce com o tema do GRUB e a animação (o instalador chama o ajudante) | ☐ |
+| 2.477 | Entrar com a senha no login (depois de `sudo pacman -Syu`) | A tela vai a preto e as letras LUMNA acendem, o curto-circuito com faíscas e o **sussurro da Emma "LUMNA"**; o logo estabiliza com o subtítulo | ☐ |
+| 2.477b | Deixar a abertura rodar sem tocar em nada | Depois do começo, a imagem faz uma **respiração lenta** (zoom out e volta) **até o desktop ficar pronto**; então vêm a distorção e o escurecer, o preto some e **a barra, a dock e o papel de parede aparecem juntos**. Sem salto na emenda do laço nem na saída | ☐ |
+| 2.477c | Apertar uma tecla ou clicar depois de 1 s | Pula direto para a distorção e o escurecer (o desktop aparece em ~1 s) | ☐ |
+| 2.477d | Dois monitores | A abertura cobre **os dois**, no mesmo instante (o som só uma vez) | ☐ |
+| 2.477e | Painel > Aparência > Animações: desligar "Som da abertura", Aplicar, sair e entrar | Toca sem o sussurro | ☐ |
+| 2.477f | Desligar "Animação de abertura", Aplicar, sair e entrar | Nada aparece: o desktop abre direto | ☐ |
+| 2.477g | **PC fraco** (o notebook HP g4): entrar e olhar a fluidez | O vídeo roda sem engasgar. Se falhar, me diga: dá para baixar a resolução do arquivo | ☐ |
+| 2.477h | Nível de animação **Desligada** no Painel | A abertura também desliga | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |

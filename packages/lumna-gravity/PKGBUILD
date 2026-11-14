@@ -29,7 +29,7 @@ options=(!strip !debug)
 _root="$(realpath "$startdir/../..")"
 # nome do binário no repositório -> /usr/bin/lumna-<nome>
 _apps=(mixer galeria wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio
-  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad portal processos signals desktop calculadora carrossel)
+  energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad portal processos signals desktop calculadora carrossel abertura)
 
 build() {
   cd "$_root/gravity"
@@ -49,6 +49,9 @@ package() {
   # o que as peças leem de /usr/share/lumna: a arte da Emma e a extensão do Firefox da Mídia
   install -d "$pkgdir/usr/share/lumna/emma"
   cp -a assets/emma/. "$pkgdir/usr/share/lumna/emma/"
+  # a animação de abertura (depois do login): o vídeo e os tempos de cada trecho (iso/branding/abertura/gera.sh gera os dois)
+  install -Dm644 "$_root/iso/branding/abertura/abertura.mp4" "$pkgdir/usr/share/lumna/abertura/abertura.mp4"
+  install -Dm644 "$_root/iso/branding/abertura/abertura.ini" "$pkgdir/usr/share/lumna/abertura/abertura.ini"
   # a integração do Pulse Terminal com o bash (as marcas do prompt e o aviso de cada comando)
   install -Dm644 pulse-shell/integracao.bash "$pkgdir/usr/share/lumna/pulse/integracao.bash"
   install -Dm644 extensao-firefox/lumna-midia.xpi "$pkgdir/usr/share/lumna/midia/lumna-midia.xpi"

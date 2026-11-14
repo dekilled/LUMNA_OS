@@ -19,7 +19,7 @@ PROTOS = xdg-shell-client-protocol.h xdg-shell-protocol.c \
 OBJS = $(FONTES:.c=.o) xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o text-input-unstable-v3-protocol.o \
 	wlr-foreign-toplevel-management-unstable-v1-protocol.o ext-session-lock-v1-protocol.o
 
-all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos carrossel connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad
+all: libgravity.a mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos carrossel abertura connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos musica loja widgets setup jogos gamepad
 
 wlr-virtual-pointer-unstable-v1-client-protocol.h: protocolos/wlr-virtual-pointer-unstable-v1.xml
 	$(WAYLAND_SCANNER) client-header $< $@
@@ -114,6 +114,9 @@ avisos: exemplos/avisos.c servicos/avisos.c servicos/avisos.h servicos/sons.c se
 # o seletor de modo (Desktop, Gaming, Mídia) e o serviço dos modos (servicos/modos.c)
 carrossel: exemplos/carrossel.c servicos/modos.c servicos/modos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/carrossel.c servicos/modos.c libgravity.a $(LDLIBS) -lm
+
+abertura: exemplos/abertura.c servicos/abertura_tempo.c servicos/abertura_tempo.h servicos/video_player.c servicos/video_player.h servicos/modos.c servicos/modos.h libgravity.a
+	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0 mpv) -o $@ exemplos/abertura.c servicos/abertura_tempo.c servicos/video_player.c servicos/modos.c libgravity.a $(LDLIBS) $(shell pkg-config --libs mpv) -lm -lpthread
 
 modos: exemplos/modos.c servicos/modos.c servicos/modos.h libgravity.a
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/modos.c servicos/modos.c libgravity.a $(LDLIBS)
@@ -226,7 +229,7 @@ instalador: exemplos/instalador.c servicos/instalador.c servicos/instalador.h se
 	$(CC) $(CFLAGS) -Iservicos $(shell pkg-config --cflags glib-2.0) -o $@ exemplos/instalador.c servicos/instalador.c servicos/json.c libgravity.a $(LDLIBS) -lpthread
 
 clean:
-	rm -f $(OBJS) libgravity.a gamepad jogos setup mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
+	rm -f $(OBJS) libgravity.a abertura gamepad jogos setup mixer vitrine galeria musica wifi painel apps papel barra rede transferencia dock lancador avisos bloqueio entrada ocioso inicio energia luz modos connect midia emma emma-chat emma-app perfil captura polkit polkit-janela instalador pulse teclado atlas discos loja widgets ext-idle-notify-v1-client-protocol.h ext-idle-notify-v1-protocol.c $(PROTOS)
 
 .PHONY: all clean
 
