@@ -7,6 +7,7 @@
 #   lumna-boot-tema plymouth     só a parte do Plymouth (e o initramfs)
 #   lumna-boot-tema regerar      regera o menu do GRUB e refaz os ícones das entradas (o gancho do pacman chama isto depois de um kernel novo)
 #   lumna-boot-tema desfazer     tira o tema do GRUB e a animação de boot
+#   lumna-boot-tema diagnostico  mostra tudo o que importa quando o tema ou a animação não aparecem (cole a saída para pedir ajuda; não precisa de root)
 #
 # Não mexe na detecção de outros sistemas nem nas entradas que você já tem: só o tema, a resolução e o "splash". Precisa de root.
 # Opções: --sem-initramfs e --sem-menu (para o instalador, que refaz os dois depois); LUMNA_RAIZ=/pasta roda sobre outra raiz (testes).
@@ -23,7 +24,7 @@ for a in "$@"; do
 	*) echo "lumna-boot-tema: opção desconhecida: $a" >&2; exit 2 ;;
 	esac
 done
-[ -z "$RAIZ" ] && [ "$(id -u)" != 0 ] && { echo "lumna-boot-tema: precisa de root (sudo lumna-boot-tema $ACAO)" >&2; exit 1; }
+[ "$ACAO" != diagnostico ] && [ -z "$RAIZ" ] && [ "$(id -u)" != 0 ] && { echo "lumna-boot-tema: precisa de root (sudo lumna-boot-tema $ACAO)" >&2; exit 1; }
 
 DEFAULT="$RAIZ/etc/default/grub"
 MKINIT="$RAIZ/etc/mkinitcpio.conf"
@@ -121,11 +122,41 @@ desfazer() {
 	dizer "o visual de boot do LUMNA foi tirado"
 }
 
+# tudo o que decide se o tema e a animação aparecem, numa saída só (o notebook do Eric: a animação não apareceu)
+diagnostico() {
+	set +e   # (um comando que falta ou um grep sem resultado não pode interromper o relatório)
+	titulo() { printf '\n== %s\n' "$1"; }
+	titulo "pacotes"; pacman -Q lumna-boot plymouth grub mkinitcpio linux 2>&1 | head -8
+	titulo "kernel deste boot (/proc/cmdline: precisa de splash)"; cat /proc/cmdline 2>&1
+	titulo "/etc/default/grub"
+	grep -E '^(GRUB_THEME|GRUB_GFXMODE|GRUB_GFXPAYLOAD_LINUX|GRUB_TERMINAL_OUTPUT|GRUB_CMDLINE_LINUX_DEFAULT|GRUB_DISABLE_OS_PROBER|GRUB_TIMEOUT)=' "$DEFAULT" 2>&1
+	titulo "o tema está em /boot/grub/themes/lumna?"; ls "$TEMA_GRUB" 2>&1 | head -4
+	titulo "grub.cfg: o tema entrou no menu?"; grep -nE 'set theme=|theme\.txt|gfxmode|terminal_output|insmod (gfxterm|png)' "$GRUB_DIR/grub.cfg" 2>&1 | head -8
+	titulo "mkinitcpio: HOOKS e MODULES (o plymouth entra depois do udev; o driver da placa tem de subir cedo)"; grep -E '^(HOOKS|MODULES)=' "$MKINIT" 2>&1
+	titulo "o initramfs tem o plymouth e o tema?"
+	for img in "$RAIZ"/boot/initramfs-linux*.img; do
+		[ -e "$img" ] || continue
+		printf '%s: ' "$img"
+		if command -v lsinitcpio >/dev/null; then lsinitcpio "$img" 2>/dev/null | grep -cE 'plymouthd|themes/lumna|script\.so' ; else echo "(sem lsinitcpio)"; fi
+	done
+	titulo "/etc/plymouth/plymouthd.conf"; cat "$RAIZ/etc/plymouth/plymouthd.conf" 2>&1
+	titulo "placa de vídeo e driver"
+	lspci -k 2>/dev/null | grep -A3 -E 'VGA|3D|Display' | head -14
+	lsmod 2>/dev/null | grep -E '^(i915|xe|amdgpu|radeon|nouveau|nvidia|nvidia_drm|simpledrm|virtio_gpu) ' | head
+	titulo "o kernel e o framebuffer (simpledrm, efifb, drm)"; dmesg 2>/dev/null | grep -iE 'simpledrm|efifb|framebuffer|plymouth|fb0' | head -10
+	titulo "o plymouth neste boot"
+	journalctl -b --no-pager 2>/dev/null | grep -iE 'plymouth' | tail -12
+	titulo "o complemento do greetd"; systemctl cat greetd 2>/dev/null | grep -B1 -A4 -i plymouth | head -10
+	echo
+	echo "(cole tudo isto na conversa; nada aqui tem senha nem dado pessoal)"
+}
+
 case "$ACAO" in
 aplicar) parte_grub; parte_plymouth ;;
 grub) parte_grub ;;
 plymouth) parte_plymouth ;;
 regerar) [ -d "$TEMA_GRUB" ] && gerar_menu || true ;; # (sem o tema aplicado, o gancho do pacman não mexe no menu de ninguém)
 desfazer) desfazer ;;
-*) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+diagnostico) diagnostico ;;
+*) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

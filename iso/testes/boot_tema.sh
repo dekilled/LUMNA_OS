@@ -39,6 +39,8 @@ chmod +x "$bin/"*
 export PATH="$bin:$PATH" LUMNA_RAIZ="$raiz" LUMNA_TEMA_GRUB="$tema"
 ok=1; falha() { echo "FALHOU: $1" >&2; ok=0; }
 def="$raiz/etc/default/grub"; cfg="$raiz/boot/grub/grub.cfg"; mk="$raiz/etc/mkinitcpio.conf"
+# 0. o diagnóstico roda sem root e sem quebrar
+sh "$ajudante" diagnostico >/dev/null 2>&1 || falha "diagnostico devia terminar bem"
 # 1. aplicar
 sh "$ajudante" aplicar >/dev/null || falha "aplicar devia terminar bem"
 [ -f "$raiz/boot/grub/themes/lumna/theme.txt" ] && [ -f "$raiz/boot/grub/themes/lumna/background.png" ] || falha "o tema devia ir para /boot/grub/themes/lumna"

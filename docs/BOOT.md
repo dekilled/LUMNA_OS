@@ -8,6 +8,7 @@ sudo pacman -S lumna-boot            # (o repositório do LUMNA; se já está in
 sudo lumna-boot-tema aplicar         # tema do GRUB + animação de boot; regera o menu e o initramfs
 sudo lumna-boot-tema desfazer        # tira tudo e volta ao que era
 sudo lumna-boot-tema grub|plymouth   # só uma das partes
+lumna-boot-tema diagnostico          # se o tema ou a animação não aparecem: mostra tudo o que decide isso (sem root; cole a saída)
 ```
 
 ## O que o `aplicar` mexe (e o que não)
