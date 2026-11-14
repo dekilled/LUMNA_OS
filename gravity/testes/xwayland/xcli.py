@@ -8,6 +8,8 @@ if modo == "jan":
     classe = sys.argv[3]
     w = s.root.create_window(0, 0, 400, 300, 0, s.root_depth, X.InputOutput, X.CopyFromParent, background_pixel=cor, event_mask=X.KeyPressMask | X.ExposureMask)
     w.set_wm_class(classe.lower(), classe); w.set_wm_name("X " + classe)
+    if "semmoldura" in sys.argv:  # como o Electron/GTK que desenham a própria barra: _MOTIF_WM_HINTS com decorations = 0
+        w.change_property(d.intern_atom("_MOTIF_WM_HINTS"), d.intern_atom("_MOTIF_WM_HINTS"), 32, [2, 0, 0, 0, 0])
     w.change_property(d.intern_atom("_NET_WM_PID"), Xatom.CARDINAL, 32, [os.getpid()])
     w.map(); d.flush()
     # "redim LxA": como um jogo que troca a resolução por conta própria, pede esse tamanho logo ao abrir e de novo um segundo depois

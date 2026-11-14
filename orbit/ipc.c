@@ -34,6 +34,7 @@
  *   trocar_telas [A B]          os espaços de trabalho (com as janelas) de duas telas trocam de lugar; sem nomes,
  *                               a do cursor com a vizinha. As telas em Gaming ou Mídia só se abrem assim
  *   ecra [ID] | flutuar [ID]    ecrã inteiro / flutuante, alterna
+ *   barra [ID] [sim|nao]        põe ou tira a barra de título do Orbit numa janela (sem argumento: alterna)
  *   maximizar [ID]              maximizada (a área útil, sem a barra e a dock), alterna
  *   dividir                     liga ou desliga o par no telemóvel
  *   acao NOME                   uma acção dos atalhos (terminal, captura, mestre_mais...)
@@ -163,11 +164,11 @@ static void put_view(struct ipc_buf *b, struct orbit_view *view) {
 	put_str(b, orbit_view_title(view));
 	put(b, ",\"saida\":");
 	put_str(b, view->output ? view->output->wlr->name : "");
-	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"visivel\":%s,\"recortada\":%s,\"jogo\":%s}",
+	put(b, ",\"espaco\":%d,\"foco\":%s,\"flutuante\":%s,\"ecra\":%s,\"maximizada\":%s,\"minimizada\":%s,\"na_dock\":%s,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"visivel\":%s,\"recortada\":%s,\"jogo\":%s,\"barra\":%s}",
 		view->tag + 1, server->focused == view ? "true" : "false", view->floating ? "true" : "false",
 		view->fullscreen ? "true" : "false", view->maximized ? "true" : "false", view->minimized ? "true" : "false",
 		view->foreign ? "true" : "false", view->x, view->y, view->w, view->h,
-		view->scene_tree->node.enabled ? "true" : "false", view->clipped ? "true" : "false", view->game ? "true" : "false");
+		view->scene_tree->node.enabled ? "true" : "false", view->clipped ? "true" : "false", view->game ? "true" : "false", orbit_deco_top(view) > 0 ? "true" : "false");
 	/* visivel: o nó está ligado (a janela pode constar como ativa e estar escondida); recortada: uma animação a está recortando (só enquanto desliza) */
 }
 
@@ -608,6 +609,16 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 		}
 		orbit_arrange(server);
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "barra")) {
+		/* barra [ID] [sim|nao]: põe ou tira a barra de título do Orbit numa janela (sem o argumento: alterna). Para o app que abre sem barra e sem poder mover, minimizar ou fechar */
+		struct orbit_view *view = target(arg1 && (!strcmp(arg1, "sim") || !strcmp(arg1, "nao")) ? NULL : arg1);
+		const char *quer = arg1 && (!strcmp(arg1, "sim") || !strcmp(arg1, "nao")) ? arg1 : arg2;
+		if (!view) {
+			fail(b, "janela não encontrada");
+			return;
+		}
+		orbit_deco_forcar(view, !quer ? -1 : !strcmp(quer, "sim") ? 1 : 0);
+		put(b, "{\"ok\":true,\"barra\":%s}", view->ssd ? "true" : "false");
 	} else if (!strcmp(cmd, "dividir")) {
 		orbit_action_named(server, "dividir");
 		put(b, "{\"ok\":true,\"dividido\":%s}", server->phone_split ? "true" : "false");

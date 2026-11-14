@@ -239,6 +239,11 @@ static void run_action(struct orbit_server *server, const struct orbit_bind *bin
 			orbit_view_set_minimized(focused, true);
 		}
 		break;
+	case ORBIT_TOGGLE_BAR:
+		if (focused) {
+			orbit_deco_forcar(focused, -1);
+		}
+		break;
 	case ORBIT_MODE:
 		orbit_mode_step(server, 1);
 		break;
@@ -395,6 +400,7 @@ void orbit_binds_reset(struct orbit_server *server) {
 	bind_put(server, alt, XKB_KEY_Tab, ORBIT_CYCLE, 0);
 	bind_put(server, alt_shift, XKB_KEY_Tab, ORBIT_CYCLE_BACK, 0);
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_h, ORBIT_MINIMIZE, 0);
+	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_b, ORBIT_TOGGLE_BAR, 0); /* Super+B: a barra de título do Orbit na janela em foco */
 	bind_put(server, WLR_MODIFIER_LOGO, XKB_KEY_Tab, ORBIT_MODE, 0);
 	bind_put(server, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_Tab, ORBIT_MODE_PREV, 0);
 	bind_put(server, 0, XKB_KEY_Super_L, ORBIT_LAUNCHER, 0);
@@ -457,6 +463,7 @@ static const struct orbit_action_name action_names[] = {
 	{ "alternar", ORBIT_CYCLE, 0 },
 	{ "alternar_voltar", ORBIT_CYCLE_BACK, 0 },
 	{ "minimizar", ORBIT_MINIMIZE, 0 },
+	{ "barra", ORBIT_TOGGLE_BAR, 0 },
 	{ "modo", ORBIT_MODE, 0 },
 	{ "modo_anterior", ORBIT_MODE_PREV, 0 },
 	{ "tela_cheia", ORBIT_HOST_FULLSCREEN, 0 },

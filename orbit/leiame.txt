@@ -223,6 +223,7 @@ Atalhos (por omissão; [atalho] no orbit.ini muda-os)
   Alt+Tab          a janela usada antes; segurando o Alt, as outras
                    (as minimizadas também voltam); Alt+Shift+Tab ao contrário
   Super+H          minimizar a janela focada
+  Super+B          põe ou tira a barra de título do Orbit na janela focada (para o app que abre sem barra)
   Super+Tab        abre o seletor de modo (sem trocar); de novo, com ele aberto, vai para o modo seguinte; Super+Shift+Tab, o anterior.
                    Pedir o modo que a tela já tem não troca nada e o seletor avisa
   Super            abrir / fechar o lançador ([geral] lancador)
@@ -355,6 +356,13 @@ Barra de título (deco.c)
   desenha, no visual dos apps do LUMNA (título, minimizar, maximizar e fechar; arrastar move, duplo clique maximiza). Quem pede para
   desenhar a própria (CSD) e quem não fala o protocolo (os apps em Gravity, os GTK) fica como estava. barra_titulo = 0 no orbit.ini
   desliga. Teste: testes-arrasto/teste_barra.sh PASTA_DO_BUILD (precisa do foot e do mouse virtual arrasto2).
+  Quem não tem barra nenhuma ganha a do Orbit de três jeitos (2026-11):
+    - janela X11 (XWayland) que pede a moldura do gerenciador de janelas (o padrão do _MOTIF_WM_HINTS) ganha a barra sozinha; as que se desenham
+      sozinhas (GTK/Qt com a barra do app, Electron sem moldura) pedem sem moldura e ficam como estão. Jogos e tela cheia: sem barra;
+    - app Wayland que não fala o xdg-decoration e não desenha barra (o Spotify, por exemplo): coloque o app_id em orbit.ini [geral]
+      com_barra = spotify, discord  (veja o app_id em orbit-msg janelas);
+    - qualquer janela, na hora: Super+B (a em foco) ou orbit-msg barra [ID] [sim|nao]. Alterna.
+  Teste: gravity/testes/barra_titulo.sh PASTA_DO_BUILD (precisa do Xwayland e do python3-xlib).
 
 Protocolos para os apps de fora (protocolos.c)
   primary-selection (colar com o botão do meio), wlr-data-control (wl-clipboard; ext-data-control no wlroots 0.19+), cursor-shape,

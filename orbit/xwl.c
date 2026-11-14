@@ -157,6 +157,15 @@ static void xwl_set_title(struct wl_listener *listener, void *data) {
 	}
 }
 
+/* o app mudou o que quer da moldura (Electron e GTK dizem "sem moldura" quando desenham a própria barra): a barra do Orbit vem ou vai junto */
+static void xwl_set_decorations(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, xwl_set_decorations);
+	bool quer = orbit_deco_quer_barra_x11(view);
+	if (view->ssd != quer) {
+		orbit_deco_forcar(view, quer ? 1 : 0);
+	}
+}
+
 static void xwl_destroy(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, destroy);
 	if (view->xwl_assoc) {
@@ -172,6 +181,7 @@ static void xwl_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&view->request_minimize.link);
 	wl_list_remove(&view->request_move.link);
 	wl_list_remove(&view->request_resize.link);
+	wl_list_remove(&view->xwl_set_decorations.link);
 	wl_list_remove(&view->xwl_set_title.link);
 	wl_list_remove(&view->xwl_set_class.link);
 	orbit_view_release(view);
@@ -219,6 +229,8 @@ static void xwl_view_create(struct orbit_server *server, struct wlr_xwayland_sur
 	wl_signal_add(&xs->events.set_title, &view->xwl_set_title);
 	view->xwl_set_class.notify = xwl_set_title;
 	wl_signal_add(&xs->events.set_class, &view->xwl_set_class);
+	view->xwl_set_decorations.notify = xwl_set_decorations;
+	wl_signal_add(&xs->events.set_decorations, &view->xwl_set_decorations);
 	if (xs->surface) {
 		xwl_associate(&view->xwl_associate, NULL); /* a superfície já existe: o evento passou antes de ouvirmos */
 	}

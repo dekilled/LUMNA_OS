@@ -416,6 +416,13 @@ static void xdg_request_fullscreen(struct wl_listener *listener, void *data) {
 void orbit_view_map(struct orbit_view *view) {
 	/* o jogo vai para a tela do Gaming (o nativo tem uma classe qualquer: quem diz é o ambiente do processo dele, X11 ou Wayland) */
 	view->game = orbit_view_detect_game(view);
+	/* a barra do Orbit: a janela X11 que pede a moldura do gerenciador de janelas, ou o app Wayland da lista (orbit.ini com_barra) que não fala o xdg-decoration; decidido aqui,
+	 * antes de arrumar a janela, para a área do cliente já nascer descontando a barra */
+	if (view->xsurface) {
+		view->ssd = orbit_deco_quer_barra_x11(view);
+	} else if (!view->xdg_deco && orbit_deco_na_lista(view)) {
+		view->ssd = true;
+	}
 	const char *familia = view->game ? "steam_app" : orbit_view_app_id(view);
 	struct orbit_output *output = orbit_output_for_new_view(view->server, familia);
 	view->mapped = true;

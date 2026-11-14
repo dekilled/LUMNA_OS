@@ -127,6 +127,7 @@ enum orbit_action {
 	ORBIT_CYCLE,      /* Alt+Tab: a janela usada antes (segurando o Alt, as outras) */
 	ORBIT_CYCLE_BACK, /* Alt+Shift+Tab: ao contrário */
 	ORBIT_MINIMIZE,
+	ORBIT_TOGGLE_BAR, /* põe ou tira a barra de título do Orbit na janela em foco (para o app que abre sem barra) */
 	ORBIT_SNAP_LEFT,  /* Super+setas: encaixar, maximizar, desfazer */
 	ORBIT_SNAP_RIGHT,
 	ORBIT_SNAP_UP,
@@ -213,6 +214,7 @@ struct orbit_server {
 	struct wl_listener xwl_ready;
 	struct wlr_xdg_decoration_manager_v1 *deco_mgr; /* a barra de título que o Orbit desenha (deco.c) */
 	struct wl_listener new_deco;
+	char bar_list[256]; /* orbit.ini [geral] com_barra: app_ids (separados por vírgula) que ganham a barra do Orbit mesmo sem falar o xdg-decoration */
 	int bar_h;                 /* a altura da barra de título, em px (0: o Orbit não desenha barras) */
 	uint32_t bar_click_time;   /* o último aperto numa barra (o duplo clique maximiza) */
 	struct orbit_view *bar_click_view;
@@ -426,6 +428,7 @@ struct orbit_view {
 	struct wl_listener deco_request_mode;
 	struct wl_listener deco_destroy;
 	bool ssd;                     /* o modo é "servidor desenha" */
+	struct wl_listener xwl_set_decorations; /* X11: o app mudou o que quer da moldura (_MOTIF_WM_HINTS) */
 	struct wlr_scene_buffer *bar; /* a barra: filha da árvore da janela, acima da superfície */
 	int bar_w;                    /* a largura (px lógicos) com que foi desenhada */
 	float bar_scale;
@@ -641,6 +644,9 @@ void orbit_borders_sync(struct orbit_server *server);
 /* ---- a barra de título (deco.c) ---- */
 enum orbit_deco_zone { ORBIT_DECO_NONE = 0, ORBIT_DECO_BAR, ORBIT_DECO_MIN, ORBIT_DECO_MAX, ORBIT_DECO_CLOSE };
 void orbit_deco_bind(struct orbit_server *server);
+bool orbit_deco_quer_barra_x11(struct orbit_view *view); /* uma janela X11 quer a barra do Orbit? (pede a moldura inteira do gerenciador de janelas) */
+bool orbit_deco_na_lista(struct orbit_view *view);       /* o app_id está em orbit.ini [geral] com_barra: o Orbit desenha a barra mesmo sem o protocolo */
+void orbit_deco_forcar(struct orbit_view *view, int modo); /* -1 alterna, 0 tira, 1 põe a barra do Orbit nesta janela (orbit-msg barra) */
 int orbit_deco_top(struct orbit_view *view); /* a altura que a barra ocupa em cima da janela (0: sem barra) */
 void orbit_deco_update(struct orbit_view *view); /* redesenha o que mudou (título, foco, tamanho, botão sob o cursor) */
 void orbit_deco_destroy(struct orbit_view *view);

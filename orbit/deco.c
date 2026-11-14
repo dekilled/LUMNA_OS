@@ -19,8 +19,13 @@
 #include <pango/pangocairo.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <wlr/interfaces/wlr_buffer.h>
 #include <wlr/types/wlr_scene.h>
+#include <wlr/version.h>
+#if WLR_HAS_XWAYLAND
+#include <wlr/xwayland.h>
+#endif
 #include <wlr/util/log.h>
 
 /* as medidas dos botões, como no gv_barra_janela (px lógicos) */
@@ -70,6 +75,69 @@ static const struct wlr_buffer_impl bar_buffer_impl = {
 
 static int client_width(struct orbit_view *view) {
 	return orbit_view_client_box(view).width;
+}
+
+/* ---- quem ganha a barra do Orbit além de quem fala o xdg-decoration ---- */
+
+/* Uma janela X11 que pede a moldura inteira (o padrão do _MOTIF_WM_HINTS) é uma janela sem barra própria: o Orbit, que faz o papel de gerenciador de janelas, a dá. As que se
+ * desenham sozinhas (GTK e Qt com a barra do app, Electron sem moldura) pedem sem moldura e ficam como estão. Jogos, tela cheia e telemóvel: sem barra. */
+bool orbit_deco_quer_barra_x11(struct orbit_view *view) {
+#if WLR_HAS_XWAYLAND
+	struct wlr_xwayland_surface *xs = view->xsurface;
+	return xs && !xs->override_redirect && xs->decorations == WLR_XWAYLAND_SURFACE_DECORATIONS_ALL && !view->game && view->server->bar_h > 0;
+#else
+	(void)view;
+	return false;
+#endif
+}
+
+/* orbit.ini [geral] com_barra = spotify, discord: apps Wayland que não falam o xdg-decoration e não desenham barra nenhuma */
+bool orbit_deco_na_lista(struct orbit_view *view) {
+	const char *lista = view->server->bar_list;
+	if (!*lista || view->server->bar_h <= 0) {
+		return false;
+	}
+	const char *id = orbit_view_app_id(view);
+	size_t n = strlen(id);
+	if (n == 0) {
+		return false;
+	}
+	for (const char *p = lista; *p;) {
+		while (*p == ',' || *p == ' ') {
+			p++;
+		}
+		const char *fim = p;
+		while (*fim && *fim != ',') {
+			fim++;
+		}
+		const char *e = fim;
+		while (e > p && e[-1] == ' ') {
+			e--;
+		}
+		if ((size_t)(e - p) == n && strncasecmp(p, id, n) == 0) {
+			return true;
+		}
+		p = fim;
+	}
+	return false;
+}
+
+/* Põe, tira ou alterna a barra do Orbit numa janela (orbit-msg barra). Vale para qualquer janela: a de quem fala o protocolo muda o modo com ele. */
+void orbit_deco_forcar(struct orbit_view *view, int modo) {
+	bool quer = modo < 0 ? !view->ssd : modo > 0;
+	if (view->server->bar_h <= 0) {
+		return;
+	}
+	bool antes = view->ssd;
+	view->ssd = quer;
+	if (view->xdg_deco) {
+		orbit_deco_send_mode(view);
+	}
+	if (antes != quer && view->mapped) {
+		view->cfg_valid = false; /* a área do cliente mudou de tamanho */
+		orbit_arrange(view->server);
+		orbit_deco_update(view);
+	}
 }
 
 /* ---- as medidas e as zonas ---- */
