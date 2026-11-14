@@ -66,6 +66,21 @@ classes_no_menu() {
 	sed -i -e 's/ --class advanced --class advanced/ --class advanced/' -e 's/ --class firmware --class firmware/ --class firmware/' "$cfg"
 }
 
+# os títulos como no desenho do tema: em maiúsculas e curtos (LUMNA OS, OPÇÕES AVANÇADAS, WINDOWS, CONFIGURAÇÕES DA UEFI). Só no título (a primeira palavra entre aspas da
+# linha): o resto da linha (classes, ids) não muda. Só com o tema aplicado.
+titulos_no_menu() {
+	cfg="$GRUB_DIR/grub.cfg"
+	[ -f "$cfg" ] && [ -d "$TEMA_GRUB" ] || return 0
+	LC_ALL=C.UTF-8 sed -i -E "/^[[:space:]]*(menuentry|submenu) '/ {
+		s/^([[:space:]]*(menuentry|submenu) ')Windows[^']*'/\\1WINDOWS'/
+		s/^([[:space:]]*(menuentry|submenu) ')(Opções avançadas|Advanced options)[^']*'/\\1OPÇÕES AVANÇADAS'/
+		s/^([[:space:]]*(menuentry|submenu) ')(UEFI Firmware Settings|Configurações do firmware UEFI)'/\\1CONFIGURAÇÕES DA UEFI'/
+		s/^([[:space:]]*(menuentry|submenu) '[^']*) \\((on|em) [^)]*\\)'/\\1'/
+		s/^([[:space:]]*(menuentry|submenu) '[^']*) Linux'/\\1'/
+		s/^([[:space:]]*(menuentry|submenu) ')([^']*)'/\\1\\U\\3'/
+	}" "$cfg"
+}
+
 gerar_menu() {
 	[ "$SEM_MENU" = 1 ] && return 0
 	if [ -n "$RAIZ" ]; then
@@ -75,6 +90,7 @@ gerar_menu() {
 		LANG=${LUMNA_LANG_GRUB:-pt_BR.UTF-8} grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1 || grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1
 	fi
 	classes_no_menu
+	titulos_no_menu
 }
 
 parte_grub() {
