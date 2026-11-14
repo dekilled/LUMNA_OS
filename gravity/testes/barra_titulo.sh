@@ -21,7 +21,7 @@ campo() { jan "$1" | grep -o "\"$2\":[-a-z0-9]*" | head -1 | cut -d: -f2; }
 # 1. uma janela X11 comum pede a moldura: ganha a barra
 DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan ff0000 Comum >/dev/null 2>&1 & p1=$!
 # 2. uma que se desenha sozinha (sem moldura): não ganha
-DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 00ff00 Propria x semmoldura >/dev/null 2>&1 & p2=$!
+DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 00ff00 Propria "$run/teclas-p" semmoldura >/dev/null 2>&1 & p2=$!
 sleep 3
 [ "$(campo Comum barra)" = true ] || falha "a janela X11 que pede a moldura devia ganhar a barra do Orbit ($(jan Comum | head -c 200))"
 [ "$(campo Propria barra)" = false ] || falha "a janela X11 sem moldura (que se desenha sozinha) não devia ganhar barra"
@@ -55,7 +55,7 @@ msg tecla_falsa 0 125 baixo >/dev/null; sleep 0.15; msg tecla_falsa 0 48 >/dev/n
 msg tecla_falsa 0 125 baixo >/dev/null; sleep 0.15; msg tecla_falsa 0 48 >/dev/null; sleep 0.2; msg tecla_falsa 0 125 cima >/dev/null; sleep 0.5
 [ "$(campo Propria barra)" = false ] || falha "Super+B de novo devia tirar a barra"
 # 4c. o app cresce depois de abrir (como o Spotify): a barra acompanha a largura sozinha, sem clique nem foco
-DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 0000ff Cresce x 760x500 >/dev/null 2>&1 & p4=$!
+DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 0000ff Cresce "$run/teclas-c" 760x500 >/dev/null 2>&1 & p4=$!
 sleep 4
 wc=$(campo Cresce w); bl=$(campo Cresce barra_l)
 [ "$wc" = 760 ] || falha "o app devia ter crescido para 760 (está $wc)"
