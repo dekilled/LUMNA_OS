@@ -76,6 +76,10 @@ const char *pn_suas_popup(Clay_ElementId popup, Clay_ElementId ancora, const cha
 void pn_executar(const char *comando);
 /* abre um terminal e roda o comando nele (uma atualização que pede senha, por exemplo); o terminal espera uma tecla ao fim */
 void pn_terminal(const char *comando);
+/* Como pn_terminal, para atualizar o sistema: quando o comando termina (com ou sem erro) pn_atualizacao_geracao() sobe e as páginas procuram de novo.
+ * pn_atualizacao_geracao() também vigia o fim (chame no desenho da página); guarde o valor e compare. */
+void pn_terminal_atualizar(const char *comando);
+int pn_atualizacao_geracao(void);
 /* roda trabalho(dados) numa linha à parte e, quando acaba, pronto(dados) na linha da tela (que redesenha); pronto pode ser NULL */
 void pn_tarefa(void (*trabalho)(void *), void (*pronto)(void *), void *dados);
 /* um botão que pede confirmação no próprio lugar: o 1º toque troca por "aviso  [Confirmar] [Cancelar]"; devolve verdadeiro no Confirmar */

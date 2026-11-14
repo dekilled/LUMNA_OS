@@ -72,6 +72,23 @@ static void procurar_pronto(void *dados) {
 	marcar_atualizacoes();
 }
 
+static void procurar_atualizacoes(void);
+static int geracao_vista = -1;
+
+/* o terminal de atualizar terminou: o que se sabia (a lista de atualizações e os aplicativos) está velho: lê tudo de novo */
+static void atualizacao_concluida(void) {
+	int g = pn_atualizacao_geracao();
+	if (geracao_vista < 0) {
+		geracao_vista = g;
+	} else if (g != geracao_vista) {
+		geracao_vista = g;
+		natu = -2;       /* some o "N atualizações" velho já */
+		mensagem[0] = '\0';
+		carregar();      /* os aplicativos instalados (as versões mudaram) */
+		procurar_atualizacoes(); /* e o checkupdates de novo: "Tudo em dia", e os botões somem */
+	}
+}
+
 static void procurar_atualizacoes(void) {
 	if (!procurando) {
 		procurando = true;
@@ -331,7 +348,7 @@ static void pagina_desenhar(const struct pacote *p) {
 			natu == -2 ? "Ainda não procurei" : natu == -1 ? "Não consegui procurar (falta o checkupdates)" : "Este aplicativo está em dia");
 		if (p->tem_atualizacao) {
 			if (gv_botao(CLAY_ID("pg-atualizar"), "download", "Atualizar", GV_BOTAO_CHEIO)) {
-				pn_terminal(p->origem == PAC_AUR ? "yay -Syu" : "if command -v yay >/dev/null 2>&1; then yay -Syu; else sudo pacman -Syu; fi");
+				pn_terminal_atualizar(p->origem == PAC_AUR ? "yay -Syu" : "if command -v yay >/dev/null 2>&1; then yay -Syu; else sudo pacman -Syu; fi");
 			}
 		} else if (gv_botao_ext(CLAY_ID("pg-procurar"), &(gv_botao_opcoes){ .icone = "refresh", .texto = "Procurar", .estilo = GV_BOTAO_ELEVADO, .desativado = procurando })) {
 			procurar_atualizacoes();
@@ -470,6 +487,7 @@ void pn_apps_desenhar(void) {
 	if (!bd && !carregando) {
 		carregar();
 	}
+	atualizacao_concluida();
 	if (selecionado[0] && bd) {
 		const struct pacote *p = pacotes_achar(bd, selecionado);
 		if (p) {
@@ -487,6 +505,7 @@ void pn_apps_atu_desenhar(void) {
 	if (!bd && !carregando) {
 		carregar();
 	}
+	atualizacao_concluida();
 	CLAY(CLAY_ID("aa-topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 4, 14 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
 			if (procurando) {
@@ -509,7 +528,7 @@ void pn_apps_atu_desenhar(void) {
 			procurar_atualizacoes();
 		}
 		if (natu > 0 && gv_botao(CLAY_ID("aa-todas"), "download", "Atualizar tudo", GV_BOTAO_CHEIO)) {
-			pn_terminal("if command -v yay >/dev/null 2>&1; then yay -Syu; else sudo pacman -Syu; fi");
+			pn_terminal_atualizar("if command -v yay >/dev/null 2>&1; then yay -Syu; else sudo pacman -Syu; fi");
 		}
 	}
 	for (int i = 0; i < napps; i++) {

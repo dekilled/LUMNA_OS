@@ -126,9 +126,21 @@ void pn_sobre_atu_abrir(void) {
 	nhist = sistema_historico(hist, 24);
 }
 
+static int geracao_vista = -1;
+
 void pn_sobre_atu_desenhar(void) {
 	if (nhist < 0) {
 		pn_sobre_atu_abrir();
+	}
+	/* o terminal de atualizar terminou: procura de novo (os botões voltam a "sem atualização") e relê o histórico */
+	int g = pn_atualizacao_geracao();
+	if (geracao_vista < 0) {
+		geracao_vista = g;
+	} else if (g != geracao_vista) {
+		geracao_vista = g;
+		natu = -2;
+		nhist = sistema_historico(hist, 24);
+		procurar();
 	}
 	CLAY(CLAY_ID("at-topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 4, 14 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
@@ -153,7 +165,7 @@ void pn_sobre_atu_desenhar(void) {
 		if (natu > 0 && gv_botao(CLAY_ID("at-instalar"), "download", "Atualizar tudo", GV_BOTAO_CHEIO)) {
 			/* num terminal, para ver o que o pacman faz. O lumna-pkg tira um snapshot do sistema antes (dá para voltar), e o yay, se
 			 * houver, cuida do que vem do AUR */
-			pn_terminal("pkexec /usr/lib/lumna/lumna-pkg upgrade && { if command -v yay >/dev/null 2>&1; then yay -Sua; fi; echo; "
+			pn_terminal_atualizar("pkexec /usr/lib/lumna/lumna-pkg upgrade && { if command -v yay >/dev/null 2>&1; then yay -Sua; fi; echo; "
 				    "echo 'Atualizado. Se o desktop mudou, saia da sessão e entre de novo para usar a versão nova.'; }");
 		}
 		/* se há snapshots de antes das atualizações (o lumna-pkg deixa os 5 últimos), dá para desfazer a última */

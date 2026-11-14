@@ -4,6 +4,7 @@
 #include "papelini.h"
 
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <sys/eventfd.h>
@@ -232,7 +233,7 @@ const char *pn_suas_popup(Clay_ElementId popup, Clay_ElementId ancora, const cha
 
 /* ---- terminal, tarefas, confirmação, formatos ---- */
 
-void pn_terminal(const char *comando) {
+static void terminal_com_marca(const char *comando, const char *marca) {
 	/* cada terminal pede o comando de um jeito; o primeiro que existir leva */
 	static const struct { const char *programa, *formato; } terminais[] = {
 		{ "lumna-pulse", "lumna-pulse -e sh -c %s" },
@@ -243,7 +244,9 @@ void pn_terminal(const char *comando) {
 		{ "gnome-terminal", "gnome-terminal -- sh -c %s" },
 		{ "xterm", "xterm -e sh -c %s" },
 	};
-	char *com_espera = g_strdup_printf("%s; echo; printf 'Pronto. Aperte Enter para fechar. '; read _", comando);
+	char *marca_q = marca ? g_shell_quote(marca) : NULL;
+	/* a marca (um arquivo) é feita quando o comando termina, antes de esperar o Enter: é como o Painel sabe que acabou */
+	char *com_espera = g_strdup_printf("%s; %s%s; echo; printf 'Pronto. Aperte Enter para fechar. '; read _", comando, marca ? "touch " : "true", marca ? marca_q : "");
 	char *quoted = g_shell_quote(com_espera);
 	const char *escolhido = g_getenv("LUMNA_TERMINAL");
 	for (size_t i = 0; i < sizeof(terminais) / sizeof(terminais[0]); i++) {
@@ -261,6 +264,44 @@ void pn_terminal(const char *comando) {
 	}
 	g_free(quoted);
 	g_free(com_espera);
+	g_free(marca_q);
+}
+
+void pn_terminal(const char *comando) {
+	terminal_com_marca(comando, NULL);
+}
+
+/* ---- atualizar o sistema num terminal: o Painel descobre quando acabou ---- */
+
+static gint atualizacao_geracao;
+static bool atualizacao_esperando;
+
+static char *atualizacao_marca(void) {
+	const char *rt = g_get_user_runtime_dir();
+	return g_build_filename(rt && *rt ? rt : g_get_tmp_dir(), "lumna-painel-atualizou", NULL);
+}
+
+void pn_terminal_atualizar(const char *comando) {
+	char *marca = atualizacao_marca();
+	g_unlink(marca);
+	atualizacao_esperando = true;
+	terminal_com_marca(comando, marca);
+	g_free(marca);
+}
+
+int pn_atualizacao_geracao(void) {
+	if (atualizacao_esperando) {
+		char *marca = atualizacao_marca();
+		if (g_file_test(marca, G_FILE_TEST_EXISTS)) {
+			g_unlink(marca);
+			atualizacao_esperando = false;
+			atualizacao_geracao++;
+		} else {
+			gv_acordar_em(1.0); /* olha de novo daqui a pouco: o terminal ainda está atualizando */
+		}
+		g_free(marca);
+	}
+	return atualizacao_geracao;
 }
 
 struct tarefa {

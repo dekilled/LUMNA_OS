@@ -654,6 +654,7 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.477f | Desligar "Animação de abertura", Aplicar, sair e entrar | Nada aparece: o desktop abre direto | ☐ |
 | 2.477g | **PC fraco** (o notebook HP g4): entrar e olhar a fluidez | O vídeo roda sem engasgar. Se falhar, me diga: dá para baixar a resolução do arquivo | ☐ |
 | 2.477h | Nível de animação **Desligada** no Painel | A abertura também desliga | ☐ |
+| 2.478 | Painel > Aplicativos > Atualizações (e Sistema > Atualizações): Procurar, **Atualizar tudo**, esperar o terminal terminar | **Sozinho**, sem apertar nada: a faixa vira "Tudo em dia" e os botões Atualizar somem (e o histórico de Sistema ganha a linha nova). Se o terminal for fechado no meio, nada muda | ☐ |
 | 2.469 | Botão direito num **arquivo** da área de trabalho | O menu tem Abrir, **Abrir com…** (lista os apps do tipo), **Abrir local do arquivo** (abre o Atlas na pasta com ele selecionado), **Enviar para** e **Enviar para dispositivo…** | ☐ |
 | 2.469b | Botão direito num arquivo, **Enviar para** | Lista Área de trabalho, Documentos, E-mail, e (se houver) as contas na nuvem e as pastas de rede **conectadas**; escolher copia o arquivo (o original fica) com o progresso de sempre | ☐ |
 | 2.469c | **Enviar para > E-mail** (com o Thunderbird ou outro cliente instalado) | Abre uma mensagem nova com o arquivo anexado. Sem cliente instalado: aviso, sem travar | ☐ |
