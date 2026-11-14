@@ -14,6 +14,7 @@
 #include "discos_cfg.h"
 
 static GMainLoop *laco;
+static gint64 inicio_us;
 
 static void montou(GObject *origem, GAsyncResult *res, gpointer dados) {
 	GError *erro = NULL;
@@ -47,13 +48,21 @@ static void considerar(GVolume *v, enum discos_evento ev) {
 	if (m) {
 		g_object_unref(m);
 	}
-	if (discos_deve_montar(&c, ev, removivel(v), montado, g_volume_should_automount(v) && g_volume_can_mount(v))) {
+	gboolean rem = removivel(v), pode = g_volume_should_automount(v) && g_volume_can_mount(v);
+	if (discos_deve_montar(&c, ev, rem, montado, pode)) {
 		g_volume_mount(v, G_MOUNT_MOUNT_NONE, NULL, NULL, montou, NULL);
+	} else {
+		/* o porquê fica no log (orbit.log): é como se descobre que um disco não monta sozinho */
+		char *nome = g_volume_get_name(v);
+		g_message("não monta sozinho %s (%s): %s", nome, ev == DISCOS_ENTROU ? "ao entrar" : "ao conectar",
+			montado ? "já está montado" : !rem ? "não é removível (partição do computador: monte pelo Painel ou pelo Atlas)" : !pode ? "o sistema não deixa montar sozinho"
+			: (ev == DISCOS_ENTROU ? !c.ao_entrar : !c.ao_conectar) ? "a opção está desligada no Painel" : "regra");
+		g_free(nome);
 	}
 }
 
 static void volume_ligado(GVolumeMonitor *mon, GVolume *v, gpointer dados) {
-	considerar(v, DISCOS_CONECTOU);
+	considerar(v, discos_evento_do_aparecimento((double)(g_get_monotonic_time() - inicio_us) / 1e6));
 }
 
 /* um disco que acabou de ser ligado só ganha o volume (com o sistema de arquivos) depois de um instante: o monitor avisa quando ele existe */
@@ -72,6 +81,7 @@ static gboolean sair(gpointer dados) {
 }
 
 int main(void) {
+	inicio_us = g_get_monotonic_time();
 	GVolumeMonitor *mon = g_volume_monitor_get();
 	g_signal_connect(mon, "volume-added", G_CALLBACK(volume_ligado), NULL);
 	g_timeout_add_seconds(2, ao_entrar, mon); /* dá tempo ao gvfs de listar o que já estava ligado */

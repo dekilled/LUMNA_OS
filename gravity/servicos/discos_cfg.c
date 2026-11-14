@@ -40,3 +40,7 @@ bool discos_deve_montar(const discos_cfg *c, enum discos_evento ev, bool removiv
 	}
 	return ev == DISCOS_CONECTOU ? c->ao_conectar : c->ao_entrar;
 }
+
+enum discos_evento discos_evento_do_aparecimento(double s) {
+	return s < DISCOS_JANELA_ENTRAR ? DISCOS_ENTROU : DISCOS_CONECTOU;
+}

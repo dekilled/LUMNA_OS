@@ -24,6 +24,10 @@ int main(void) {
 	CONFERE(discos_deve_montar(&lida, DISCOS_CONECTOU, true, false, true), "pendrive ligado, ao conectar ligado: monta");
 	CONFERE(!discos_deve_montar(&lida, DISCOS_ENTROU, true, false, true), "ao entrar desligado: não monta");
 	CONFERE(!discos_deve_montar(&lida, DISCOS_CONECTOU, false, false, true), "partição interna: nunca sozinho");
+	/* o que aparece nos primeiros segundos da sessão é o que já estava ligado: vale "ao entrar" */
+	CONFERE(discos_evento_do_aparecimento(0.5) == DISCOS_ENTROU, "meio segundo depois do começo: ao entrar");
+	CONFERE(discos_evento_do_aparecimento(DISCOS_JANELA_ENTRAR - 1) == DISCOS_ENTROU, "ainda na janela de entrada");
+	CONFERE(discos_evento_do_aparecimento(DISCOS_JANELA_ENTRAR + 1) == DISCOS_CONECTOU, "depois da janela: ao conectar");
 	CONFERE(!discos_deve_montar(&lida, DISCOS_CONECTOU, true, true, true), "já montado: nada");
 	CONFERE(!discos_deve_montar(&lida, DISCOS_CONECTOU, true, false, false), "o sistema escondeu: nada");
 

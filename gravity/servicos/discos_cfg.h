@@ -26,4 +26,10 @@ enum discos_evento { DISCOS_CONECTOU, DISCOS_ENTROU };
 /* montar este volume agora? removivel: pendrive, disco externo ou cartão; montado: já está; pode_automontar: o sistema não o escondeu (fstab, etc.) */
 bool discos_deve_montar(const discos_cfg *c, enum discos_evento ev, bool removivel, bool montado, bool pode_automontar);
 
+/* O evento de um volume que apareceu s segundos depois de o lumna-discos começar. Nos primeiros segundos da sessão o gvfs e o udisks ainda estão listando o que já
+ * estava ligado, e esses volumes chegam como "apareceu" (volume-added), não na lista de entrada: contam como "ao entrar" (senão, com só "ao entrar" ligado, o pendrive
+ * que já estava no computador nunca montava). Depois da janela, é "ao conectar". */
+#define DISCOS_JANELA_ENTRAR 60.0
+enum discos_evento discos_evento_do_aparecimento(double s);
+
 #endif
