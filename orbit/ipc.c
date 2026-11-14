@@ -23,6 +23,7 @@
  *   saidas | get_outputs        as saídas
  *   entrada                     o teclado aplicado (layout, repetição) e os dispositivos ligados
  *   janelas | get_tree          as janelas (com id; "jogo": a janela é de um jogo, e no Gaming fica na frente)
+ *   cortina [tirar]             a cortina preta do login (cortina.c): se está ligada; tirar descobre todas as telas
  *   camadas                     as camadas (barra, dock, papel de parede...): a tela, o nível e se aparecem
  *   espacos | get_workspaces    o espaço activo e os ocupados de cada saída
  *   foco ID                     foca a janela (e mostra o espaço dela)
@@ -492,6 +493,12 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			first = false;
 		}
 		put(b, "]}");
+	} else if (!strcmp(cmd, "cortina")) {
+		/* cortina [tirar]: sem argumento, se está ligada; "tirar" descobre todas as telas */
+		if (arg1 && !strcmp(arg1, "tirar")) {
+			orbit_cortina_tirar(server, NULL);
+		}
+		put(b, "{\"ok\":true,\"cortina\":%s}", orbit_cortina_ligada(server) ? "true" : "false");
 	} else if (!strcmp(cmd, "carrossel")) {
 		/* carrossel [confirmar [modo] | cancelar]: sem argumento, o estado (o carrossel pergunta isto a cada aviso) */
 		if (arg1 && !strcmp(arg1, "confirmar")) {

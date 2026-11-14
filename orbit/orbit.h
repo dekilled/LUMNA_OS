@@ -228,6 +228,9 @@ struct orbit_server {
 	struct wlr_scene_tree *layer_tree[ORBIT_LAYER_COUNT];
 	struct wlr_scene_tree *tile_tree;
 	struct wlr_scene_tree *full_tree; /* janelas em ecrã inteiro: por cima da barra e da dock, por baixo do overlay */
+	struct wlr_scene_tree *cortina_tree; /* a cortina preta do login (cortina.c): por cima de tudo, até a abertura de cada tela aparecer */
+	struct wl_event_source *cortina_timer;
+	bool cortina_ativa;
 	struct wlr_scene_tree *lock_tree;
 
 	struct wlr_foreign_toplevel_manager_v1 *foreign_manager;
@@ -380,6 +383,7 @@ struct orbit_output {
 	bool warned_cap;
 	bool soft_off;                         /* aninhado: apagada (tela preta, sem janelas) em vez de desligada: uma janela de fora não se desliga */
 	struct wlr_scene_rect *blank;          /* o preto que cobre a saída apagada */
+	struct wlr_scene_rect *cortina;        /* o preto do login que cobre esta saída até a abertura aparecer (cortina.c) */
 	int nat_x, nat_y;                      /* onde a saída fica quando estendida (o espelhado e o "só um lado" mexem na posição) */
 	const struct orbit_monitor_fora *host; /* aninhado: o monitor de fora que esta janela cobre */
 	bool host_fs;                          /* esta janela está em tela cheia lá fora */
@@ -750,5 +754,14 @@ void orbit_copiados_limpar(void);
 bool orbit_host_fullscreen(struct orbit_server *server, int modo);
 bool orbit_host_fullscreen_one(struct orbit_server *server, struct orbit_output *output, bool ligar);
 void orbit_host_prepare(struct orbit_server *server); /* antes do backend: uma janela por monitor de fora */
+
+
+/* cortina.c: a cortina preta do login. Com ORBIT_CORTINA=1 (a sessão põe, se a abertura está ligada) cada saída nasce coberta de preto, por cima de tudo, e
+ * a cortina de uma saída sai quando a camada "lumna-abertura" dela aparece (o primeiro quadro da abertura também é preto: sem emenda) ou, no mais tardar,
+ * em ORBIT_CORTINA_MS (3000 por omissão): o desktop nunca aparece antes da animação. */
+void orbit_cortina_iniciar(struct orbit_server *server);
+void orbit_cortina_saida(struct orbit_server *server, struct orbit_output *output);
+void orbit_cortina_tirar(struct orbit_server *server, struct orbit_output *output); /* output NULL: todas, e a cortina desliga */
+bool orbit_cortina_ligada(struct orbit_server *server); /* alguma saída ainda está coberta */
 
 #endif

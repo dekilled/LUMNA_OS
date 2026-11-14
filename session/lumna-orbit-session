@@ -12,6 +12,16 @@ _fm1="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services/org.freedesktop.FileM
 if [ -f /usr/share/lumna/dbus-1/services/org.freedesktop.FileManager1.service ] && ! cmp -s /usr/share/lumna/dbus-1/services/org.freedesktop.FileManager1.service "$_fm1" 2>/dev/null; then
 	mkdir -p "$(dirname "$_fm1")" && cp /usr/share/lumna/dbus-1/services/org.freedesktop.FileManager1.service "$_fm1"
 fi
+# A abertura (a animação depois do login): se está ligada e instalada, o Orbit nasce coberto de preto (ORBIT_CORTINA) e o desktop só aparece por baixo dela.
+# Sem isso o desktop se mostrava por meio segundo antes de a animação aparecer.
+_ini="${XDG_CONFIG_HOME:-$HOME/.config}/lumna/animacoes.ini"
+if [ -f /usr/share/lumna/abertura/abertura.mp4 ] && ! grep -Eq '^abertura[[:space:]]*=[[:space:]]*(nao|não|0)' "$_ini" 2>/dev/null; then
+	export ORBIT_CORTINA=1
+fi
+# O que o Orbit e as peças escrevem (os avisos da libseat, do wlroots) ia para o terminal e aparecia como letrinhas no canto da tela entre o login e o desktop:
+# vai para um arquivo (o do login anterior fica em orbit.log.1).
+mkdir -p "$HOME/.local/state/lumna"
+[ -f "$HOME/.local/state/lumna/orbit.log" ] && mv -f "$HOME/.local/state/lumna/orbit.log" "$HOME/.local/state/lumna/orbit.log.1"
 # Os portais (escolher arquivo, compartilhar tela) são ativados pelo D-Bus: precisam saber qual é a tela e o desktop.
 # O Orbit só cria o WAYLAND_DISPLAY depois de subir, então o -s empurra o ambiente para o D-Bus antes das peças.
 exec dbus-run-session -- orbit -s 'dbus-update-activation-environment WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP
@@ -21,4 +31,4 @@ exec dbus-run-session -- orbit -s 'dbus-update-activation-environment WAYLAND_DI
 	lumna-midia servico &
 	lumna-processos servico &
 	lumna-jogos vigia & lumna-gamepad &
-	{ sleep 4; lumna-setup --login; } &'
+	{ sleep 4; lumna-setup --login; } &' 2>>"$HOME/.local/state/lumna/orbit.log"

@@ -91,11 +91,24 @@ void orbit_layers_sync_hidden(struct orbit_server *server) {
 	}
 }
 
+static bool server_cortina_aberta(const struct orbit_server *server) {
+	return server->cortina_ativa;
+}
+
 static void layer_map(struct wl_listener *listener, void *data) {
 	struct orbit_layer *layer = wl_container_of(listener, layer, map);
 	const char *ns = layer->surface->namespace ? layer->surface->namespace : "?";
 	const char *output = layer->surface->output ? layer->surface->output->name : "?";
 	wlr_log(WLR_INFO, "camada %s na saída %s", ns, output);
+	if (server_cortina_aberta(layer->server) && !strcmp(ns, "lumna-abertura") && layer->surface->output) {
+		/* a abertura apareceu nesta saída (o primeiro quadro dela é preto): a cortina daquela saída sai */
+		struct orbit_output *o;
+		wl_list_for_each(o, &layer->server->outputs, link) {
+			if (o->wlr == layer->surface->output) {
+				orbit_cortina_tirar(layer->server, o);
+			}
+		}
+	}
 	layer_sync_keyboard(layer);
 	orbit_float_fit(layer->server);
 	orbit_arrange(layer->server);
@@ -380,6 +393,7 @@ bool orbit_layers_bind(struct orbit_server *server) {
 	server->layer_tree[ORBIT_LAYER_TOP] = wlr_scene_tree_create(&server->scene->tree);
 	server->full_tree = wlr_scene_tree_create(&server->scene->tree);
 	server->layer_tree[ORBIT_LAYER_OVERLAY] = wlr_scene_tree_create(&server->scene->tree);
+	server->cortina_tree = wlr_scene_tree_create(&server->scene->tree); /* por cima de todas */
 	if (!server->layer_tree[ORBIT_LAYER_BACKGROUND] || !server->layer_tree[ORBIT_LAYER_BOTTOM] ||
 		!server->tile_tree || !server->layer_tree[ORBIT_LAYER_TOP] || !server->full_tree ||
 		!server->layer_tree[ORBIT_LAYER_OVERLAY]) {

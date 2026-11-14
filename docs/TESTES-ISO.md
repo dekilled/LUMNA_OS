@@ -647,6 +647,7 @@ Antes: `yay -S legendary` (ele é do AUR, não do pacman).
 | 2.476g | Instalar o LUMNA numa ISO nova (na VM ou no PC de teste) | O sistema recém-instalado já nasce com o tema do GRUB e a animação (o instalador chama o ajudante) | ☐ |
 | 2.477 | Entrar com a senha no login (depois de `sudo pacman -Syu`) | A tela vai a preto e as letras LUMNA acendem, o curto-circuito com faíscas e o **sussurro da Emma "LUMNA"**; o logo estabiliza com o subtítulo | ☐ |
 | 2.477b | Deixar a abertura rodar sem tocar em nada | Depois do começo, a imagem faz uma **respiração lenta** (zoom out e volta) **até o desktop ficar pronto**; então vêm a distorção e o escurecer, o preto some e **a barra, a dock e o papel de parede aparecem juntos**. Sem salto na emenda do laço nem na saída | ☐ |
+| 2.477i | Digitar a senha e entrar | **Sem letrinhas no canto, sem o desktop aparecer antes da animação**: do login vai ao preto e a abertura começa (pode haver o console vazio por um instante) | ☐ |
 | 2.477c | Apertar uma tecla ou clicar depois de 1 s | Pula direto para a distorção e o escurecer (o desktop aparece em ~1 s) | ☐ |
 | 2.477d | Dois monitores | A abertura cobre **os dois**, no mesmo instante (o som só uma vez) | ☐ |
 | 2.477e | Painel > Aparência > Animações: desligar "Som da abertura", Aplicar, sair e entrar | Toca sem o sussurro | ☐ |

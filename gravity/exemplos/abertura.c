@@ -43,9 +43,11 @@ static bool filha;
 static vp *player;
 static ab_tempos tempos;
 static ab_eventos eventos = { -1, -1 };
-static double t0;                /* CLOCK_MONOTONIC em que a animação começou (o mesmo em todas as telas) */
+static double t0;                /* CLOCK_MONOTONIC em que o vídeo começou a tocar (o mesmo em todas as telas); 0: ainda não começou */
+static int quadros_vistos;       /* quantos quadros desenhados: o primeiro é só o preto (a cortina do Orbit sai com ele); o player nasce no segundo */
 static double ultimo_alvo = -1, ultimo_e = -1, ultimo_seek;
 static double acabou_em = -1;
+static bool sincronizada = true;
 static char arquivo[1024], estado_ini[600];
 static time_t estado_mtime;
 static long estado_mtime_ns;
@@ -77,7 +79,7 @@ static void log_(const char *fmt, ...) {
 	}
 	va_list ap;
 	va_start(ap, fmt);
-	fprintf(stderr, "abertura[%s %.2f]: ", minha_saida ? minha_saida : "principal", mono() - t0);
+	fprintf(stderr, "abertura[%s %.2f]: ", minha_saida ? minha_saida : "principal", t0 > 0 ? mono() - t0 : 0.0);
 	vfprintf(stderr, fmt, ap);
 	fputc('\n', stderr);
 	va_end(ap);
@@ -156,7 +158,7 @@ static bool estado_ler(bool so_se_mudou) {
 	}
 	fclose(f);
 	if (nt0 > 0) {
-		t0 = nt0;
+		t0 = nt0; /* o relógio do principal; antes de ele começar, o arquivo diz 0 e as outras telas esperam */
 	}
 	eventos.pronto = np;
 	eventos.pulo = nu;
@@ -288,14 +290,55 @@ static void pintar(cairo_t *cr, Clay_BoundingBox caixa, void *dados) {
 static void desenhar(gv_app *app, void *dados) {
 	(void)dados;
 	double agora = mono();
+	quadros_vistos++;
+	if (quadros_vistos == 1) {
+		/* o primeiro quadro é só o preto: sai já, e o Orbit tira a cortina desta tela. O resto (outras telas, o libmpv, o arquivo) vem no próximo. */
+		CLAY(CLAY_ID("raiz"), gv_livre(pintar, NULL, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {}
+		gv_acordar_em(0.001);
+		return;
+	}
+	if (!player) {
+		if (!filha) {
+			filhas_rever();
+		}
+		player = vp_criar(acorda, NULL);
+		if (!player) {
+			gv_app_sair(app);
+			return;
+		}
+		log_("começa (%s)", arquivo);
+	}
 	if (!filha && gv_saidas_mudaram(app)) {
 		filhas_rever();
 	}
+	/* as outras telas esperam o relógio do principal; o principal começa o relógio quando o vídeo começa a tocar */
+	if (filha) {
+		estado_ler(true);
+	}
+	if (t0 <= 0 && !filha && abriu) {
+		vp_estado est0;
+		vp_atualizar(player, &est0);
+		if (!est0.carregando && !est0.erro) {
+			t0 = agora - (est0.pos > 0 ? est0.pos : 0); /* e ~ a posição do vídeo: tudo parte daqui */
+			estado_gravar();
+			log_("o vídeo começou");
+		}
+	}
+	if (t0 <= 0 && !abriu && !filha) {
+		abriu = true;
+		vp_abrir(player, arquivo, 0, false, 100);
+	}
+	if (t0 <= 0) {
+		/* o relógio ainda não começou: preto */
+		CLAY(CLAY_ID("raiz"), gv_livre(pintar, NULL, (Clay_ElementDeclaration){ .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } })) {}
+		gv_acordar_em(0.02);
+		return;
+	}
+	double e = agora - t0;
 	/* os outros dizem (por arquivo) quando ficou pronto e quando pularam */
 	if (filha || eventos.pronto < 0 || eventos.pulo < 0) {
 		estado_ler(true);
 	}
-	double e = agora - t0;
 	/* a principal: ficou pronto? passou do limite? alguém pulou? */
 	if (!filha) {
 		bool mudou = false;
@@ -323,7 +366,9 @@ static void desenhar(gv_app *app, void *dados) {
 	bool acabou = false;
 	double alvo = ab_posicao(&tempos, &eventos, e, &acabou);
 	if (!abriu) {
+		/* uma tela que não é a principal: abre agora, já sabendo onde o relógio está */
 		abriu = true;
+		sincronizada = false;
 		vp_abrir(player, arquivo, alvo > 0.5 ? alvo : 0, false, 100);
 		ultimo_alvo = alvo;
 		ultimo_e = e;
@@ -333,8 +378,16 @@ static void desenhar(gv_app *app, void *dados) {
 		double previsto = ultimo_alvo + (e - ultimo_e);
 		vp_estado est;
 		vp_atualizar(player, &est);
-		bool salto = fabs(alvo - previsto) > 0.08;
-		bool solto = !est.carregando && fabs(est.pos - alvo) > 0.6 && agora - ultimo_seek > 1.0; /* ficou para trás (máquina lenta) ou à frente */
+		bool salto = ultimo_e >= 0 && fabs(alvo - previsto) > 0.08; /* (o primeiro quadro do relógio só marca o ponto de partida) */
+		if (!est.carregando && !sincronizada) {
+			sincronizada = true; /* o vídeo da tela acabou de carregar: uma vez, acerta com o relógio (a primeira tela já está no ponto) */
+			if (fabs(est.pos - alvo) > 0.1) {
+				vp_buscar(player, alvo);
+				ultimo_seek = agora;
+				log_("sincroniza em %.3f (estava em %.3f)", alvo, est.pos);
+			}
+		}
+		bool solto = !est.carregando && fabs(est.pos - alvo) > 0.3 && agora - ultimo_seek > 1.0; /* ficou para trás (máquina lenta) ou à frente */
 		if (salto || solto) {
 			vp_buscar(player, alvo);
 			ultimo_seek = agora;
@@ -409,12 +462,10 @@ int main(int argc, char **argv) {
 		}
 	}
 	if (!filha) {
-		t0 = mono();
-		estado_gravar();
+		estado_gravar(); /* t0 = 0: ainda não começou (as outras telas esperam) */
 	} else {
-		t0 = mono();
 		for (int i = 0; i < 20 && !estado_ler(false); i++) {
-			g_usleep(50000); /* a principal grava logo; sem arquivo, esta tela segue o próprio relógio */
+			g_usleep(50000); /* a principal grava logo */
 		}
 	}
 	if (filha || !som || getenv("LUMNA_ABERTURA_AO")) {
@@ -427,13 +478,5 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	app_ab = app;
-	player = vp_criar(acorda, NULL);
-	if (!player) {
-		return 1;
-	}
-	if (!filha) {
-		filhas_rever();
-	}
-	log_("começa (%s)", arquivo);
-	return gv_app_correr(app, desenhar, NULL);
+	return gv_app_correr(app, desenhar, NULL); /* o player e as outras telas nascem no segundo quadro: o primeiro (preto) sai logo */
 }

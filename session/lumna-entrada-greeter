@@ -5,4 +5,9 @@
 export XDG_SESSION_TYPE=wayland
 export ORBIT_BORDA=0
 [ -f /usr/lib/lumna/gpu-env ] && . /usr/lib/lumna/gpu-env
-exec orbit -S lumna-entrada
+# o que o Orbit escreve (os avisos da libseat, do wlroots) não vai para o terminal: ficaria como letrinhas no canto da tela na troca do login para a sessão.
+# O journal guarda (journalctl -t lumna-greeter); sem o systemd-cat, vai para o nada.
+if command -v systemd-cat >/dev/null 2>&1; then
+	exec systemd-cat -t lumna-greeter orbit -S lumna-entrada
+fi
+exec orbit -S lumna-entrada 2>/dev/null

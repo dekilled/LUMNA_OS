@@ -247,6 +247,9 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	if (output->blank) {
 		wlr_scene_node_destroy(&output->blank->node);
 	}
+	if (output->cortina) {
+		wlr_scene_node_destroy(&output->cortina->node);
+	}
 	if (output->bg) {
 		wlr_scene_node_destroy(&output->bg->node);
 	}
@@ -337,6 +340,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	}
 	orbit_screen_apply_one(server, output);
 	orbit_disposicao_apply(server);
+	orbit_cortina_saida(server, output);
 	orbit_outputs_publish(server);
 	wlr_log(WLR_INFO, "saída %s %dx%d scale %.2f%s", wlr->name, wlr->width, wlr->height, wlr->scale,
 		output_is_phone(wlr) ? " telemóvel" : "");

@@ -134,6 +134,7 @@ int main(int argc, char *argv[]) {
 	if (!orbit_layers_bind(&server)) {
 		return fail(&server, "falha ao preparar o layer shell");
 	}
+	orbit_cortina_iniciar(&server); /* antes de a primeira saída aparecer */
 	if (!orbit_foreign_bind(&server) || !orbit_session_bind(&server) || !orbit_manage_bind(&server)) {
 		return fail(&server, "falha ao preparar os protocolos de sessão");
 	}
