@@ -14,7 +14,7 @@ GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"
 GRUB_PRELOAD_MODULES="part_gpt part_msdos btrfs"
 GRUB_DISABLE_OS_PROBER=true
 EOF
-echo 'HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck)' > "$raiz/etc/mkinitcpio.conf"
+printf 'MODULES=()\nHOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck)\n' > "$raiz/etc/mkinitcpio.conf"
 cat > "$bin/grub-mkconfig" <<EOF
 #!/bin/sh
 echo "\$*" >> "$run/mkconfig.log"
@@ -36,6 +36,7 @@ CFG
 EOF
 printf '#!/bin/sh\necho "$*" >> %s/mkinitcpio.log\n' "$run" > "$bin/mkinitcpio"
 chmod +x "$bin/"*
+export LUMNA_TESTE_DRIVERS="radeon simpledrm"
 export PATH="$bin:$PATH" LUMNA_RAIZ="$raiz" LUMNA_TEMA_GRUB="$tema"
 ok=1; falha() { echo "FALHOU: $1" >&2; ok=0; }
 def="$raiz/etc/default/grub"; cfg="$raiz/boot/grub/grub.cfg"; mk="$raiz/etc/mkinitcpio.conf"
@@ -51,6 +52,8 @@ grep -q '^GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 splash"' "$def" || falha 
 grep -q '^GRUB_DISABLE_OS_PROBER=true' "$def" || falha "a detecção de outros sistemas não é do tema: tem de ficar como estava"
 grep -q '^GRUB_TIMEOUT=2' "$def" || falha "o tempo do menu não é do tema"
 grep -Eq '^HOOKS=\(base udev plymouth autodetect' "$mk" || falha "o gancho plymouth vai logo depois do udev ($(cat "$mk"))"
+grep -q '^MODULES=(radeon)$' "$mk" || falha "o driver da placa vai no MODULES ($(grep MODULES "$mk"))"
+grep -q simpledrm "$mk" && falha "só drivers de vídeo conhecidos entram"
 grep -q '^Theme=lumna' "$raiz/etc/plymouth/plymouthd.conf" || falha "o tema do Plymouth"
 grep -q "^submenu 'Advanced options for LUMNA OS' --class advanced " "$cfg" || falha "as opções avançadas ganham a classe do ícone ($(grep submenu "$cfg"))"
 grep -q "^menuentry 'UEFI Firmware Settings' --class firmware " "$cfg" || falha "o firmware ganha a classe do ícone"
@@ -61,6 +64,11 @@ antes=$(cat "$def" "$mk" "$cfg" | md5sum)
 sh "$ajudante" aplicar >/dev/null || falha "aplicar de novo"
 [ "$(cat "$def" "$mk" "$cfg" | md5sum)" = "$antes" ] || falha "aplicar duas vezes não podia mudar nada (duplicou algo)"
 [ "$(grep -c splash "$def")" = 1 ] || falha "o splash devia estar uma vez só"
+# 2b. módulo já existente: acrescenta sem tirar
+sed -i -E 's/^MODULES=.*/MODULES=(btrfs)/' "$mk"; sh "$ajudante" plymouth --sem-initramfs >/dev/null
+grep -q '^MODULES=(btrfs radeon)$' "$mk" || falha "acrescenta ao MODULES existente ($(grep MODULES "$mk"))"
+sh "$ajudante" plymouth --sem-initramfs >/dev/null
+grep -q '^MODULES=(btrfs radeon)$' "$mk" || falha "não duplica o driver ($(grep MODULES "$mk"))"
 # 3. as opções do instalador
 : > "$run/mkinitcpio.log"
 sh "$ajudante" plymouth --sem-initramfs >/dev/null

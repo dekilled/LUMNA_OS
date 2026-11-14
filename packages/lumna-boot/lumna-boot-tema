@@ -106,12 +106,36 @@ conferir_initramfs() {
 	done
 }
 
+# drivers de vídeo que o initramfs deve carregar ANTES do Plymouth: sem isso o Plymouth abre no framebuffer genérico da UEFI
+# (simpledrm), o driver real entra um segundo depois e tira a tela dele (notebook do Eric, radeon: console de texto e só a tela final)
+drivers_de_video() {
+	if [ -n "$LUMNA_TESTE_DRIVERS" ]; then echo "$LUMNA_TESTE_DRIVERS"; return; fi
+	for d in /sys/class/drm/card[0-9]*/device/driver; do
+		[ -e "$d" ] && basename "$(readlink -f "$d")"
+	done 2>/dev/null | sort -u
+}
+
+modulo_cedo() {
+	[ -f "$MKINIT" ] || return 0
+	for m in $(drivers_de_video); do
+		case "$m" in i915|amdgpu|radeon|nouveau) ;; *) continue ;; esac
+		grep -E '^MODULES=' "$MKINIT" | grep -Eq "[( ]$m[) ]" && continue
+		if grep -Eq '^MODULES=\( *\)' "$MKINIT"; then
+			sed -i -E "s/^MODULES=\( *\)/MODULES=($m)/" "$MKINIT"
+		else
+			sed -i -E "s/^(MODULES=\(.*[^ ]) *\)/\1 $m)/" "$MKINIT"
+		fi
+		grep -E '^MODULES=' "$MKINIT" | grep -q "$m" && dizer "driver de vídeo $m no initramfs (sobe antes do Plymouth)" || dizer "aviso: ponha $m em MODULES de $MKINIT à mão" >&2
+	done
+}
+
 parte_plymouth() {
 	# o gancho do mkinitcpio, logo depois do udev (ou do systemd): é ele que põe a animação no initramfs
 	if [ -f "$MKINIT" ] && ! grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth; then
 		sed -i -E 's/^(HOOKS=\(.*\b(udev|systemd)\b)/\1 plymouth/' "$MKINIT"
 		grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth || dizer "aviso: não achei o udev nem o systemd nos HOOKS de $MKINIT; ponha o gancho plymouth à mão" >&2
 	fi
+	modulo_cedo
 	mkdir -p "$RAIZ/etc/plymouth"
 	printf '[Daemon]\nTheme=lumna\nShowDelay=0\n' > "$RAIZ/etc/plymouth/plymouthd.conf"
 	if [ "$SEM_INITRAMFS" != 1 ]; then

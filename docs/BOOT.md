@@ -45,3 +45,7 @@ greetd), o `mkinitcpio` e o `grub-mkconfig` de verdade num Arch instalado, e o d
 
 - A animação de **login** (o segundo vídeo, com a voz da Emma): a ideia é uma sequência só do boot até a área de trabalho.
 - O tema na **ISO live** (o GRUB UEFI do archiso aceitaria o mesmo tema; o syslinux do BIOS só aceita um fundo simples). Hoje a live mantém os menus do Arch.
+
+## Driver de vídeo cedo (notebook do Eric, radeon)
+
+Sintoma: o Plymouth aparecia só no desligamento. No boot, o log mostrava o `plymouthd` abrindo no `simpledrm` (framebuffer da UEFI) e o `radeon` carregando um segundo depois, tirando a tela dele (console de texto e só a tela final). O `lumna-boot-tema plymouth` agora lê o driver da placa em `/sys/class/drm/card*/device/driver` e, se for `i915`, `amdgpu`, `radeon` ou `nouveau`, põe no `MODULES` do mkinitcpio para subir antes do Plymouth. Não é removido no `desfazer` (é inofensivo). Teste: `iso/testes/boot_tema.sh` (driver simulado por `LUMNA_TESTE_DRIVERS`). Falta o Eric confirmar no notebook.
