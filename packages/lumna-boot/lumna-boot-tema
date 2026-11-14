@@ -118,7 +118,7 @@ drivers_de_video() {
 modulo_cedo() {
 	[ -f "$MKINIT" ] || return 0
 	for m in $(drivers_de_video); do
-		case "$m" in i915|amdgpu|radeon|nouveau) ;; *) continue ;; esac
+		case "$m" in i915|amdgpu|nouveau) ;; *) continue ;; esac
 		grep -E '^MODULES=' "$MKINIT" | grep -Eq "[( ]$m[) ]" && continue
 		if grep -Eq '^MODULES=\( *\)' "$MKINIT"; then
 			sed -i -E "s/^MODULES=\( *\)/MODULES=($m)/" "$MKINIT"
