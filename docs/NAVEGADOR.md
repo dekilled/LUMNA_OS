@@ -1,6 +1,6 @@
 # Navegador do LUMNA (CEF)
 
-Ideia e decisões do Eric (2026-11-14). **Nada foi codado ainda:** este arquivo é a lista de funcionalidades para o Eric marcar o que fica e o que vai para o lixo, mais as perguntas técnicas que decidem o caminho.
+Ideia e decisões do Eric (2026-11-14). **O navegador em si ainda não foi codado:** este arquivo é a lista de funcionalidades para o Eric marcar o que fica e o que vai para o lixo, mais as perguntas técnicas que decidem o caminho. Só existe o **teste de viabilidade** (seção no fim), em [navegador/teste-cef/](navegador/teste-cef/).
 
 ## O que já está decidido
 
@@ -8,6 +8,10 @@ Ideia e decisões do Eric (2026-11-14). **Nada foi codado ainda:** este arquivo 
 - **Duas versões, dois apps** (para não haver confusão de quem abre o quê):
   - **Completa**: o navegador do dia a dia do Desktop. O esboço do Eric está em [navegador/esboco-completa.png](navegador/esboco-completa.png): abas com ícone e fechar, voltar/avançar/recarregar, barra de endereço, favoritar, downloads, botão da Emma e menu; **nova aba** com o logo, a busca (com microfone), atalhos (YouTube, GitHub, Netflix, Arch Wiki, Projetos, Adicionar) e **"Continuar de onde parou"** (cartões com miniatura); **painel da Emma** à direita (Resumir a página, Encontrar nesta página, Comparar abas, e uma caixa para perguntar sobre a página, com voz).
   - **Simples**: para o modo **Mídia**, só o básico do streaming. (Esboço ainda não existe.) Substitui o Firefox que o `lumna-midia` abre hoje.
+- **Respostas do Eric às perguntas técnicas (2026-11-14):**
+  1. **Codecs:** o build próprio do CEF com H.264/AAC **entra no projeto** (é parte do trabalho).
+  2. **Widevine:** o Eric entende que o Chromium já vem com DRM e só falta licenciar. Nuance: o Chromium traz o *suporte* (a interface do CDM); o **binário do CDM** vem da Google/Chrome e a licença de redistribuição é dela. No Linux costuma ser L3.
+  3. **Moldura:** o navegador **desenha a própria moldura**, com os 3 botões dentro da faixa das abas, sem pedir barra ao Orbit. Haverá uma **opção nas configurações** do navegador para pedir a barra de título do Orbit (modo padrão), caso o desenho próprio não dê certo.
 - **Princípio:** jogar fora o que for inútil, manter o que for útil, e deixar o mais **leve** possível.
 
 ## A lista de funcionalidades (marcar com ✅ fica, ❌ lixo, 🟡 depois)
@@ -64,3 +68,25 @@ Ideia e decisões do Eric (2026-11-14). **Nada foi codado ainda:** este arquivo 
 ## O que eu sugiro como primeiro passo (sem escrever o navegador ainda)
 
 Um **teste de viabilidade pequeno**, de um dia: pegar um CEF pronto, abrir **uma** janela com o YouTube e o Netflix, e ver (1) se os codecs tocam, (2) se o Widevine carrega, (3) quanta memória gasta, (4) como o Orbit trata a janela. Se isso passar, o resto é construir a interface em cima. Se não passar (codecs ou DRM), melhor descobrir antes de desenhar tudo.
+
+## Resultado do teste de viabilidade (2026-11-14, feito no container, sem GPU e sem tela real)
+
+App de teste mínimo (CEF **Views**, C++, ~100 linhas, em [navegador/teste-cef/](navegador/teste-cef/)) com o CEF **156.0.30** (Chromium 156.0.8078.96, `linux64_minimal`, o binário pronto oficial). Abriu **uma janela** no Orbit (via XWayland) numa página local que consulta o que o motor suporta.
+
+| Teste | Resultado |
+|---|---|
+| Compila e abre no Orbit (X11/XWayland) | ✅ janela normal, flutuante, 1000x650 |
+| **H.264** (`avc1`) e **AAC** (`mp4a`) | ❌ **não** suportados, como previsto: o binário oficial exclui os codecs proprietários |
+| HEVC | ❌ não |
+| VP9 e AV1 | ✅ sim (o YouTube serve esses, mas Netflix/Disney+/muitos sites exigem H.264) |
+| **Widevine** | ❌ `NotSupportedError` (sem CDM, como previsto) |
+| Memória, 1 janela e 1 página local | **~190 MB** de PSS (memória real), 8 processos (browser, 2 zygote, gpu, 2 utility, 2 renderer); a soma de RSS dá ~810 MB, mas conta a memória compartilhada várias vezes |
+| Tamanho do pacote | **1,5 GB** em disco (a `libcef.so` sozinha tem 1,4 GB, com símbolos; dá para reduzir bastante com strip) |
+| Wayland nativo (`--ozone-platform=wayland`) | ⚠️ **inconclusivo**: o app caiu (SIGSEGV) no container porque aqui não existe nó DRM (`drmGetDevices2() has not found any devices`). Precisa ser testado numa máquina com GPU |
+| Barra do Orbit | a janela do CEF Views em X11 **pediu a moldura e o Orbit pôs a barra** (`barra:true`): hoje, por padrão, ele usaria o modo padrão. Para a moldura própria será preciso pedir ao CEF uma janela sem moldura (`CefWindowDelegate::IsFrameless`) |
+
+**Conclusões honestas:**
+- O motor roda no Orbit e a memória base é razoável. **Os dois riscos previstos (codecs e Widevine) estão confirmados:** com o binário oficial não toca H.264/AAC e não há DRM.
+- **Próximo passo duro:** o build próprio do CEF/Chromium com `proprietary_codecs=true ffmpeg_branding=Chrome` (muitas horas e ~100 GB; não cabe neste container). Alternativas: procurar um CEF já compilado com codecs, ou testar com o **Chromium de uma distribuição** (que costuma ter os codecs ligados) só para validar o resto.
+- **Widevine:** testar com o CDM do Chrome instalado, apontando `--widevine-cdm-path` (o app de teste já aceita `TESTE_WIDEVINE`). Tanto o CDM quanto o teste real do Netflix pedem uma máquina com internet e GPU.
+- Teste de vídeo real (YouTube/Netflix) e de Wayland nativo: **não foi possível aqui**, ficam para o PC do Eric.

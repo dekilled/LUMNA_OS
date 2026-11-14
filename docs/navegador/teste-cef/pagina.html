@@ -1,0 +1,6 @@
+<!doctype html><meta charset=utf-8><title>carregando</title><body>teste</body><script>
+const tipos=['video/mp4; codecs="avc1.42E01E"','audio/mp4; codecs="mp4a.40.2"','video/webm; codecs="vp9"','video/mp4; codecs="av01.0.05M.08"','video/mp4; codecs="hev1.1.6.L93.B0"'];
+const r=tipos.map(t=>t.split(';')[0].replace('video/','v:').replace('audio/','a:')+'['+t.split('"')[1]+']='+MediaSource.isTypeSupported(t));
+let w='widevine=?';
+navigator.requestMediaKeySystemAccess('com.widevine.alpha',[{initDataTypes:['cenc'],videoCapabilities:[{contentType:'video/mp4; codecs="avc1.42E01E"'}]}]).then(()=>w='widevine=SIM',e=>w='widevine=NAO('+e.name+')').finally(()=>document.title=r.join(' | ')+' | '+w);
+</script>
