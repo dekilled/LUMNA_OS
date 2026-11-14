@@ -54,6 +54,13 @@ msg tecla_falsa 0 125 baixo >/dev/null; sleep 0.15; msg tecla_falsa 0 48 >/dev/n
 [ "$(campo Propria barra)" = true ] || falha "Super+B devia pôr a barra na janela em foco"
 msg tecla_falsa 0 125 baixo >/dev/null; sleep 0.15; msg tecla_falsa 0 48 >/dev/null; sleep 0.2; msg tecla_falsa 0 125 cima >/dev/null; sleep 0.5
 [ "$(campo Propria barra)" = false ] || falha "Super+B de novo devia tirar a barra"
+# 4c. o app cresce depois de abrir (como o Spotify): a barra acompanha a largura sozinha, sem clique nem foco
+DISPLAY=$D python3 "$aqui/xwayland/xcli.py" jan 0000ff Cresce x 760x500 >/dev/null 2>&1 & p4=$!
+sleep 4
+wc=$(campo Cresce w); bl=$(campo Cresce barra_l)
+[ "$wc" = 760 ] || falha "o app devia ter crescido para 760 (está $wc)"
+[ "$bl" = "$wc" ] || falha "a barra devia ter a largura da janela que cresceu ($wc) e tem $bl (a barra ficou para trás)"
+kill $p4 2>/dev/null
 # 5. um app Wayland da lista com_barra (a calculadora do Gravity não fala xdg-decoration): ganha a barra do Orbit
 if [ -x "$gravity/calculadora" ]; then
 	"$gravity/calculadora" >/dev/null 2>&1 & p3=$!

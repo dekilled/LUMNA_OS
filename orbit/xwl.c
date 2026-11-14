@@ -50,6 +50,14 @@ static void xwl_surface_unmap(struct wl_listener *listener, void *data) {
 	orbit_view_unmap(view);
 }
 
+/* o app X11 mudou de tamanho (o Spotify cresce depois de abrir): a barra do Orbit acompanha a largura no mesmo quadro, sem esperar um clique ou o foco */
+static void xwl_surface_commit(struct wl_listener *listener, void *data) {
+	struct orbit_view *view = wl_container_of(listener, view, xwl_commit);
+	if (view->mapped && view->ssd) {
+		orbit_deco_update(view); /* só redesenha se algo mudou (largura, título, foco) */
+	}
+}
+
 static void xwl_associate(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, xwl_associate);
 	struct wlr_xwayland_surface *xs = view->xsurface;
@@ -61,6 +69,8 @@ static void xwl_associate(struct wl_listener *listener, void *data) {
 	wl_signal_add(&xs->surface->events.map, &view->map);
 	view->unmap.notify = xwl_surface_unmap;
 	wl_signal_add(&xs->surface->events.unmap, &view->unmap);
+	view->xwl_commit.notify = xwl_surface_commit;
+	wl_signal_add(&xs->surface->events.commit, &view->xwl_commit);
 	/* uma árvore de subsuperfícies (como a das janelas Wayland), e não só a superfície: o recorte da animação de troca de espaço/modo
 	 * (wlr_scene_subsurface_tree_set_clip) procura essa árvore e derrubava o Orbit (assert) com um jogo X11 aberto ao trocar de modo */
 	wlr_scene_subsurface_tree_create(view->scene_tree, xs->surface);
@@ -77,6 +87,7 @@ static void xwl_dissociate(struct wl_listener *listener, void *data) {
 	}
 	wl_list_remove(&view->map.link);
 	wl_list_remove(&view->unmap.link);
+	wl_list_remove(&view->xwl_commit.link);
 }
 
 static void xwl_request_configure(struct wl_listener *listener, void *data) {

@@ -429,6 +429,7 @@ struct orbit_view {
 	struct wl_listener deco_destroy;
 	bool ssd;                     /* o modo é "servidor desenha" */
 	struct wl_listener xwl_set_decorations; /* X11: o app mudou o que quer da moldura (_MOTIF_WM_HINTS) */
+	struct wl_listener xwl_commit;          /* X11: a superfície deu um quadro novo (o tamanho pode ter mudado: a barra acompanha) */
 	struct wlr_scene_buffer *bar; /* a barra: filha da árvore da janela, acima da superfície */
 	int bar_w;                    /* a largura (px lógicos) com que foi desenhada */
 	float bar_scale;
