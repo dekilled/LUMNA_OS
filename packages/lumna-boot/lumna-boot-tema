@@ -92,6 +92,20 @@ parte_grub() {
 	dizer "tema do GRUB aplicado"
 }
 
+# o initramfs refeito tem mesmo o plymouth? (sem ele a animação só aparece no desligamento: é quem liga o Plymouth cedo na inicialização)
+conferir_initramfs() {
+	command -v lsinitcpio >/dev/null || return 0
+	for img in "$RAIZ"/boot/initramfs-linux*.img; do
+		[ -e "$img" ] || continue
+		case "$img" in *fallback*) continue ;; esac
+		if ! lsinitcpio "$img" 2>/dev/null | grep -q 'plymouthd'; then
+			dizer "aviso: $img NÃO tem o plymouth. Confira o gancho em $MKINIT (HOOKS) e rode 'sudo mkinitcpio -P' para ver o erro" >&2
+		elif ! lsinitcpio "$img" 2>/dev/null | grep -q 'themes/lumna'; then
+			dizer "aviso: $img tem o plymouth mas não o tema do LUMNA (Theme=lumna em /etc/plymouth/plymouthd.conf)" >&2
+		fi
+	done
+}
+
 parte_plymouth() {
 	# o gancho do mkinitcpio, logo depois do udev (ou do systemd): é ele que põe a animação no initramfs
 	if [ -f "$MKINIT" ] && ! grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth; then
@@ -101,7 +115,13 @@ parte_plymouth() {
 	mkdir -p "$RAIZ/etc/plymouth"
 	printf '[Daemon]\nTheme=lumna\nShowDelay=0\n' > "$RAIZ/etc/plymouth/plymouthd.conf"
 	if [ "$SEM_INITRAMFS" != 1 ]; then
-		mkinitcpio -P >/dev/null 2>&1 || dizer "aviso: o mkinitcpio falhou; refaça o initramfs com 'sudo mkinitcpio -P'" >&2
+		saida=$(mktemp)
+		if ! mkinitcpio -P >"$saida" 2>&1; then
+			dizer "aviso: o mkinitcpio falhou (a animação NÃO vai aparecer na inicialização, só no desligamento). O que ele disse:" >&2
+			tail -n 12 "$saida" >&2
+		fi
+		rm -f "$saida"
+		conferir_initramfs
 	fi
 	dizer "animação de boot aplicada"
 }
