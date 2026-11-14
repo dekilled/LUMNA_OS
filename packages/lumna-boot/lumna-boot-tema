@@ -106,36 +106,56 @@ conferir_initramfs() {
 	done
 }
 
-# drivers de vídeo que o initramfs deve carregar ANTES do Plymouth: sem isso o Plymouth abre no framebuffer genérico da UEFI
-# (simpledrm), o driver real entra um segundo depois e tira a tela dele (notebook do Eric, radeon: console de texto e só a tela final)
-drivers_de_video() {
-	if [ -n "$LUMNA_TESTE_DRIVERS" ]; then echo "$LUMNA_TESTE_DRIVERS"; return; fi
-	for d in /sys/class/drm/card[0-9]*/device/driver; do
-		[ -e "$d" ] && basename "$(readlink -f "$d")"
-	done 2>/dev/null | sort -u
-}
-
-modulo_cedo() {
-	[ -f "$MKINIT" ] || return 0
-	for m in $(drivers_de_video); do
-		case "$m" in i915|amdgpu|nouveau) ;; *) continue ;; esac
-		grep -E '^MODULES=' "$MKINIT" | grep -Eq "[( ]$m[) ]" && continue
-		if grep -Eq '^MODULES=\( *\)' "$MKINIT"; then
-			sed -i -E "s/^MODULES=\( *\)/MODULES=($m)/" "$MKINIT"
-		else
-			sed -i -E "s/^(MODULES=\(.*[^ ]) *\)/\1 $m)/" "$MKINIT"
-		fi
-		grep -E '^MODULES=' "$MKINIT" | grep -q "$m" && dizer "driver de vídeo $m no initramfs (sobe antes do Plymouth)" || dizer "aviso: ponha $m em MODULES de $MKINIT à mão" >&2
-	done
+# O Plymouth precisa do formato "udev" do initramfs, com o gancho plymouth DEPOIS do kms (o jeito do BigLinux): assim o driver da placa
+# já está carregado quando o Plymouth abre. No formato "systemd" o Plymouth abre no framebuffer genérico (simpledrm) e o driver real
+# tira a tela dele um segundo depois: tela cinza com três pontinhos, sem a animação (testado no desktop com amdgpu e no notebook com
+# duas radeon). A lista de ganchos da pessoa é preservada: só troca os equivalentes (systemd->udev, sd-vconsole->keymap consolefont,
+# sd-encrypt->encrypt, sd-lvm2->lvm2) e põe o plymouth depois do kms e antes de encrypt/lvm2/filesystems.
+hooks_formato_udev() {
+	printf '%s\n' "$1" | awk '
+	function poe(w) { if (!(w in vis)) { vis[w] = 1; out[++n] = w } }
+	{
+		for (i = 1; i <= NF; i++) {
+			w = $i
+			if (w == "plymouth") continue
+			if (w == "systemd") w = "udev"
+			else if (w == "sd-encrypt") w = "encrypt"
+			else if (w == "sd-lvm2") w = "lvm2"
+			else if (w == "sd-vconsole") { poe("keymap"); w = "consolefont" }
+			if (w == "block" && !("kms" in vis)) poe("kms")
+			poe(w)
+		}
+		if (!("kms" in vis)) poe("kms")
+		p = n + 1
+		for (i = 1; i <= n; i++) if (out[i] == "encrypt" || out[i] == "lvm2" || out[i] == "mdadm_udev" || out[i] == "filesystems") { p = i; break }
+		for (i = 1; i <= n; i++) if (out[i] == "kms" && i >= p) p = i + 1
+		res = ""
+		for (i = 1; i <= n + 1; i++) {
+			if (i == p) res = res (res == "" ? "" : " ") "plymouth"
+			if (i <= n) res = res (res == "" ? "" : " ") out[i]
+		}
+		print res
+	}'
 }
 
 parte_plymouth() {
-	# o gancho do mkinitcpio, logo depois do udev (ou do systemd): é ele que põe a animação no initramfs
-	if [ -f "$MKINIT" ] && ! grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth; then
-		sed -i -E 's/^(HOOKS=\(.*\b(udev|systemd)\b)/\1 plymouth/' "$MKINIT"
-		grep -E '^HOOKS=' "$MKINIT" | grep -q plymouth || dizer "aviso: não achei o udev nem o systemd nos HOOKS de $MKINIT; ponha o gancho plymouth à mão" >&2
+	if [ -f "$MKINIT" ]; then
+		atual=$(sed -n -E 's/^HOOKS=\((.*)\)[[:space:]]*$/\1/p' "$MKINIT" | head -n1)
+		if [ -z "$atual" ]; then
+			dizer "aviso: não achei a linha HOOKS=(...) em $MKINIT; ponha o gancho plymouth à mão (formato udev, depois do kms)" >&2
+		else
+			novo=$(hooks_formato_udev "$atual")
+			case " $novo " in
+			*" udev "*)
+				# guarda a lista original uma vez, para o desfazer devolver
+				grep -q '^#LUMNA_HOOKS_ORIGINAL=' "$MKINIT" || sed -i -E "/^HOOKS=/a #LUMNA_HOOKS_ORIGINAL=$atual" "$MKINIT"
+				sed -i -E "s|^HOOKS=.*|HOOKS=($novo)|" "$MKINIT"
+				[ "$novo" = "$atual" ] || dizer "initramfs no formato udev com o plymouth depois do kms: HOOKS=($novo)"
+				;;
+			*) dizer "aviso: os HOOKS de $MKINIT não têm udev nem systemd; ponha o plymouth à mão (depois do kms)" >&2 ;;
+			esac
+		fi
 	fi
-	modulo_cedo
 	mkdir -p "$RAIZ/etc/plymouth"
 	printf '[Daemon]\nTheme=lumna\nShowDelay=0\n' > "$RAIZ/etc/plymouth/plymouthd.conf"
 	if [ "$SEM_INITRAMFS" != 1 ]; then
@@ -160,7 +180,14 @@ desfazer() {
 	fi
 	rm -rf "$TEMA_GRUB"
 	gerar_menu 2>/dev/null || true
-	[ -f "$MKINIT" ] && sed -i -E '/^HOOKS=/ s/ plymouth\b//' "$MKINIT"
+	if [ -f "$MKINIT" ]; then
+		orig=$(sed -n -E 's/^#LUMNA_HOOKS_ORIGINAL=//p' "$MKINIT" | head -n1)
+		if [ -n "$orig" ]; then
+			sed -i -E "s|^HOOKS=.*|HOOKS=($orig)|; /^#LUMNA_HOOKS_ORIGINAL=/d" "$MKINIT"
+		else
+			sed -i -E '/^HOOKS=/ s/ plymouth\b//' "$MKINIT"
+		fi
+	fi
 	rm -f "$RAIZ/etc/plymouth/plymouthd.conf"
 	[ "$SEM_INITRAMFS" != 1 ] && { mkinitcpio -P >/dev/null 2>&1 || true; }
 	dizer "o visual de boot do LUMNA foi tirado"

@@ -36,7 +36,6 @@ CFG
 EOF
 printf '#!/bin/sh\necho "$*" >> %s/mkinitcpio.log\n' "$run" > "$bin/mkinitcpio"
 chmod +x "$bin/"*
-export LUMNA_TESTE_DRIVERS="amdgpu radeon simpledrm"
 export PATH="$bin:$PATH" LUMNA_RAIZ="$raiz" LUMNA_TEMA_GRUB="$tema"
 ok=1; falha() { echo "FALHOU: $1" >&2; ok=0; }
 def="$raiz/etc/default/grub"; cfg="$raiz/boot/grub/grub.cfg"; mk="$raiz/etc/mkinitcpio.conf"
@@ -51,9 +50,8 @@ grep -q '^GRUB_GFXPAYLOAD_LINUX=keep' "$def" || falha "GRUB_GFXPAYLOAD_LINUX"
 grep -q '^GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3 splash"' "$def" || falha "o splash entra na linha do kernel sem tirar o resto ($(grep CMDLINE "$def"))"
 grep -q '^GRUB_DISABLE_OS_PROBER=true' "$def" || falha "a detecção de outros sistemas não é do tema: tem de ficar como estava"
 grep -q '^GRUB_TIMEOUT=2' "$def" || falha "o tempo do menu não é do tema"
-grep -Eq '^HOOKS=\(base udev plymouth autodetect' "$mk" || falha "o gancho plymouth vai logo depois do udev ($(cat "$mk"))"
-grep -q '^MODULES=(amdgpu)$' "$mk" || falha "o driver da placa vai no MODULES ($(grep MODULES "$mk"))"
-grep -Eq "simpledrm|radeon" "$mk" && falha "só drivers de vídeo seguros entram (o radeon antigo apaga a tela no initramfs)"
+grep -q '^HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block plymouth filesystems fsck)$' "$mk" || falha "o plymouth vai depois do kms e antes do filesystems ($(grep HOOKS "$mk"))"
+grep -q '^#LUMNA_HOOKS_ORIGINAL=base udev autodetect modconf kms' "$mk" || falha "a lista original dos ganchos devia ficar guardada"
 grep -q '^Theme=lumna' "$raiz/etc/plymouth/plymouthd.conf" || falha "o tema do Plymouth"
 grep -q "^submenu 'Advanced options for LUMNA OS' --class advanced " "$cfg" || falha "as opções avançadas ganham a classe do ícone ($(grep submenu "$cfg"))"
 grep -q "^menuentry 'UEFI Firmware Settings' --class firmware " "$cfg" || falha "o firmware ganha a classe do ícone"
@@ -64,11 +62,6 @@ antes=$(cat "$def" "$mk" "$cfg" | md5sum)
 sh "$ajudante" aplicar >/dev/null || falha "aplicar de novo"
 [ "$(cat "$def" "$mk" "$cfg" | md5sum)" = "$antes" ] || falha "aplicar duas vezes não podia mudar nada (duplicou algo)"
 [ "$(grep -c splash "$def")" = 1 ] || falha "o splash devia estar uma vez só"
-# 2b. módulo já existente: acrescenta sem tirar
-sed -i -E 's/^MODULES=.*/MODULES=(btrfs)/' "$mk"; sh "$ajudante" plymouth --sem-initramfs >/dev/null
-grep -q '^MODULES=(btrfs amdgpu)$' "$mk" || falha "acrescenta ao MODULES existente ($(grep MODULES "$mk"))"
-sh "$ajudante" plymouth --sem-initramfs >/dev/null
-grep -q '^MODULES=(btrfs amdgpu)$' "$mk" || falha "não duplica o driver ($(grep MODULES "$mk"))"
 # 3. as opções do instalador
 : > "$run/mkinitcpio.log"
 sh "$ajudante" plymouth --sem-initramfs >/dev/null
@@ -80,8 +73,21 @@ sh "$ajudante" regerar >/dev/null; [ -s "$run/mkconfig.log" ] || falha "regerar 
 sh "$ajudante" desfazer >/dev/null || falha "desfazer"
 [ ! -e "$raiz/boot/grub/themes/lumna" ] || falha "desfazer devia tirar o tema"
 grep -q 'GRUB_THEME\|GRUB_GFXMODE\|splash' "$def" && falha "desfazer devia limpar o /etc/default/grub ($(cat "$def"))"
-grep -q 'plymouth' "$mk" && falha "desfazer devia tirar o gancho plymouth"
+grep -q 'plymouth\|LUMNA_HOOKS' "$mk" && falha "desfazer devia tirar o gancho plymouth e a nota ($(cat "$mk"))"
+grep -q '^HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck)$' "$mk" || falha "desfazer devolve os ganchos originais ($(grep HOOKS "$mk"))"
 grep -q '^GRUB_DISABLE_OS_PROBER=true' "$def" && grep -q '^GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"' "$def" || falha "desfazer devolve o arquivo como estava ($(cat "$def"))"
 : > "$run/mkconfig.log"
 sh "$ajudante" regerar >/dev/null; [ ! -s "$run/mkconfig.log" ] || falha "regerar sem o tema aplicado não devia mexer no menu"
+# 6. initramfs no formato systemd (com criptografia): vira udev, preservando o resto, e o desfazer devolve o original
+echo 'HOOKS=(base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt sd-lvm2 filesystems fsck)' > "$mk"
+sh "$ajudante" plymouth --sem-initramfs >/dev/null
+grep -q '^HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block plymouth encrypt lvm2 filesystems fsck)$' "$mk" || falha "systemd vira udev (sd-vconsole, sd-encrypt, sd-lvm2) com o plymouth antes do encrypt ($(grep HOOKS "$mk"))"
+sh "$ajudante" plymouth --sem-initramfs >/dev/null
+[ "$(grep -c '^HOOKS=' "$mk")" = 1 ] && [ "$(grep -c '^#LUMNA_HOOKS_ORIGINAL' "$mk")" = 1 ] || falha "aplicar de novo não pode duplicar a linha nem a nota"
+sh "$ajudante" desfazer >/dev/null
+grep -q '^HOOKS=(base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt sd-lvm2 filesystems fsck)$' "$mk" || falha "desfazer devolve o formato systemd original ($(grep HOOKS "$mk"))"
+# 7. sem kms nos ganchos: o ajudante coloca
+echo 'HOOKS=(base udev autodetect block filesystems)' > "$mk"
+sh "$ajudante" plymouth --sem-initramfs >/dev/null
+grep -q '^HOOKS=(base udev autodetect kms block plymouth filesystems)$' "$mk" || falha "sem kms: o ajudante acrescenta ($(grep HOOKS "$mk"))"
 [ $ok = 1 ] && { echo "boot_tema: ok"; rm -rf "$run"; } || { echo "(em $run)"; exit 1; }
