@@ -981,7 +981,9 @@ static void desenhar(gv_app *a, void *dados) {
 		teclado();
 	}
 	CLAY(CLAY_ID("janela"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } },
-		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) } }) {
+		.backgroundColor = gv_t.superficie, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_grande), .border = { .color = gv_t.borda, .width = GV_BORDA(1) }, .clip = { .horizontal = true } }) {
+		/* largura fixa = a da janela: o que passar fica cortado, e a barra de título (fechar, maximizar) e o player não são empurrados para fora */
+		CLAY(CLAY_ID("janela-fixa"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(fmaxf(gv_app_largura(a) - 2, 120)), CLAY_SIZING_GROW(0) } } }) {
 		gv_barra_janela(a, CLAY_ID("barra"), "music", "LUMNA Music");
 		CLAY(CLAY_ID("mu-corpo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) } } }) {
 			barra_lateral();
@@ -996,6 +998,7 @@ static void desenhar(gv_app *a, void *dados) {
 			}
 		}
 		barra_do_player();
+		}
 	}
 	menus_e_dialogos();
 	/* o que anda sozinho */
@@ -1200,7 +1203,7 @@ int main(int argc, char **argv) {
 	capas = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	capa_pool = g_thread_pool_new(capa_fazer, NULL, 2, FALSE, NULL);
 	M.mp = mp_criar(ao_evento, NULL);
-	M.app = gv_app_criar(&(gv_opcoes){ .titulo = "LUMNA Music", .app_id = "lumna-music", .largura = 1280, .altura = 800 });
+	M.app = gv_app_criar(&(gv_opcoes){ .titulo = "LUMNA Music", .app_id = "lumna-music", .largura = 1280, .altura = 800, .largura_min = 480, .altura_min = 420 });
 	if (!M.app) {
 		return 1;
 	}

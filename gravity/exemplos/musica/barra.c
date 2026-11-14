@@ -49,20 +49,33 @@ void coracao(Clay_ElementId id, bool cheio, float lado, bool *clicou) {
 
 static int pl_menu = -1;
 
+/* Janela estreita: a barra lateral vira só de ícones e a do player perde o volume e a saída de áudio, para o app caber (e a barra de título não ser empurrada). */
+bool musica_estreita(void) {
+	return gv_app_largura(M.app) < 900;
+}
+
+bool musica_muito_estreita(void) {
+	return gv_app_largura(M.app) < 700;
+}
+
 static bool item_lateral(Clay_ElementId id, const char *icone, const char *texto, bool ativo) {
-	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = { 14, 10, 0, 0 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+	bool so_icone = musica_estreita();
+	CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(46) }, .padding = so_icone ? (Clay_Padding){ 0, 0, 0, 0 } : (Clay_Padding){ 14, 10, 0, 0 }, .childGap = 14,
+			.childAlignment = { .x = so_icone ? CLAY_ALIGN_X_CENTER : CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } },
 		.backgroundColor = ativo ? gv_t.selecionado : gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0, 0, 0, 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
 		.border = { .color = gv_t.acento, .width = { .left = ativo ? 3 : 0 } } }) {
 		gv_icone(icone, 24, ativo ? gv_t.acento : gv_t.texto_secundario);
-		CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
-			gv_texto(gv_str(texto), gv_t.tamanho_corpo, ativo ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
+		if (!so_icone) {
+			CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } }, .clip = { .horizontal = true } }) {
+				gv_texto(gv_str(texto), gv_t.tamanho_corpo, ativo ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
+			}
 		}
 	}
 	return gv_tocado(id);
 }
 
 void barra_lateral(void) {
-	CLAY(CLAY_ID("mu-lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(250), CLAY_SIZING_GROW(0) } }, .border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
+	CLAY(CLAY_ID("mu-lateral"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_FIXED(musica_estreita() ? 64 : 250), CLAY_SIZING_GROW(0) } }, .border = { .color = gv_t.borda, .width = { .right = 1 } } }) {
 		Clay_ElementId rol = CLAY_ID("mu-lat-rol");
 		CLAY(rol, gv_rolagem(rol, GV_ROLAGEM_VERTICAL, (Clay_ElementDeclaration){ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
 			.padding = { 12, 12, 14, 10 }, .childGap = 2 } })) {
@@ -79,8 +92,10 @@ void barra_lateral(void) {
 			}
 			CLAY(CLAY_ID("mu-lat-div"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } }, .backgroundColor = gv_t.borda }) {}
 			CLAY(CLAY_ID("mu-pl-cab"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 10, 0, 14, 4 }, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
-				CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
-					gv_texto(CLAY_STRING("Playlists"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+				if (!musica_estreita()) {
+					CLAY_AUTO_ID({ .layout = { .sizing = { CLAY_SIZING_GROW(0) } } }) {
+						gv_texto(CLAY_STRING("Playlists"), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+					}
 				}
 				if (gv_botao_redondo(CLAY_ID("mu-nova-playlist"), "plus", 32, false, false)) {
 					abrir_dialogo_playlist(0, "");
@@ -167,7 +182,7 @@ void barra_do_player(void) {
 	CLAY(CLAY_ID("mu-barra"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(92) }, .padding = { 24, 24, 0, 0 }, .childGap = 18, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.border = { .color = gv_t.borda, .width = { .top = 1 } } }) {
 		/* a faixa */
-		CLAY(CLAY_ID("mu-bar-faixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(300) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY(CLAY_ID("mu-bar-faixa"), { .layout = { .sizing = { CLAY_SIZING_FIXED(musica_muito_estreita() ? 70 : musica_estreita() ? 220 : 300) }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 			if (f) {
 				capa_quadrada(CLAY_ID("mu-capa-bar"), f, 62, 8);
 				if (gv_tocado(CLAY_ID("mu-capa-bar"))) {
@@ -244,7 +259,8 @@ void barra_do_player(void) {
 			}
 		}
 		/* volume, saída, letra e fila */
-		CLAY(CLAY_ID("mu-bar-dir"), { .layout = { .sizing = { CLAY_SIZING_FIXED(444) }, .childGap = 10, .childAlignment = { .x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY(CLAY_ID("mu-bar-dir"), { .layout = { .sizing = { CLAY_SIZING_FIXED(musica_estreita() ? 100 : 444) }, .childGap = 10, .childAlignment = { .x = CLAY_ALIGN_X_RIGHT, .y = CLAY_ALIGN_Y_CENTER } } }) {
+			if (!musica_estreita()) { /* o volume e a saída de áudio ficam de fora quando a janela é estreita */
 			if (gv_botao_redondo(CLAY_ID("mu-vol-icone"), M.cfg.volume == 0 ? "volume-off" : "volume", 38, false, false)) {
 				if (M.cfg.volume > 0) {
 					vol_antes_mudo = M.cfg.volume;
@@ -312,6 +328,7 @@ void barra_do_player(void) {
 					}
 					(void)achou;
 				}
+			}
 			}
 			if (gv_botao_redondo(CLAY_ID("mu-letra-bt"), "lyrics", 40, M.vista == V_OUVIR, false)) {
 				if (M.vista == V_OUVIR) {

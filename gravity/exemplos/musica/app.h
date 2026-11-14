@@ -104,6 +104,8 @@ void fila_limpar(void);
 
 /* ---- barra.c: a barra lateral, a barra do player, o painel da fila, os menus e os diálogos ---- */
 void barra_lateral(void);
+bool musica_estreita(void);       /* janela < 900: lateral só de ícones, player sem volume e saída */
+bool musica_muito_estreita(void); /* janela < 700 */
 void barra_do_player(void);
 void painel_da_fila(void);
 void menus_e_dialogos(void);

@@ -502,7 +502,9 @@ void gv_barra_janela(gv_app *app, Clay_ElementId id, const char *icone, const ch
 void gv_barra_janela_sub(gv_app *app, Clay_ElementId id, const char *icone, const char *titulo, const char *subtitulo) {
 	bool sub = subtitulo && *subtitulo;
 	CLAY(id, {
-		.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(sub ? 68 : 54) }, .padding = { 20, 10, 0, 0 }, .childGap = 14,
+		/* a barra nunca passa da largura da janela: sem o teto, um app com conteúdo mais largo que a janela alarga a barra e empurra o minimizar, o maximizar
+		 * e o fechar para fora dela (a Música estreitada, o Atlas) */
+		.layout = { .sizing = { CLAY_SIZING_GROW(0, gv_app_largura(app)), CLAY_SIZING_FIXED(sub ? 68 : 54) }, .padding = { 20, 10, 0, 0 }, .childGap = 14,
 			.childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
 		.border = { .color = gv_t.borda, .width = { .bottom = 1 } },
 	}) {
