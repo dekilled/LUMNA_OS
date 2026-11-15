@@ -103,17 +103,28 @@ std::string ExeDir() {
 double Facilita(double t) { return t < 0.5 ? 4 * t * t * t : 1 - std::pow(-2 * t + 2, 3) / 2; }  // easeInOutCubic
 
 // ---------------------------------------------------------------------------------------------------------------------------- dados
-struct Servico { std::string id, nome, url; };
+struct Servico { std::string id, nome, url; std::vector<std::string> dominios; };  // dominios vazio = aceita qualquer endereço (testes)
 struct Salvo { std::string url, titulo, thumb; double pos = 0, dur = 0; long quando = 0; };
+
+// O endereço pertence mesmo a este serviço? (o host é o domínio ou um subdomínio dele). Evita gravar, com o nome de um serviço, a página de outro.
+bool UrlDoServico(const Servico& sv, const std::string& url) {
+  if (sv.dominios.empty()) return true;
+  CefURLParts partes;
+  if (!CefParseURL(url, partes)) return false;
+  std::string host = CefString(&partes.host).ToString();
+  for (auto& d : sv.dominios)
+    if (host == d || (host.size() > d.size() && host.compare(host.size() - d.size() - 1, d.size() + 1, "." + d) == 0)) return true;
+  return false;
+}
 
 std::vector<Servico> CarregaServicos() {
   std::vector<Servico> v = {
-      {"youtube", "YouTube", "https://www.youtube.com/"},
-      {"netflix", "Netflix", "https://www.netflix.com/browse"},
-      {"disney", "Disney+", "https://www.disneyplus.com/"},
-      {"paramount", "Paramount+", "https://www.paramountplus.com/"},
-      {"prime", "Prime Video", "https://www.primevideo.com/"},
-      {"hbomax", "HBO Max", "https://www.hbomax.com/"},
+      {"youtube", "YouTube", "https://www.youtube.com/", {"youtube.com", "youtu.be"}},
+      {"netflix", "Netflix", "https://www.netflix.com/browse", {"netflix.com"}},
+      {"disney", "Disney+", "https://www.disneyplus.com/", {"disneyplus.com"}},
+      {"paramount", "Paramount+", "https://www.paramountplus.com/", {"paramountplus.com"}},
+      {"prime", "Prime Video", "https://www.primevideo.com/", {"primevideo.com", "amazon.com"}},
+      {"hbomax", "HBO Max", "https://www.hbomax.com/", {"hbomax.com", "max.com"}},
   };
   std::string arq = Env("LUMNA_NAV_SERVICOS");  // JSON [{"id","nome","url"}]: outra lista (testes, ou o usuário)
   if (!arq.empty()) {
@@ -123,7 +134,11 @@ std::vector<Servico> CarregaServicos() {
       auto l = val->GetList();
       for (size_t i = 0; i < l->GetSize(); i++) {
         auto d = l->GetDictionary(i);
-        if (d) v.push_back({d->GetString("id"), d->GetString("nome"), d->GetString("url")});
+        if (!d) continue;
+        Servico sv{d->GetString("id"), d->GetString("nome"), d->GetString("url"), {}};
+        if (auto dl = d->GetList("dominios"))
+          for (size_t k = 0; k < dl->GetSize(); k++) sv.dominios.push_back(dl->GetString(k));
+        v.push_back(sv);
       }
     }
   }
@@ -225,6 +240,12 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
       Salvo x;
       x.url = e->GetString("url"); x.titulo = e->GetString("titulo"); x.thumb = e->GetString("thumb");
       x.pos = Num(e, "pos"); x.dur = Num(e, "dur"); x.quando = static_cast<long>(Num(e, "quando"));
+      const Servico* sv = Acha(k.ToString());
+      if (!sv) continue;  // serviço que não existe mais
+      if (!UrlDoServico(*sv, x.url)) {  // gravado errado por uma versão antiga: joga fora em vez de abrir a página de outro serviço
+        Log("descartado " + k.ToString() + ": o endereço " + x.url + " não é deste serviço");
+        continue;
+      }
       salvos_[k.ToString()] = x;
     }
   }
@@ -271,7 +292,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     if (conteudo_ && !animando_) conteudo_->SetBounds(Alvo());
   }
   void Animar(CefRect de, CefRect para, int ms = 320) {
-    anim_de_ = de; anim_para_ = para; anim_ms_ = ms;
+    anim_de_ = de; anim_para_ = para; anim_ms_ = getenv("LUMNA_NAV_SEM_ANIMACAO") ? 1 : ms;
     anim_t0_ = std::chrono::steady_clock::now();
     if (!animando_) { animando_ = true; Passo(); }
     anim_geracao_++;
@@ -319,7 +340,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   std::chrono::steady_clock::time_point anim_t0_;
   // captura feita quando o menu abre (o site ainda está em tamanho cheio, tocando)
   std::vector<unsigned char> thumb_;
-  std::string info_titulo_;
+  std::string info_titulo_, info_url_;  // info_url_: o endereço da página de que a captura é (location.href)
   double info_pos_ = 0, info_dur_ = 0;
   bool captura_ok_ = false;
   int pendentes_ = 0, geracao_cap_ = 0;
@@ -458,6 +479,7 @@ void Midia::Capturar(std::function<void()> depois) {
   captura_ok_ = false;
   thumb_.clear();
   info_titulo_.clear();
+  info_url_.clear();
   info_pos_ = info_dur_ = 0;
   pendentes_ = 2;
   depois_ = std::move(depois);
@@ -475,13 +497,14 @@ void Midia::Capturar(std::function<void()> depois) {
   auto p = CefDictionaryValue::Create();
   p->SetString("expression",
                "(()=>{const v=[...document.querySelectorAll('video')].sort((a,b)=>b.videoWidth*b.videoHeight-a.videoWidth*a.videoHeight)[0];"
-               "return JSON.stringify({t:document.title,p:v?v.currentTime:0,d:(v&&isFinite(v.duration))?v.duration:0})})()");
+               "return JSON.stringify({u:location.href,t:document.title,p:v?v.currentTime:0,d:(v&&isFinite(v.duration))?v.duration:0})})()");
   p->SetBool("returnByValue", true);
   Chamar("Runtime.evaluate", p, [this, fim](bool ok, CefRefPtr<CefDictionaryValue> d) {
     if (ok && d) {
       auto r = d->GetDictionary("result");
       auto v = r ? CefParseJSON(r->GetString("value"), JSON_PARSER_RFC) : nullptr;
       if (v && v->GetType() == VTYPE_DICTIONARY) {
+        info_url_ = v->GetDictionary()->GetString("u");
         info_titulo_ = v->GetDictionary()->GetString("t");
         info_pos_ = Num(v->GetDictionary(), "p");
         info_dur_ = Num(v->GetDictionary(), "d");
@@ -508,21 +531,31 @@ void Midia::Capturar(std::function<void()> depois) {
 }
 
 // Ao sair do serviço: pausa o player e guarda o último endereço, o progresso e o print.
+// O print/título/progresso vêm da captura feita ao abrir o menu, e dizem de que endereço são (info_url_). Se o usuário trocou de serviço ANTES
+// de a página nova carregar, a captura é da página antiga: ela não pode ser gravada com o nome do serviço novo (o card mostraria a imagem de outro).
 void Midia::Guardar() {
   if (ativo_.empty() || !conteudo_ || !conteudo_->GetBrowser()) return;
   auto frame = conteudo_->GetBrowser()->GetMainFrame();
   frame->ExecuteJavaScript("document.querySelectorAll('video').forEach(v=>v.pause())", frame->GetURL(), 0);
-  Salvo& s = salvos_[ativo_];
-  std::string url = frame->GetURL();
+  const Servico* sv = Acha(ativo_);
+  bool tem_captura = !info_url_.empty();
+  std::string url = tem_captura ? info_url_ : frame->GetURL().ToString();  // o endereço que ESTAVA na tela (o GetURL() já pode ser o da navegação nova)
   if (url.empty() || url == "about:blank") return;
+  if (sv && !UrlDoServico(*sv, url)) {
+    Log("não guardei " + ativo_ + ": a página que estava na tela (" + url + ") não é deste serviço");
+    return;
+  }
+  Salvo& s = salvos_[ativo_];
   s.url = url;
-  if (!info_titulo_.empty()) s.titulo = info_titulo_;
-  s.pos = info_pos_;
-  s.dur = info_dur_;
   s.quando = static_cast<long>(time(nullptr));
-  if (captura_ok_ && !thumb_.empty()) {
-    s.thumb = "thumbs/" + ativo_ + ".jpg";
-    EscreverArquivo(dados_ + "/" + s.thumb, thumb_.data(), thumb_.size());
+  if (tem_captura) {
+    if (!info_titulo_.empty()) s.titulo = info_titulo_;
+    s.pos = info_pos_;
+    s.dur = info_dur_;
+    if (captura_ok_ && !thumb_.empty()) {
+      s.thumb = "thumbs/" + ativo_ + ".jpg";
+      EscreverArquivo(dados_ + "/" + s.thumb, thumb_.data(), thumb_.size());
+    }
   }
   Gravar();
   Log("guardado " + ativo_ + " " + s.url);
