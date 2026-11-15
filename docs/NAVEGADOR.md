@@ -99,3 +99,17 @@ Procurei um CEF pronto com os codecs. O único que achei foi o [`psmux/godwinmix
 - **Não foi executado no container** (o auto-classificador bloqueou rodar um binário de origem desconhecida). Quem roda é o Eric, no PC dele: `bash scripts/teste-cef-codecs.sh` (opções `--wayland`, `--gpu`, `--manter`, `--oficial`).
 - O teste agora **toca de verdade** um mp4 H.264+AAC de 3 s (`docs/navegador/teste-cef/teste.mp4`) e tenta o Widevine (com o CDM do Chrome do sistema, se existir), servindo a página por `http://127.0.0.1` (o EME **não funciona em `file://`**: "EME use is not allowed on unique origins").
 - **Validação do script** (no container): CEF oficial 156 → `toca_h264_aac = false` (`DEMUXER_ERROR_NO_SUPPORTED_STREAMS`), H.264/AAC falsos, VP9/AV1/Opus verdadeiros, ~199 MB de PSS. **Controle positivo** (Chrome for Testing 157, que tem codecs) → `toca_h264_aac = true`, áudio decodificado, então o mp4 e a página estão certos.
+
+### Resultado do Eric no PC (2026-11-15), CEF 154 do godwinmix, X11/XWayland, sem GPU
+
+| Teste | Resultado |
+|---|---|
+| H.264 (Baseline e High) e AAC | ✅ suportados |
+| **Tocar o mp4 H.264+AAC de verdade** | ✅ **toca** (320x180, t=1,76 s, 16771 bytes de áudio decodificados), idêntico ao controle positivo do Chrome 157 |
+| HEVC | ❌ (esperado: o Chromium só habilita com decodificação por hardware) |
+| VP9, AV1, Opus | ✅ |
+| Widevine | ❌ `NotSupportedError: Unsupported keySystem or supportedConfigurations` |
+
+**Conclusão:** o risco dos **codecs está resolvido na prática**: um CEF com H.264/AAC existe e roda no LUMNA. Falta decidir de onde ele vem (build próprio, para não depender de terceiro desconhecido, e a licença de patentes para distribuir).
+
+**Widevine ainda em aberto.** Esse erro específico é o de "sistema de chaves não registrado", ou seja, o CEF **não achou o CDM** (esperado sem o Chrome instalado: o script só tenta o CDM do sistema). Isso não diz nada ainda sobre o L3 funcionar. Próximo teste: instalar o Chrome (AUR `google-chrome`, que traz `/opt/google/chrome/WidevineCdm`) e rodar o script de novo, que o acha sozinho. Depois, um serviço real (Netflix/Disney+) é o teste final: o CDM carregar não garante que o serviço aceite um navegador que não é o Chrome.
