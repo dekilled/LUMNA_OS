@@ -141,3 +141,9 @@ A ideia: compilar com `enable_widevine=true` e deixar o navegador baixar o CDM d
 **O que NÃO ficou provado:** neste container o CDM, baixado ou copiado, **não passa** de `NotSupportedError` (mesmo CDM, mesmo método que funcionou no PC do Eric). Isso aponta para o container sem GPU/DRM ou para o CEF 156, e não para o download, mas é só inferência. No PC do Eric o caminho com o CDM do Chrome deu `SIM`.
 
 **Pendente:** o Eric rodar `bash scripts/teste-cef-codecs.sh --baixar` (sem copiar nada do Chrome) para ver se o CEF 154 também baixa e carrega sozinho. Mesmo que funcione, **a licença continua sendo o ponto**: a Google serve o componente a quem pede, mas redistribuir ou apoiar o produto no download automático sem acordo pode ser desligado por ela a qualquer momento (é um serviço dela, sem contrato nosso).
+
+### Netflix toca no nosso CEF (2026-11-15, print do Eric)
+
+**Netflix reproduzindo** ("O Mentalista", E1, 44:39 de duração) numa janela do nosso app de teste: CEF 154 do godwinmix (H.264/AAC) + CDM Widevine copiado do Chrome instalado (`/opt/google/chrome/WidevineCdm`), no Orbit, com a barra de título do Orbit (a moldura própria ainda não existe). **Isso fecha a prova de viabilidade técnica do navegador:** codecs, DRM e um serviço comercial real funcionam juntos no LUMNA.
+
+**Ainda não medido (não dá para tirar do print):** a resolução que a Netflix entrega em L3 (costuma ficar em torno de 720p; ela mostra em "Estatísticas para nerds", Ctrl+Alt+Shift+D), o consumo de CPU/memória durante o vídeo, se a decodificação é por software (sem GPU no teste) e como fica com teclas de mídia/MPRIS. O resultado do `--baixar` (CDM baixado pelo próprio CEF, sem Chrome instalado) também está pendente.
