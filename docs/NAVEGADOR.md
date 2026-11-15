@@ -133,3 +133,11 @@ Com a pasta `WidevineCdm/` do Chrome (`/opt/google/chrome/WidevineCdm`) copiada 
 4. **Colocar o CDM dentro da ISO** funcionaria tecnicamente, mas é redistribuir, então só serve para uso pessoal, nunca para a ISO pública.
 
 Recomendação: **2 para o LUMNA público** (com a checagem jurídica), 1 enquanto se desenvolve, 3 só se o projeto crescer a ponto de valer o acordo.
+
+### O CEF baixa o Widevine sozinho? (2026-11-15, testado no container)
+
+A ideia: compilar com `enable_widevine=true` e deixar o navegador baixar o CDM da Google ao iniciar (o "componente" do Chromium). **Achado no container, com o CEF oficial 156 e perfil vazio, sem Chrome:** o CEF **baixou o CDM sozinho** (`Widevine CDM 4.10.3112.0`, 21 MB, com `_metadata/verified_contents.json`, ou seja, assinado pela Google) **em ~65 s**, de `update.googleapis.com`, sem nenhuma flag de compilação a mais (a build oficial não tem `enable_widevine` explícito no nosso controle; o suporte já está compilado). Depois de reiniciar, o CDM é registrado (`Registering hinted Widevine`).
+
+**O que NÃO ficou provado:** neste container o CDM, baixado ou copiado, **não passa** de `NotSupportedError` (mesmo CDM, mesmo método que funcionou no PC do Eric). Isso aponta para o container sem GPU/DRM ou para o CEF 156, e não para o download, mas é só inferência. No PC do Eric o caminho com o CDM do Chrome deu `SIM`.
+
+**Pendente:** o Eric rodar `bash scripts/teste-cef-codecs.sh --baixar` (sem copiar nada do Chrome) para ver se o CEF 154 também baixa e carrega sozinho. Mesmo que funcione, **a licença continua sendo o ponto**: a Google serve o componente a quem pede, mas redistribuir ou apoiar o produto no download automático sem acordo pode ser desligado por ela a qualquer momento (é um serviço dela, sem contrato nosso).

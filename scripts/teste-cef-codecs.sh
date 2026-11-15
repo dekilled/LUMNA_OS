@@ -7,6 +7,7 @@
 #   --wayland  usa o Wayland nativo (Ozone) em vez do XWayland/X11 (o padrão)
 #   --gpu      liga a GPU (o padrão do teste é sem GPU, que é o mais compatível)
 #   --manter   deixa a janela aberta no fim, para você olhar; feche com Ctrl+C
+#   --baixar   NÃO copia o CDM do Chrome: deixa o próprio CEF baixá-lo da Google (componente, ~1 a 3 min), como no Chromium; depois roda o teste com ele
 #   --url URL  depois do teste, abre esse site na janela (e deixa aberta): para testar um serviço de verdade, ex.: --url https://shaka-player-demo.appspot.com
 #   --oficial  usa o CEF oficial da Spotify (sem codecs), para comparar: o H.264 DEVE falhar nele
 # Precisa de: bash, curl, tar+bzip2, cmake, ninja (ou make), g++, e os headers do X11 e do GTK3 (Arch: sudo pacman -S --needed base-devel cmake ninja libx11 gtk3).
@@ -14,8 +15,8 @@
 set -u
 aqui=$(cd "$(dirname "$0")" && pwd); fonte="$aqui/../docs/navegador/teste-cef"
 tmp=${LUMNA_CEF_TESTE:-$HOME/.cache/lumna-cef-teste}
-ozone=x11; gpu=0; manter=0; oficial=0; url=""
-while [ $# -gt 0 ]; do a=$1; shift; case $a in --wayland) ozone=wayland;; --gpu) gpu=1;; --manter) manter=1;; --oficial) oficial=1;; --url) url=${1:-}; [ -n "$url" ] || { echo "--url precisa de um endereço"; exit 2; }; shift;; -h|--help) sed -n 2,13p "$0"; exit 0;; *) echo "opção desconhecida: $a"; exit 2;; esac; done
+ozone=x11; gpu=0; manter=0; oficial=0; baixar=0; url=""
+while [ $# -gt 0 ]; do a=$1; shift; case $a in --wayland) ozone=wayland;; --gpu) gpu=1;; --manter) manter=1;; --oficial) oficial=1;; --baixar) baixar=1;; --url) url=${1:-}; [ -n "$url" ] || { echo "--url precisa de um endereço"; exit 2; }; shift;; -h|--help) sed -n 2,13p "$0"; exit 0;; *) echo "opção desconhecida: $a"; exit 2;; esac; done
 
 die() { echo "ERRO: $*" >&2; exit 1; }
 for c in curl tar cmake g++; do command -v $c >/dev/null || die "falta o comando '$c'"; done
@@ -72,7 +73,9 @@ cdm=""; for d in /opt/google/chrome/WidevineCdm "$HOME"/.config/google-chrome/Wi
 # ou, como componente, dentro do diretório de dados (cache) com o arquivo latest-component-updated-widevine-cdm. Copiamos nos dois lugares.
 export TESTE_OZONE=$ozone TESTE_CACHE="$b/cache" TESTE_LOG=1
 mkdir -p "$TESTE_CACHE"
-if [ -n "$cdm" ]; then
+if [ $baixar = 1 ]; then
+  echo "→ modo --baixar: não vou copiar nenhum CDM; o CEF vai tentar baixar da Google sozinho"; rm -rf "$run/WidevineCdm" "$TESTE_CACHE/WidevineCdm"
+elif [ -n "$cdm" ]; then
   cdmver=$(grep -o '"version"[^,]*' "$cdm/manifest.json" | grep -o '[0-9][0-9.]*' | head -1)
   cp -r "$cdm" "$run/WidevineCdm"
   mkdir -p "$TESTE_CACHE/WidevineCdm/${cdmver:-0}" && cp -r "$cdm"/. "$TESTE_CACHE/WidevineCdm/${cdmver:-0}/"
@@ -88,6 +91,16 @@ trap 'kill $servidor 2>/dev/null' EXIT; sleep 1
 export TESTE_URL="http://127.0.0.1:$porta/pagina.html"
 [ $gpu = 1 ] && export TESTE_GPU=1; [ $manter = 1 ] && export TESTE_MANTER=1
 
+if [ $baixar = 1 ]; then
+  echo "→ fase 1: abrindo o CEF por até 4 min para ele baixar o Widevine sozinho (pode fechar a janela depois que aparecer 'baixou')…"
+  ( cd "$run" && TESTE_LOG=1 TESTE_MANTER=1 TESTE_URL="about:blank" timeout 240 ./teste >/dev/null 2>"$b/erros-baixa.txt" ) & bp=$!
+  for i in $(seq 1 48); do sleep 5
+    if [ -s "$TESTE_CACHE/WidevineCdm/latest-component-updated-widevine-cdm" ] && grep -q 'Updating hint file with Widevine' "$b/erros-baixa.txt" 2>/dev/null; then echo "   baixou: $(grep -o 'Widevine CDM [0-9.]*' "$b/erros-baixa.txt" | tail -1) em $((i*5))s"; baixou=1; break; fi
+  done
+  pkill -f "$run/teste"; wait $bp 2>/dev/null
+  [ "${baixou:-0}" = 1 ] || echo "   NÃO baixou em 4 min (o CEF desta build não busca o componente, ou a rede bloqueou update.googleapis.com)"
+  echo "→ fase 2: reiniciando o CEF (no Linux o CDM só vale depois de reiniciar) e rodando o teste"
+fi
 # --- 4. rodar --------------------------------------------------------------------------------------------------------------------------------------------
 echo "→ abrindo a janela de teste (ozone=$ozone, gpu=$gpu)…"; log="$b/saida.txt"
 ( cd "$run" && timeout 90 ./teste ) 2>"$b/erros.txt" | tee "$log" &
