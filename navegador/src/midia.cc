@@ -333,7 +333,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   void Transicao(CefRect de, CefRect para, const std::string& imagem_b64, const std::string& nome, bool esperar_carga, int menu = 0);
   void TentaFinalizar();
   // Zoom da página: enquanto o menu está aberto o site fica menor, e a página se reajusta melhor com a escala um pouco reduzida (LUMNA_NAV_ZOOM_MENU,
-  // padrão 0.8). É a escala de pixels do dispositivo emulada pelo DevTools (o mesmo efeito de um zoom de 80%): ao contrário do zoom do CEF, não mostra
+  // padrão 0.72). É a escala de pixels do dispositivo emulada pelo DevTools (o mesmo efeito de um zoom-out de 72%): ao contrário do zoom do CEF, não mostra
   // a bolha "100%" do Chrome e não fica gravada no perfil (o zoom do CEF vale por site, e persiste).
   void Zoom(bool menu) {
     if (!conteudo_ || !conteudo_->GetBrowser()) return;
@@ -407,7 +407,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   bool animando_ = false;
   ModoAnim modo_ = ModoAnim::kImagem;
   bool ocupado_ = false, esperando_carga_ = false, carregou_ = true, fim_js_ = false;
-  double zoom_menu_ = 0.8;
+  double zoom_menu_ = 0.72;  // escolhido pelo Eric no PC dele: serviu em Netflix, YouTube, Prime, Paramount e HBO Max
   std::string url_pendente_;  // o endereço do serviço novo: só é carregado quando o site antigo já está escondido (carregar com ele visível faz a página pular)
   int trans_gen_ = 0;
   CefRect destino_;

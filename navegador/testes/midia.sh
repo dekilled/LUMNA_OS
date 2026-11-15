@@ -55,8 +55,8 @@ espera "captura [0-9]* bytes" 10 || falha "ao abrir o menu devia chegar o print 
 sleep 0.2; foto 3a-menu-meio
 fim $n || falha "o site devia chegar ao tamanho final do menu"
 sleep 0.3; foto 3-menu
-# o zoom do menu: a página vê um viewport MAIOR (910 / 0,8 = ~1138 px CSS) com dpr 0,8; é o mesmo que um zoom-out de 80%
-espera "página: dpr=0.8" 5 || falha "com o menu aberto a página devia estar com o zoom reduzido (dpr 0,8); log: $(grep -a 'página:' "$run/nav.log" | tail -2 | tr '\n' '|')"
+# o zoom do menu: a página vê um viewport MAIOR (910 / 0,72 = ~1264 px CSS) com dpr 0,72; é o mesmo que um zoom-out de 72%
+espera "página: dpr=0.72" 5 || falha "com o menu aberto a página devia estar com o zoom reduzido (dpr 0,72); log: $(grep -a 'página:' "$run/nav.log" | tail -2 | tr '\n' '|')"
 larg=$(grep -a "site final" "$run/nav.log" | tail -1 | sed 's/.* \([0-9]*\)x[0-9]*$/\1/')
 [ "${larg:-9999}" -lt 1000 ] || falha "o site devia encolher com o menu aberto (largura final $larg)"
 # 4. Enter: troca para o próximo serviço (o foco começa nele)
