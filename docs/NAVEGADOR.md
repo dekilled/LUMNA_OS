@@ -161,3 +161,65 @@ O Eric rodou `bash scripts/teste-cef-codecs.sh --baixar` (o script apaga qualque
 **Riscos que ficam (decisão do Eric, não técnica):** (1) a Google serve o componente a quem pede, mas **sem contrato com o LUMNA** ela pode parar de servir a builds que não são dela; (2) para o LUMNA público, checar a parte jurídica antes (Widevine e patentes H.264/AAC); (3) o build de CEF com codecs ainda é de terceiros: para distribuir, fazer o **build próprio**.
 
 **Próximos passos técnicos do navegador:** moldura própria (3 botões na faixa das abas, janela sem moldura no CEF Views), abas, barra de endereço; depende da lista de funcionalidades marcada e do esboço da versão Mídia.
+
+## Lista final de funcionalidades, marcada pelo Eric (2026-11-15)
+
+Imagem original: [navegador/lista-marcada.png](navegador/lista-marcada.png). ✅ fica, ❌ lixo, 🟡 depois.
+
+| # | Funcionalidade | Completa | Simples (Mídia) |
+|---|---|---|---|
+| 1 | Abas | ✅ | 🟡 poucas ou nenhuma |
+| 2 | Barra de endereço e busca | ✅ com voz | ✅ com voz |
+| 3 | Voltar, avançar, recarregar | ✅ | ✅ |
+| 4 | Nova aba do LUMNA | ✅ | só os atalhos de streaming |
+| 5 | Painel da Emma | ✅ | ✅ painel enxuto |
+| 6 | Histórico | ✅ | ❌ |
+| 7 | Favoritos | ✅ | ❌ (atalhos já servem) |
+| 8 | Downloads | ✅ | ❌ |
+| 9 | Buscar na página | ✅ | ❌ |
+| 10 | Zoom, tela cheia | ✅ | só tela cheia |
+| 11 | Widevine | ✅ | ✅ |
+| 12 | Codecs H.264/AAC | ✅ | ✅ |
+| 13 | Teclas de mídia, MPRIS | **❌** | ✅ |
+| 14 | Picture-in-picture | ✅ | ❌ |
+| 15 | Gamepad/controle remoto | ❌ | ✅ essencial |
+| 16 | Janela anônima | ✅ | ❌ |
+| 17 | Permissões de site | ✅ completa | ✅ mínimo |
+| 18 | Apagar dados de navegação | ✅ | ❌ |
+| 19 | **Extensões** (Chrome Web Store) | **✅** | ❌ |
+| 20 | Gerenciador de senhas | ✅ | ❌ |
+| 21 | Preenchimento automático | ✅ | ❌ |
+| 22 | Sincronização | ❌ | ❌ |
+| 23 | Tradução de páginas | ❌ | ❌ |
+| 24 | Navegação segura (Safe Browsing) | ❌ | ❌ |
+| 25 | Leitor de PDF | ❌ | ❌ |
+| 26 | Impressão | ✅ | ❌ |
+| 27 | Ferramentas de desenvolvedor | ✅ | ❌ |
+| 28 | Cast | ❌ | ❌ |
+| 29 | Modo leitura, Lens, assistentes do Google | ❌ | ❌ |
+| 30 | Perfis múltiplos | 🟡 um perfil só no começo | ❌ |
+| 31 | Grupos de abas, abas verticais, busca em abas | ✅ | ❌ |
+| 32 | WebRTC e WebGL/WebGPU | WebGL ✅ | WebGL ✅ |
+| 33 | Corretor ortográfico | ❌ | ❌ |
+| 34 | Página de configurações | ✅ | ❌ |
+| 35 | Telemetria / relatórios de falha / atualização automática do Google | ✅ "relatórios" (texto cortado na imagem; **a confirmar**: só relatórios de falha *nossos*) | ❌ |
+
+**Pontos a confirmar com o Eric (pareceram inconsistentes com o resto):**
+- **#13 Completa = ❌:** sem MPRIS/teclas de mídia, o Música e a barra do LUMNA **não controlam** o vídeo/áudio do navegador do Desktop. Foi de propósito?
+- **#19 Extensões Completa = ✅:** é o item mais caro da lista. O CEF não traz a loja nem o instalador de extensões do Chrome. Precisa de pesquisa (o que o CEF 154 suporta de extensões Manifest V3) antes de prometer; o plano anterior era um bloqueador de anúncios embutido.
+- **#25 PDF ❌:** sem leitor, o PDF vira download (ou abre no app de PDF do sistema).
+- **#35:** só relatórios de falha, e para o LUMNA (nunca para a Google)? E o CEF nunca deve falar com os servidores de telemetria da Google.
+
+## Desenho da versão Mídia (esboços do Eric, 2026-11-15)
+
+Esboços: [navegador/midia-inicio.webp](navegador/midia-inicio.webp) e [navegador/midia-player.webp](navegador/midia-player.webp).
+
+**Início:** fundo cinematográfico (capa grande, ex. "A TRAVESSIA"), barra superior com LUMNA e abas **Início, Filmes, Séries, Música, Seus vídeos**, e à direita busca, notificações, configurações, tela, Wi-Fi, data e hora; a **Emma** como orbe no canto. Em cima, **"Continuar assistindo"**: cartões com **print da última tela** do serviço, barra de progresso e "tempo restante", com botão de retomar. Perto da borda de baixo, os **atalhos dos serviços**: Netflix, YouTube, Disney+, Prime Video, Música, Vídeos locais.
+
+**Player e troca de serviço:** ao abrir o menu de serviços, o navegador faz um **shrink** (o vídeo continua tocando, menor) e o **menu sobe** de baixo ("Reproduzindo no YouTube"; itens Início, YouTube *(Em uso)*, Netflix *(Retomar última página)*, Disney+, Paramount+, Prime Video, Mais; teclas ←→ escolher, Enter trocar, Esc fechar; microfone da Emma). Ao escolher um serviço: **pausa o player, tira um print da janela, salva o último endereço no banco**, o navegador **expande** de novo já abrindo o serviço novo, enquanto o menu **desliza para baixo** e some.
+
+**Efeito de memória (bom):** como o serviço anterior é salvo (print + último endereço) e liberado, só um serviço fica vivo por vez; "Retomar" reabre o último endereço.
+
+## Posição do Eric sobre licenças (2026-11-15)
+
+O Eric entende que, pelos termos, o uso do Widevine fora do Chrome não é estritamente correto, mas a Google tolera e várias distribuições grandes fazem o mesmo há anos; não cobra nem modifica nada; o CEF baixa o CDM direto da Google na máquina do usuário; o LUMNA mostra **um termo que o usuário aceita antes de usar**; e o usuário usa o Widevine para serviços que ele mesmo paga. **Decisão dele; fica registrada.** Duas ressalvas técnicas para não esquecer: (1) isso cobre o **Widevine**, não os **codecs H.264/AAC**, cuja licença de patentes é outro assunto (o build de terceiros diz expressamente que vem sem licença de patentes); (2) o termo deve dizer que o CDM é da Google e baixado dela, e que o LUMNA não o redistribui.
