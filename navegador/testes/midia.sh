@@ -13,7 +13,7 @@ export HOME="$run/home" XDG_CONFIG_HOME="$run/cfg" XDG_RUNTIME_DIR="$run"
 porta=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1])")
 python3 "$aqui/servidor.py" "$porta" "$aqui/paginas" >/dev/null 2>&1 & srv=$!
 # cada serviço tem o seu domínio (como os de verdade); o Beta é em "localhost" e LENTO (1,5 s), para simular uma página que demora a carregar
-printf '[{"id":"alfa","nome":"Serviço Alfa","url":"http://127.0.0.1:%s/a.html","dominios":["127.0.0.1"]},{"id":"beta","nome":"Serviço Beta","url":"http://localhost:%s/lento/b.html","dominios":["localhost"]},{"id":"gama","nome":"Serviço Gama","url":"http://127.0.0.1:%s/a.html","dominios":["127.0.0.1"]}]' "$porta" "$porta" "$porta" > "$run/servicos.json"
+printf '[{"id":"alfa","nome":"Serviço Alfa","url":"http://127.0.0.1:%s/a.html","dominios":["127.0.0.1"]},{"id":"beta","nome":"Serviço Beta","url":"http://localhost:%s/lento/b.html","dominios":["localhost"]},{"id":"gama","nome":"Serviço Gama","url":"http://127.0.0.1:%s/a.html","dominios":["127.0.0.1"]},{"id":"pxs","nome":"Pixels","url":"http://127.0.0.1:%s/px.html","dominios":["127.0.0.1"]}]' "$porta" "$porta" "$porta" "$porta" > "$run/servicos.json"
 # um endereço errado gravado por uma versão antiga (a página de outro serviço com o nome do Gama): tem de ser descartado ao abrir
 printf '{"salvos":{"gama":{"url":"http://localhost:%s/lento/b.html","titulo":"errado","thumb":"","pos":0,"dur":0,"quando":1}}}' "$porta" > "$run/dados/midia.json"
 limpa() { kill $nav $orb $srv 2>/dev/null; sleep 1; kill -9 $nav $orb 2>/dev/null; pkill -f "$run" 2>/dev/null; }
@@ -35,7 +35,7 @@ espera() { i=0; while [ "$(conta "$1")" -lt "${3:-1}" ] && [ $i -lt $((${2:-10} 
 # 0. o endereço errado do Gama (de outro serviço) é descartado ao carregar o banco, em vez de ser aberto depois em "Retomar"
 espera "descartado gama" 25 || falha "o endereço do Gama que pertence a outro serviço devia ser descartado ao abrir"
 # 1. a janela abre SEM moldura e a interface (HTML) responde pela ponte
-espera "shell: desenhou salvos=0 servicos=3" 25 || falha "a interface não desenhou os 3 serviços ($(grep -a '^NAV' "$run/nav.log" | tail -3 | tr '\n' '|'))"
+espera "shell: desenhou salvos=0 servicos=4" 25 || falha "a interface não desenhou os 3 serviços ($(grep -a '^NAV' "$run/nav.log" | tail -3 | tr '\n' '|'))"
 # o Orbit pode demorar a reconhecer a janela e a dar o foco a ela: espera, em vez de já apertar teclas
 i=0; while [ $i -lt 100 ] && ! msg janelas | tr '{' '\n' | grep -q '"titulo":"LUMNA Mídia".*"foco":true'; do sleep 0.2; i=$((i + 1)); done
 msg janelas | tr '{' '\n' | grep -q '"titulo":"LUMNA Mídia".*"barra":false' || falha "a janela da Mídia devia abrir sem moldura nem barra do Orbit"
@@ -78,7 +78,7 @@ sleep 0.8; [ "$(grep -a 'página:' "$run/nav.log" | tail -1 | grep -c 'dpr=1 ')"
 # 6. Alt+Home: início; o print do Beta chega ANTES de guardar e o início mostra os 2 em "Continuar assistindo"
 sleep 1; msg tecla_falsa 0 56 baixo >/dev/null; sleep 0.1; tecla 102; sleep 0.1; msg tecla_falsa 0 56 cima >/dev/null
 espera "estado inicio" 10 || falha "Alt+Home devia ir ao início"
-espera "shell: desenhou salvos=2 servicos=3" 10 || falha "o início devia mostrar os dois serviços já assistidos (o Beta guardado ao sair do vídeo)"
+espera "shell: desenhou salvos=2 servicos=4" 10 || falha "o início devia mostrar os dois serviços já assistidos (o Beta guardado ao sair do vídeo)"
 [ "$(wc -c < "$run/dados/thumbs/beta.jpg" 2>/dev/null || echo 0)" -gt 1000 ] || falha "o print do Beta devia ter sido guardado ao ir para o início"
 sleep 0.5; foto 5-inicio
 # 7. do início, de novo para um serviço
@@ -92,17 +92,39 @@ fim $n || falha "o menu devia terminar de abrir (corrida)"
 sleep 0.5; tecla 28; espera "estado servico beta" 10 3 || falha "devia trocar para o Beta (corrida)"
 sleep 0.3; n=$(conta "site final"); tecla 60; espera "estado menu beta" 10 2 || falha "F2 logo depois da troca devia abrir o menu (cancelando a espera da página)"
 fim $n || falha "o menu devia terminar de abrir (depois de cancelar a espera)"
-sleep 0.5; tecla 106; sleep 0.3; tecla 28
+sleep 0.5; tecla 28   # o foco já começa no serviço seguinte ao atual (o Gama)
 espera "estado servico gama" 10 || falha "Enter no menu devia trocar para o Gama"
 sleep 1
 # o invariante: nenhum serviço ficou com o endereço de OUTRO (alfa/gama em 127.0.0.1, beta em localhost), qualquer que tenha sido a ordem
 python3 - "$run/dados/midia.json" <<'PY' || falha "um serviço ficou gravado com o endereço de outro: $(head -c 500 "$run/dados/midia.json")"
 import json, sys
 d = json.load(open(sys.argv[1]))["salvos"]
-host = {"alfa": "127.0.0.1", "gama": "127.0.0.1", "beta": "localhost"}
+host = {"alfa": "127.0.0.1", "gama": "127.0.0.1", "beta": "localhost", "pxs": "127.0.0.1"}
 for k, v in d.items():
     assert "//" + host[k] + ":" in v["url"], (k, v["url"])
 PY
 grep -a -q "transição demorou" "$run/nav.log" && falha "o alarme de uma transição antiga disparou no meio de outra ($(grep -a -B2 'transição demorou' "$run/nav.log" | tr '\n' '|' | cut -c1-300))"
+# 9. a ESCALA do menu vista em PIXELS: a página px.html tem uma caixa de 1000x500 px com um canto amarelo no fim. Com o menu aberto o site tem 910x431,
+#    então sem a escala (zoom-out) o canto amarelo fica FORA da janela (foi o defeito: a página era diagramada grande mas desenhada em 1:1 e estourava).
+#    Precisa de grim e python3 com PIL; sem eles, só avisa.
+sleep 0.5; n=$(conta "site final"); tecla 60; espera "estado menu gama" 10 || falha "F2 devia abrir o menu (pixels)"
+fim $n || falha "o menu devia terminar de abrir (pixels)"; sleep 0.5
+n=$(conta "site final"); tecla 28   # o foco começa no serviço seguinte ao Gama (o Pixels)
+espera "estado servico pxs" 10 || falha "devia trocar para o serviço de pixels"
+espera "site carregou http://127.0.0.1:$porta/px.html" 20 || falha "a página de pixels devia carregar"
+fim $n || falha "a página de pixels devia terminar de aparecer"
+sleep 0.8; n=$(conta "site final"); tecla 60; espera "estado menu pxs" 10 || falha "F2 devia abrir o menu na página de pixels"
+fim $n || falha "o menu devia terminar de abrir (pixels 2)"; sleep 1.2
+if command -v grim >/dev/null && python3 -c "import PIL" 2>/dev/null; then
+  WAYLAND_DISPLAY=$W grim "$run/9-pixels.png" 2>/dev/null
+  python3 -W ignore - "$run/9-pixels.png" <<'PY' || falha "com o menu aberto o canto amarelo da caixa (o fim da página) devia aparecer: a escala não está funcionando e a página estoura a janela"
+import sys
+from PIL import Image
+im = Image.open(sys.argv[1]).convert("RGB")
+amarelo = sum(1 for p in im.getdata() if p[0] > 230 and p[1] > 230 and p[2] < 60)
+print("pixels amarelos:", amarelo)
+assert amarelo > 300, amarelo
+PY
+else echo "midia: (dispensado o teste de escala por pixels: falta grim ou PIL)"; fi
 if [ $ok = 1 ]; then echo "midia: ok"; limpa; rm -rf "$run"; exit 0; fi
 echo "(log em $run: nav.log e os screenshots *.png)" >&2; limpa; exit 1

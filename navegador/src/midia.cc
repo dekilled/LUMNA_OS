@@ -339,13 +339,16 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     if (!conteudo_ || !conteudo_->GetBrowser()) return;
     if (Depurando()) LogPaginaDepois();  // só para o log: confirma que a escala (zoom) está mesmo aplicada na página
     if (menu && zoom_menu_ < 0.999) {
+      // Os TRÊS juntos fazem um zoom-out de verdade: o viewport CSS fica MAIOR (tamanho do site / zoom), a densidade de pixels cai (zoom) e a imagem
+      // é escalada (scale). Sem o "scale" a página era diagramada no viewport grande mas DESENHADA em 1:1, e estourava a janela (o botão da direita
+      // cortado); só width/height/deviceScaleFactor medem certo (dpr, innerWidth) mas não escalam o que se vê.
       auto p = CefDictionaryValue::Create();
-      // o viewport CSS fica MAIOR (tamanho do site / zoom) e a densidade de pixels menor (zoom): o mesmo que um zoom-out do navegador
       p->SetInt("width", static_cast<int>(std::lround(destino_.width / zoom_menu_)));
       p->SetInt("height", static_cast<int>(std::lround(destino_.height / zoom_menu_)));
       p->SetDouble("deviceScaleFactor", zoom_menu_);
       p->SetBool("mobile", false);
-      Chamar("Emulation.setDeviceMetricsOverride", p, [](bool, CefRefPtr<CefDictionaryValue>) {});
+      p->SetDouble("scale", zoom_menu_);
+      Chamar("Emulation.setDeviceMetricsOverride", p, [](bool ok, CefRefPtr<CefDictionaryValue>) { if (!ok) Log("setDeviceMetricsOverride falhou"); });
     } else {
       Chamar("Emulation.clearDeviceMetricsOverride", CefDictionaryValue::Create(), [](bool, CefRefPtr<CefDictionaryValue>) {});
     }
