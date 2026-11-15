@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(CEF REQUIRED)
 add_subdirectory(${CEF_ROOT}/libcef_dll libcef_dll_wrapper)
 ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
-add_executable(lumna-navegador src/main.cc src/midia.cc src/externo.cc src/catalogo.cc)
+add_executable(lumna-navegador src/main.cc src/midia.cc src/externo.cc src/catalogo.cc src/servicos.cc)
 SET_EXECUTABLE_TARGET_PROPERTIES(lumna-navegador)
 add_dependencies(lumna-navegador libcef_dll_wrapper)
 # A libcef.so e os recursos (icudtl.dat, .pak) têm de ser os que estão AO LADO do executável (a pasta stage/instalada), nunca os da pasta do CEF

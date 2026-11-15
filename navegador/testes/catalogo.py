@@ -200,6 +200,11 @@ def ultimo_cat():
     return m_[-1] if m_ else None
 
 
+def foco_ultimo():
+    m_ = re.findall(r"NAV shell: foco zona=(\w+) idx=(\d+)/(\d+)", log())
+    return m_[-1] if m_ else None
+
+
 def espera_cat(**kw):
     chaves = ["vis", "tot", "tipo", "lista", "genero", "busca", "ordem", "visao"]
     def ok():
@@ -301,6 +306,8 @@ if not espera(lambda: [i for i in catalogo() if i["servico"] == "filmes"][0]["fa
 tecla(KEY["m"])       # o menu de ações
 foto("catalogo-4-acoes")
 tecla(KEY["baixo"], KEY["baixo"], KEY["enter"])   # "Marcar como assistido"
+if not espera(lambda: (foco_ultimo() or ("", ""))[:2] == ("grade", "1"), 4):
+    falha(f"depois do menu de ações o foco volta ao MESMO cartão (o segundo): {foco_ultimo()}")
 if not espera(lambda: (lambda i: i["assistido"] is True and i["depois"] is False)([i for i in catalogo() if i["servico"] == "filmes"][0]), 6):
     falha("o menu de ações marca como assistido (e tira do 'assistir mais tarde')")
 # Enter no cartão abre o serviço no link salvo

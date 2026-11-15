@@ -9,6 +9,7 @@
 
 #include "catalogo.h"
 #include "externo.h"
+#include "servicos.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -111,47 +112,8 @@ std::string ExeDir() {
 double Facilita(double t) { return t < 0.5 ? 4 * t * t * t : 1 - std::pow(-2 * t + 2, 3) / 2; }  // easeInOutCubic
 
 // ---------------------------------------------------------------------------------------------------------------------------- dados
-struct Servico { std::string id, nome, url; std::vector<std::string> dominios; };  // dominios vazio = aceita qualquer endereço (testes)
 struct Salvo { std::string url, titulo, thumb; double pos = 0, dur = 0; long quando = 0; };
 
-// O endereço pertence mesmo a este serviço? (o host é o domínio ou um subdomínio dele). Evita gravar, com o nome de um serviço, a página de outro.
-bool UrlDoServico(const Servico& sv, const std::string& url) {
-  if (sv.dominios.empty()) return true;
-  CefURLParts partes;
-  if (!CefParseURL(url, partes)) return false;
-  std::string host = CefString(&partes.host).ToString();
-  for (auto& d : sv.dominios)
-    if (host == d || (host.size() > d.size() && host.compare(host.size() - d.size() - 1, d.size() + 1, "." + d) == 0)) return true;
-  return false;
-}
-
-std::vector<Servico> CarregaServicos() {
-  std::vector<Servico> v = {
-      {"youtube", "YouTube", "https://www.youtube.com/", {"youtube.com", "youtu.be"}},
-      {"netflix", "Netflix", "https://www.netflix.com/browse", {"netflix.com"}},
-      {"disney", "Disney+", "https://www.disneyplus.com/", {"disneyplus.com"}},
-      {"paramount", "Paramount+", "https://www.paramountplus.com/", {"paramountplus.com"}},
-      {"prime", "Prime Video", "https://www.primevideo.com/", {"primevideo.com", "amazon.com"}},
-      {"hbomax", "HBO Max", "https://www.hbomax.com/", {"hbomax.com", "max.com"}},
-  };
-  std::string arq = Env("LUMNA_NAV_SERVICOS");  // JSON [{"id","nome","url"}]: outra lista (testes, ou o usuário)
-  if (!arq.empty()) {
-    auto val = CefParseJSON(LerArquivo(arq), JSON_PARSER_RFC);
-    if (val && val->GetType() == VTYPE_LIST) {
-      v.clear();
-      auto l = val->GetList();
-      for (size_t i = 0; i < l->GetSize(); i++) {
-        auto d = l->GetDictionary(i);
-        if (!d) continue;
-        Servico sv{d->GetString("id"), d->GetString("nome"), d->GetString("url"), {}};
-        if (auto dl = d->GetList("dominios"))
-          for (size_t k = 0; k < dl->GetSize(); k++) sv.dominios.push_back(dl->GetString(k));
-        v.push_back(sv);
-      }
-    }
-  }
-  return v;
-}
 
 // baixa uma imagem (o og:image de uma página) pelo CEF; devolve os bytes (vazio se falhou). Cancela sozinho depois de `ms`.
 class BaixaImagem : public CefURLRequestClient {
@@ -220,7 +182,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     }
     Mkdirs(dados_ + "/thumbs");
     ui_ = Env("LUMNA_NAV_UI", (ExeDir() + "/ui/midia").c_str());
-    servicos_ = CarregaServicos();
+    servicos_ = CarregaServicos(dados_);
     CarregaSalvos();
     catalogo_ = std::make_unique<Catalogo>(dados_);
     // Como o site muda de tamanho: "imagem" (padrão) anima um print na interface e só redimensiona o site UMA vez, no fim (o site redimensionado a
@@ -253,6 +215,18 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     return true;
   }
   CefRefPtr<CefMessageRouterBrowserSide> roteador() { return roteador_; }
+  std::string BibliotecaJSON() const {  // os streamings conhecidos, com a marca dos que já estão na lista
+    std::string o = "{\"itens\":[";
+    bool primeiro = true;
+    for (auto& b : Biblioteca()) {
+      o += (primeiro ? "" : ",") + std::string("{\"id\":") + J(b.id) + ",\"nome\":" + J(b.nome) + ",\"url\":" + J(b.url) + ",\"cor\":" + J(b.cor) + ",\"tem\":" + (Acha(b.id) ? "true" : "false") + "}";
+      primeiro = false;
+    }
+    return o + "]}";
+  }
+  bool MudaServico(const std::string& cmd, std::string* erro);  // favorito, modo, remover, adicionar da biblioteca, novo site
+  bool AdicionaSite(const std::string& nome, const std::string& url, std::string* erro);
+  void AdicionarSitePublico(const std::string& nome, const std::string& url) { std::string e; if (!AdicionaSite(nome, url, &e)) Log("adicionar: " + e); }
   void AlternarMenu() { if (estado_ == Estado::kMenu) FecharMenu(); else AbrirMenu(); }  // F2, Super+M (lumna-navegador --menu) e o botão Start
   void IrParaInicioPublico() { Inicio(); }
   void SiteTelaCheia(bool f) { site_fs_ = f; }
@@ -360,8 +334,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   }
   std::string EstadoJSON() const {
     std::string o = "{\"servicos\":[";
-    for (size_t i = 0; i < servicos_.size(); i++)
-      o += (i ? "," : "") + std::string("{\"id\":") + J(servicos_[i].id) + ",\"nome\":" + J(servicos_[i].nome) + ",\"url\":" + J(servicos_[i].url) + "}";
+    for (size_t i = 0; i < servicos_.size(); i++) o += (i ? "," : "") + ServicoJSON(servicos_[i]);
     return o + "],\"salvos\":" + SalvosJSON() + ",\"ativo\":" + J(ativo_) + ",\"estado\":" + J(NomeEstado(estado_)) + "}";
   }
   const Servico* Acha(const std::string& id) const {
@@ -913,6 +886,77 @@ void Midia::IrParaInicio() {
   shell_->RequestFocus();
 }
 
+// --- os streamings do usuário: favorito, modo de controle, remover, adicionar
+static void Grava(const std::string& dados, const std::vector<Servico>& v) { GravaServicos(dados, v); }
+
+bool Midia::AdicionaSite(const std::string& nome_in, const std::string& url_in, std::string* erro) {
+  std::string nome = nome_in, url = url_in;
+  while (!nome.empty() && nome.back() == ' ') nome.pop_back();
+  while (!nome.empty() && nome.front() == ' ') nome.erase(0, 1);
+  while (!url.empty() && url.back() == ' ') url.pop_back();
+  while (!url.empty() && url.front() == ' ') url.erase(0, 1);
+  if (url.find("://") == std::string::npos) url = "https://" + url;   // "www.site.com" vira https://www.site.com
+  std::string host = HostDe(url);
+  if (nome.empty() || host.find('.') == std::string::npos || (url.rfind("https://", 0) != 0 && url.rfind("http://", 0) != 0)) {
+    *erro = "preciso de um nome e de um endereço (http ou https) válido";
+    return false;
+  }
+  Servico sv;
+  sv.id = IdUnico(servicos_, nome);
+  sv.nome = nome;
+  sv.url = url;
+  sv.dominios = {DominioBase(host)};
+  sv.cor = CorDoNome(nome);
+  servicos_.push_back(sv);
+  Grava(dados_, servicos_);
+  Log("servico adicionado " + sv.id + " " + sv.url);
+  return true;
+}
+
+bool Midia::MudaServico(const std::string& cmd, std::string* erro) {
+  auto partes = [&](const std::string& t) { std::vector<std::string> p; std::stringstream ss(t); for (std::string x; std::getline(ss, x, ':');) p.push_back(x); return p; };
+  std::vector<std::string> p = partes(cmd);
+  if (p.size() >= 2 && p[0] == "adicionar") {   // da biblioteca
+    for (auto& b : Biblioteca()) {
+      if (b.id != p[1]) continue;
+      if (Acha(b.id)) { *erro = "já está na lista"; return false; }
+      servicos_.push_back(b);
+      Grava(dados_, servicos_);
+      Log("servico adicionado " + b.id);
+      return true;
+    }
+    *erro = "streaming desconhecido";
+    return false;
+  }
+  if (p.size() >= 1 && p[0] == "novo") {   // novo:NOME|URL
+    size_t barra = cmd.find('|');
+    if (barra == std::string::npos) { *erro = "uso: novo:NOME|URL"; return false; }
+    return AdicionaSite(cmd.substr(5, barra - 5), cmd.substr(barra + 1), erro);
+  }
+  if (p.size() < 2) { *erro = "pedido inválido"; return false; }
+  auto it = std::find_if(servicos_.begin(), servicos_.end(), [&](const Servico& x) { return x.id == p[0]; });
+  if (it == servicos_.end()) { *erro = "serviço desconhecido"; return false; }
+  if (p[1] == "favorito") {   // só um é o favorito: vai para o começo da lista e ganha o foco inicial
+    bool era = it->favorito;
+    for (auto& x : servicos_) x.favorito = false;
+    it->favorito = !era;
+    if (it->favorito) std::rotate(servicos_.begin(), it, it + 1);
+  } else if (p[1] == "modo" && p.size() >= 3 && (p[2] == "setas" || p[2] == "cursor")) {
+    it->modo = p[2];
+  } else if (p[1] == "remover") {
+    if (estado_ != Estado::kInicio || ativo_ == it->id) { *erro = "volte ao início para remover"; return false; }
+    salvos_.erase(it->id);
+    Gravar();
+    servicos_.erase(it);
+  } else {
+    *erro = "ação desconhecida";
+    return false;
+  }
+  Grava(dados_, servicos_);
+  Log("servico " + cmd);
+  return true;
+}
+
 // O JS que lê a página (título, capa, tipo, gênero, duração...): Open Graph, JSON-LD (schema.org) e o <video>. Devolve uma string JSON.
 static const char* kMetaJS =
     "(()=>{const m=(n)=>{const e=document.querySelector('meta[property=\"'+n+'\"],meta[name=\"'+n+'\"]');return e?(e.content||''):''};"
@@ -1016,6 +1060,12 @@ bool Midia::OnQuery(CefRefPtr<CefBrowser> b, CefRefPtr<CefFrame> f, int64_t, con
   Log("pedido " + r);
   if (r == "estado") { cb->Success(EstadoJSON()); return true; }
   if (r == "catalogo") { cb->Success(catalogo_->JSON()); return true; }
+  if (r == "biblioteca") { cb->Success(BibliotecaJSON()); return true; }
+  if (r.rfind("servico:", 0) == 0) {   // servico:ID:favorito | servico:ID:modo:setas|cursor | servico:ID:remover | servico:adicionar:BIBID | servico:novo:NOME|URL
+    std::string erro;
+    if (MudaServico(r.substr(8), &erro)) cb->Success(EstadoJSON()); else cb->Failure(7, erro);
+    return true;
+  }
   if (r == "emma") {  // "Perguntar à Emma": o chat da Emma (alterna: de novo, fecha)
     const char* argv[] = {"sh", "-c", "pkill -x lumna-emma-chat || lumna-emma-chat", nullptr};
     pid_t pid;
@@ -1322,13 +1372,21 @@ void IniciarMidia() {
     if (cmd == "menu" || cmd == "alternar") { NaInterface([]() { g_midia->AlternarMenu(); }); return "{\"ok\":true}"; }
     if (cmd == "inicio") { NaInterface([]() { g_midia->IrParaInicioPublico(); }); return "{\"ok\":true}"; }
     if (cmd == "estado") return EstadoPublico();
+    if (cmd.rfind("adicionar ", 0) == 0) {   // adicionar NOME DO SITE https://endereço (o endereço é a última palavra)
+      std::string resto = cmd.substr(10);
+      size_t sp = resto.rfind(' ');
+      if (sp == std::string::npos) return "{\"ok\":false,\"erro\":\"adicionar NOME ENDERECO\"}";
+      std::string nome = resto.substr(0, sp), url = resto.substr(sp + 1);
+      NaInterface([nome, url]() { g_midia->AdicionarSitePublico(nome, url); });
+      return "{\"ok\":true}";
+    }
     if (cmd == "salvar" || cmd.rfind("salvar ", 0) == 0) {
       std::string marca = cmd.size() > 7 ? cmd.substr(7) : "depois";
       if (marca != "depois" && marca != "favorito" && marca != "assistido") return "{\"ok\":false,\"erro\":\"salvar [depois|favorito|assistido]\"}";
       NaInterface([marca]() { g_midia->SalvarAtual(marca); });
       return "{\"ok\":true}";
     }
-    return "{\"ok\":false,\"erro\":\"comando desconhecido (menu, inicio, estado, salvar)\"}";
+    return "{\"ok\":false,\"erro\":\"comando desconhecido (menu, inicio, estado, salvar, adicionar)\"}";
   });
   // os controles (lumna-gamepad)
   IniciarControle([](const std::string& b, bool baixo, bool an) { g_midia->BotaoControle(b, baixo, an); },

@@ -105,3 +105,20 @@ body.catalogo main { display:none; }
 .meta .a-lista { display:none; } .grade.lista .cartao-cat .ok { display:none; } .grade.lista .meta .a-lista { display:inline; color:#7be0a4; }
 .btn-emma { display:none; position:fixed; right:2.2vw; bottom:5vh; z-index:30; align-items:center; gap:.8vw; padding:1.4vh 1.8vw; border-radius:999px; border:2px solid #7a52c9; background:rgba(26,16,52,.9); font-size:2.3vh; cursor:pointer; }
 body.catalogo .btn-emma { display:flex; }
+
+/* ---------- adicionar streaming ---------- */
+.tile .fav { position:absolute; top:.9vh; right:1.1vh; color:#ffd166; font-size:2.4vh; line-height:1; }
+.tile.add { border-style:dashed; color:var(--suave); font-weight:400; max-width:11vw; } .tile.add span { font-size:5vh; line-height:1; } .tile.add small { color:var(--suave); }
+.sobreposta { position:fixed; inset:0; z-index:60; background:rgba(6,5,12,.82); backdrop-filter:blur(8px); display:grid; place-items:center; }
+.sobreposta .caixa { width:74vw; max-height:88vh; overflow:hidden; padding:3vh 2.6vw; border-radius:24px; background:rgba(22,18,40,.96); border:2px solid #3d3262; display:flex; flex-direction:column; gap:1.6vh; }
+.sobreposta .caixa.estreita { width:46vw; }
+.sobreposta h2 { font-size:4vh; margin:0; } .sobreposta .sub { color:var(--suave); font-size:2.2vh; }
+.bib-grade { display:grid; grid-template-columns:repeat(auto-fill, minmax(15vw, 1fr)); gap:1.6vh 1.2vw; padding:1vh .4vw; overflow-y:auto; scrollbar-width:none; }
+.bib-grade::-webkit-scrollbar { display:none; }
+.bib-grade .tile { max-width:none; height:11vh; font-size:2.8vh; }
+.bib-grade .tile.tem { opacity:.45; } .bib-grade .tile small { bottom:.8vh; }
+.sobreposta input { height:6vh; border-radius:12px; border:2px solid #3a3350; background:rgba(14,11,26,.9); color:var(--texto); font:inherit; font-size:2.4vh; padding:0 1.2vw; outline:0; user-select:text; }
+.sobreposta input.foco, .sobreposta input:focus { border-color:#d6b4ff; box-shadow:0 0 0 3px rgba(191,139,255,.3); }
+.form-botoes { display:flex; gap:1vw; justify-content:flex-end; margin-top:1vh; }
+.btn-form { padding:1.4vh 2vw; border-radius:12px; border:2px solid #3a3350; font-size:2.3vh; cursor:pointer; } .btn-form.foco { border-color:#d6b4ff; background:rgba(191,139,255,.2); }
+.dica-form { color:var(--suave); font-size:1.9vh; }

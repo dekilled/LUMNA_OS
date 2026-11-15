@@ -1,6 +1,7 @@
 // Interface da Mídia (HTML). Fala com o C++ por window.cefQuery (só existe nesta página). O C++ chama lumna.menu(...), lumna.recarregar() e lumna.anim(...).
 const q = (pedido) => new Promise((ok, erro) => window.cefQuery({ request: pedido, onSuccess: ok, onFailure: (c, m) => erro(m) }));
-const cores = { netflix: '#ff2a35', youtube: '#ff3b3b', disney: '#5b9bff', paramount: '#5a8cff', prime: '#2fc0ee', hbomax: '#a78bfa' };
+const cores = {};   // a cor de cada serviço vem dos dados (s.cor); aqui só o que o catálogo e o menu consultam por id
+const corDe = (id) => ((estado.servicos.find((x) => x.id === id) || {}).cor) || cores[id] || '#cfc4ff';
 const $ = (id) => document.getElementById(id);
 function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; }
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -17,7 +18,9 @@ const ROTULO_TIPO = { filme: 'Filme', serie: 'Série', video: 'Vídeo', outro: '
 const ABA_TIPO = { filmes: 'filme', series: 'serie', videos: 'video' };
 const ABAS_ATIVAS = ['inicio', 'filmes', 'series', 'videos'];   // a Música ainda não existe
 let abaAtual = 'inicio';
-let acoesDe = null;   // o id do item cujo menu de ações está aberto
+let acoesDe = null;   // o id do item do catálogo cujo menu de ações está aberto
+let acoesSvc = null;  // ... ou o id do streaming (menu de ações de um serviço)
+let acoesIdxAntes = 0; // o foco de antes de abrir o menu de ações (o idx é um só: sem isto, ao fechar o foco ia para o índice da OPÇÃO do menu)
 
 const restante = (s) => { if (!s.dur) return ''; const f = Math.max(0, s.dur - s.pos), h = Math.floor(f / 3600), m = Math.round((f % 3600) / 60); if (f < 60) return 'menos de 1min restante'; return (h ? h + 'h ' : '') + m + 'min restantes'; };
 const duracao = (min) => { if (!min) return ''; const h = Math.floor(min / 60), m = Math.round(min % 60); return h ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`; };
@@ -39,10 +42,13 @@ function desenhar() {
   }
   const t = $('servicos'); t.innerHTML = '';
   for (const s of estado.servicos) {
-    const k = el('div', 'tile', `<span style="color:${cores[s.id] || 'inherit'}">${esc(s.nome)}</span>`);
+    const k = el('div', 'tile', `<span style="color:${s.cor || 'inherit'}">${esc(s.nome)}</span>${s.favorito ? '<span class="fav">★</span>' : ''}`);
     k.dataset.id = s.id; k.onclick = () => { zona = 'servicos'; idx = [...t.children].indexOf(k); ativar(); };
     t.appendChild(k);
   }
+  const mais = el('div', 'tile add', '<span>+</span><small>Adicionar</small>'); mais.dataset.acao = 'adicionar';
+  mais.onclick = () => { zona = 'servicos'; idx = t.children.length; ativar(); };
+  t.appendChild(mais);
   if (!zonaItens('continuar').length && zona === 'continuar') zona = 'servicos';
   marcar();
 }
@@ -53,7 +59,7 @@ function desenharFolha(ativo) {
   const f = $('folha-itens'); f.innerHTML = '';
   const itens = [{ id: 'inicio', nome: '⌂ Início' }, ...estado.servicos];
   for (const s of itens) {
-    const k = el('div', 'tile' + (s.id === ativo ? ' em-uso' : ''), `<span style="color:${cores[s.id] || 'inherit'}">${esc(s.nome)}</span>` +
+    const k = el('div', 'tile' + (s.id === ativo ? ' em-uso' : ''), `<span style="color:${s.cor || 'inherit'}">${esc(s.nome)}</span>` +
       (s.id === ativo ? '<small>Em uso</small>' : (estado.salvos[s.id] ? '<small class="sub-retomar">Retomar última página</small>' : '')));
     k.dataset.id = s.id; k.onclick = () => { idx = [...f.children].indexOf(k); ativar(); };
     f.appendChild(k);
@@ -106,7 +112,7 @@ function desenharFiltros() {
 
 function cartaoItem(i) {
   const k = el('div', 'cartao-cat'); k.dataset.id = i.id;
-  const cor = cores[i.servico] || '#cfc4ff';
+  const cor = corDe(i.servico);
   const prog = i.dur > 0 ? Math.min(100, 100 * i.pos / i.dur) : 0;
   const meta = [ROTULO_TIPO[i.tipo] || 'Outro', i.genero, duracao(i.duracao_min)].filter(Boolean).join(' · ') + (i.assistido ? '<span class="a-lista"> · ✓ Assistido</span>' : '');
   const fundo = i.miniatura_url ? `style="background-image:url('${i.miniatura_url}')"` : '';
@@ -186,17 +192,77 @@ function abrirAcoes(id) {
   const ac = $('acoes'); ac.hidden = false;
   ac.style.left = Math.min(innerWidth - ac.offsetWidth - 20, r.left + r.width * 0.5) + 'px';
   ac.style.top = Math.min(innerHeight - ac.offsetHeight - 20, Math.max(20, r.top + 40)) + 'px';
-  zona = 'acoes'; idx = 0; marcar();
+  acoesIdxAntes = idx; zona = 'acoes'; idx = 0; marcar();
 }
-function fecharAcoes() { $('acoes').hidden = true; acoesDe = null; if (zona === 'acoes') { zona = 'grade'; } marcar(); }
+function fecharAcoes() { $('acoes').hidden = true; const svc = acoesSvc; acoesDe = null; acoesSvc = null; if (zona === 'acoes') { zona = svc ? 'servicos' : 'grade'; idx = acoesIdxAntes; } marcar(); }
 
 async function mudarItem(id, acao, valor) {   // favorito / depois / assistido / remover; o C++ devolve o catálogo atualizado
   try { cat = JSON.parse(await q(`item:${id}:${acao}${valor === undefined ? '' : ':' + valor}`)); } catch (e) { console.log('erro item: ' + e); return; }
   desenharGrade();
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------- adicionar streaming e as ações de um serviço
+async function mudarServico(cmd, idDepois) {   // o C++ devolve o estado com a lista nova; true se deu certo
+  try { estado = JSON.parse(await q('servico:' + cmd)); } catch (e) { aviso('Não deu: ' + e); return false; }
+  desenhar();
+  if (idDepois) { const k = estado.servicos.findIndex((x) => x.id === idDepois); if (k >= 0 && zona === 'servicos') { idx = k; marcar(); } }
+  return true;
+}
+async function abrirBiblioteca() {
+  let b; try { b = JSON.parse(await q('biblioteca')); } catch (e) { aviso('Não consegui abrir a lista de streamings.'); return; }
+  const g = $('bib-itens'); g.innerHTML = '';
+  for (const s of b.itens) {
+    const k = el('div', 'tile' + (s.tem ? ' tem' : ''), `<span style="color:${s.cor}">${esc(s.nome)}</span>${s.tem ? '<small>Já na sua lista</small>' : ''}`);
+    k.dataset.id = s.id; k.dataset.tem = s.tem ? '1' : '';
+    k.onclick = () => { zona = 'biblioteca'; idx = [...g.children].indexOf(k); ativar(); };
+    g.appendChild(k);
+  }
+  const o = el('div', 'tile', '<span>Outro site…</span><small>Nome e endereço</small>'); o.dataset.id = 'outro';
+  o.onclick = () => { zona = 'biblioteca'; idx = g.children.length - 1; ativar(); };
+  g.appendChild(o);
+  $('biblioteca').hidden = false; zona = 'biblioteca';
+  idx = b.itens.findIndex((s) => !s.tem); if (idx < 0) idx = b.itens.length;
+  console.log('biblioteca aberta: ' + b.itens.length + ' itens, ' + b.itens.filter((s) => !s.tem).length + ' disponiveis');
+  marcar();
+}
+function fecharBiblioteca(idServico) {
+  $('biblioteca').hidden = true; $('form-site').hidden = true; zona = 'servicos';
+  const k = idServico ? estado.servicos.findIndex((x) => x.id === idServico) : -1;
+  idx = k >= 0 ? k : Math.max(0, zonaItens('servicos').length - 1); marcar();
+}
+function abrirForm() { $('site-nome').value = ''; $('site-url').value = ''; $('form-site').hidden = false; zona = 'form'; idx = 0; marcar(); }
+function cancelarForm() { $('form-site').hidden = true; zona = 'biblioteca'; idx = Math.max(0, zonaItens('biblioteca').length - 1); marcar(); }
+for (const inp of [$('site-nome'), $('site-url')]) inp.onkeydown = (e) => {   // o formulário: setas e Enter passam entre os campos; Esc cancela
+  e.stopPropagation();
+  if (e.key === 'Escape') { e.preventDefault(); cancelarForm(); }
+  else if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); idx = Math.min(3, idx + 1); marcar(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(0, idx - 1); marcar(); }
+};
+$('site-ok').onclick = () => { zona = 'form'; idx = 2; ativar(); };
+$('site-cancela').onclick = () => cancelarForm();
+
+function abrirAcoesServico(id) {
+  const s = estado.servicos.find((x) => x.id === id); if (!s) return;
+  acoesSvc = id; acoesDe = null;
+  const a = $('acoes-itens'); a.innerHTML = '';
+  const opcoes = [
+    [s.favorito ? 'Tirar dos favoritos' : 'Tornar favorito (o primeiro da lista)', 'svc:favorito'],
+    [s.modo === 'cursor' ? 'Controle: usar as setas (jeito de TV)' : 'Controle: usar o cursor', 'svc:modo:' + (s.modo === 'cursor' ? 'setas' : 'cursor')],
+    ['Remover da lista', 'svc:remover'],
+  ];
+  for (const [nome, acao] of opcoes) { const o = el('div', 'it' + (acao === 'svc:remover' ? ' perigo' : ''), esc(nome)); o.dataset.acao = acao; o.onclick = () => { idx = [...a.children].indexOf(o); zona = 'acoes'; ativar(); }; a.appendChild(o); }
+  const tile = [...$('servicos').children].find((c) => c.dataset.id === id), r = tile ? tile.getBoundingClientRect() : { left: 200, top: 200, width: 100, height: 60 };
+  const ac = $('acoes'); ac.hidden = false;
+  ac.style.left = Math.min(innerWidth - ac.offsetWidth - 20, Math.max(20, r.left)) + 'px';
+  ac.style.top = Math.max(20, r.top - ac.offsetHeight - 10) + 'px';
+  console.log('acoes de servico ' + id);
+  acoesIdxAntes = idx; zona = 'acoes'; idx = 0; marcar();
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------- foco e navegação
 function zonaItens(z) {
+  if (z === 'biblioteca') return [...$('bib-itens').children];
+  if (z === 'form') return [$('site-nome'), $('site-url'), $('site-ok'), $('site-cancela')];
   if (z === 'folha') return [...$('folha-itens').children];
   if (z === 'filtros') return [...$('filtros').children].filter((c) => c.dataset.acao).concat([$('btn-listas')]);
   if (z === 'grade') return [...$('grade').children];
@@ -206,16 +272,18 @@ function zonaItens(z) {
 function marcar() {
   document.querySelectorAll('.foco').forEach((e) => e.classList.remove('foco'));
   const it = zonaItens(zona)[idx]; if (it) { it.classList.add('foco'); if (zona === 'grade') it.scrollIntoView({ block: 'nearest' }); }
+  if (zona === 'form') { const f = zonaItens('form')[idx]; if (f && f.tagName === 'INPUT') f.focus(); else if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur(); }
   console.log(`foco zona=${zona} idx=${idx}/${zonaItens(zona).length}`);
 }
 
-function vizinhoGrade(dir) {   // o cartão mais próximo na direção (a grade tem linhas e colunas)
-  const cs = zonaItens('grade'), cur = cs[idx]; if (!cur) return -1;
-  const r = cur.querySelector('.poster').getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+function vizinhoGrade(dir) {   // o item mais próximo na direção (a grade do catálogo e a biblioteca têm linhas e colunas)
+  const cs = zonaItens(zona), cur = cs[idx]; if (!cur) return -1;
+  const caixa = (c) => (c.querySelector('.poster') || c).getBoundingClientRect();
+  const r = caixa(cur), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
   let melhor = -1, nota = 1e12;
   cs.forEach((c, k) => {
     if (k === idx) return;
-    const p = c.querySelector('.poster').getBoundingClientRect(), px = p.left + p.width / 2, py = p.top + p.height / 2, dx = px - cx, dy = py - cy;
+    const p = caixa(c), px = p.left + p.width / 2, py = p.top + p.height / 2, dx = px - cx, dy = py - cy;
     const ok = dir === 'DIR' ? dx > r.width * .3 && Math.abs(dy) < r.height * .5 : dir === 'ESQ' ? dx < -r.width * .3 && Math.abs(dy) < r.height * .5
       : dir === 'BAIXO' ? dy > r.height * .3 : dy < -r.height * .3;
     if (!ok) return;
@@ -227,7 +295,11 @@ function vizinhoGrade(dir) {   // o cartão mais próximo na direção (a grade 
 
 function mover(dir) {   // dir: ESQ, DIR, CIMA, BAIXO
   const n = zonaItens(zona).length;
-  if (zona === 'grade') {
+  if (zona === 'biblioteca') {
+    const k = vizinhoGrade(dir); if (k >= 0) idx = k;
+  } else if (zona === 'form') {
+    if (dir === 'CIMA') idx = Math.max(0, idx - 1); else if (dir === 'BAIXO') idx = Math.min(3, idx + 1); else if (idx >= 2) idx = dir === 'DIR' ? 3 : 2;
+  } else if (zona === 'grade') {
     const k = vizinhoGrade(dir);
     if (k >= 0) idx = k; else if (dir === 'CIMA') { zona = 'filtros'; idx = Math.min(zonaItens('filtros').length - 1, 4); }
   } else if (zona === 'acoes' || zona === 'folha') {
@@ -253,6 +325,19 @@ function trocarAbaPorTecla(passo) {   // LB/RB (Page Up / Page Down): a aba ante
 async function ativar() {
   const it = zonaItens(zona)[idx]; if (!it) return;
   try {
+    if (zona === 'biblioteca') {
+      if (it.dataset.id === 'outro') { abrirForm(); return; }
+      if (it.dataset.tem) { aviso('Esse já está na sua lista.'); return; }
+      if (await mudarServico('adicionar:' + it.dataset.id, it.dataset.id)) fecharBiblioteca(it.dataset.id);
+      return;
+    }
+    if (zona === 'form') {
+      if (idx === 3) { cancelarForm(); return; }
+      if (idx < 2) { idx++; marcar(); return; }
+      if (await mudarServico('novo:' + $('site-nome').value + '|' + $('site-url').value, null)) fecharBiblioteca(estado.servicos[estado.servicos.length - 1].id);
+      return;
+    }
+    if (zona === 'servicos' && it.dataset.acao === 'adicionar') { await abrirBiblioteca(); return; }
     if (zona === 'abas') { await ativarAba(it.dataset.aba); return; }
     if (zona === 'filtros') {
       const [a, v] = it.dataset.acao ? it.dataset.acao.split(':') : ['listas'];
@@ -266,6 +351,12 @@ async function ativar() {
       return;
     }
     if (zona === 'grade') { const id = it.dataset.id; await q('item:' + id + ':abrir'); return; }
+    if (zona === 'acoes' && it.dataset.acao.startsWith('svc:')) {   // ações de um streaming (favorito, modo de controle, remover)
+      const id = acoesSvc, acao = it.dataset.acao.slice(4);
+      fecharAcoes();
+      await mudarServico(id + ':' + acao, id);
+      return;
+    }
     if (zona === 'acoes') {
       const [acao, val] = it.dataset.acao.split(':'), id = acoesDe;
       fecharAcoes();
@@ -288,16 +379,22 @@ document.addEventListener('keydown', (e) => {
   const MAPA = { ArrowRight: 'DIR', ArrowLeft: 'ESQ', ArrowUp: 'CIMA', ArrowDown: 'BAIXO' };
   if (MAPA[e.key] && zona !== 'folha' || (zona === 'folha' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft'))) { e.preventDefault(); mover(MAPA[e.key]); return; }
   if (e.key === 'Enter') { e.preventDefault(); ativar(); return; }
+  if (e.key === 'm' && zona === 'servicos') {   // as ações do streaming em foco (favorito, modo de controle, remover)
+    const it = zonaItens('servicos')[idx];
+    if (it && it.dataset.id) { e.preventDefault(); abrirAcoesServico(it.dataset.id); return; }
+  }
   if (e.key === 'Escape') {
     e.preventDefault();
-    if (zona === 'acoes') fecharAcoes();
+    if (zona === 'form') cancelarForm();
+    else if (zona === 'biblioteca') fecharBiblioteca();
+    else if (zona === 'acoes') fecharAcoes();
     else if (zona === 'folha') q('menu:sair');
     else if (vista === 'catalogo') { ativarAba('inicio'); zona = 'servicos'; idx = 0; marcar(); }
     return;
   }
   if (e.key === 'e' && vista === 'catalogo' && zona === 'grade') { e.preventDefault(); q('emma'); return; }
-  if (e.key === 'PageDown' && zona !== 'folha') { e.preventDefault(); trocarAbaPorTecla(1); return; }
-  if (e.key === 'PageUp' && zona !== 'folha') { e.preventDefault(); trocarAbaPorTecla(-1); return; }
+  if (e.key === 'PageDown' && !['folha', 'biblioteca', 'form', 'acoes'].includes(zona)) { e.preventDefault(); trocarAbaPorTecla(1); return; }
+  if (e.key === 'PageUp' && !['folha', 'biblioteca', 'form', 'acoes'].includes(zona)) { e.preventDefault(); trocarAbaPorTecla(-1); return; }
   if (itemAtual) {   // atalhos do cartão em foco
     const id = itemAtual.dataset.id, i = cat.itens.find((x) => x.id === id);
     if (i && e.key === 'f') { e.preventDefault(); mudarItem(id, 'favorito', i.favorito ? 0 : 1); }

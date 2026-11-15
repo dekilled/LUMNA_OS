@@ -43,6 +43,22 @@
     <div class="rodape-cat"><span><kbd>Enter</kbd> Abrir</span><span><kbd>F</kbd> Favoritar</span><span><kbd>W</kbd> Mais tarde</span><span><kbd>A</kbd> Assistido</span><span><kbd>M</kbd> Ações</span><span><kbd>E</kbd> Emma</span><span><kbd>Esc</kbd> Voltar</span></div>
   </section>
   <div id="btn-emma" class="btn-emma"><span class="gema">◆</span> Perguntar à Emma</div>
+  <section id="biblioteca" class="sobreposta" hidden>
+    <div class="caixa">
+      <h2>Adicionar streaming</h2><p class="sub">Escolha um serviço para colocar na sua lista, ou adicione outro site.</p>
+      <div class="bib-grade" id="bib-itens"></div>
+      <div class="rodape-cat"><span><kbd>Enter</kbd> Adicionar</span><span><kbd>Esc</kbd> Fechar</span></div>
+    </div>
+  </section>
+  <section id="form-site" class="sobreposta" hidden>
+    <div class="caixa estreita">
+      <h2>Outro site</h2><p class="sub">Qualquer site de vídeo que funcione no navegador.</p>
+      <input id="site-nome" type="text" placeholder="Nome (ex.: Minha TV)">
+      <input id="site-url" type="text" placeholder="Endereço (ex.: www.minhatv.com.br)">
+      <div class="form-botoes"><div id="site-ok" class="btn-form">Adicionar</div><div id="site-cancela" class="btn-form">Cancelar</div></div>
+      <p class="dica-form">Digite com o teclado (ou pelo celular: <b>lumna-navegador --adicionar "Nome" endereço</b>). O teclado na tela vem depois.</p>
+    </div>
+  </section>
   <div id="acoes" class="acoes" hidden><div id="acoes-itens"></div></div>
   <div id="aviso" class="aviso" hidden></div>
 
