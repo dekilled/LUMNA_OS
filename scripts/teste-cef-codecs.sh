@@ -67,19 +67,25 @@ echo "→ compilando o app de teste (1 a 2 minutos)…"
 run="$b/run"; mkdir -p "$run"; cp -r "$cef"/Release/* "$cef"/Resources/* "$run/"; cp "$b/obj/teste" "$b/src/pagina.html" "$b/src/teste.mp4" "$run/"
 cdm=""; for d in /opt/google/chrome/WidevineCdm "$HOME"/.config/google-chrome/WidevineCdm/* /usr/lib/chromium/WidevineCdm /opt/brave.com/brave/WidevineCdm; do
   [ -f "$d/_platform_specific/linux_x64/libwidevinecdm.so" ] && { cdm=$d; break; }; done
+# O CEF não usa --widevine-cdm-path: ele procura uma pasta WidevineCdm/ (com manifest.json e _platform_specific/linux_x64/libwidevinecdm.so) ao lado da libcef.so
+# ou, como componente, dentro do diretório de dados (cache) com o arquivo latest-component-updated-widevine-cdm. Copiamos nos dois lugares.
+export TESTE_OZONE=$ozone TESTE_CACHE="$b/cache" TESTE_LOG=1
+mkdir -p "$TESTE_CACHE"
+if [ -n "$cdm" ]; then
+  cdmver=$(grep -o '"version"[^,]*' "$cdm/manifest.json" | grep -o '[0-9][0-9.]*' | head -1)
+  cp -r "$cdm" "$run/WidevineCdm"
+  mkdir -p "$TESTE_CACHE/WidevineCdm/${cdmver:-0}" && cp -r "$cdm"/. "$TESTE_CACHE/WidevineCdm/${cdmver:-0}/"
+  printf '{"Path":"%s"}' "$TESTE_CACHE/WidevineCdm/${cdmver:-0}" > "$TESTE_CACHE/WidevineCdm/latest-component-updated-widevine-cdm"
+  echo "→ Widevine achado: $cdm (versão ${cdmver:-?}); copiado para a pasta do teste"
+else
+  echo "→ NENHUM Widevine encontrado (procurei em /opt/google/chrome, ~/.config/google-chrome, /usr/lib/chromium, /opt/brave.com). Com o Chrome instalado: ls /opt/google/chrome | grep -i widevine"
+fi
 # o Widevine (EME) não funciona em file://, então a página é servida por http://127.0.0.1 (só nesta máquina, enquanto o teste roda)
 porta=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1])" 2>/dev/null) || die "falta o python3 (para servir a página de teste)"
 ( cd "$run" && exec python3 -m http.server "$porta" --bind 127.0.0.1 >/dev/null 2>&1 ) & servidor=$!
 trap 'kill $servidor 2>/dev/null' EXIT; sleep 1
-export TESTE_OZONE=$ozone TESTE_URL="http://127.0.0.1:$porta/pagina.html" TESTE_CACHE="$b/cache"
+export TESTE_URL="http://127.0.0.1:$porta/pagina.html"
 [ $gpu = 1 ] && export TESTE_GPU=1; [ $manter = 1 ] && export TESTE_MANTER=1
-if [ -n "$cdm" ]; then
-  export TESTE_WIDEVINE="$cdm/_platform_specific/linux_x64/libwidevinecdm.so"
-  export TESTE_WIDEVINE_VER=$(grep -o '"version"[^,]*' "$cdm/manifest.json" | grep -o '[0-9][0-9.]*' | head -1)
-  echo "→ Widevine achado no seu Chrome/Chromium: $cdm (versão ${TESTE_WIDEVINE_VER:-?}); o teste vai tentar usá-lo"
-else
-  echo "→ nenhum Widevine encontrado no sistema (sem o Chrome instalado); o teste de DRM deve dar NAO, e isso é esperado"
-fi
 
 # --- 4. rodar --------------------------------------------------------------------------------------------------------------------------------------------
 echo "→ abrindo a janela de teste (ozone=$ozone, gpu=$gpu)…"; log="$b/saida.txt"
@@ -95,5 +101,8 @@ wait $testepid
 echo; echo "================ RESUMO ================"
 grep '^RESULTADO' "$log" | sed 's/^RESULTADO //' || echo "(a página não respondeu; veja $b/erros.txt)"
 echo "========================================"
+echo "--- o que o Chromium disse sobre o Widevine/CDM (cole também) ---"
+grep -i -E 'widevine|cdm' "$b/erros.txt" | grep -v -i 'dbus' | sed 's/^\[[0-9:\/.]*:\(INFO\|WARNING\|ERROR\|VERBOSE[0-9]*\)[:]*/[\1] /' | cut -c1-240 | head -25
+echo "--- WidevineCdm usado ---"; ls -la "$run/WidevineCdm" 2>&1 | head -6
 echo "Pasta do teste: $b   (saída completa em saida.txt, erros do CEF em erros.txt)"
 echo "Cole o RESUMO acima na conversa. Para limpar: rm -rf $tmp"

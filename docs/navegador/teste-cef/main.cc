@@ -55,6 +55,10 @@ class App : public CefApp, public CefBrowserProcessHandler {
     cl->AppendSwitch("no-sandbox");
     cl->AppendSwitch("no-first-run");
     cl->AppendSwitch("disable-dev-shm-usage");
+    if (getenv("TESTE_LOG")) {  // log do Chromium sobre o CDM/Widevine, para saber por que ele não carrega
+      cl->AppendSwitchWithValue("enable-logging", "stderr");
+      cl->AppendSwitchWithValue("vmodule", "*cdm*=2,*widevine*=2,*content_decryption*=2");
+    }
     if (const char* w = getenv("TESTE_WIDEVINE")) {  // caminho do libwidevinecdm.so
       cl->AppendSwitchWithValue("widevine-cdm-path", w);
       if (const char* ver = getenv("TESTE_WIDEVINE_VER")) cl->AppendSwitchWithValue("widevine-cdm-version", ver);
