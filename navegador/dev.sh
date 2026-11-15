@@ -11,4 +11,5 @@ cp -r "$CEF_ROOT"/Release/* "$CEF_ROOT"/Resources/* "$stage/"
 cp "$aqui/build/lumna-navegador" "$stage/.novo" && mv -f "$stage/.novo" "$stage/lumna-navegador"   # troca atômica: funciona mesmo com o app aberto
 rm -rf "$stage/ui"; cp -r "$aqui/ui" "$stage/ui"
 echo "pronto: $stage/lumna-navegador"
-[ "${1:-}" = compilar ] || exec "$stage/lumna-navegador"
+[ "${1:-}" = compilar ] && exit 0
+cd "$stage" && exec ./lumna-navegador

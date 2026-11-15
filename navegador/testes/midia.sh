@@ -23,7 +23,8 @@ sock=$(ls "$run"/orbit.*.sock | head -1); W=$(ls "$run" | grep -m1 '^wayland-[0-
 msg() { ./orbit-msg -s "$sock" "$@"; }
 tecla() { msg tecla_falsa 0 "$@" >/dev/null; }
 foto() { command -v grim >/dev/null && WAYLAND_DISPLAY=$W grim "$run/$1.png" 2>/dev/null; }
-cd "$stage" && DISPLAY=$D LUMNA_NAV_DEBUG=1 LUMNA_NAV_SEM_GPU=1 LUMNA_NAV_DADOS="$run/dados" LUMNA_NAV_SERVICOS="$run/servicos.json" ./lumna-navegador >"$run/nav.log" 2>&1 & nav=$!
+# aberto de OUTRA pasta (não a do executável): garante que a libcef.so e o icudtl.dat sejam achados ao lado do executável ($ORIGIN)
+cd "$run" && DISPLAY=$D LUMNA_NAV_DEBUG=1 LUMNA_NAV_SEM_GPU=1 LUMNA_NAV_DADOS="$run/dados" LUMNA_NAV_SERVICOS="$run/servicos.json" "$stage/lumna-navegador" >"$run/nav.log" 2>&1 & nav=$!
 ok=1; falha() { echo "FALHOU: $1" >&2; ok=0; }
 conta() { grep -a -c "$1" "$run/nav.log"; }
 espera() { i=0; while [ "$(conta "$1")" -lt "${3:-1}" ] && [ $i -lt $((${2:-10} * 5)) ]; do sleep 0.2; i=$((i + 1)); done; [ "$(conta "$1")" -ge "${3:-1}" ]; }

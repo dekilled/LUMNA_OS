@@ -1,4 +1,6 @@
 // Navegador do LUMNA: processo principal e ganchos do CEF.
+#include <unistd.h>
+
 #include <cstdlib>
 #include <string>
 
@@ -12,6 +14,16 @@ namespace {
 std::string Env(const char* nome, const char* padrao) {
   const char* v = getenv(nome);
   return (v && *v) ? v : padrao;
+}
+
+// pasta do executável (é onde ficam libcef.so, icudtl.dat, os .pak e a interface)
+std::string ExeDir() {
+  char b[4096];
+  ssize_t n = readlink("/proc/self/exe", b, sizeof b - 1);
+  if (n <= 0) return ".";
+  b[n] = 0;
+  std::string s = b;
+  return s.substr(0, s.rfind('/'));
 }
 
 class App : public CefApp, public CefBrowserProcessHandler, public CefRenderProcessHandler {
@@ -56,6 +68,7 @@ class App : public CefApp, public CefBrowserProcessHandler, public CefRenderProc
 }  // namespace
 
 int main(int argc, char** argv) {
+  const std::string aqui = ExeDir();
   CefMainArgs args(argc, argv);
   CefRefPtr<App> app(new App);
   int codigo = CefExecuteProcess(args, app, nullptr);
@@ -71,6 +84,8 @@ int main(int argc, char** argv) {
   CefString(&s.root_cache_path) = dados + "/perfil";
   CefString(&s.cache_path) = dados + "/perfil";
   CefString(&s.locale) = "pt-BR";
+  CefString(&s.resources_dir_path) = aqui;
+  CefString(&s.locales_dir_path) = aqui + "/locales";
   if (!CefInitialize(args, s, app, nullptr)) return 1;
   CefRunMessageLoop();
   CefShutdown();

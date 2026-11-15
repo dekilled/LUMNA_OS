@@ -12,4 +12,12 @@ ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
 add_executable(lumna-navegador src/main.cc src/midia.cc)
 SET_EXECUTABLE_TARGET_PROPERTIES(lumna-navegador)
 add_dependencies(lumna-navegador libcef_dll_wrapper)
+# A libcef.so e os recursos (icudtl.dat, .pak) têm de ser os que estão AO LADO do executável (a pasta stage/instalada), nunca os da pasta do CEF
+# de origem: sem isto o CMake grava o caminho de build como RUNPATH e, aberto de outra pasta, o app carrega a libcef.so de lá e morre com
+# "Invalid file descriptor to ICU data" (o icudtl.dat fica em Resources/, não em Release/).
+set_target_properties(lumna-navegador PROPERTIES BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "$ORIGIN")
+# o CEF também manda "-rpath ." (pasta ATUAL) nas flags do alvo: perigoso (carregaria uma libcef.so de quem estiver na pasta onde o app foi aberto)
+get_target_property(_flags lumna-navegador LINK_FLAGS)
+string(REPLACE "-Wl,-rpath,." "" _flags "${_flags}")
+set_target_properties(lumna-navegador PROPERTIES LINK_FLAGS "${_flags}")
 target_link_libraries(lumna-navegador libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS})
