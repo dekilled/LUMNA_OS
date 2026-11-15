@@ -119,3 +119,17 @@ Procurei um CEF pronto com os codecs. O único que achei foi o [`psmux/godwinmix
 O Eric instalou o Chrome (`/opt/google/chrome/WidevineCdm` existe: `LICENSE manifest.json _platform_specific`) e o resultado continuou `NotSupportedError`. A causa era do **script**, não do CEF: ele passava `--widevine-cdm-path`/`--widevine-cdm-version`, e essas strings **não existem** na `libcef.so` (conferido nos dois CEFs; o suporte a Widevine em si está compilado: `com.widevine.alpha` e o componente do CDM estão lá). O CEF/Chromium procura uma **pasta `WidevineCdm/`** (manifest.json + `_platform_specific/linux_x64/libwidevinecdm.so`) ao lado da `libcef.so`, ou como componente dentro do diretório de dados, com o arquivo `latest-component-updated-widevine-cdm`.
 
 O script agora copia a pasta nos dois lugares e liga o log do CDM. **Validado no container com um CDM falso** (uma `.so` vazia no lugar do Chrome): o log do Chromium mostra `Registering hinted Widevine 4.10.9999.0` (`cdm_registration.cc`) e `Updating hint file with Widevine CDM` (o componente), ou seja, o local certo é achado. Com o CDM falso o resultado continua `NAO`, como deve. **Ainda não se sabe** se o CDM *real* carrega e se um serviço (Netflix etc.) o aceita neste navegador.
+
+### Widevine funciona: resultado do Eric (2026-11-15)
+
+Com a pasta `WidevineCdm/` do Chrome (`/opt/google/chrome/WidevineCdm`) copiada para o lado da `libcef.so`: **`widevine = SIM`** (`requestMediaKeySystemAccess` + `createMediaKeys` passaram) com robustez `SW_SECURE_DECODE` (o nível de software, L3). Junto com H.264/AAC tocando, **a base técnica do navegador está provada: CEF + codecs + Widevine rodam no LUMNA.**
+
+**O que ainda não está provado:** um serviço real aceitar o navegador. `SIM` quer dizer que o CDM carrega e cria chaves; Netflix/Disney+/Spotify podem ainda exigir outras coisas (user-agent, resolução máxima em L3, verificações próprias). Teste: `bash scripts/teste-cef-codecs.sh --url https://shaka-player-demo.appspot.com` (abre o site depois do teste), depois o serviço de verdade.
+
+**Como entregar o CDM (a parte jurídica, que decide o projeto).** O CDM é binário da Google, com licença própria que **não permite redistribuir** sem acordo. Caminhos, do mais simples ao mais formal:
+1. **Só no PC do Eric, apontando para o Chrome instalado** (o que o teste faz). Funciona já; serve para desenvolver.
+2. **Não distribuir o CDM; baixar na máquina do usuário** (o modelo do AUR `chromium-widevine` e de scripts de Debian): um auxiliar do LUMNA, no primeiro uso, baixa o pacote oficial do Chrome da Google na máquina do usuário e extrai só a pasta `WidevineCdm/`. A ISO não carrega o binário. É uma prática comum, mas é uma zona cinzenta: o ideal é o usuário aceitar os termos da Google no auxiliar, e isso vale uma checagem jurídica antes de publicar a ISO.
+3. **Acordo formal**: ser licenciado pela Google (o programa do Widevine; é como Chrome/Brave/Edge/Firefox fazem) ou usar um intermediário. A **castlabs** vende um **Electron** com Widevine licenciado e assinado (ECS); é uma base **Electron, não CEF**, então trocaria o plano (a interface sairia em HTML/JS dentro do Electron). Fica como plano B, não é um atalho.
+4. **Colocar o CDM dentro da ISO** funcionaria tecnicamente, mas é redistribuir, então só serve para uso pessoal, nunca para a ISO pública.
+
+Recomendação: **2 para o LUMNA público** (com a checagem jurídica), 1 enquanto se desenvolve, 3 só se o projeto crescer a ponto de valer o acordo.

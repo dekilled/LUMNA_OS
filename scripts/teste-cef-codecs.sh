@@ -7,14 +7,15 @@
 #   --wayland  usa o Wayland nativo (Ozone) em vez do XWayland/X11 (o padrão)
 #   --gpu      liga a GPU (o padrão do teste é sem GPU, que é o mais compatível)
 #   --manter   deixa a janela aberta no fim, para você olhar; feche com Ctrl+C
+#   --url URL  depois do teste, abre esse site na janela (e deixa aberta): para testar um serviço de verdade, ex.: --url https://shaka-player-demo.appspot.com
 #   --oficial  usa o CEF oficial da Spotify (sem codecs), para comparar: o H.264 DEVE falhar nele
 # Precisa de: bash, curl, tar+bzip2, cmake, ninja (ou make), g++, e os headers do X11 e do GTK3 (Arch: sudo pacman -S --needed base-devel cmake ninja libx11 gtk3).
 # Rode dentro de uma sessão gráfica (no LUMNA, no Orbit, com o XWayland ligado).
 set -u
 aqui=$(cd "$(dirname "$0")" && pwd); fonte="$aqui/../docs/navegador/teste-cef"
 tmp=${LUMNA_CEF_TESTE:-$HOME/.cache/lumna-cef-teste}
-ozone=x11; gpu=0; manter=0; oficial=0
-for a in "$@"; do case $a in --wayland) ozone=wayland;; --gpu) gpu=1;; --manter) manter=1;; --oficial) oficial=1;; -h|--help) sed -n 2,13p "$0"; exit 0;; *) echo "opção desconhecida: $a"; exit 2;; esac; done
+ozone=x11; gpu=0; manter=0; oficial=0; url=""
+while [ $# -gt 0 ]; do a=$1; shift; case $a in --wayland) ozone=wayland;; --gpu) gpu=1;; --manter) manter=1;; --oficial) oficial=1;; --url) url=${1:-}; [ -n "$url" ] || { echo "--url precisa de um endereço"; exit 2; }; shift;; -h|--help) sed -n 2,13p "$0"; exit 0;; *) echo "opção desconhecida: $a"; exit 2;; esac; done
 
 die() { echo "ERRO: $*" >&2; exit 1; }
 for c in curl tar cmake g++; do command -v $c >/dev/null || die "falta o comando '$c'"; done
@@ -106,3 +107,7 @@ grep -i -E 'widevine|cdm' "$b/erros.txt" | grep -v -i 'dbus' | sed 's/^\[[0-9:\/
 echo "--- WidevineCdm usado ---"; ls -la "$run/WidevineCdm" 2>&1 | head -6
 echo "Pasta do teste: $b   (saída completa em saida.txt, erros do CEF em erros.txt)"
 echo "Cole o RESUMO acima na conversa. Para limpar: rm -rf $tmp"
+if [ -n "$url" ]; then
+  echo; echo "→ abrindo $url (feche a janela para terminar). Se o site pedir login, o perfil fica em $b/cache."
+  ( cd "$run" && TESTE_MANTER=1 TESTE_URL="$url" ./teste 2>>"$b/erros.txt" )
+fi
