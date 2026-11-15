@@ -33,3 +33,13 @@ body.menu main, body.menu .topo { visibility:hidden; }
 .folha .tile { max-width:none; height:11vh; flex-direction:column; font-size:2.6vh; } .folha .tile small { position:static; margin-top:.6vh; font-size:1.5vh; }
 .folha .tile .sub-retomar { color:#b9aeff; }
 .ajuda { margin-top:auto; display:flex; justify-content:center; gap:3vw; color:var(--suave); font-size:1.9vh; } kbd { border:1px solid var(--borda); border-radius:6px; padding:1px 8px; margin-right:6px; background:var(--painel); color:var(--texto); }
+
+/* fora do início (um serviço aberto, ou o menu): fundo escuro liso, e o início fica escondido atrás das transições */
+body.servico { background:var(--fundo); }
+body.servico main, body.servico .topo { visibility:hidden; }
+/* o print do site, animado de um tamanho ao outro enquanto o site de verdade espera (ver Transicao no midia.cc) */
+.anim { position:fixed; display:none; z-index:50; overflow:hidden; background:#000 center top/cover no-repeat; will-change:left,top,width,height; }
+.anim.splash { background:radial-gradient(900px 500px at 70% 10%, rgba(139,123,255,.35), transparent 60%), linear-gradient(180deg,#14111f,#0b0b12); display:none; place-items:center; }
+.anim.splash span { font-size:6vh; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--texto); }
+.anim.splash i { position:absolute; bottom:12%; width:5vh; height:5vh; border-radius:50%; border:3px solid rgba(255,255,255,.18); border-top-color:var(--acento); animation:gira 0.9s linear infinite; }
+@keyframes gira { to { transform:rotate(360deg); } }

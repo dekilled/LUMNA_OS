@@ -257,3 +257,7 @@ Código em [`navegador/`](../navegador/README.md) (C++ + HTML/CSS/JS, `navegador
 ### Pendente: "flicks" na animação do shrink (relato do Eric)
 
 No PC do Eric (com GPU), no meio da animação o site aparece no canto superior esquerdo com o tamanho antigo e o resto escuro, e só depois vai para a tela cheia. **Não reproduzido no container** (software, sem GPU): a hipótese (não confirmada) é que redimensionar uma página pesada (Disney+) a cada 16 ms faz o renderizador não acompanhar. Teste de A/B para o Eric: `LUMNA_NAV_SEM_ANIMACAO=1` (se os flicks somem, é a animação). Se for isso, a solução provável é animar uma **imagem** (o print) na interface e só redimensionar o site de verdade no começo e no fim.
+
+### Flick da animação: resolvido com animação por imagem (2026-11-15)
+
+O Eric confirmou no PC (com GPU): **sem animação o site cresce e diminui sem flick**; então o culpado era redimensionar a página a cada quadro. **Solução** (padrão agora): a interface anima um **print** do site e o site de verdade só é redimensionado **uma vez**, no fim. Valida no container (sem GPU): a transição leva ~0,5 s e os quadros intermediários mostram a imagem encolhendo enquanto o menu sobe; o vídeo continua tocando depois do esconde-e-mostra. **Não verificado em GPU:** se fica fluida no PC do Eric (é o que ele vai dizer). Saídas: `LUMNA_NAV_SEM_ANIMACAO=1` (instantâneo, sabidamente limpo) e `LUMNA_NAV_ANIMACAO=real` (o antigo). Teste automático: `navegador/testes/midia.sh` passa nos modos imagem e instantâneo.

@@ -76,15 +76,37 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); marcar();
 });
 
+// A transição do site (ver Transicao no midia.cc): mostra o print no lugar do site, avisa o C++ para tirar o site da frente, anima e avisa de novo.
+const anim = $('anim');
+const pct = (r) => ({ left: r.x * 100 + '%', top: r.y * 100 + '%', width: r.w * 100 + '%', height: r.h * 100 + '%' });
+// (não usa requestAnimationFrame: com o site por cima, o navegador suspende o rAF da interface que está por baixo)
+const quadro = (ms = 60) => new Promise((ok) => setTimeout(ok, ms));
+async function animar(o) {
+  anim.className = 'anim' + (o.src ? '' : ' splash');
+  anim.style.backgroundImage = o.src ? `url("${o.src}")` : '';
+  anim.innerHTML = o.src ? '' : `<span>${esc(o.nome)}</span><i></i>`;
+  anim.style.transition = 'none';
+  Object.assign(anim.style, pct(o.de));
+  anim.style.display = o.src ? 'block' : 'grid';
+  await quadro(80);                     // o print precisa estar PINTADO antes de o site sair da frente (senão pisca)
+  await q('anim:oculta:' + o.id);
+  await quadro(60);
+  anim.style.transition = ['left', 'top', 'width', 'height'].map((p) => `${p} ${o.ms}ms cubic-bezier(.2,.8,.2,1)`).join(',');
+  Object.assign(anim.style, pct(o.para));
+  await new Promise((ok) => setTimeout(ok, o.ms + 40));
+  await q('anim:fim:' + o.id);                  // o C++ põe o site no tamanho final (quando a página também já carregou) e depois manda sumir o print
+}
+
 window.lumna = {
+  anim(o) { animar(o).catch((e) => console.log('erro na animação: ' + e)); },
+  animSumir() { anim.style.display = 'none'; anim.style.transition = 'none'; anim.innerHTML = ''; },
   menu(ligado, ativo) {
-    document.body.classList.toggle('menu', ligado);
-    document.body.classList.toggle('inicio', !ligado);
+    document.body.className = ligado ? 'menu' : 'servico';
     $('folha').setAttribute('aria-hidden', String(!ligado));
     if (ligado) { q('estado').then((r) => { estado = JSON.parse(r); zona = 'folha'; desenharFolha(ativo); }); }
     else if (zona === 'folha') { zona = 'servicos'; idx = 0; marcar(); }
   },
-  recarregar() { q('estado').then((r) => { estado = JSON.parse(r); zona = 'servicos'; idx = 0; desenhar(); }); },
+  recarregar() { document.body.className = 'inicio'; q('estado').then((r) => { estado = JSON.parse(r); zona = 'servicos'; idx = 0; desenhar(); }); },
 };
 
 const hora = () => { $('relogio').textContent = new Date().toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };

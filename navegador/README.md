@@ -20,7 +20,7 @@ O Widevine é baixado pelo próprio CEF na primeira vez (de 1 a 3 minutos, depoi
 | **Alt+Home** | volta ao início |
 
 ## Variáveis de ambiente
-`LUMNA_NAV_DADOS` (pasta de dados), `LUMNA_NAV_SERVICOS` (JSON `[{"id","nome","url"}]` com outra lista de serviços), `LUMNA_NAV_TELA_CHEIA=1`, `LUMNA_NAV_OZONE=wayland` (padrão: x11), `LUMNA_NAV_SEM_GPU=1`, `LUMNA_NAV_DEBUG=1` (log `NAV ...` no terminal), `LUMNA_NAV_SEM_ANIMACAO=1` (o site pula direto ao tamanho final, sem animar: serve para ver se os "flicks" vêm da animação), `LUMNA_NAV_LARGURA/ALTURA`, `LUMNA_NAV_UI`.
+`LUMNA_NAV_DADOS` (pasta de dados), `LUMNA_NAV_SERVICOS` (JSON `[{"id","nome","url"}]` com outra lista de serviços), `LUMNA_NAV_TELA_CHEIA=1`, `LUMNA_NAV_OZONE=wayland` (padrão: x11), `LUMNA_NAV_SEM_GPU=1`, `LUMNA_NAV_DEBUG=1` (log `NAV ...` no terminal), `LUMNA_NAV_SEM_ANIMACAO=1` (o site pula direto ao tamanho final, sem animar), `LUMNA_NAV_ANIMACAO=real` (o jeito antigo: redimensiona o site a cada quadro; dá flick em páginas pesadas), `LUMNA_NAV_LARGURA/ALTURA`, `LUMNA_NAV_UI`.
 
 ## Teste automático
 `sh navegador/testes/midia.sh <pasta do orbit> navegador/build/stage` (Orbit sem tela + XWayland; só pelo teclado).
@@ -32,3 +32,6 @@ O Widevine é baixado pelo próprio CEF na primeira vez (de 1 a 3 minutos, depoi
 
 ## Se algo ficar errado nos "Continuar assistindo"
 Os dados da Mídia ficam em `~/.local/share/lumna/navegador/`: `midia.json` e `thumbs/` (o que a Mídia guarda) e `perfil/` (o navegador em si: **logins e cookies**, não apague). Para recomeçar só o "Continuar assistindo": `rm -rf ~/.local/share/lumna/navegador/midia.json ~/.local/share/lumna/navegador/thumbs`.
+
+## A animação do site (por que é assim)
+Redimensionar a página de um serviço a cada quadro (60 vezes por segundo) faz o renderizador refazer o layout toda vez e dá **flick** em páginas pesadas (Disney+). Redimensionar **uma vez** (instantâneo) é limpo. Por isso, no modo padrão ("imagem"), o site de verdade **não é redimensionado durante a animação**: a interface mostra um **print** dele e o anima com CSS (leve), o site fica **escondido** (`SetVisible(false)`) e, no fim, é colocado no tamanho final de uma vez. Ao trocar de serviço, a tela de carregamento (o último print do serviço, ou um cartão com o nome) fica até a página nova carregar. Descobertas: (1) só escondido o site deixa a interface por baixo rodar normal: com o site **visível por cima, mesmo fora da tela**, o navegador atrasa os temporizadores da interface para 1 s e suspende o `requestAnimationFrame`; (2) cada transição tem um número, e avisos de uma transição cancelada são ignorados; (3) o F2 cancela a espera de uma página que demora, para nunca prender o usuário.

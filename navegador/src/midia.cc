@@ -167,6 +167,10 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     ui_ = Env("LUMNA_NAV_UI", (ExeDir() + "/ui/midia").c_str());
     servicos_ = CarregaServicos();
     CarregaSalvos();
+    // Como o site muda de tamanho: "imagem" (padrão) anima um print na interface e só redimensiona o site UMA vez, no fim (o site redimensionado a
+    // cada quadro, ao vivo, dá flick em páginas pesadas); "instante" pula direto ao tamanho final; "real" redimensiona o site a cada quadro.
+    if (getenv("LUMNA_NAV_SEM_ANIMACAO")) modo_ = ModoAnim::kInstante;
+    else if (Env("LUMNA_NAV_ANIMACAO") == "real") modo_ = ModoAnim::kReal;
   }
 
   void Iniciar();  // cria a janela
@@ -180,6 +184,12 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     if (window_ && estado_ != Estado::kInicio && !t.empty()) window_->SetTitle(t);
   }
   CefRefPtr<CefMessageRouterBrowserSide> roteador() { return roteador_; }
+  void SiteCarregou(const std::string& url) {  // a página do serviço terminou de carregar (ou deu erro): se a transição esperava por ela, termina
+    if (!esperando_carga_ || carregou_) return;
+    if (!ignora_url_.empty() && url == ignora_url_) return;  // o fim de carga da página ANTERIOR não conta
+    carregou_ = true;
+    TentaFinalizar();
+  }
 
   // ----- janela (CefWindowDelegate)
   void OnWindowCreated(CefRefPtr<CefWindow> w) override;
@@ -289,7 +299,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   void Aplicar() {
     if (!window_ || !shell_) return;
     shell_->SetBounds(Cheio());
-    if (conteudo_ && !animando_) conteudo_->SetBounds(Alvo());
+    if (conteudo_ && !animando_ && !ocupado_) conteudo_->SetBounds(Alvo());
   }
   void Animar(CefRect de, CefRect para, int ms = 320) {
     anim_de_ = de; anim_para_ = para; anim_ms_ = getenv("LUMNA_NAV_SEM_ANIMACAO") ? 1 : ms;
@@ -298,6 +308,20 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     anim_geracao_++;
   }
   void Passo();
+
+  // --- transição do site (ver Transicao)
+  enum class ModoAnim { kImagem, kInstante, kReal };
+  void Transicao(CefRect de, CefRect para, const std::string& imagem_b64, const std::string& nome, bool esperar_carga);
+  void TentaFinalizar();
+  void CancelaTransicao();
+  void Finalizar();
+  std::string DataUrl(const void* dados, size_t n) const { return "data:image/jpeg;base64," + CefBase64Encode(dados, n).ToString(); }
+  std::string FracaoJSON(const CefRect& r) const {
+    CefRect c = Cheio();
+    char b[200];
+    snprintf(b, sizeof b, "{\"x\":%.5f,\"y\":%.5f,\"w\":%.5f,\"h\":%.5f}", double(r.x) / c.width, double(r.y) / c.height, double(r.width) / c.width, double(r.height) / c.height);
+    return b;
+  }
 
   // --- ações
   void ShellJS(const std::string& js) {
@@ -335,6 +359,11 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   Estado estado_ = Estado::kInicio;
   // animação
   bool animando_ = false;
+  ModoAnim modo_ = ModoAnim::kImagem;
+  bool ocupado_ = false, esperando_carga_ = false, carregou_ = true, fim_js_ = false;
+  int trans_gen_ = 0;
+  CefRect destino_;
+  std::string ignora_url_;
   int anim_geracao_ = 0, anim_ms_ = 320;
   CefRect anim_de_, anim_para_;
   std::chrono::steady_clock::time_point anim_t0_;
@@ -406,9 +435,11 @@ class Cliente : public CefClient, public CefLifeSpanHandler, public CefRequestHa
   CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
   CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
   void OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> f, int code) override {
+    if (!shell_ && f->IsMain()) m_->SiteCarregou(f->GetURL());
     if (f->IsMain()) Log(std::string(shell_ ? "shell" : "site") + " carregou " + f->GetURL().ToString() + " (" + std::to_string(code) + ")");
   }
   void OnLoadError(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> f, ErrorCode e, const CefString& txt, const CefString& url) override {
+    if (!shell_ && f->IsMain() && e != ERR_ABORTED) m_->SiteCarregou(url);
     Log(std::string(shell_ ? "shell" : "site") + " ERRO " + std::to_string(e) + " " + txt.ToString() + " " + url.ToString());
   }
 
@@ -561,45 +592,112 @@ void Midia::Guardar() {
   Log("guardado " + ativo_ + " " + s.url);
 }
 
+// Muda o tamanho/posição do site de `de` para `para`. No modo "imagem" (padrão) o site de verdade NÃO é redimensionado a cada quadro: a interface
+// (shell, por baixo do site) mostra um print no lugar dele e o anima com CSS; quando o print está pintado o site sai da frente (fica fora da
+// tela, sem mudar de tamanho) e, no fim da animação (e, se `esperar_carga`, quando a página terminou de carregar), ele é colocado no tamanho final
+// de uma vez só. O print vazio = um cartão com o nome do serviço (a tela de carregamento).
+void Midia::Transicao(CefRect de, CefRect para, const std::string& imagem_b64, const std::string& nome, bool esperar_carga) {
+  ++trans_gen_;
+  fim_js_ = false;
+  destino_ = para;
+  if (modo_ == ModoAnim::kInstante || (modo_ == ModoAnim::kImagem && imagem_b64.empty() && !esperar_carga)) {
+    ocupado_ = false;
+    conteudo_->SetVisible(true);
+    conteudo_->SetBounds(para);
+    Log("site final " + std::to_string(para.x) + "," + std::to_string(para.y) + " " + std::to_string(para.width) + "x" + std::to_string(para.height));
+    if (estado_ == Estado::kMenu) shell_->RequestFocus(); else conteudo_->RequestFocus();
+    return;
+  }
+  if (modo_ == ModoAnim::kReal) {
+    ocupado_ = false;
+    conteudo_->SetVisible(true);
+    conteudo_->SetBounds(de);
+    Animar(de, para);
+    conteudo_->RequestFocus();
+    return;
+  }
+  ocupado_ = true;
+  esperando_carga_ = esperar_carga;
+  if (!esperar_carga) carregou_ = true;
+  ShellJS("lumna.anim({id:" + std::to_string(trans_gen_) + ",src:" + J(imagem_b64) + ",nome:" + J(nome) + ",de:" + FracaoJSON(de) + ",para:" + FracaoJSON(para) + ",ms:320})");
+  int gen = trans_gen_;  // se a interface não responder (ou a página nunca carregar), não trava: termina sozinho
+  CefPostDelayedTask(TID_UI, new FuncTask([this, gen]() {
+    if (gen == trans_gen_ && ocupado_) { Log("transição demorou; terminando"); carregou_ = fim_js_ = true; Finalizar(); }
+  }), esperar_carga ? 12000 : 3000);
+}
+
+// Abandona uma transição em andamento (ex.: o usuário abre o menu enquanto o serviço novo ainda carrega): o site volta, cheio, e o print some.
+void Midia::CancelaTransicao() {
+  ++trans_gen_;
+  ocupado_ = esperando_carga_ = false;
+  ShellJS("lumna.animSumir()");
+  conteudo_->SetBounds(Cheio());
+  conteudo_->SetVisible(true);
+}
+
+void Midia::TentaFinalizar() {
+  if (!ocupado_ || !fim_js_ || (esperando_carga_ && !carregou_)) return;
+  Finalizar();
+}
+
+void Midia::Finalizar() {
+  ocupado_ = false;
+  esperando_carga_ = false;
+  conteudo_->SetBounds(destino_);
+  conteudo_->SetVisible(true);
+  Log("site final " + std::to_string(destino_.x) + "," + std::to_string(destino_.y) + " " + std::to_string(destino_.width) + "x" + std::to_string(destino_.height));
+  if (estado_ == Estado::kMenu) shell_->RequestFocus(); else conteudo_->RequestFocus();
+  CefPostDelayedTask(TID_UI, new FuncTask([this]() { ShellJS("lumna.animSumir()"); }), 120);  // o print só some depois de o site pintar
+}
+
 void Midia::AbrirServico(const std::string& id, const std::string& url) {
   bool vinha_do_menu = estado_ == Estado::kMenu;
   ativo_ = id;
   Mudar(Estado::kServico);
   CefRect de = vinha_do_menu ? Encolhido() : Cheio();
+  carregou_ = false;
+  ignora_url_.clear();
   if (conteudo_->GetBrowser()) {
-    conteudo_->GetBrowser()->GetMainFrame()->LoadURL(url);
+    auto frame = conteudo_->GetBrowser()->GetMainFrame();
+    std::string antes = frame->GetURL();
+    if (antes != url) ignora_url_ = antes;
+    frame->LoadURL(url);
   } else {
     Log("aviso: a visão do site ainda não tem navegador; endereço perdido: " + url);
   }
-  conteudo_->SetVisible(true);
-  conteudo_->SetBounds(de);
-  Log("site limites " + std::to_string(de.x) + "," + std::to_string(de.y) + " " + std::to_string(de.width) + "x" + std::to_string(de.height) +
-      (conteudo_->GetBrowser() ? " com navegador" : " SEM navegador"));
-  Animar(de, Cheio());
   ShellJS("lumna.menu(false)");
-  conteudo_->RequestFocus();
-  if (const Servico* s = Acha(id)) window_->SetTitle(s->nome);
+  const Servico* sv = Acha(id);
+  std::string img;  // a tela de carregamento: o último print deste serviço, se houver; senão um cartão com o nome
+  auto it = salvos_.find(id);
+  if (it != salvos_.end() && !it->second.thumb.empty()) {
+    std::string bytes = LerArquivo(dados_ + "/" + it->second.thumb);
+    if (!bytes.empty()) img = DataUrl(bytes.data(), bytes.size());
+  }
+  Transicao(de, Cheio(), img, sv ? sv->nome : id, true);
+  if (sv) window_->SetTitle(sv->nome);
 }
 
 void Midia::AbrirMenu() {
-  if (estado_ != Estado::kServico) return;
-  Capturar();
+  if (ocupado_ && esperando_carga_) CancelaTransicao();  // não prende o usuário numa página que demora (ou travou): o menu sempre abre
+  if (estado_ != Estado::kServico || ocupado_) return;
+  ocupado_ = true;  // a captura é assíncrona: ignora teclas até a transição acabar
   Mudar(Estado::kMenu);
-  Animar(conteudo_->GetBounds(), Encolhido());
-  ShellJS("lumna.menu(true," + J(ativo_) + ")");
-  shell_->RequestFocus();
+  Capturar([this]() {
+    ShellJS("lumna.menu(true," + J(ativo_) + ")");
+    shell_->RequestFocus();
+    Transicao(Cheio(), Encolhido(), thumb_.empty() ? "" : DataUrl(thumb_.data(), thumb_.size()), "", false);
+  });
 }
 
 void Midia::FecharMenu() {
-  if (estado_ != Estado::kMenu) return;
+  if (estado_ != Estado::kMenu || ocupado_) return;
   Mudar(Estado::kServico);
-  Animar(conteudo_->GetBounds(), Cheio());
   ShellJS("lumna.menu(false)");
-  conteudo_->RequestFocus();
+  Transicao(Encolhido(), Cheio(), thumb_.empty() ? "" : DataUrl(thumb_.data(), thumb_.size()), "", false);  // o print do momento em que o menu abriu
 }
 
 void Midia::Trocar(const std::string& id) {
-  if (estado_ != Estado::kMenu) return;
+  if (estado_ != Estado::kMenu || ocupado_) return;
   if (id == ativo_) { FecharMenu(); return; }  // o serviço "em uso": só volta ao vídeo
   Guardar();
   const Servico* s = Acha(id);
@@ -624,7 +722,12 @@ void Midia::IrParaInicio() {
   bool do_menu = estado_ == Estado::kMenu;
   Mudar(Estado::kInicio);
   window_->SetTitle("LUMNA Mídia");
-  Animar(conteudo_->GetBounds(), do_menu ? Encolhido() : Cheio(), 1);  // some na hora; o shell mostra o início
+  (void)do_menu;
+  ++trans_gen_;  // cancela qualquer transição em andamento: o site some na hora e o shell mostra o início
+  ocupado_ = esperando_carga_ = false;
+  ShellJS("lumna.animSumir()");
+  conteudo_->SetBounds(Cheio());
+  conteudo_->SetVisible(false);
   ShellJS("lumna.menu(false);lumna.recarregar()");
   shell_->RequestFocus();
 }
@@ -636,6 +739,17 @@ bool Midia::OnQuery(CefRefPtr<CefBrowser> b, CefRefPtr<CefFrame> f, int64_t, con
   Log("pedido " + r);
   if (r == "estado") { cb->Success(EstadoJSON()); return true; }
   if (r == "menu:sair") { FecharMenu(); cb->Success("ok"); return true; }
+  // avisos da animação da interface; cada transição tem um número, e o aviso de uma transição já cancelada/trocada é ignorado
+  if (r.rfind("anim:oculta:", 0) == 0 || r.rfind("anim:fim:", 0) == 0) {
+    bool oculta = r[5] == 'o';
+    int id = std::atoi(r.substr(r.rfind(':') + 1).c_str());
+    if (id == trans_gen_ && ocupado_ && conteudo_) {
+      if (oculta) conteudo_->SetVisible(false);  // o print já está pintado: o site sai da frente (escondido; só fora da tela, o navegador atrasa a interface)
+      else { fim_js_ = true; TentaFinalizar(); }
+    }
+    cb->Success("ok");
+    return true;
+  }
   if (r == "inicio") {
     if (estado_ == Estado::kMenu || estado_ == Estado::kServico) Inicio();
     cb->Success("ok");
