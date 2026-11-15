@@ -31,7 +31,7 @@ O controle vem do serviço **`lumna-gamepad`**, que o navegador assina (`assinar
 | **Select** | vai ao início | idem |
 | Guia | é do sistema (`guia=` em `gamepad.ini`: use `nada` para ele não abrir o LUMNA Jogos por cima) | idem |
 
-Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (nas bordas fica a moldura invisível de redimensionar, e clicar ali arrasta a janela; a página nem recebe o ponteiro); a rolagem do Orbit (`mouse rolar`) vale ~1 px a cada 15 unidades (calibrado); o analógico segurado parado não gera evento, então o navegador guarda o último valor e continua andando a 60 Hz; no site o analógico esquerdo **só** move o ponteiro (as setas vêm só do direcional: o serviço marca cada direção com `analogico: true|false`). O direcional segurado repete (400 ms, depois a cada 110 ms).
+Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (nas bordas fica a moldura invisível de redimensionar, e clicar ali arrasta a janela; a página nem recebe o ponteiro); a rolagem do Orbit (`mouse rolar`) vale ~1 px a cada 15 unidades (calibrado); o analógico segurado parado não gera evento, então o navegador guarda o último valor e continua andando a 60 Hz; no site o analógico esquerdo **só** move o ponteiro (as setas vêm só do direcional: o serviço marca cada direção com `analogico: true|false`). O direcional segurado repete (400 ms, depois a cada 110 ms). Na interface o **analógico vale por um eixo só, o dominante** (um analógico de verdade nunca é reto: sem isso empurrar para a direita marcava também "cima" e a interface pulava de zona); entra a 55% do curso e sai abaixo de 35%.
 
 ## O catálogo (as suas listas)
 

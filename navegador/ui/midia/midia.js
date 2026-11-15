@@ -116,6 +116,8 @@ function cartaoItem(i) {
     `<div class="info"><div class="tit"><b>${esc(i.titulo)}</b><span class="mais">···</span></div><div class="meta">${meta}</div>` +
     `<div class="serv" style="color:${cor}">${esc(nomeServico(i))}</div><div class="orig">${i.origem === 'local' ? ICONES.pasta + ' Arquivo local' : ICONES.link + ' Link salvo'}</div></div>`;
   k.onclick = () => { zona = 'grade'; idx = [...$('grade').children].indexOf(k); ativar(); };
+  const mais = k.querySelector('.mais');
+  mais.onclick = (e) => { e.stopPropagation(); zona = 'grade'; idx = [...$('grade').children].indexOf(k); marcar(); abrirAcoes(i.id); };
   return k;
 }
 
@@ -129,6 +131,7 @@ function desenharGrade() {
     ? 'O catálogo está vazio.<br>Num serviço, aperte <b>LT</b> (ou <b>lumna-navegador --salvar</b>) para guardar o que você está vendo em <b>Assistir mais tarde</b>, e <b>RT</b> para os <b>Favoritos</b>.'
     : 'Nada por aqui com esses filtros.';
   $('cat-sub').textContent = cat.itens.length ? `${l.length} de ${cat.itens.length} no seu espaço` : 'Filmes, séries e vídeos no seu espaço';
+  if (l.length) { const m = g.children[0].querySelector('.mais').getBoundingClientRect(); console.log(`mais-rect ${l[0].id} ${Math.round(m.left + m.width / 2)} ${Math.round(m.top + m.height / 2)}`); }
   console.log(`catalogo: ${l.length}/${cat.itens.length} itens tipo=${filtro.tipo} lista=${filtro.lista} genero=${filtro.genero || '-'} busca=${filtro.busca || '-'} ordem=${filtro.ordem} visao=${filtro.visao}`);
   if (zona === 'grade') { idx = Math.max(0, Math.min(idx, l.length - 1)); if (!l.length) { zona = 'filtros'; idx = 0; } }
   marcar();
@@ -140,13 +143,17 @@ async function mostrarCatalogo() {
   vista = 'catalogo';
   document.body.className = 'catalogo';
   $('catalogo').hidden = false; $('home').hidden = true;
+  document.scrollingElement.scrollTop = 0;
   desenharFiltros(); desenharGrade();
 }
 function mostrarInicio() {
   vista = 'inicio'; abaAtual = 'inicio';
+  document.scrollingElement.scrollTop = 0;
   document.body.className = 'inicio';
   $('catalogo').hidden = true; $('home').hidden = false;
   marcarAbas();
+  const d = (e) => getComputedStyle($(e)).display;
+  console.log(`vista inicio: catalogo=${d('catalogo')} home=${d('home')} rolagem=${document.scrollingElement.scrollTop}`);
 }
 function marcarAbas() { for (const a of $('abas').children) a.classList.toggle('ativa', a.dataset.aba === abaAtual); }
 
@@ -166,6 +173,7 @@ function aviso(t) { const a = $('aviso'); a.textContent = t; a.hidden = false; c
 function abrirAcoes(id) {
   const i = cat.itens.find((x) => x.id === id); if (!i) return;
   acoesDe = id;
+  console.log('acoes abertas ' + id);
   const a = $('acoes-itens'); a.innerHTML = '';
   const opcoes = [
     [i.depois ? 'Tirar de Assistir mais tarde' : 'Assistir mais tarde', 'depois:' + (i.depois ? 0 : 1)],
@@ -198,6 +206,7 @@ function zonaItens(z) {
 function marcar() {
   document.querySelectorAll('.foco').forEach((e) => e.classList.remove('foco'));
   const it = zonaItens(zona)[idx]; if (it) { it.classList.add('foco'); if (zona === 'grade') it.scrollIntoView({ block: 'nearest' }); }
+  console.log(`foco zona=${zona} idx=${idx}/${zonaItens(zona).length}`);
 }
 
 function vizinhoGrade(dir) {   // o cartão mais próximo na direção (a grade tem linhas e colunas)

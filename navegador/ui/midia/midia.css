@@ -1,5 +1,6 @@
 :root { --fundo:#0b0b12; --painel:#16161f; --borda:#2a2a38; --texto:#ececf3; --suave:#9a9ab0; --acento:#8b7bff; }
 * { box-sizing:border-box; margin:0; padding:0; }
+[hidden] { display:none !important; }  /* o atributo hidden perde para qualquer display:flex/grid de um estilo nosso; sem isto as telas ficavam empilhadas */
 html,body { height:100%; overflow:hidden; background:var(--fundo); color:var(--texto); font:16px/1.3 "Inter","Noto Sans","DejaVu Sans",sans-serif; user-select:none; cursor:default; }
 /* o fundo cinematográfico da tela de início (a arte do Eric); o degradê por cima escurece o que fica sob o texto e os atalhos */
 body.inicio { background:
@@ -87,7 +88,7 @@ body.catalogo main { display:none; }
 .cartao-cat.foco .poster { border-color:#d6a8ff; transform:scale(1.03); box-shadow:0 0 0 3px rgba(191,139,255,.35); } .cartao-cat.foco .play { display:grid; }
 .cartao-cat .info { padding:1.2vh .3vw 0; }
 .cartao-cat .tit { display:flex; justify-content:space-between; gap:.5vw; align-items:flex-start; font-size:2.6vh; font-weight:600; line-height:1.15; }
-.cartao-cat .tit b { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; } .cartao-cat .mais { color:var(--suave); letter-spacing:.1em; }
+.cartao-cat .tit b { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; } .cartao-cat .mais { color:var(--suave); letter-spacing:.1em; padding:.2vh .8vw; margin:-.2vh -.8vw 0 0; border-radius:10px; cursor:pointer; } .cartao-cat .mais:hover { background:rgba(255,255,255,.12); color:#fff; }
 .cartao-cat .meta { color:var(--suave); font-size:2.1vh; margin-top:.5vh; } .cartao-cat .serv { font-size:2.2vh; font-weight:600; margin-top:.9vh; } .cartao-cat .orig { color:var(--suave); font-size:2.1vh; margin-top:.5vh; }
 .grade.lista { grid-template-columns:1fr; gap:1.2vh; }
 .grade.lista .cartao-cat { display:flex; gap:1.4vw; align-items:center; background:rgba(22,19,36,.6); border:2px solid #2d2745; border-radius:16px; padding:1vh 1vw; }

@@ -278,7 +278,19 @@ for _ in range(9):
     tecla(KEY["esq"])
 tecla(KEY["baixo"])   # a grade (o primeiro cartão)
 foto("catalogo-3-grade")
-cartao_filme = None
+# os três pontinhos (···) do cartão, com o mouse de verdade: abrem o MENU DE AÇÕES e não o link (o bug: o clique caía no cartão inteiro e abria o serviço)
+mr = re.findall(r"mais-rect (\w+) (\d+) (\d+)", log())
+id0, mx, my = mr[-1]
+jn = [j for j in json.loads(orbit("janelas")).get("janelas", []) if j.get("app_id") == "lumna-navegador"][0]
+orbit("mouse", "mover", str(jn["x"] + int(mx)), str(jn["y"] + int(my)))
+time.sleep(0.5)
+orbit("mouse", "botao", "baixo"); time.sleep(0.12); orbit("mouse", "botao", "cima")
+if not espera(lambda: f"acoes abertas {id0}" in log(), 6):
+    falha("clicar nos três pontinhos devia abrir o menu de ações do cartão")
+if estado().get("estado") != "inicio":
+    falha(f"clicar nos três pontinhos NÃO pode abrir o link do serviço: {estado()}")
+tecla(KEY["esc"])      # fecha o menu de ações
+time.sleep(0.4)
 tecla(KEY["dir"])     # o segundo cartão: o filme
 tecla(KEY["f"])       # favoritar/desfavoritar o filme (era favorito)
 if not espera(lambda: [i for i in catalogo() if i["servico"] == "filmes"][0]["favorito"] is False, 6):
@@ -307,6 +319,12 @@ if not espera(lambda: len(catalogo()) == 1 and catalogo()[0]["servico"] == "seri
 if [f for f in os.listdir(f"{run}/dados/thumbs") if f.startswith("cat-") and not f.startswith("cat-" + catalogo()[0]["id"])]:
     falha(f"a miniatura do item removido é apagada: {os.listdir(run + '/dados/thumbs')}")
 foto("catalogo-5-depois-de-remover")
+
+# 6. B (Esc) no catálogo volta ao início COM o catálogo escondido de verdade e a página sem rolagem (o bug: o catálogo ficava por baixo do início e a tela empilhava)
+tecla(KEY["esc"])
+if not espera(lambda: "vista inicio: catalogo=none home=flex rolagem=0" in log(), 6):
+    falha("Esc no catálogo devia voltar ao início com o catálogo escondido (display none) e sem rolagem: " + "|".join(re.findall(r"vista inicio[^\n]*", log())[-2:]))
+foto("catalogo-7-esc")
 
 # (a interface do catálogo entra na próxima parte do teste)
 

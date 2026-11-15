@@ -190,6 +190,18 @@ bool OrbitIPC::Janela(const std::string& app_id, CefRect* r) {
   return false;
 }
 
+bool OrbitIPC::JanelaEmFoco(const std::string& app_id) {
+  std::string resp = Pergunta("janelas");
+  auto v = CefParseJSON(resp, JSON_PARSER_RFC);
+  if (!v || v->GetType() != VTYPE_DICTIONARY) return false;
+  auto lista = v->GetDictionary()->GetList("janelas");
+  for (size_t i = 0; lista && i < lista->GetSize(); i++) {
+    auto j = lista->GetDictionary(i);
+    if (j && j->GetString("app_id") == app_id && j->GetBool("foco")) return true;
+  }
+  return false;
+}
+
 // ------------------------------------------------------------------------------------------------------------------------------ o socket de comandos
 static std::string CaminhoComandos() {
   std::string s = Env("LUMNA_NAVEGADOR_SOCK");

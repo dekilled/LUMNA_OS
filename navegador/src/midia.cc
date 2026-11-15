@@ -410,6 +410,12 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   std::chrono::steady_clock::time_point tick_t_, jan_t_;
   struct Segurado { bool baixo = false; std::chrono::steady_clock::time_point proxima; };
   std::map<std::string, Segurado> seg_;
+  void AtualizaAnalogicoUI();                  // o analógico esquerdo navegando a interface: UM eixo só (o dominante)
+  std::string ana_dir_;
+  bool EmFoco();  // a janela da Mídia tem o foco? (o CEF diz; se disser que não, o Orbit tira a dúvida: os dois podem divergir logo depois de uma transição)
+  std::chrono::steady_clock::time_point foco_t_;
+  bool foco_orbit_ = false;
+  std::chrono::steady_clock::time_point ana_proxima_;
 
   // --- transição do site (ver Transicao)
   enum class ModoAnim { kImagem, kInstante, kReal };
@@ -1142,6 +1148,16 @@ void Midia::TeclaDirecao(const std::string& b) {
   TeclaPara(ui ? shell_ : conteudo_, TeclaDo(b));
 }
 
+bool Midia::EmFoco() {
+  if (getenv("LUMNA_NAV_CONTROLE_SEMPRE") || (window_ && window_->IsActive())) return true;
+  auto agora = std::chrono::steady_clock::now();
+  if (agora - foco_t_ > std::chrono::milliseconds(300)) {  // não pergunta ao Orbit a cada quadro
+    foco_orbit_ = orbit_.JanelaEmFoco("lumna-navegador");
+    foco_t_ = agora;
+  }
+  return foco_orbit_;
+}
+
 void Midia::AgendaTick() {
   if (tick_) return;
   tick_ = true;
@@ -1168,7 +1184,7 @@ void Midia::TickControle() {
   auto agora = std::chrono::steady_clock::now();
   double dt = std::min(0.1, std::chrono::duration<double>(agora - tick_t_).count());
   bool ativo = false;
-  bool em_foco = (window_ && window_->IsActive()) || getenv("LUMNA_NAV_CONTROLE_SEMPRE");
+  bool em_foco = EmFoco();
   // o direcional segurado repete (400 ms de espera, depois a cada 110 ms)
   for (auto& [b, sg] : seg_) {
     if (!sg.baixo) continue;
@@ -1176,6 +1192,14 @@ void Midia::TickControle() {
     if (agora >= sg.proxima) {
       sg.proxima = agora + std::chrono::milliseconds(110);
       if (em_foco) TeclaDirecao(b);
+    }
+  }
+  AtualizaAnalogicoUI();
+  if (!ana_dir_.empty()) {
+    ativo = true;
+    if (agora >= ana_proxima_) {
+      ana_proxima_ = agora + std::chrono::milliseconds(110);
+      if (em_foco) TeclaDirecao(ana_dir_);
     }
   }
   bool servico = estado_ == Estado::kServico && !ocupado_ && em_foco;
@@ -1208,26 +1232,51 @@ void Midia::TickControle() {
   if (ativo) AgendaTick();
 }
 
+// O analógico de verdade nunca é reto: empurrar para a direita também marca um pouco para cima, e as duas direções (cada eixo a partir de 25%) viravam DUAS setas
+// ao mesmo tempo (e a interface pulava de zona). Navegando a interface o analógico vale por UM eixo, o dominante, e a seta repete enquanto segura. Entra a 55% do curso,
+// sai abaixo de 35%, e só troca de eixo quando o outro passa a ser claramente maior (histerese); no site o analógico é o ponteiro, não setas.
+void Midia::AtualizaAnalogicoUI() {
+  bool ui = estado_ != Estado::kServico || ocupado_;
+  double mag = std::hypot(lx_, ly_), ax = std::fabs(lx_), ay = std::fabs(ly_);
+  std::string nova = ana_dir_;
+  if (!ui || mag < 0.35) {
+    nova.clear();
+  } else if (mag >= 0.55 || !ana_dir_.empty()) {
+    bool horiz = ana_dir_.empty() ? ax >= ay : (ana_dir_ == "ESQ" || ana_dir_ == "DIR") ? ax * 1.25 >= ay : ax > ay * 1.25;
+    nova = horiz ? (lx_ < 0 ? "ESQ" : "DIR") : (ly_ < 0 ? "CIMA" : "BAIXO");
+  }
+  if (nova == ana_dir_) return;
+  ana_dir_ = nova;
+  if (nova.empty()) return;
+  bool em_foco = EmFoco();
+  Log("controle analogico " + nova);
+  if (em_foco) TeclaDirecao(nova);
+  ana_proxima_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(400);
+  AgendaTick();
+}
+
 void Midia::EixosControle(double lx, double ly, double rx, double ry) {
   lx_ = lx; ly_ = ly; rx_ = rx; ry_ = ry;
+  AtualizaAnalogicoUI();
   if (std::hypot(lx, ly) > 0.18 || std::fabs(ry) > 0.18) AgendaTick();
 }
 
 void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
   if (b == "SOLTAR_TUDO") {  // o serviço dos controles caiu: nada fica apertado
     seg_.clear();
+    ana_dir_.clear();
     lx_ = ly_ = rx_ = ry_ = 0;
     if (a_baixo_) { orbit_.Botao(false); a_baixo_ = false; }
     return;
   }
-  bool em_foco = (window_ && window_->IsActive()) || getenv("LUMNA_NAV_CONTROLE_SEMPRE");
+  bool em_foco = EmFoco();
   Log(std::string("controle ") + b + (baixo ? " baixo" : " cima") + (analogico ? " (analogico)" : "") + (em_foco ? "" : " [ignorado: sem foco]"));
   bool ui = estado_ != Estado::kServico || ocupado_;
   bool direcao = b == "CIMA" || b == "BAIXO" || b == "ESQ" || b == "DIR";
   if (direcao) {
     if (!baixo) { seg_.erase(b); return; }
     if (!em_foco) return;
-    if (!ui && analogico) return;  // no site o analógico é o ponteiro (as setas vêm só do direcional)
+    if (analogico) return;  // o analógico: no site é o ponteiro; na interface vale o eixo dominante (AtualizaAnalogicoUI); as setas vêm só do direcional
     seg_[b] = {true, std::chrono::steady_clock::now() + std::chrono::milliseconds(400)};
     TeclaDirecao(b);
     AgendaTick();

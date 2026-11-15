@@ -69,7 +69,7 @@ json.dump([
 ], open(f"{run}/servicos.json", "w"))
 
 # o Orbit sem tela
-envo = dict(env, WLR_BACKENDS="headless", WLR_HEADLESS_OUTPUTS="1", WLR_RENDERER="pixman", WLR_LIBINPUT_NO_DEVICES="1")
+envo = dict(env, LUMNA_TESTE_TECLADOS="1", WLR_BACKENDS="headless", WLR_HEADLESS_OUTPUTS="1", WLR_RENDERER="pixman", WLR_LIBINPUT_NO_DEVICES="1")
 orb = subprocess.Popen(["./orbit"], cwd=orbit_dir, env=envo, stdout=open(f"{run}/orbit.log", "w"), stderr=subprocess.STDOUT)
 procs.append(orb)
 time.sleep(2)
@@ -289,6 +289,81 @@ time.sleep(1.0)
 aperta("SELECT")
 if not espera(lambda: estado().get("estado") == "inicio", 6):
     falha(f"Select devia ir ao início: {estado()}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 7b. o ANALÓGICO navega a interface igual ao direcional (início, abas, catálogo)
+# (o relato do Eric: "o analógico funciona em algumas partes, em outras tenho de focar primeiro com as setas")
+def foco():
+    m_ = re.findall(r"NAV shell: foco zona=(\w+) idx=(\d+)/(\d+)", log())
+    return m_[-1] if m_ else None
+
+
+def analogico(dir_, seg=0.22):
+    eixo, v = {"CIMA": (ABS_Y, -32768), "BAIXO": (ABS_Y, 32767), "ESQ": (ABS_X, -32768), "DIR": (ABS_X, 32767)}[dir_]
+    evento(EV_ABS, eixo, v)
+    time.sleep(seg)
+    evento(EV_ABS, eixo, 0)
+    time.sleep(0.35)
+
+
+def percorre(entrada, passos):
+    """volta ao início e faz os passos com a `entrada` (dpad ou analogico); devolve o foco depois de cada passo"""
+    subprocess.run([f"{stage}/lumna-navegador", "--inicio"], cwd=run, env=envn, capture_output=True)
+    time.sleep(1.0)
+    espera(lambda: estado().get("estado") == "inicio", 6)
+    time.sleep(1.0)
+    # o início volta "para onde estava" (o catálogo): Esc leva ao início (e no início não faz nada); a comparação parte sempre da tela de início
+    orbit("tecla_falsa", "0", "1")
+    time.sleep(0.8)
+    r = []
+    for p_ in passos:
+        antes = foco()
+        if p_ == "A":
+            aperta("A")
+        else:
+            entrada(p_)
+        time.sleep(0.5)
+        r.append(foco())
+    return r
+
+
+# salva a sonda no catálogo (para o catálogo ter um cartão) e volta ao início
+subprocess.run([f"{stage}/lumna-navegador", "--inicio"], cwd=run, env=envn, capture_output=True)
+time.sleep(1.2)
+tecla_servico = None
+aperta("A")   # abre o serviço em foco (Alfa) e salva a página
+if espera(lambda: estado().get("estado") == "servico", 10):
+    time.sleep(2.5)
+    subprocess.run([f"{stage}/lumna-navegador", "--salvar"], cwd=run, env=envn, capture_output=True)
+    time.sleep(1.5)
+caminho = ["DIR", "ESQ", "CIMA", "CIMA", "DIR", "ESQ", "BAIXO", "BAIXO", "CIMA", "CIMA", "DIR", "A", "BAIXO", "A", "BAIXO", "CIMA", "CIMA", "ESQ"]
+com_dpad = percorre(dpad, caminho)
+com_stick = percorre(analogico, caminho)
+for k_, (a_, b_) in enumerate(zip(com_dpad, com_stick)):
+    if a_ != b_:
+        falha(f"o analógico devia navegar igual ao direcional: passo {k_ + 1} ({caminho[k_]}) direcional={a_} analógico={b_}")
+if None in com_dpad:
+    falha(f"o direcional devia mudar o foco a cada passo: {com_dpad}")
+if os.environ.get("CONTROLE_VERBOSO"):
+    print("  passos            :", caminho, file=sys.stderr)
+    print("  foco (direcional) :", [f"{z}{i}" for z, i, _ in [x for x in com_dpad if x]], file=sys.stderr)
+    print("  foco (analógico)  :", [f"{z}{i}" for z, i, _ in [x for x in com_stick if x]], file=sys.stderr)
+
+# um analógico de VERDADE nunca é reto: empurrado para a direita ele também marca um pouco para cima. Na interface vale UM eixo só (o dominante):
+# a direita com um pouco de cima move só para a direita (antes virava direita E cima e a interface pulava de zona)
+subprocess.run([f"{stage}/lumna-navegador", "--inicio"], cwd=run, env=envn, capture_output=True)
+time.sleep(1.2)
+orbit("tecla_falsa", "0", "1")
+time.sleep(0.8)
+antes = foco()
+evento(EV_ABS, ABS_X, 29000)    # ~89% para a direita
+evento(EV_ABS, ABS_Y, -11000)   # e ~34% para cima
+time.sleep(0.3)
+evento(EV_ABS, ABS_X, 0)
+evento(EV_ABS, ABS_Y, 0)
+time.sleep(0.6)
+depois = foco()
+if not antes or not depois or depois[0] != antes[0] or int(depois[1]) != int(antes[1]) + 1:
+    falha(f"o analógico torto (direita com um pouco de cima) devia mover só para a direita (um eixo, o dominante): {antes} → {depois}")
 
 # ---------------------------------------------------------------------------------------------------------------------------- 8. nada foi interpretado a mais
 if "Cannot add multiple" in log():

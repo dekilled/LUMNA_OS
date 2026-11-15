@@ -29,6 +29,7 @@ class OrbitIPC {
   bool Botao(bool baixo, bool direito = false);   // aperta/solta o botão do ponteiro
   bool Cursor(double* x, double* y);              // onde o ponteiro está (consulta, bloqueia até ~150 ms)
   bool Janela(const std::string& app_id, CefRect* r);  // posição e tamanho de uma janela pelo app_id
+  bool JanelaEmFoco(const std::string& app_id);        // o Orbit diz que essa janela tem o foco do teclado?
  private:
   bool Envia(const std::string& linha);
   std::string Pergunta(const std::string& linha);
