@@ -1,5 +1,0 @@
--- Configuring done (0.0s)
--- Generating done (0.0s)
--- Build files have been written to: /home/user/lumna_os/navegador/build
-[1/2] Building CXX object CMakeFiles/lumna-navegador.dir/src/midia.cc.o
-[2/2] Linking CXX executable lumna-navegador
