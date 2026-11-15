@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>LUMNA Mídia</title>
+<link rel="stylesheet" href="midia.css">
+</head>
+<body class="inicio">
+  <header class="topo">
+    <div class="marca"><span class="gema">◆</span> LUMNA</div>
+    <nav>
+      <a class="aba ativa">Início</a>
+      <a class="aba em-breve" title="Em breve: a lista de filmes que você salvou">Filmes</a>
+      <a class="aba em-breve" title="Em breve: a lista de séries que você salvou">Séries</a>
+      <a class="aba em-breve" title="Em breve">Música</a>
+      <a class="aba em-breve" title="Em breve">Seus vídeos</a>
+    </nav>
+    <div class="relogio" id="relogio"></div>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <h1>Mídia</h1>
+      <p id="hero-sub">Escolha um serviço para começar.</p>
+    </section>
+    <section id="sec-continuar" hidden>
+      <h2>Continuar assistindo</h2>
+      <div class="fila" id="continuar"></div>
+    </section>
+    <section class="servicos">
+      <div class="fila" id="servicos"></div>
+    </section>
+  </main>
+
+  <aside id="folha" class="folha" aria-hidden="true">
+    <div class="folha-topo"><span>Reproduzindo no <b id="folha-ativo"></b></span><span class="dica">Esc · Voltar ao vídeo</span></div>
+    <div class="fila" id="folha-itens"></div>
+    <div class="ajuda"><span><kbd>←</kbd><kbd>→</kbd> Escolher</span><span><kbd>Enter</kbd> Trocar</span><span><kbd>Esc</kbd> Fechar</span></div>
+  </aside>
+  <script src="midia.js"></script>
+</body>
+</html>

@@ -236,3 +236,16 @@ O Eric entende que, pelos termos, o uso do Widevine fora do Chrome não é estri
 - **Cuidado com DRM:** um print de um quadro de vídeo protegido pode sair preto em alguns caminhos de decodificação; em L3 por software costuma sair, mas **precisa de teste** (por isso a miniatura prefere as imagens da página, não o quadro do vídeo).
 - **Serviços diferentes escondem coisas diferentes:** a Netflix só mostra `og:image` completo com a página do título aberta e conta logada; o YouTube tem `og:image` sempre. Haverá extratores por serviço (pequenos) e um genérico.
 - **Armazenamento:** banco local (SQLite) no perfil do usuário: `itens(id, titulo, servico, url, miniatura, tipo [filme|série|vídeo|outro], estado [assistir_depois|favorito|assistido], salvo_em, ultimo_ponto)`. As abas **Filmes** e **Séries** do esboço são filtros por `tipo`; "Continuar assistindo" vem do último endereço salvo ao trocar de serviço.
+
+## Primeira versão da Mídia (2026-11-15): funcionando no Orbit
+
+Código em [`navegador/`](../navegador/README.md) (C++ + HTML/CSS/JS, `navegador/testes/midia.sh` automatizado). **O que já funciona** (testado no Orbit sem tela, com dois serviços locais de teste; ainda **não** com os serviços reais): janela sem moldura; início em HTML com os atalhos e **"Continuar assistindo"** (print, barra de progresso, tempo restante); abrir um serviço; **menu de serviços** (F2) com o site **encolhendo enquanto continua tocando** e o menu subindo; trocar de serviço guardando **endereço, progresso e print**; Esc volta ao vídeo; Alt+Home volta ao início; navegação por teclado (setas, Enter, Esc).
+
+**Descobertas técnicas que valem registrar:**
+1. **Chrome ou Alloy.** O CEF 154/156 tem dois estilos. A janela Chrome (a que baixa o Widevine sozinho) aceita **só 1 BrowserView Chrome**; a interface HTML entra como **Alloy**, ao lado. **Só funciona se o site (Chrome) for adicionado primeiro** e a interface depois, descendo-a para o fundo.
+2. **Os dois estilos existem igualmente no CEF 154 do PC do Eric** (as assinaturas usadas são idênticas nas duas versões).
+3. A janela Views em estilo Chrome sem moldura (`IsFrameless`) abre **sem a barra do Orbit** (`barra:false`): é o caminho da moldura própria para a versão Completa.
+
+**Desvios do esboço, para o Eric aprovar:** (a) o **print é tirado quando o menu abre** (o site ainda em tamanho cheio e tocando), não no instante da escolha: assim a miniatura sai com o enquadramento certo; a pausa e o gravar continuam na escolha; (b) as abas **Filmes/Séries/Música/Seus vídeos** aparecem apagadas ("em breve"), e o fundo cinematográfico é por enquanto um degradê (falta a arte); (c) as teclas F2 (menu) e Alt+Home (início) são provisórias, até o mapeamento do controle (gamepad).
+
+**Ainda não feito:** o botão do gamepad/controle para o menu; o Widevine no perfil do app (o CEF baixa sozinho; falta testar no app e não só no teste); os serviços reais (YouTube/Netflix/HBO Max) neste app; o sandbox ligado; a telemetria do Google totalmente desligada; o "Salvar na lista" e as listas pessoais; a versão Completa.
