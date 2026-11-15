@@ -180,13 +180,13 @@ Imagem original: [navegador/lista-marcada.png](navegador/lista-marcada.png). ✅
 | 10 | Zoom, tela cheia | ✅ | só tela cheia |
 | 11 | Widevine | ✅ | ✅ |
 | 12 | Codecs H.264/AAC | ✅ | ✅ |
-| 13 | Teclas de mídia, MPRIS | **❌** | ✅ |
+| 13 | Teclas de mídia, MPRIS | **✅** (corrigido pelo Eric: era ❌) | ✅ |
 | 14 | Picture-in-picture | ✅ | ❌ |
 | 15 | Gamepad/controle remoto | ❌ | ✅ essencial |
 | 16 | Janela anônima | ✅ | ❌ |
 | 17 | Permissões de site | ✅ completa | ✅ mínimo |
 | 18 | Apagar dados de navegação | ✅ | ❌ |
-| 19 | **Extensões** (Chrome Web Store) | **✅** | ❌ |
+| 19 | **Extensões** (Chrome Web Store) | **❌** (corrigido pelo Eric: era ✅) | ❌ |
 | 20 | Gerenciador de senhas | ✅ | ❌ |
 | 21 | Preenchimento automático | ✅ | ❌ |
 | 22 | Sincronização | ❌ | ❌ |
@@ -202,7 +202,7 @@ Imagem original: [navegador/lista-marcada.png](navegador/lista-marcada.png). ✅
 | 32 | WebRTC e WebGL/WebGPU | WebGL ✅ | WebGL ✅ |
 | 33 | Corretor ortográfico | ❌ | ❌ |
 | 34 | Página de configurações | ✅ | ❌ |
-| 35 | Telemetria / relatórios de falha / atualização automática do Google | ✅ "relatórios" (texto cortado na imagem; **a confirmar**: só relatórios de falha *nossos*) | ❌ |
+| 35 | Telemetria / relatórios de falha / atualização automática do Google | só relatórios de falha **nossos** (confirmado); **nada vai para a Google** | ❌ |
 
 **Pontos a confirmar com o Eric (pareceram inconsistentes com o resto):**
 - **#13 Completa = ❌:** sem MPRIS/teclas de mídia, o Música e a barra do LUMNA **não controlam** o vídeo/áudio do navegador do Desktop. Foi de propósito?
@@ -223,3 +223,16 @@ Esboços: [navegador/midia-inicio.webp](navegador/midia-inicio.webp) e [navegado
 ## Posição do Eric sobre licenças (2026-11-15)
 
 O Eric entende que, pelos termos, o uso do Widevine fora do Chrome não é estritamente correto, mas a Google tolera e várias distribuições grandes fazem o mesmo há anos; não cobra nem modifica nada; o CEF baixa o CDM direto da Google na máquina do usuário; o LUMNA mostra **um termo que o usuário aceita antes de usar**; e o usuário usa o Widevine para serviços que ele mesmo paga. **Decisão dele; fica registrada.** Duas ressalvas técnicas para não esquecer: (1) isso cobre o **Widevine**, não os **codecs H.264/AAC**, cuja licença de patentes é outro assunto (o build de terceiros diz expressamente que vem sem licença de patentes); (2) o termo deve dizer que o CDM é da Google e baixado dela, e que o LUMNA não o redistribui.
+
+## Decisões do Eric, rodada 3 (2026-11-15)
+
+- **#13 e #19 trocados** (ver tabela acima): a Completa **tem** MPRIS/teclas de mídia, e **não tem** extensões (some o problema da loja do Chrome; o bloqueador de anúncios embutido fica como ideia à parte).
+- **#35:** relatórios de falha são **nossos**; o navegador **não manda nada para a Google**. O CEF deve sair com a telemetria, relatórios de falha, Safe Browsing e atualização do Google desligados.
+- **"Filmes" e "Séries" da Mídia não são catálogo**, e sim as **listas pessoais do usuário**: *assistir mais tarde*, *favoritos*, *já assisti*, e mais. Ninguém precisa de TMDB: tudo vem do que o usuário salva.
+- **Função "salvar na lista"** (nova, própria do nosso navegador): ao salvar uma página, o navegador **extrai o título e a miniatura** automaticamente (lê do HTML da página, ou detecta a posição exata do elemento e recorta um print) e grava um registro: *filme/série tal, serviço tal, link tal, estado (assistir mais tarde / favorito / assistido)*.
+
+**Notas técnicas dessa função (para o desenho):**
+- **Ordem de tentativa da miniatura:** (1) `<meta property="og:image">` / `twitter:image` / dados `schema.org` (JSON-LD) da página, que dão título e capa sem depender de vídeo; (2) o atributo `poster` do `<video>`; (3) por último, **recortar um print** da região do elemento (posição via JS `getBoundingClientRect()`, captura via DevTools `Page.captureScreenshot` com `clip`).
+- **Cuidado com DRM:** um print de um quadro de vídeo protegido pode sair preto em alguns caminhos de decodificação; em L3 por software costuma sair, mas **precisa de teste** (por isso a miniatura prefere as imagens da página, não o quadro do vídeo).
+- **Serviços diferentes escondem coisas diferentes:** a Netflix só mostra `og:image` completo com a página do título aberta e conta logada; o YouTube tem `og:image` sempre. Haverá extratores por serviço (pequenos) e um genérico.
+- **Armazenamento:** banco local (SQLite) no perfil do usuário: `itens(id, titulo, servico, url, miniatura, tipo [filme|série|vídeo|outro], estado [assistir_depois|favorito|assistido], salvo_em, ultimo_ponto)`. As abas **Filmes** e **Séries** do esboço são filtros por `tipo`; "Continuar assistindo" vem do último endereço salvo ao trocar de serviço.
