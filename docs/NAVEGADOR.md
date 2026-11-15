@@ -147,3 +147,9 @@ A ideia: compilar com `enable_widevine=true` e deixar o navegador baixar o CDM d
 **Netflix reproduzindo** ("O Mentalista", E1, 44:39 de duração) numa janela do nosso app de teste: CEF 154 do godwinmix (H.264/AAC) + CDM Widevine copiado do Chrome instalado (`/opt/google/chrome/WidevineCdm`), no Orbit, com a barra de título do Orbit (a moldura própria ainda não existe). **Isso fecha a prova de viabilidade técnica do navegador:** codecs, DRM e um serviço comercial real funcionam juntos no LUMNA.
 
 **Ainda não medido (não dá para tirar do print):** a resolução que a Netflix entrega em L3 (costuma ficar em torno de 720p; ela mostra em "Estatísticas para nerds", Ctrl+Alt+Shift+D), o consumo de CPU/memória durante o vídeo, se a decodificação é por software (sem GPU no teste) e como fica com teclas de mídia/MPRIS. O resultado do `--baixar` (CDM baixado pelo próprio CEF, sem Chrome instalado) também está pendente.
+
+### Netflix, HBO Max e YouTube tocam depois de desinstalar o Chrome (2026-11-15, prints do Eric)
+
+Com o Google Chrome **desinstalado**, o app de teste (CEF 154 do godwinmix) tocou **Netflix** ("O Mentalista" E1, janela grande no Desktop do LUMNA), **HBO Max** ("Chernobyl" T1 E5) e **YouTube**. Prova que o navegador não depende do Chrome instalado.
+
+**Ressalva de método (a confirmar com o Eric):** o script, nas rodadas anteriores, **copiava** o `WidevineCdm` do Chrome para `~/.cache/lumna-cef-teste/` (pasta do teste e perfil). Desinstalar o Chrome **não apaga essas cópias**. Então há dois cenários: (a) o Eric rodou `--baixar`, que apaga as cópias e deixa o CEF baixar o CDM da Google sozinho (a prova forte); (b) ele rodou o modo normal e o CDM veio das cópias. Os dois funcionam, mas só (a) mostra que o LUMNA não precisa de nenhum Chrome em nenhum momento. Para conferir: `ls ~/.cache/lumna-cef-teste/build-*/cache/WidevineCdm` e ver se a versão bate com a que o `--baixar` anunciou (`baixou: Widevine CDM ...`).
