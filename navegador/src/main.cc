@@ -78,6 +78,7 @@ int main(int argc, char** argv) {
   if (argc >= 2) {
     std::string a = argv[1];
     if (a == "--menu" || a == "--inicio" || a == "--estado") return lumna::EnviarComando(a.substr(2));
+    if (a == "--salvar") return lumna::EnviarComando(argc >= 3 ? "salvar " + std::string(argv[2]) : "salvar");  // [depois|favorito|assistido]
   }
   const std::string aqui = ExeDir();
   CefMainArgs args(argc, argv);

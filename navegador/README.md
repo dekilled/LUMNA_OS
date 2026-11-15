@@ -33,6 +33,12 @@ O controle vem do serviço **`lumna-gamepad`**, que o navegador assina (`assinar
 
 Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (nas bordas fica a moldura invisível de redimensionar, e clicar ali arrasta a janela; a página nem recebe o ponteiro); a rolagem do Orbit (`mouse rolar`) vale ~1 px a cada 15 unidades (calibrado); o analógico segurado parado não gera evento, então o navegador guarda o último valor e continua andando a 60 Hz; no site o analógico esquerdo **só** move o ponteiro (as setas vêm só do direcional: o serviço marca cada direção com `analogico: true|false`). O direcional segurado repete (400 ms, depois a cada 110 ms).
 
+## O catálogo (as suas listas)
+
+As abas **Filmes**, **Séries** e **Seus vídeos** mostram o **catálogo pessoal**: o que você salvou para ver depois, os favoritos e o que já assistiu (não é um catálogo de streaming, é o que *você* guarda). **Salvar:** num serviço aberto, **LT** salva em *Assistir mais tarde* e **RT** nos *Favoritos* (ou `lumna-navegador --salvar [depois|favorito|assistido]`, para um atalho do Orbit ou o celular). O navegador lê a página (Open Graph e JSON-LD/schema.org: título, tipo filme/série/vídeo, gênero, duração `PT2H18M`, capa), **baixa a capa** (`og:image`; sem capa, usa o **print** da tela) e guarda em `catalogo.json` + `thumbs/cat-*`. O mesmo link salvo de novo atualiza o **mesmo** item (um item pode ser favorito e "mais tarde" ao mesmo tempo). Um aviso aparece pelo `notify-send` (se houver).
+
+Na tela do catálogo (igual ao esboço): chips **Todos/Filmes/Séries/Vídeos**, **busca**, **gênero**, **ordem**, **grade ou lista** e **Minhas listas** (alterna Todos → Assistir mais tarde → Favoritos → Já assisti); o cartão tem coração (favorito), relógio (mais tarde), progresso, etiqueta *Assistido*, serviço e *Link salvo*/*Arquivo local*. **Teclas:** setas navegam, Enter abre o link no serviço, **F** favorita, **W** mais tarde, **A** assistido, **M** abre o menu de ações (inclui *Remover*), **E** a Emma, **Esc** volta ao início, **Page Up/Down** troca de aba. **No controle:** direcional/analógico navegam, A abre, B volta, **X** favorita, **Y** mais tarde, **LT** o menu de ações, **LB/RB** trocam de aba.
+
 ## Teclas (provisórias)
 | Tecla | O que faz |
 |---|---|
@@ -46,6 +52,7 @@ Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (n
 
 ## Testes automáticos
 - `sh navegador/testes/midia.sh <pasta do orbit> navegador/build/stage` (Orbit sem tela + XWayland; só pelo teclado).
+- `python3 navegador/testes/catalogo.py <pasta do orbit> navegador/build/stage` (salvar de páginas com Open Graph/JSON-LD, a miniatura, a tela do catálogo inteira pelo teclado; `CATALOGO_PRINTS=/pasta` guarda os prints).
 - `python3 navegador/testes/controle.py <pasta do orbit> navegador/build/stage gravity` (o serviço `lumna-gamepad` real com um controle de mentira, o Orbit, o navegador e uma página "sonda" que anota no título as teclas, o mouse, os cliques e a rolagem que recebe; precisa do binário `gravity/gamepad`: `make -C gravity gamepad`).
 
 ## Como é feito (e por quê)

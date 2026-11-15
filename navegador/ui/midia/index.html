@@ -8,12 +8,12 @@
 <body class="inicio">
   <header class="topo">
     <div class="marca"><span class="gema">◆</span> LUMNA</div>
-    <nav>
-      <a class="aba ativa">Início</a>
-      <a class="aba em-breve" title="Em breve: a lista de filmes que você salvou">Filmes</a>
-      <a class="aba em-breve" title="Em breve: a lista de séries que você salvou">Séries</a>
-      <a class="aba em-breve" title="Em breve">Música</a>
-      <a class="aba em-breve" title="Em breve">Seus vídeos</a>
+    <nav id="abas">
+      <a class="aba" data-aba="inicio">Início</a>
+      <a class="aba" data-aba="filmes">Filmes</a>
+      <a class="aba" data-aba="series">Séries</a>
+      <a class="aba em-breve" data-aba="musica" title="Em breve">Música</a>
+      <a class="aba" data-aba="videos">Seus vídeos</a>
     </nav>
     <div class="relogio" id="relogio"></div>
   </header>
@@ -31,6 +31,20 @@
       <div class="fila" id="servicos"></div>
     </section>
   </main>
+
+  <section id="catalogo" class="cat-vista" hidden>
+    <div class="cat-cabeca">
+      <div><h1>Catálogo</h1><p id="cat-sub">Filmes, séries e vídeos no seu espaço</p></div>
+      <div class="listas" id="btn-listas" data-acao="listas"><svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg><span id="listas-nome">Minhas listas</span></div>
+    </div>
+    <div class="filtros" id="filtros"></div>
+    <div class="grade" id="grade"></div>
+    <div class="vazio" id="vazio" hidden></div>
+    <div class="rodape-cat"><span><kbd>Enter</kbd> Abrir</span><span><kbd>F</kbd> Favoritar</span><span><kbd>W</kbd> Mais tarde</span><span><kbd>A</kbd> Assistido</span><span><kbd>M</kbd> Ações</span><span><kbd>E</kbd> Emma</span><span><kbd>Esc</kbd> Voltar</span></div>
+  </section>
+  <div id="btn-emma" class="btn-emma"><span class="gema">◆</span> Perguntar à Emma</div>
+  <div id="acoes" class="acoes" hidden><div id="acoes-itens"></div></div>
+  <div id="aviso" class="aviso" hidden></div>
 
   <aside id="folha" class="folha" aria-hidden="true">
     <div class="folha-topo"><span>Reproduzindo no <b id="folha-ativo"></b></span><span class="dica">Esc · Voltar ao vídeo</span></div>

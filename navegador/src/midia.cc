@@ -7,6 +7,7 @@
 // Trocar de serviço: guarda o último endereço, o progresso e um print do site, pausa, e o site expande já no serviço novo.
 #include "midia.h"
 
+#include "catalogo.h"
 #include "externo.h"
 
 #include <sys/stat.h>
@@ -14,7 +15,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
 #include <mutex>
+#include <spawn.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -33,6 +36,7 @@
 #include "include/cef_keyboard_handler.h"
 #include "include/cef_parser.h"
 #include "include/cef_task.h"
+#include "include/cef_urlrequest.h"
 #include "include/cef_values.h"
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_browser_view_delegate.h"
@@ -149,6 +153,44 @@ std::vector<Servico> CarregaServicos() {
   return v;
 }
 
+// baixa uma imagem (o og:image de uma página) pelo CEF; devolve os bytes (vazio se falhou). Cancela sozinho depois de `ms`.
+class BaixaImagem : public CefURLRequestClient {
+ public:
+  using Fim = std::function<void(std::string)>;
+  explicit BaixaImagem(Fim f) : fim_(std::move(f)) {}
+  void OnRequestComplete(CefRefPtr<CefURLRequest> r) override {
+    if (feito_) return;
+    feito_ = true;
+    bool ok = r->GetRequestStatus() == UR_SUCCESS && r->GetResponse() && r->GetResponse()->GetStatus() == 200 && dados_.size() > 200;
+    fim_(ok ? dados_ : "");
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadData(CefRefPtr<CefURLRequest> r, const void* d, size_t n) override {
+    if (dados_.size() + n > (8u << 20)) { r->Cancel(); return; }  // imagem de mais de 8 MB: não é uma capa
+    dados_.append(static_cast<const char*>(d), n);
+  }
+  bool GetAuthCredentials(bool, const CefString&, int, const CefString&, const CefString&, CefRefPtr<CefAuthCallback>) override { return false; }
+  void Cancelado() {  // o tempo acabou
+    if (feito_) return;
+    feito_ = true;
+    fim_("");
+  }
+ private:
+  Fim fim_;
+  std::string dados_;
+  bool feito_ = false;
+  IMPLEMENT_REFCOUNTING(BaixaImagem);
+};
+
+// um aviso na tela (notify-send, se houver): "Salvo em Assistir mais tarde"
+void Aviso(const std::string& texto) {
+  if (getenv("LUMNA_NAV_SEM_AVISO")) return;
+  const char* argv[] = {"notify-send", "-a", "LUMNA Mídia", "-t", "3500", texto.c_str(), nullptr};
+  pid_t pid;
+  posix_spawnp(&pid, "notify-send", nullptr, nullptr, const_cast<char* const*>(argv), environ);
+}
+
 // o estado que o comando `lumna-navegador --estado` devolve (lido da thread do socket)
 std::mutex g_estado_mutex;
 std::string g_estado_pub = "{\"ok\":true,\"estado\":\"inicio\",\"ativo\":\"\"}";
@@ -180,6 +222,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     ui_ = Env("LUMNA_NAV_UI", (ExeDir() + "/ui/midia").c_str());
     servicos_ = CarregaServicos();
     CarregaSalvos();
+    catalogo_ = std::make_unique<Catalogo>(dados_);
     // Como o site muda de tamanho: "imagem" (padrão) anima um print na interface e só redimensiona o site UMA vez, no fim (o site redimensionado a
     // cada quadro, ao vivo, dá flick em páginas pesadas); "instante" pula direto ao tamanho final; "real" redimensiona o site a cada quadro.
     if (const char* z = getenv("LUMNA_NAV_ZOOM_MENU")) { double v = atof(z); if (v >= 0.5 && v <= 1.0) zoom_menu_ = v; }
@@ -213,6 +256,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   void AlternarMenu() { if (estado_ == Estado::kMenu) FecharMenu(); else AbrirMenu(); }  // F2, Super+M (lumna-navegador --menu) e o botão Start
   void IrParaInicioPublico() { Inicio(); }
   void SiteTelaCheia(bool f) { site_fs_ = f; }
+  void SalvarAtual(const std::string& marca);  // "depois" | "favorito" | "assistido": salva a página do serviço aberto no catálogo
   // o controle (gamepad): botões e analógicos, na thread de interface
   void BotaoControle(const std::string& b, bool baixo, bool analogico);
   void EixosControle(double lx, double ly, double rx, double ry);
@@ -442,6 +486,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   CefRefPtr<CefClient> cliente_shell_, cliente_conteudo_;
   CefRefPtr<CefMessageRouterBrowserSide> roteador_;
   CefRefPtr<CefRegistration> registro_;
+  std::unique_ptr<Catalogo> catalogo_;
   std::string dados_, ui_, ativo_;
   std::vector<Servico> servicos_;
   std::map<std::string, Salvo> salvos_;
@@ -862,12 +907,142 @@ void Midia::IrParaInicio() {
   shell_->RequestFocus();
 }
 
+// O JS que lê a página (título, capa, tipo, gênero, duração...): Open Graph, JSON-LD (schema.org) e o <video>. Devolve uma string JSON.
+static const char* kMetaJS =
+    "(()=>{const m=(n)=>{const e=document.querySelector('meta[property=\"'+n+'\"],meta[name=\"'+n+'\"]');return e?(e.content||''):''};"
+    "const ld=[];document.querySelectorAll('script[type=\"application/ld+json\"]').forEach(s=>{try{const j=JSON.parse(s.textContent);(Array.isArray(j)?j:[j]).forEach(x=>{ld.push(x);"
+    "if(x&&x['@graph'])x['@graph'].forEach(y=>ld.push(y));});}catch(e){}});"
+    "const tp=(x)=>[].concat((x&&x['@type'])||[]).join(',');"
+    "const alvo=ld.find(x=>/Movie|TVSeries|TVEpisode|VideoObject|Episode/.test(tp(x)));"
+    "const v=[...document.querySelectorAll('video')].sort((a,b)=>b.videoWidth*b.videoHeight-a.videoWidth*a.videoHeight)[0];"
+    "const abs=(u)=>{try{if(Array.isArray(u))u=u[0];if(u&&u.url)u=u.url;return u?new URL(u,location.href).href:''}catch(e){return ''}};"
+    "const ot=(m('og:type')||'').toLowerCase(),lt=tp(alvo);let tipo='outro';"
+    "if(/movie/.test(ot)||/Movie/.test(lt))tipo='filme';else if(/tv_show|episode/.test(ot)||/TVSeries|Episode/.test(lt))tipo='serie';else if(/video/.test(ot)||/VideoObject/.test(lt)||v)tipo='video';"
+    "const g=alvo&&alvo.genre?[].concat(alvo.genre)[0]:'';"
+    "return JSON.stringify({url:location.href,titulo:(alvo&&alvo.name)||m('og:title')||document.title,imagem:abs(m('og:image')||m('twitter:image')||(alvo&&alvo.image)||(v&&v.poster)||''),"
+    "tipo,genero:(typeof g==='string'?g:(g&&g.name)||''),iso:(alvo&&alvo.duration)||'',dur:(v&&isFinite(v.duration))?v.duration:0,pos:v?v.currentTime:0})})()";
+
+void Midia::SalvarAtual(const std::string& marca) {
+  if (estado_ != Estado::kServico || ocupado_ || !conteudo_ || !conteudo_->GetBrowser() || ativo_.empty()) {
+    Log("salvar: só vale com um serviço aberto");
+    return;
+  }
+  struct Coleta { std::string meta; std::string foto; int pend = 2; };
+  auto c = std::make_shared<Coleta>();
+  std::string servico = ativo_;
+  auto fim = [this, c, servico, marca]() {
+    if (--c->pend > 0) return;
+    auto v = CefParseJSON(c->meta, JSON_PARSER_RFC);
+    if (!v || v->GetType() != VTYPE_DICTIONARY) { Log("salvar: não consegui ler a página"); return; }
+    auto d = v->GetDictionary();
+    std::string url = d->GetString("url");
+    const Servico* sv = Acha(servico);
+    if (url.empty() || url == "about:blank" || (sv && !UrlDoServico(*sv, url))) { Log("salvar: a página não é do serviço " + servico + ": " + url); return; }
+    Item* it = catalogo_->Novo(url);
+    it->servico = servico;
+    std::string t = d->GetString("titulo");
+    it->titulo = t.empty() ? url : t;
+    std::string tipo = d->GetString("tipo");
+    if (!tipo.empty() && (tipo != "outro" || it->tipo.empty())) it->tipo = tipo;
+    if (!d->GetString("genero").empty()) it->genero = d->GetString("genero");
+    double iso = DuracaoIsoMin(d->GetString("iso")), dur = Num(d, "dur");
+    it->duracao_min = iso > 0 ? iso : dur > 0 ? dur / 60.0 : it->duracao_min;
+    it->pos = Num(d, "pos"); it->dur = dur;
+    it->salvo_em = static_cast<long>(time(nullptr));
+    if (marca == "favorito") it->favorito = true;
+    else if (marca == "assistido") { it->assistido = true; it->depois = false; }
+    else it->depois = true;
+    catalogo_->Grava();
+    std::string id = it->id, titulo = it->titulo;
+    Log("catalogo salvo " + marca + ": " + titulo + " (" + it->tipo + ")");
+    Aviso(std::string(marca == "favorito" ? "Favorito: " : marca == "assistido" ? "Já assisti: " : "Assistir mais tarde: ") + titulo);
+    // a miniatura: a capa que a página declara (og:image) se der para baixar; senão o print da tela
+    auto grava = [this, id](const std::string& bytes) {
+      std::string ext = ExtensaoDeImagem(bytes);
+      Item* x = catalogo_->Acha(id);
+      if (!x || ext.empty()) return false;
+      std::string rel = "thumbs/cat-" + id + ext;
+      if (!x->miniatura.empty() && x->miniatura != rel) remove(catalogo_->Miniatura(*x).c_str());
+      EscreverArquivo(dados_ + "/" + rel, bytes.data(), bytes.size());
+      x->miniatura = rel;
+      catalogo_->Grava();
+      Log("catalogo miniatura " + rel + " (" + std::to_string(bytes.size()) + " bytes)");
+      return true;
+    };
+    std::string imagem = d->GetString("imagem"), foto = c->foto;
+    if (imagem.rfind("http", 0) == 0) {
+      auto req = CefRequest::Create();
+      req->SetURL(imagem);
+      req->SetMethod("GET");
+      CefRefPtr<BaixaImagem> cli = new BaixaImagem([grava, foto](std::string bytes) {
+        if (bytes.empty() || !grava(bytes)) grava(foto);  // não deu para baixar a capa: fica o print
+      });
+      auto ur = CefURLRequest::Create(req, cli, nullptr);
+      CefPostDelayedTask(TID_UI, new FuncTask([cli, ur]() { cli->Cancelado(); if (ur) ur->Cancel(); }), 9000);
+    } else {
+      grava(foto);
+    }
+  };
+  auto p = CefDictionaryValue::Create();
+  p->SetString("expression", kMetaJS);
+  p->SetBool("returnByValue", true);
+  Chamar("Runtime.evaluate", p, [c, fim](bool ok, CefRefPtr<CefDictionaryValue> d) {
+    auto r = ok && d ? d->GetDictionary("result") : nullptr;
+    if (r) c->meta = r->GetString("value");
+    fim();
+  });
+  auto q = CefDictionaryValue::Create();
+  q->SetString("format", "jpeg");
+  q->SetInt("quality", 82);
+  Chamar("Page.captureScreenshot", q, [c, fim](bool ok, CefRefPtr<CefDictionaryValue> d) {
+    if (ok && d) {
+      auto bin = CefBase64Decode(d->GetString("data"));
+      if (bin && bin->GetSize()) { c->foto.resize(bin->GetSize()); bin->GetData(&c->foto[0], c->foto.size(), 0); }
+    }
+    fim();
+  });
+}
+
 bool Midia::OnQuery(CefRefPtr<CefBrowser> b, CefRefPtr<CefFrame> f, int64_t, const CefString& pedido, bool, CefRefPtr<Callback> cb) {
   // só a NOSSA interface manda: nunca um site (a ponte nem é criada neles, mas confere de novo)
   if (!Ehshell(b) || f->GetURL().ToString().rfind("file://" + ui_, 0) != 0) return false;
   std::string r = pedido;
   Log("pedido " + r);
   if (r == "estado") { cb->Success(EstadoJSON()); return true; }
+  if (r == "catalogo") { cb->Success(catalogo_->JSON()); return true; }
+  if (r == "emma") {  // "Perguntar à Emma": o chat da Emma (alterna: de novo, fecha)
+    const char* argv[] = {"sh", "-c", "pkill -x lumna-emma-chat || lumna-emma-chat", nullptr};
+    pid_t pid;
+    posix_spawnp(&pid, "sh", nullptr, nullptr, const_cast<char* const*>(argv), environ);
+    cb->Success("ok");
+    return true;
+  }
+  if (r.rfind("item:", 0) == 0) {  // item:ID:favorito|depois|assistido:0|1  |  item:ID:remover  |  item:ID:abrir
+    size_t a = r.find(':', 5), b2 = a == std::string::npos ? a : r.find(':', a + 1);
+    std::string id = r.substr(5, a == std::string::npos ? std::string::npos : a - 5), acao = a == std::string::npos ? "" : r.substr(a + 1, b2 == std::string::npos ? std::string::npos : b2 - a - 1);
+    std::string val = b2 == std::string::npos ? "" : r.substr(b2 + 1);
+    Item* it = catalogo_->Acha(id);
+    if (!it) { cb->Failure(3, "item desconhecido"); return true; }
+    if (acao == "remover") catalogo_->Remove(id);
+    else if (acao == "favorito") it->favorito = val == "1";
+    else if (acao == "depois") it->depois = val == "1";
+    else if (acao == "assistido") { it->assistido = val == "1"; if (it->assistido) it->depois = false; }
+    else if (acao == "abrir") {
+      if (estado_ != Estado::kInicio) { cb->Failure(4, "só abre do início"); return true; }
+      if (it->origem == "local") {
+        const char* argv[] = {"xdg-open", it->url.c_str(), nullptr};
+        pid_t pid;
+        posix_spawnp(&pid, "xdg-open", nullptr, nullptr, const_cast<char* const*>(argv), environ);
+      } else if (Acha(it->servico)) {
+        AbrirServico(it->servico, it->url);
+      } else { cb->Failure(5, "serviço desconhecido"); return true; }
+      cb->Success("ok");
+      return true;
+    } else { cb->Failure(6, "ação desconhecida"); return true; }
+    catalogo_->Grava();
+    cb->Success(catalogo_->JSON());
+    return true;
+  }
   if (r == "menu:sair") { FecharMenu(); cb->Success("ok"); return true; }
   if (r == "menu:alternar") {  // F2 com o foco na interface (menu aberto ou tela de carregamento)
     if (estado_ == Estado::kMenu) FecharMenu(); else AbrirMenu();
@@ -933,6 +1108,10 @@ Tecla TeclaDo(const std::string& nome) {
   if (nome == "PageUp") return {0x21, 112, 0};
   if (nome == "PageDown") return {0x22, 117, 0};
   if (nome == "F") return {0x46, 41, 'f'};
+  if (nome == "f") return {0x46, 41, 'f'};
+  if (nome == "w") return {0x57, 25, 'w'};
+  if (nome == "m") return {0x4D, 58, 'm'};
+  if (nome == "a") return {0x41, 38, 'a'};
   return {0, 0, 0};
 }
 
@@ -1064,6 +1243,11 @@ void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
   if (ui) {  // início, menu e transições: a interface (HTML) manda
     if (b == "A") TeclaPara(shell_, TeclaDo("Enter"));
     else if (b == "B") TeclaPara(shell_, TeclaDo("Escape"));
+    else if (b == "X") TeclaPara(shell_, TeclaDo("f"));          // favoritar (no catálogo)
+    else if (b == "Y") TeclaPara(shell_, TeclaDo("w"));          // assistir mais tarde
+    else if (b == "LT") TeclaPara(shell_, TeclaDo("m"));         // o menu de ações do item
+    else if (b == "LB") TeclaPara(shell_, TeclaDo("PageUp"));    // a aba anterior
+    else if (b == "RB") TeclaPara(shell_, TeclaDo("PageDown"));  // a próxima aba
     return;
   }
   // um serviço aberto
@@ -1075,6 +1259,8 @@ void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
   else if (b == "Y") TeclaPara(conteudo_, TeclaDo("F"));                          // tela cheia
   else if (b == "LB") TeclaPara(conteudo_, TeclaDo("PageUp"));
   else if (b == "RB") TeclaPara(conteudo_, TeclaDo("PageDown"));
+  else if (b == "LT") SalvarAtual("depois");     // salva o que está vendo na lista "assistir mais tarde"
+  else if (b == "RT") SalvarAtual("favorito");   // ...ou nos favoritos
 }
 
 }  // namespace
@@ -1087,7 +1273,13 @@ void IniciarMidia() {
     if (cmd == "menu" || cmd == "alternar") { NaInterface([]() { g_midia->AlternarMenu(); }); return "{\"ok\":true}"; }
     if (cmd == "inicio") { NaInterface([]() { g_midia->IrParaInicioPublico(); }); return "{\"ok\":true}"; }
     if (cmd == "estado") return EstadoPublico();
-    return "{\"ok\":false,\"erro\":\"comando desconhecido (menu, inicio, estado)\"}";
+    if (cmd == "salvar" || cmd.rfind("salvar ", 0) == 0) {
+      std::string marca = cmd.size() > 7 ? cmd.substr(7) : "depois";
+      if (marca != "depois" && marca != "favorito" && marca != "assistido") return "{\"ok\":false,\"erro\":\"salvar [depois|favorito|assistido]\"}";
+      NaInterface([marca]() { g_midia->SalvarAtual(marca); });
+      return "{\"ok\":true}";
+    }
+    return "{\"ok\":false,\"erro\":\"comando desconhecido (menu, inicio, estado, salvar)\"}";
   });
   // os controles (lumna-gamepad)
   IniciarControle([](const std::string& b, bool baixo, bool an) { g_midia->BotaoControle(b, baixo, an); },
