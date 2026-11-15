@@ -36,6 +36,8 @@ espera() { i=0; while [ "$(conta "$1")" -lt "${3:-1}" ] && [ $i -lt $((${2:-10} 
 espera "descartado gama" 25 || falha "o endereço do Gama que pertence a outro serviço devia ser descartado ao abrir"
 # 1. a janela abre SEM moldura e a interface (HTML) responde pela ponte
 espera "shell: desenhou salvos=0 servicos=3" 25 || falha "a interface não desenhou os 3 serviços ($(grep -a '^NAV' "$run/nav.log" | tail -3 | tr '\n' '|'))"
+# o Orbit pode demorar a reconhecer a janela e a dar o foco a ela: espera, em vez de já apertar teclas
+i=0; while [ $i -lt 100 ] && ! msg janelas | tr '{' '\n' | grep -q '"titulo":"LUMNA Mídia".*"foco":true'; do sleep 0.2; i=$((i + 1)); done
 msg janelas | tr '{' '\n' | grep -q '"titulo":"LUMNA Mídia".*"barra":false' || falha "a janela da Mídia devia abrir sem moldura nem barra do Orbit"
 foto 1-inicio
 # cada mudança de tamanho do site termina com um "site final" no log: espera por ele em vez de dormir um tempo fixo
@@ -53,6 +55,8 @@ espera "captura [0-9]* bytes" 10 || falha "ao abrir o menu devia chegar o print 
 sleep 0.2; foto 3a-menu-meio
 fim $n || falha "o site devia chegar ao tamanho final do menu"
 sleep 0.3; foto 3-menu
+# o zoom do menu: a página vê um viewport MAIOR (910 / 0,8 = ~1138 px CSS) com dpr 0,8; é o mesmo que um zoom-out de 80%
+espera "página: dpr=0.8" 5 || falha "com o menu aberto a página devia estar com o zoom reduzido (dpr 0,8); log: $(grep -a 'página:' "$run/nav.log" | tail -2 | tr '\n' '|')"
 larg=$(grep -a "site final" "$run/nav.log" | tail -1 | sed 's/.* \([0-9]*\)x[0-9]*$/\1/')
 [ "${larg:-9999}" -lt 1000 ] || falha "o site devia encolher com o menu aberto (largura final $larg)"
 # 4. Enter: troca para o próximo serviço (o foco começa nele)
@@ -70,6 +74,7 @@ sleep 1; n=$(conta "site final"); tecla 60; espera "estado menu beta" 10 || falh
 fim $n || falha "o menu devia terminar de abrir"
 n=$(conta "site final"); tecla 1; espera "estado servico beta" 10 2 || falha "Esc devia voltar ao vídeo"
 fim $n || falha "o site devia voltar ao tamanho cheio"
+sleep 0.8; [ "$(grep -a 'página:' "$run/nav.log" | tail -1 | grep -c 'dpr=1 ')" = 1 ] || falha "ao voltar da tela de menu o zoom devia voltar ao normal (dpr 1): $(grep -a 'página:' "$run/nav.log" | tail -1)"
 # 6. Alt+Home: início; o print do Beta chega ANTES de guardar e o início mostra os 2 em "Continuar assistindo"
 sleep 1; msg tecla_falsa 0 56 baixo >/dev/null; sleep 0.1; tecla 102; sleep 0.1; msg tecla_falsa 0 56 cima >/dev/null
 espera "estado inicio" 10 || falha "Alt+Home devia ir ao início"
@@ -98,5 +103,6 @@ host = {"alfa": "127.0.0.1", "gama": "127.0.0.1", "beta": "localhost"}
 for k, v in d.items():
     assert "//" + host[k] + ":" in v["url"], (k, v["url"])
 PY
+grep -a -q "transição demorou" "$run/nav.log" && falha "o alarme de uma transição antiga disparou no meio de outra ($(grep -a -B2 'transição demorou' "$run/nav.log" | tr '\n' '|' | cut -c1-300))"
 if [ $ok = 1 ]; then echo "midia: ok"; limpa; rm -rf "$run"; exit 0; fi
 echo "(log em $run: nav.log e os screenshots *.png)" >&2; limpa; exit 1

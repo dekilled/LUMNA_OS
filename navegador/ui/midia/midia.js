@@ -64,6 +64,10 @@ async function ativar() {
 }
 
 document.addEventListener('keydown', (e) => {
+  console.log('tecla ' + e.key);
+  // Os atalhos da janela (F2, Alt+Home) não chegam quando é a INTERFACE que tem o foco (menu aberto, tela de carregamento): então ela os repassa.
+  if (e.key === 'F2') { e.preventDefault(); q('menu:alternar'); return; }
+  if (e.altKey && e.key === 'Home') { e.preventDefault(); q('inicio'); return; }
   const itens = zonaItens(zona);
   if (e.key === 'ArrowRight') idx = Math.min(itens.length - 1, idx + 1);
   else if (e.key === 'ArrowLeft') idx = Math.max(0, idx - 1);
@@ -82,6 +86,8 @@ const pct = (r) => ({ left: r.x * 100 + '%', top: r.y * 100 + '%', width: r.w * 
 // (não usa requestAnimationFrame: com o site por cima, o navegador suspende o rAF da interface que está por baixo)
 const quadro = (ms = 60) => new Promise((ok) => setTimeout(ok, ms));
 async function animar(o) {
+  const t0 = performance.now(), T = (m) => console.log('anim#' + o.id + ' ' + Math.round(performance.now() - t0) + 'ms ' + m);
+  T('começou ' + (o.src ? 'com print' : 'splash'));
   anim.className = 'anim' + (o.src ? '' : ' splash');
   anim.style.backgroundImage = o.src ? `url("${o.src}")` : '';
   anim.innerHTML = o.src ? '' : `<span>${esc(o.nome)}</span><i></i>`;
@@ -89,12 +95,14 @@ async function animar(o) {
   Object.assign(anim.style, pct(o.de));
   anim.style.display = o.src ? 'block' : 'grid';
   await quadro(80);                     // o print precisa estar PINTADO antes de o site sair da frente (senão pisca)
-  await q('anim:oculta:' + o.id);
+  T('pintado'); await q('anim:oculta:' + o.id); T('site escondido');
   await quadro(60);
   anim.style.transition = ['left', 'top', 'width', 'height'].map((p) => `${p} ${o.ms}ms cubic-bezier(.2,.8,.2,1)`).join(',');
+  if (o.menu === 1) lumna.menu(true, o.ativo);   // o menu sobe/desce JUNTO com a escala do site (a mesma hora, a mesma duração)
+  if (o.menu === 2) lumna.menu(false);
   Object.assign(anim.style, pct(o.para));
   await new Promise((ok) => setTimeout(ok, o.ms + 40));
-  await q('anim:fim:' + o.id);                  // o C++ põe o site no tamanho final (quando a página também já carregou) e depois manda sumir o print
+  T('css acabou'); await q('anim:fim:' + o.id); T('avisou o fim');                  // o C++ põe o site no tamanho final (quando a página também já carregou) e depois manda sumir o print
 }
 
 window.lumna = {

@@ -41,6 +41,11 @@ class App : public CefApp, public CefBrowserProcessHandler, public CefRenderProc
     cl->AppendSwitch("disable-sync");
     cl->AppendSwitch("no-pings");
     if (getenv("LUMNA_NAV_SEM_GPU")) cl->AppendSwitch("disable-gpu");
+    // A interface (HTML) fica por baixo do site, coberta: sem isto o Chromium a trata como "em segundo plano" e atrasa os temporizadores dela para
+    // 1 s, o que deixa a troca de serviço e o menu travados/atropelados.
+    cl->AppendSwitch("disable-background-timer-throttling");
+    cl->AppendSwitch("disable-renderer-backgrounding");
+    cl->AppendSwitch("disable-backgrounding-occluded-windows");
     // o vídeo dos serviços toca sem gesto do usuário (a TV não tem um toque antes do play)
     cl->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
   }
