@@ -1,0 +1,17 @@
+<!doctype html><meta charset=utf-8><title>NAV</title>
+<style>html,body{margin:0;height:3000px;background:#112;color:#fff;font:20px sans-serif}
+button,a{position:absolute;width:160px;height:80px;font:20px sans-serif;display:block;background:#335;color:#fff;border:2px solid #668;text-align:center;line-height:80px;text-decoration:none}</style>
+<button id=b1 style="left:100px;top:100px">B1</button>
+<button id=b2 style="left:400px;top:100px">B2</button>
+<button id=b3 style="left:100px;top:300px">B3</button>
+<a id=b4 href="sonda.html" style="left:400px;top:300px">B4</a>
+<script>
+// Anota no TÍTULO o que acontece (o teste lê o título pelo Orbit): o item em foco, o último clicado e quantos cliques, a última tecla, a rolagem e se o nav.js está na página.
+let f = '-', c = '-', n = 0, k = '-', w = 0;
+const t = () => { document.title = `NAV|f=${f}|c=${c}|n=${n}|k=${k}|w=${w}|nav=${window.__lumnaNav ? 1 : 0}`; };
+addEventListener('focusin', (e) => { f = e.target.id || '-'; t(); });
+addEventListener('click', (e) => { c = e.target.id || '-'; n++; t(); });
+addEventListener('keydown', (e) => { k = e.key; t(); });
+addEventListener('wheel', (e) => { w += Math.round(e.deltaY); t(); }, { passive: true });
+t();
+</script>

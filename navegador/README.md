@@ -13,25 +13,29 @@ O Widevine é baixado pelo próprio CEF na primeira vez (de 1 a 3 minutos, depoi
 
 ## O controle (gamepad), o Super+M e o celular
 
-**Super+M** (o seletor do Orbit, `seletor_midia`) chama `lumna-navegador --menu`, que fala com a instância que está rodando (socket `$XDG_RUNTIME_DIR/lumna-navegador.sock`): `--menu` abre/fecha o menu de serviços, `--inicio` vai ao início, `--estado` devolve `{"ok":true,"estado":"inicio|servico|menu","ativo":"..."}`. Para usar a nova Mídia, no `orbit.ini`: `seletor_midia = lumna-navegador --menu` (hoje o padrão ainda é o `lumna-midia tela seletor` da Mídia antiga). O celular (LUMNA Connect) já funciona sem mudança: ele manda teclado e ponteiro virtuais pelo Orbit.
+**Super+M** (o seletor do Orbit, `seletor_midia`) chama `lumna-navegador --menu`, que fala com a instância que está rodando (socket `$XDG_RUNTIME_DIR/lumna-navegador.sock`): `--menu` abre/fecha o menu de serviços, `--inicio` vai ao início, `--estado` devolve `{"ok":true,"estado":"inicio|servico|menu","ativo":"...","controle":"setas|cursor|"}`. Para usar a nova Mídia, no `orbit.ini`: `seletor_midia = lumna-navegador --menu` (hoje o padrão ainda é o `lumna-midia tela seletor` da Mídia antiga). O celular (LUMNA Connect) já funciona sem mudança: ele manda teclado e ponteiro virtuais pelo Orbit.
 
 O controle vem do serviço **`lumna-gamepad`**, que o navegador assina (`assinar`: botões e analógicos). Só age com a **janela da Mídia em foco** (com um jogo na frente o controle é do jogo). Mapeamento:
 
-| | Início, menu e splash (a interface) | Num serviço aberto (o site) |
-|---|---|---|
-| Direcional | navega (setas) | setas no site (adianta/atrasa, volume, rola) |
-| Analógico esquerdo | navega (setas) | **move o ponteiro de verdade** (o do Orbit) |
-| Analógico direito | — | **rola** a página |
-| A | confirma (Enter) | **clique** (segura enquanto apertado: arrasta) |
-| B | volta (Esc; fecha o menu) | sai da tela cheia; senão volta a página |
-| X | — | Espaço (play/pausa) |
-| Y | — | `f` (tela cheia) |
-| LB / RB | — | Page Up / Page Down |
-| **Start** | abre/fecha o menu de serviços (o mesmo do F2 e do Super+M) | idem |
-| **Select** | vai ao início | idem |
-| Guia | é do sistema (`guia=` em `gamepad.ini`: use `nada` para ele não abrir o LUMNA Jogos por cima) | idem |
+| | Início, menu e splash (a interface) | Num serviço aberto, modo **setas** (o padrão) | Num serviço aberto, modo **cursor** |
+|---|---|---|---|
+| Direcional | navega (setas) | setas no site | setas no site |
+| Analógico esquerdo | navega (UM eixo, o dominante) | **setas** (também um eixo só): move o foco entre os itens | **move o ponteiro de verdade** (o do Orbit) |
+| Analógico direito | — | **rola** a página (roda do mouse mandada direto ao site) | **rola** (rolagem do Orbit) |
+| A | confirma (Enter) | **Enter** (o `nav.js` clica no item em foco; num site de TV age como o OK do controle remoto) | **clique** (segura enquanto apertado: arrasta) |
+| B | volta (Esc; fecha o menu) | sai da tela cheia; senão o "voltar" do serviço: a página anterior (`historico`) ou Esc (`esc`, o YouTube TV) | idem |
+| X / Y | favorita / mais tarde (no catálogo) | Espaço (play/pausa) / `f` (tela cheia) | idem |
+| LB / RB | troca de aba | Page Up / Page Down (ao soltar) | idem |
+| **LB + RB juntos** | — | troca **setas ↔ cursor** só neste site (até sair dele), com aviso na tela; não manda Page Up/Down | idem |
+| **Start** | abre/fecha o menu de serviços (o mesmo do F2 e do Super+M) | idem | idem |
+| **Select** | vai ao início | idem | idem |
+| Guia | é do sistema (`guia=` em `gamepad.ini`: use `nada` para ele não abrir o LUMNA Jogos por cima) | idem | idem |
 
-Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (nas bordas fica a moldura invisível de redimensionar, e clicar ali arrasta a janela; a página nem recebe o ponteiro); a rolagem do Orbit (`mouse rolar`) vale ~1 px a cada 15 unidades (calibrado); o analógico segurado parado não gera evento, então o navegador guarda o último valor e continua andando a 60 Hz; no site o analógico esquerdo **só** move o ponteiro (as setas vêm só do direcional: o serviço marca cada direção com `analogico: true|false`). O direcional segurado repete (400 ms, depois a cada 110 ms). Na interface o **analógico vale por um eixo só, o dominante** (um analógico de verdade nunca é reto: sem isso empurrar para a direita marcava também "cima" e a interface pulava de zona); entra a 55% do curso e sai abaixo de 35%.
+**Como o controle chega em qualquer site.** O navegador injeta o `ui/midia/nav.js` em toda página nova (`Page.addScriptToEvaluateOnNewDocument`, depois de `Page.enable`: sem ele o registro não vale): as setas movem o foco para o item clicável mais perto naquela direção (contorno violeta), o Enter clica, e sem para onde ir a seta volta a rolar a página. Ele sai de fora de vídeo tocando em tela cheia e de qualquer página com o **User-Agent de TV**. Para os serviços marcados `ua_tv` (o YouTube: `youtube.com/tv`) o navegador manda o User-Agent de uma TV (`Emulation.setUserAgentOverride`, que troca o do pedido **e** o de `navigator.userAgent`, os dois que o app de TV confere); ao abrir outro serviço ele volta ao normal. Esse User-Agent vale para a visão inteira (não só para os domínios do serviço, como fazia a extensão do Firefox): serve para o YouTube, que não redireciona para o login do Google. O modo de cada serviço (`modo`: `setas`|`cursor`) e o "voltar" (`voltar`: `historico`|`esc`) ficam em `servicos.json` e se mudam no menu de ações (tecla M / LT) do serviço na tela de início.
+
+**Streamings.** Na tela de início o último cartão é **+ Adicionar**: abre a biblioteca (Netflix, Disney+, Prime, HBO Max, Paramount+, Apple TV+, Globoplay, Crunchyroll, Twitch, Plex...) e o formulário de **Outro site** (nome + endereço; sem teclado físico use `lumna-navegador --adicionar NOME https://endereço`). O menu de ações do serviço (M / LT) tem **Favorito** (o favorito vem primeiro e já nasce em foco), **modo de controle** e **Remover**. Teste: `navegador/testes/servicos.py`.
+
+Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (nas bordas fica a moldura invisível de redimensionar, e clicar ali arrasta a janela; a página nem recebe o ponteiro); a rolagem do Orbit (`mouse rolar`) vale ~1 px a cada 15 unidades (calibrado); o analógico segurado parado não gera evento, então o navegador guarda o último valor e continua andando a 60 Hz; no modo cursor o analógico esquerdo **só** move o ponteiro (no modo setas ele vira setas; o serviço marca cada direção com `analogico: true|false`). O direcional segurado repete (400 ms, depois a cada 110 ms). Na interface o **analógico vale por um eixo só, o dominante** (um analógico de verdade nunca é reto: sem isso empurrar para a direita marcava também "cima" e a interface pulava de zona); entra a 55% do curso e sai abaixo de 35%.
 
 ## O catálogo (as suas listas)
 

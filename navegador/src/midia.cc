@@ -155,7 +155,7 @@ void Aviso(const std::string& texto) {
 
 // o estado que o comando `lumna-navegador --estado` devolve (lido da thread do socket)
 std::mutex g_estado_mutex;
-std::string g_estado_pub = "{\"ok\":true,\"estado\":\"inicio\",\"ativo\":\"\"}";
+std::string g_estado_pub = "{\"ok\":true,\"estado\":\"inicio\",\"ativo\":\"\",\"controle\":\"\"}";
 std::string EstadoPublico() {
   std::lock_guard<std::mutex> l(g_estado_mutex);
   return g_estado_pub;
@@ -164,6 +164,9 @@ std::string EstadoPublico() {
 // ---------------------------------------------------------------------------------------------------------------------------- a Mídia
 class Midia;
 CefRefPtr<Midia> g_midia;
+
+// o User-Agent de uma TV (Samsung/Tizen): é o que o YouTube pede para servir a interface de TV (youtube.com/tv), feita para controle remoto
+const char* kUaTv = "Mozilla/5.0 (SMART-TV; Linux; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) 69.0.3497.106.1/5.0 TV Safari/537.36";
 
 struct Tecla { int vk; int nativo; int caractere; };  // uma tecla para mandar a uma visão (vk do Windows, código nativo do X11, caractere)
 enum class Estado { kInicio, kServico, kMenu };
@@ -378,6 +381,9 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   OrbitIPC orbit_;
   double lx_ = 0, ly_ = 0, rx_ = 0, ry_ = 0;
   bool tick_ = false, pont_ativo_ = false, site_fs_ = false, a_baixo_ = false;
+  bool lb_ = false, rb_ = false, acorde_ = false, nav_injetado_ = false, ua_tv_ = false;  // LB/RB apertados; o acorde LB+RB já valeu; o nav.js já foi registrado; o User-Agent de TV está ligado
+  std::string modo_tmp_;
+  double rola_acc_ = 0;
   double px_ = 0, py_ = 0;
   CefRect jan_;
   std::chrono::steady_clock::time_point tick_t_, jan_t_;
@@ -438,11 +444,20 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   void Mudar(Estado e) {
     estado_ = e;
     Log(std::string("estado ") + NomeEstado(e) + (ativo_.empty() ? "" : " " + ativo_));
-    {
-      std::lock_guard<std::mutex> l(g_estado_mutex);
-      g_estado_pub = std::string("{\"ok\":true,\"estado\":") + J(NomeEstado(e)) + ",\"ativo\":" + J(ativo_) + "}";
-    }
+    PublicaEstado();
   }
+  void PublicaEstado() {
+    std::lock_guard<std::mutex> l(g_estado_mutex);
+    g_estado_pub = std::string("{\"ok\":true,\"estado\":") + J(NomeEstado(estado_)) + ",\"ativo\":" + J(ativo_) + ",\"controle\":" + J(estado_ == Estado::kServico ? ModoSite() : "") + "}";
+  }
+  // Como o controle age no site aberto: "setas" (o direcional e o analógico esquerdo movem o foco entre os itens clicáveis, A clica) ou "cursor" (o analógico esquerdo
+  // move um ponteiro). Vem do serviço; LB+RB juntos trocam só até sair dele (modo_tmp_).
+  std::string ModoSite() const {
+    if (!modo_tmp_.empty()) return modo_tmp_;
+    const Servico* sv = Acha(ativo_);
+    return sv && sv->modo == "cursor" ? "cursor" : "setas";
+  }
+  void PreparaSite(const Servico* sv);
   void Chamar(const char* metodo, CefRefPtr<CefDictionaryValue> params, Retorno cb) {
     if (!conteudo_ || !conteudo_->GetBrowser()) { cb(false, nullptr); return; }
     auto host = conteudo_->GetBrowser()->GetHost();
@@ -800,10 +815,39 @@ void Midia::Finalizar() {
   CefPostDelayedTask(TID_UI, new FuncTask([this]() { ShellJS("lumna.animSumir()"); }), 120);  // o print só some depois de o site pintar
 }
 
+// O que o site precisa para aceitar o controle, antes de a página carregar: o nav.js (as setas movem o foco entre os itens, em toda página nova) e, para os serviços
+// com interface de TV (YouTube), o User-Agent de TV (no pedido e em navigator.userAgent, os dois que o app de TV confere). O User-Agent vale para a visão
+// inteira: ao abrir outro serviço ele volta ao normal.
+void Midia::PreparaSite(const Servico* sv) {
+  if (!conteudo_ || !conteudo_->GetBrowser()) return;
+  if (!nav_injetado_) {
+    std::string js = LerArquivo(ui_ + "/nav.js");
+    if (js.empty()) {
+      Log("aviso: ui/nav.js não encontrado: o controle não move o foco nos sites");
+    } else {
+      nav_injetado_ = true;
+      Chamar("Page.enable", CefDictionaryValue::Create(), [](bool ok, CefRefPtr<CefDictionaryValue>) { if (!ok) Log("Page.enable falhou"); });  // sem ele o registro não vale nas páginas novas
+      auto p = CefDictionaryValue::Create();
+      p->SetString("source", js);
+      Chamar("Page.addScriptToEvaluateOnNewDocument", p, [](bool ok, CefRefPtr<CefDictionaryValue>) { Log(ok ? "nav.js registrado nas páginas novas" : "ERRO: nav.js não registrou"); });
+    }
+  }
+  bool tv = sv && sv->ua_tv;
+  if (tv != ua_tv_) {
+    ua_tv_ = tv;
+    auto p = CefDictionaryValue::Create();
+    p->SetString("userAgent", tv ? kUaTv : "");  // vazio desliga a troca
+    if (tv) p->SetString("platform", "Linux armv7l");
+    Chamar("Emulation.setUserAgentOverride", p, [tv](bool ok, CefRefPtr<CefDictionaryValue>) { Log(std::string("User-Agent de TV ") + (tv ? "ligado" : "desligado") + (ok ? "" : ": FALHOU")); });
+  }
+}
+
 void Midia::AbrirServico(const std::string& id, const std::string& url) {
   if (modo_ == ModoAnim::kImagem) ocupado_ = true;  // ANTES de tudo: um evento de layout durante o LoadURL chamaria Aplicar() e o site antigo pularia para a tela cheia
   bool vinha_do_menu = estado_ == Estado::kMenu;
   ativo_ = id;
+  modo_tmp_.clear();
+  PreparaSite(Acha(id));
   Mudar(Estado::kServico);
   CefRect de = vinha_do_menu ? Encolhido() : Cheio();
   carregou_ = false;
@@ -1159,6 +1203,7 @@ Tecla TeclaDo(const std::string& nome) {
   if (nome == "ESQ") return {0x25, 113, 0};
   if (nome == "DIR") return {0x27, 114, 0};
   if (nome == "Enter") return {0x0D, 36, 0};
+  if (nome == "EnterSite") return {0x0D, 36, '\r'};  // com o caractere: um link só abre com o Enter "digitado"
   if (nome == "Escape") return {0x1B, 9, 0};
   if (nome == "Espaco") return {0x20, 65, ' '};
   if (nome == "PageUp") return {0x21, 112, 0};
@@ -1253,11 +1298,12 @@ void Midia::TickControle() {
     }
   }
   bool servico = estado_ == Estado::kServico && !ocupado_ && em_foco;
+  bool cursor = servico && ModoSite() == "cursor";
   const double zona = 0.18;
   double mag = std::hypot(lx_, ly_);
   if (mag > zona) {
     ativo = true;
-    if (servico) {  // o analógico esquerdo move o ponteiro (curva quadrática: fino perto do centro, rápido no fim do curso)
+    if (cursor) {  // o analógico esquerdo move o ponteiro (curva quadrática: fino perto do centro, rápido no fim do curso)
       if (!pont_ativo_) IniciaPonteiro();
       double k = (mag - zona) / (1 - zona);
       double vel = 1700 * k * k;
@@ -1276,8 +1322,21 @@ void Midia::TickControle() {
       // o `mouse rolar` do Orbit vale ~1 px de rolagem a cada 15 unidades (medido: 15→1 px, 300→20 px, 1000→66 px): a velocidade é em px/s e se converte
       double k = (std::fabs(ry_) - zona) / (1 - zona);
       double px_s = 1800 * k * k + 120 * k;  // fino perto do centro, rápido no fim do curso
-      orbit_.Rolar((ry_ > 0 ? 1 : -1) * px_s * dt * 15.0);
+      if (cursor) {
+        orbit_.Rolar((ry_ > 0 ? 1 : -1) * px_s * dt * 15.0);
+      } else if (conteudo_ && conteudo_->GetBrowser()) {  // no modo "setas" não há ponteiro sobre a página: a roda vai direto ao site, no meio dele
+        rola_acc_ += (ry_ > 0 ? -1 : 1) * px_s * dt;
+        int d = static_cast<int>(rola_acc_);
+        if (d != 0) {
+          rola_acc_ -= d;
+          CefMouseEvent me;
+          me.x = destino_.width / 2; me.y = destino_.height / 2; me.modifiers = 0;
+          conteudo_->GetBrowser()->GetHost()->SendMouseWheelEvent(me, 0, d);
+        }
+      }
     }
+  } else {
+    rola_acc_ = 0;
   }
   if (ativo) AgendaTick();
 }
@@ -1287,9 +1346,10 @@ void Midia::TickControle() {
 // sai abaixo de 35%, e só troca de eixo quando o outro passa a ser claramente maior (histerese); no site o analógico é o ponteiro, não setas.
 void Midia::AtualizaAnalogicoUI() {
   bool ui = estado_ != Estado::kServico || ocupado_;
+  bool setas = !ui && ModoSite() == "setas";  // no site em modo "setas" o analógico também são setas (no modo "cursor" é o ponteiro)
   double mag = std::hypot(lx_, ly_), ax = std::fabs(lx_), ay = std::fabs(ly_);
   std::string nova = ana_dir_;
-  if (!ui || mag < 0.35) {
+  if ((!ui && !setas) || mag < 0.35) {
     nova.clear();
   } else if (mag >= 0.55 || !ana_dir_.empty()) {
     bool horiz = ana_dir_.empty() ? ax >= ay : (ana_dir_ == "ESQ" || ana_dir_ == "DIR") ? ax * 1.25 >= ay : ax > ay * 1.25;
@@ -1332,10 +1392,32 @@ void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
     AgendaTick();
     return;
   }
-  if (!baixo) {  // soltar: só o A (o clique) tem o que desfazer
+  bool site = estado_ == Estado::kServico && !ui;
+  if (!baixo) {  // soltar: o A (o clique) desfaz o que apertou; no site LB/RB agem ao soltar (se não foram um acorde)
     if (b == "A" && a_baixo_) { bool ok = orbit_.Botao(false); Log(std::string("clique (botao cima) ") + (ok ? "enviado" : "FALHOU")); a_baixo_ = false; }
+    if (site && (b == "LB" || b == "RB")) {
+      bool era_acorde = acorde_;
+      (b == "LB" ? lb_ : rb_) = false;
+      if (!lb_ && !rb_) acorde_ = false;
+      if (!era_acorde && em_foco) TeclaPara(conteudo_, TeclaDo(b == "LB" ? "PageUp" : "PageDown"));
+    } else if (b == "LB") lb_ = false;
+    else if (b == "RB") rb_ = false;
     return;
   }
+  if (site && (b == "LB" || b == "RB")) {  // LB+RB juntos: troca o modo do controle neste site (setas <-> cursor), até sair dele
+    (b == "LB" ? lb_ : rb_) = true;
+    if (lb_ && rb_ && em_foco) {
+      acorde_ = true;
+      modo_tmp_ = ModoSite() == "setas" ? "cursor" : "setas";
+      seg_.clear(); ana_dir_.clear(); pont_ativo_ = false;
+      Log("controle: modo " + modo_tmp_ + " (acorde LB+RB)");
+      PublicaEstado();
+      Aviso(modo_tmp_ == "setas" ? "Controle: setas — o analógico e o direcional movem o foco, A clica" : "Controle: cursor — o analógico move o ponteiro, A clica");
+    }
+    return;
+  }
+  if (b == "LB") lb_ = true;
+  else if (b == "RB") rb_ = true;
   if (!em_foco) return;
   if (b == "START") { AlternarMenu(); return; }
   if (b == "SELECT") { Inicio(); return; }
@@ -1350,14 +1432,15 @@ void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
     return;
   }
   // um serviço aberto
-  if (b == "A") { bool ok = orbit_.Botao(true); Log(std::string("clique (botao baixo) ") + (ok ? "enviado" : "FALHOU")); a_baixo_ = true; }                         // o clique (segura enquanto o botão estiver apertado: arrasta)
-  else if (b == "B") {                                                            // voltar: sai da tela cheia, senão volta a página
-    if (site_fs_) TeclaPara(conteudo_, TeclaDo("Escape"));
+  if (b == "A") {
+    if (ModoSite() == "setas") TeclaPara(conteudo_, TeclaDo("EnterSite"));       // modo setas: o OK (o nav.js clica no item em foco; um site de TV age como no controle remoto)
+    else { bool ok = orbit_.Botao(true); Log(std::string("clique (botao baixo) ") + (ok ? "enviado" : "FALHOU")); a_baixo_ = true; }  // o clique (segura enquanto o botão estiver apertado: arrasta)
+  } else if (b == "B") {                                                          // voltar: sai da tela cheia; o "voltar" do serviço: Escape (interfaces de TV) ou a página anterior
+    const Servico* sv = Acha(ativo_);
+    if (site_fs_ || (sv && sv->voltar == "esc")) TeclaPara(conteudo_, TeclaDo("Escape"));
     else if (conteudo_ && conteudo_->GetBrowser() && conteudo_->GetBrowser()->CanGoBack()) conteudo_->GetBrowser()->GoBack();
   } else if (b == "X") TeclaPara(conteudo_, TeclaDo("Espaco"));                   // play/pausa
   else if (b == "Y") TeclaPara(conteudo_, TeclaDo("F"));                          // tela cheia
-  else if (b == "LB") TeclaPara(conteudo_, TeclaDo("PageUp"));
-  else if (b == "RB") TeclaPara(conteudo_, TeclaDo("PageDown"));
   else if (b == "LT") SalvarAtual("depois");     // salva o que está vendo na lista "assistir mais tarde"
   else if (b == "RT") SalvarAtual("favorito");   // ...ou nos favoritos
 }

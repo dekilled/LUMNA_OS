@@ -65,7 +65,10 @@ sock_http.close()
 procs.append(subprocess.Popen([sys.executable, f"{aqui}/servidor.py", str(porta), f"{aqui}/paginas"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 json.dump([
     {"id": "alfa", "nome": "Serviço Alfa", "url": f"http://127.0.0.1:{porta}/a.html"},
-    {"id": "sonda", "nome": "Sonda", "url": f"http://127.0.0.1:{porta}/sonda.html"},
+    {"id": "sonda", "nome": "Sonda", "url": f"http://127.0.0.1:{porta}/sonda.html", "modo": "cursor"},   # no modo "cursor" o analógico é o ponteiro (as seções 4-6)
+    {"id": "nav", "nome": "Setas", "url": f"http://127.0.0.1:{porta}/nav.html"},                          # o padrão: modo "setas" (a seção 7c)
+    {"id": "tv", "nome": "TV", "url": f"http://127.0.0.1:{porta}/eco-ua", "ua_tv": True, "voltar": "esc"},  # interface de TV: User-Agent de TV, B = Escape
+    {"id": "eco", "nome": "Eco", "url": f"http://127.0.0.1:{porta}/eco-ua"},                               # igual, sem o User-Agent de TV
 ], open(f"{run}/servicos.json", "w"))
 
 # o Orbit sem tela
@@ -364,6 +367,121 @@ time.sleep(0.6)
 depois = foco()
 if not antes or not depois or depois[0] != antes[0] or int(depois[1]) != int(antes[1]) + 1:
     falha(f"o analógico torto (direita com um pouco de cima) devia mover só para a direita (um eixo, o dominante): {antes} → {depois}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 7c. o controle em TODOS os sites: modo "setas", User-Agent de TV, B, LB+RB
+def abre(n, id_):
+    """do início, anda o direcional até o n-ésimo serviço e abre com A"""
+    subprocess.run([f"{stage}/lumna-navegador", "--inicio"], cwd=run, env=envn, capture_output=True)
+    espera(lambda: estado().get("estado") == "inicio", 6)
+    time.sleep(1.0)
+    orbit("tecla_falsa", "0", "1")   # Esc: se o início voltou "para onde estava" (o catálogo), leva à tela de início
+    time.sleep(0.8)
+    for _ in range(12):
+        f_ = foco()
+        if f_ and f_[0] == "servicos" and int(f_[1]) == n:
+            break
+        dpad("DIR" if not f_ or f_[0] != "servicos" or int(f_[1]) < n else "ESQ")
+        time.sleep(0.3)
+    aperta("A")
+    return espera(lambda: estado().get("estado") == "servico" and estado().get("ativo") == id_, 12)
+
+
+def sinal(nome, esperado, seg=5, onde=None):
+    return espera(lambda: (campo(nome) or "") == esperado, seg)
+
+
+if not abre(2, "nav"):
+    falha(f"devia abrir o serviço 'nav': {estado()}")
+elif not espera(lambda: titulo().startswith("NAV|"), 15):
+    falha(f"a página de setas devia carregar: {titulo()}")
+else:
+    time.sleep(1.5)
+    if estado().get("controle") != "setas":
+        falha(f"um serviço sem 'modo' abre em modo setas: {estado()}")
+    if campo("nav") != "1":
+        falha(f"o nav.js devia estar na página (window.__lumnaNav): {titulo()}")
+    dpad("DIR")
+    if not espera(lambda: campo("f") not in (None, "-"), 4):
+        falha(f"a primeira seta devia pôr o foco no item mais perto do meio: {titulo()}")
+    dpad("CIMA"); dpad("ESQ")
+    if not sinal("f", "b1"):
+        falha(f"cima + esquerda a partir do meio devia chegar em B1: {titulo()}")
+    aperta("A")
+    if not espera(lambda: campo("c") == "b1" and campo("n") == "1", 4):
+        falha(f"A (Enter) devia clicar no item em foco: {titulo()}")
+    # o analógico esquerdo também são setas (UM eixo, o dominante): direita → B2, que A clica
+    evento(EV_ABS, ABS_X, 32767); time.sleep(0.2); evento(EV_ABS, ABS_X, 0); time.sleep(0.5)
+    if not sinal("f", "b2"):
+        falha(f"o analógico para a direita devia mover o foco para B2 (setas): {titulo()}")
+    evento(EV_ABS, ABS_X, 29000); evento(EV_ABS, ABS_Y, 11000); time.sleep(0.2); evento(EV_ABS, ABS_X, 0); evento(EV_ABS, ABS_Y, 0); time.sleep(0.5)
+    if campo("f") != "b2":   # direita torta (com um pouco de baixo) ao lado do último item: um eixo só, e não há nada à direita
+        falha(f"direita com um pouco de baixo devia contar só a direita, e B2 é o último dessa linha: {titulo()}")
+    evento(EV_ABS, ABS_Y, 32767); time.sleep(0.2); evento(EV_ABS, ABS_Y, 0); time.sleep(0.5)
+    if not sinal("f", "b4"):
+        falha(f"o analógico para baixo devia mover o foco para B4: {titulo()}")
+    aperta("A")   # B4 é um link: só abre com o Enter "digitado" (o caractere)
+    if not espera(lambda: titulo().startswith("SONDA"), 6):
+        falha(f"A num link devia abri-lo: {titulo()}")
+    aperta("B")   # voltar: o histórico
+    if not espera(lambda: titulo().startswith("NAV|"), 8):
+        falha(f"B devia voltar uma página (serviço sem 'voltar' = histórico): {titulo()}")
+    # a rolagem (analógico direito) vai direto ao site, sem ponteiro
+    time.sleep(1.0)
+    w0 = int(campo("w") or 0)
+    evento(EV_ABS, ABS_RY, 32767); time.sleep(0.8); evento(EV_ABS, ABS_RY, 0); time.sleep(0.5)
+    w1 = int(campo("w") or 0)
+    if w1 - w0 < 200:
+        falha(f"no modo setas o analógico direito rola a página (deltaY {w0} → {w1}, positivo = para baixo)")
+    # LB sozinho = PageUp (ao soltar); LB+RB juntos = troca setas <-> cursor SEM mandar PageUp/PageDown
+    aperta("LB")
+    if not sinal("k", "PageUp"):
+        falha(f"LB sozinho devia mandar PageUp: {titulo()}")
+    dpad("ESQ")
+    evento(EV_KEY, BTN["LB"], 1); evento(EV_KEY, BTN["RB"], 1); time.sleep(0.15); evento(EV_KEY, BTN["LB"], 0); evento(EV_KEY, BTN["RB"], 0); time.sleep(0.5)
+    if estado().get("controle") != "cursor":
+        falha(f"LB+RB devia trocar para o modo cursor: {estado()}")
+    if campo("k") != "ArrowLeft":
+        falha(f"LB+RB não manda PageUp/PageDown (a última tecla seguia ArrowLeft): {titulo()}")
+    f0 = campo("f")
+    evento(EV_ABS, ABS_X, 32767); time.sleep(0.4); evento(EV_ABS, ABS_X, 0); time.sleep(0.4)
+    if campo("k") != "ArrowLeft" or campo("f") != f0:
+        falha(f"no modo cursor o analógico esquerdo não manda setas: {titulo()}")
+    evento(EV_KEY, BTN["LB"], 1); evento(EV_KEY, BTN["RB"], 1); time.sleep(0.15); evento(EV_KEY, BTN["LB"], 0); evento(EV_KEY, BTN["RB"], 0); time.sleep(0.5)
+    if estado().get("controle") != "setas":
+        falha(f"LB+RB de novo devia voltar ao modo setas: {estado()}")
+
+# o serviço de TV: o User-Agent de TV vai no pedido E na página (e some nos outros serviços); nenhum nav.js nele; B = Escape
+if not abre(3, "tv"):
+    falha(f"devia abrir o serviço 'tv': {estado()}")
+elif not espera(lambda: titulo().startswith("UA|"), 15):
+    falha(f"a página do eco devia carregar: {titulo()}")
+else:
+    time.sleep(1.0)
+    if "SMART-TV" not in (campo("http") or ""):
+        falha(f"o serviço de TV devia mandar o User-Agent de TV no pedido: {titulo()}")
+    if "SMART-TV" not in (campo("js") or ""):
+        falha(f"o serviço de TV devia ter o User-Agent de TV em navigator.userAgent: {titulo()}")
+    if campo("nav") != "0":
+        falha(f"a interface de TV tem a navegação dela: sem nav.js: {titulo()}")
+    dpad("DIR")
+    if not sinal("k", "ArrowRight"):
+        falha(f"o direcional devia chegar à interface de TV como seta: {titulo()}")
+    aperta("A")
+    if not sinal("k", "Enter"):
+        falha(f"A devia mandar Enter à interface de TV: {titulo()}")
+    aperta("B")
+    if not sinal("k", "Escape"):
+        falha(f"B no serviço de TV (voltar = esc) devia mandar Escape: {titulo()}")
+if not abre(4, "eco"):
+    falha(f"devia abrir o serviço 'eco': {estado()}")
+elif not espera(lambda: titulo().startswith("UA|"), 15):
+    falha(f"a página do eco devia carregar: {titulo()}")
+else:
+    time.sleep(1.0)
+    if "SMART-TV" in (campo("http") or "") or "SMART-TV" in (campo("js") or ""):
+        falha(f"depois do serviço de TV, outro serviço volta ao User-Agent normal: {titulo()}")
+    if campo("nav") != "1":
+        falha(f"nos outros sites o nav.js está na página: {titulo()}")
 
 # ---------------------------------------------------------------------------------------------------------------------------- 8. nada foi interpretado a mais
 if "Cannot add multiple" in log():
