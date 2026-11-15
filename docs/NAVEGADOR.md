@@ -153,3 +153,11 @@ A ideia: compilar com `enable_widevine=true` e deixar o navegador baixar o CDM d
 Com o Google Chrome **desinstalado**, o app de teste (CEF 154 do godwinmix) tocou **Netflix** ("O Mentalista" E1, janela grande no Desktop do LUMNA), **HBO Max** ("Chernobyl" T1 E5) e **YouTube**. Prova que o navegador não depende do Chrome instalado.
 
 **Ressalva de método (a confirmar com o Eric):** o script, nas rodadas anteriores, **copiava** o `WidevineCdm` do Chrome para `~/.cache/lumna-cef-teste/` (pasta do teste e perfil). Desinstalar o Chrome **não apaga essas cópias**. Então há dois cenários: (a) o Eric rodou `--baixar`, que apaga as cópias e deixa o CEF baixar o CDM da Google sozinho (a prova forte); (b) ele rodou o modo normal e o CDM veio das cópias. Os dois funcionam, mas só (a) mostra que o LUMNA não precisa de nenhum Chrome em nenhum momento. Para conferir: `ls ~/.cache/lumna-cef-teste/build-*/cache/WidevineCdm` e ver se a versão bate com a que o `--baixar` anunciou (`baixou: Widevine CDM ...`).
+
+### Confirmado: o CEF baixou o Widevine sozinho no PC do Eric (2026-11-15)
+
+O Eric rodou `bash scripts/teste-cef-codecs.sh --baixar` (o script apaga qualquer cópia do CDM antes) com o Chrome desinstalado, e o **CEF baixou o CDM da Google por conta própria**; depois Netflix, HBO Max (print do episódio com a vinheta da HBO) e YouTube tocaram. Então **o navegador do LUMNA não precisa de Chrome em nenhum momento e a ISO não carrega o binário do CDM** (o modelo de entrega do Widevine é o download automático pelo próprio CEF, no primeiro uso).
+
+**Riscos que ficam (decisão do Eric, não técnica):** (1) a Google serve o componente a quem pede, mas **sem contrato com o LUMNA** ela pode parar de servir a builds que não são dela; (2) para o LUMNA público, checar a parte jurídica antes (Widevine e patentes H.264/AAC); (3) o build de CEF com codecs ainda é de terceiros: para distribuir, fazer o **build próprio**.
+
+**Próximos passos técnicos do navegador:** moldura própria (3 botões na faixa das abas, janela sem moldura no CEF Views), abas, barra de endereço; depende da lista de funcionalidades marcada e do esboço da versão Mídia.
