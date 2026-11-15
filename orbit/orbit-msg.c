@@ -22,7 +22,7 @@ static void usage(const char *self) {
 		"  saidas | janelas | espacos | foco ID | fechar [ID] | espaco N [SAIDA] | mover ID N\n"
 		"  ecra [ID] | flutuar [ID] | dividir | acao NOME | exec COMANDO\n"
 		"  modo [seguinte|anterior|desktop|gaming|midia [SAIDA]]\n"
-		"  toque baixo|move|cima DEDO X Y | subscrever\n"
+		"  toque baixo|move|cima DEDO X Y | cursor | subscrever\n"
 		"  tela_cheia [sim|nao|alternar] | copiados | copiar N | limpar_copiados\n"
 		"  (também -t get_outputs, -t get_tree, -t get_workspaces)\n",
 		self);

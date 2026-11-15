@@ -7,11 +7,14 @@
 // Trocar de serviço: guarda o último endereço, o progresso e um print do site, pausa, e o site expande já no serviço novo.
 #include "midia.h"
 
+#include "externo.h"
+
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -146,10 +149,19 @@ std::vector<Servico> CarregaServicos() {
   return v;
 }
 
+// o estado que o comando `lumna-navegador --estado` devolve (lido da thread do socket)
+std::mutex g_estado_mutex;
+std::string g_estado_pub = "{\"ok\":true,\"estado\":\"inicio\",\"ativo\":\"\"}";
+std::string EstadoPublico() {
+  std::lock_guard<std::mutex> l(g_estado_mutex);
+  return g_estado_pub;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------- a Mídia
 class Midia;
 CefRefPtr<Midia> g_midia;
 
+struct Tecla { int vk; int nativo; int caractere; };  // uma tecla para mandar a uma visão (vk do Windows, código nativo do X11, caractere)
 enum class Estado { kInicio, kServico, kMenu };
 const char* NomeEstado(Estado e) { return e == Estado::kInicio ? "inicio" : e == Estado::kServico ? "servico" : "menu"; }
 constexpr int kCmdMenu = 1, kCmdInicio = 2;
@@ -193,11 +205,17 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     if (!f2 && !alt_home) return false;
     if (e.modifiers & EVENTFLAG_IS_REPEAT) return true;  // segurar a tecla não repete a ação
     Log(std::string("tecla global ") + (f2 ? "F2" : "Alt+Home") + " estado " + NomeEstado(estado_) + (ocupado_ ? " ocupado" : ""));
-    if (f2) { if (estado_ == Estado::kMenu) FecharMenu(); else AbrirMenu(); }
+    if (f2) AlternarMenu();
     else Inicio();
     return true;
   }
   CefRefPtr<CefMessageRouterBrowserSide> roteador() { return roteador_; }
+  void AlternarMenu() { if (estado_ == Estado::kMenu) FecharMenu(); else AbrirMenu(); }  // F2, Super+M (lumna-navegador --menu) e o botão Start
+  void IrParaInicioPublico() { Inicio(); }
+  void SiteTelaCheia(bool f) { site_fs_ = f; }
+  // o controle (gamepad): botões e analógicos, na thread de interface
+  void BotaoControle(const std::string& b, bool baixo, bool analogico);
+  void EixosControle(double lx, double ly, double rx, double ry);
   void SiteCarregou(const std::string& url) {  // a página do serviço terminou de carregar (ou deu erro): se a transição esperava por ela, termina
     if (!esperando_carga_ || carregou_) return;
     if (!ignora_url_.empty() && url == ignora_url_) return;  // o fim de carga da página ANTERIOR não conta
@@ -214,6 +232,12 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
     CefQuitMessageLoop();
   }
   bool CanClose(CefRefPtr<CefWindow>) override { return true; }
+  bool GetLinuxWindowProperties(CefRefPtr<CefWindow>, CefLinuxWindowProperties& p) override {  // o Orbit identifica a janela por isto
+    CefString(&p.wayland_app_id) = "lumna-navegador";
+    CefString(&p.wm_class_class) = "lumna-navegador";
+    CefString(&p.wm_class_name) = "lumna-navegador";
+    return true;
+  }
   cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }  // hospeda 1 BrowserView Chrome (o site) + os Alloy
   bool IsFrameless(CefRefPtr<CefWindow>) override { return true; }  // a Mídia desenha tudo; sem moldura nem barra do Orbit
   CefSize GetPreferredSize(CefRefPtr<CefView>) override {
@@ -328,6 +352,21 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   }
   void Passo();
 
+  // --- o controle: ponteiro virtual (pelo Orbit), teclas e repetição
+  void TeclaPara(CefRefPtr<CefBrowserView> v, const Tecla& t);
+  void TeclaDirecao(const std::string& b);
+  void AgendaTick();
+  void TickControle();
+  void IniciaPonteiro();
+  OrbitIPC orbit_;
+  double lx_ = 0, ly_ = 0, rx_ = 0, ry_ = 0;
+  bool tick_ = false, pont_ativo_ = false, site_fs_ = false, a_baixo_ = false;
+  double px_ = 0, py_ = 0;
+  CefRect jan_;
+  std::chrono::steady_clock::time_point tick_t_, jan_t_;
+  struct Segurado { bool baixo = false; std::chrono::steady_clock::time_point proxima; };
+  std::map<std::string, Segurado> seg_;
+
   // --- transição do site (ver Transicao)
   enum class ModoAnim { kImagem, kInstante, kReal };
   void Transicao(CefRect de, CefRect para, const std::string& imagem_b64, const std::string& nome, bool esperar_carga, int menu = 0);
@@ -376,6 +415,10 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   void Mudar(Estado e) {
     estado_ = e;
     Log(std::string("estado ") + NomeEstado(e) + (ativo_.empty() ? "" : " " + ativo_));
+    {
+      std::lock_guard<std::mutex> l(g_estado_mutex);
+      g_estado_pub = std::string("{\"ok\":true,\"estado\":") + J(NomeEstado(e)) + ",\"ativo\":" + J(ativo_) + "}";
+    }
   }
   void Chamar(const char* metodo, CefRefPtr<CefDictionaryValue> params, Retorno cb) {
     if (!conteudo_ || !conteudo_->GetBrowser()) { cb(false, nullptr); return; }
@@ -516,6 +559,7 @@ class Cliente : public CefClient, public CefLifeSpanHandler, public CefRequestHa
   void OnTitleChange(CefRefPtr<CefBrowser>, const CefString& t) override {
     if (!shell_) m_->TituloMudou(t);
   }
+  void OnFullscreenModeChange(CefRefPtr<CefBrowser>, bool fs) override { if (!shell_) m_->SiteTelaCheia(fs); }
   bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t, const CefString& msg, const CefString&, int) override {
     if (shell_) Log("shell: " + msg.ToString());
     return false;
@@ -874,11 +918,180 @@ bool Midia::OnQuery(CefRefPtr<CefBrowser> b, CefRefPtr<CefFrame> f, int64_t, con
   return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------- o controle (gamepad)
+// A interface (início, menu, splash) é guiada por teclas mandadas direto à visão da interface; o site, por um ponteiro virtual do Orbit (o mesmo caminho
+// do mouse e do celular: o cursor aparece e funciona em qualquer site) e por teclas mandadas ao site. Só age com a janela da Mídia em foco: com um jogo
+// na frente o controle é do jogo. O que não é por botão (o analógico segurado parado) é refeito aqui a 60 Hz.
+Tecla TeclaDo(const std::string& nome) {
+  if (nome == "CIMA") return {0x26, 111, 0};
+  if (nome == "BAIXO") return {0x28, 116, 0};
+  if (nome == "ESQ") return {0x25, 113, 0};
+  if (nome == "DIR") return {0x27, 114, 0};
+  if (nome == "Enter") return {0x0D, 36, 0};
+  if (nome == "Escape") return {0x1B, 9, 0};
+  if (nome == "Espaco") return {0x20, 65, ' '};
+  if (nome == "PageUp") return {0x21, 112, 0};
+  if (nome == "PageDown") return {0x22, 117, 0};
+  if (nome == "F") return {0x46, 41, 'f'};
+  return {0, 0, 0};
+}
+
+void Midia::TeclaPara(CefRefPtr<CefBrowserView> v, const Tecla& t) {
+  if (!v || !v->GetBrowser() || !t.vk) return;
+  auto host = v->GetBrowser()->GetHost();
+  CefKeyEvent e;
+  e.windows_key_code = t.vk;
+  e.native_key_code = t.nativo;
+  e.modifiers = 0;
+  e.is_system_key = false;
+  e.focus_on_editable_field = false;
+  e.character = e.unmodified_character = 0;
+  e.type = KEYEVENT_RAWKEYDOWN;
+  host->SendKeyEvent(e);
+  if (t.caractere) {
+    e.type = KEYEVENT_CHAR;
+    e.character = e.unmodified_character = static_cast<char16_t>(t.caractere);
+    host->SendKeyEvent(e);
+  }
+  e.type = KEYEVENT_KEYUP;
+  e.character = e.unmodified_character = 0;
+  host->SendKeyEvent(e);
+}
+
+void Midia::TeclaDirecao(const std::string& b) {
+  bool ui = estado_ != Estado::kServico || ocupado_;
+  TeclaPara(ui ? shell_ : conteudo_, TeclaDo(b));
+}
+
+void Midia::AgendaTick() {
+  if (tick_) return;
+  tick_ = true;
+  tick_t_ = std::chrono::steady_clock::now();
+  CefPostDelayedTask(TID_UI, new FuncTask([this]() { TickControle(); }), 16);
+}
+
+void Midia::IniciaPonteiro() {
+  auto agora = std::chrono::steady_clock::now();
+  pont_ativo_ = true;
+  if (agora - jan_t_ > std::chrono::seconds(2) || jan_.width <= 0) {
+    CefRect r;
+    jan_ = orbit_.Janela("lumna-navegador", &r) ? r : Cheio();
+    jan_t_ = agora;
+  }
+  double x, y;
+  bool dentro = orbit_.Cursor(&x, &y) && x >= jan_.x && x < jan_.x + jan_.width && y >= jan_.y && y < jan_.y + jan_.height;
+  px_ = dentro ? x : jan_.x + jan_.width / 2.0;  // parte de onde o ponteiro de verdade está; fora da janela, do centro
+  py_ = dentro ? y : jan_.y + jan_.height / 2.0;
+}
+
+void Midia::TickControle() {
+  tick_ = false;
+  auto agora = std::chrono::steady_clock::now();
+  double dt = std::min(0.1, std::chrono::duration<double>(agora - tick_t_).count());
+  bool ativo = false;
+  bool em_foco = (window_ && window_->IsActive()) || getenv("LUMNA_NAV_CONTROLE_SEMPRE");
+  // o direcional segurado repete (400 ms de espera, depois a cada 110 ms)
+  for (auto& [b, sg] : seg_) {
+    if (!sg.baixo) continue;
+    ativo = true;
+    if (agora >= sg.proxima) {
+      sg.proxima = agora + std::chrono::milliseconds(110);
+      if (em_foco) TeclaDirecao(b);
+    }
+  }
+  bool servico = estado_ == Estado::kServico && !ocupado_ && em_foco;
+  const double zona = 0.18;
+  double mag = std::hypot(lx_, ly_);
+  if (mag > zona) {
+    ativo = true;
+    if (servico) {  // o analógico esquerdo move o ponteiro (curva quadrática: fino perto do centro, rápido no fim do curso)
+      if (!pont_ativo_) IniciaPonteiro();
+      double k = (mag - zona) / (1 - zona);
+      double vel = 1700 * k * k;
+      // o ponteiro fica 12 px DENTRO da janela: nas bordas (a moldura invisível de redimensionar) a página não recebe o ponteiro e clicar viraria arrastar a janela
+      const double m = 12;
+      px_ = std::max<double>(jan_.x + m, std::min<double>(jan_.x + jan_.width - 1 - m, px_ + lx_ / mag * vel * dt));
+      py_ = std::max<double>(jan_.y + m, std::min<double>(jan_.y + jan_.height - 1 - m, py_ + ly_ / mag * vel * dt));
+      orbit_.Mover(px_, py_);
+    }
+  } else {
+    pont_ativo_ = false;  // o ponteiro de verdade pode ter mexido (um mouse): na próxima vez parte de onde ele está
+  }
+  if (std::fabs(ry_) > zona) {  // o analógico direito rola a página
+    ativo = true;
+    if (servico) {
+      // o `mouse rolar` do Orbit vale ~1 px de rolagem a cada 15 unidades (medido: 15→1 px, 300→20 px, 1000→66 px): a velocidade é em px/s e se converte
+      double k = (std::fabs(ry_) - zona) / (1 - zona);
+      double px_s = 1800 * k * k + 120 * k;  // fino perto do centro, rápido no fim do curso
+      orbit_.Rolar((ry_ > 0 ? 1 : -1) * px_s * dt * 15.0);
+    }
+  }
+  if (ativo) AgendaTick();
+}
+
+void Midia::EixosControle(double lx, double ly, double rx, double ry) {
+  lx_ = lx; ly_ = ly; rx_ = rx; ry_ = ry;
+  if (std::hypot(lx, ly) > 0.18 || std::fabs(ry) > 0.18) AgendaTick();
+}
+
+void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
+  if (b == "SOLTAR_TUDO") {  // o serviço dos controles caiu: nada fica apertado
+    seg_.clear();
+    lx_ = ly_ = rx_ = ry_ = 0;
+    if (a_baixo_) { orbit_.Botao(false); a_baixo_ = false; }
+    return;
+  }
+  bool em_foco = (window_ && window_->IsActive()) || getenv("LUMNA_NAV_CONTROLE_SEMPRE");
+  Log(std::string("controle ") + b + (baixo ? " baixo" : " cima") + (analogico ? " (analogico)" : "") + (em_foco ? "" : " [ignorado: sem foco]"));
+  bool ui = estado_ != Estado::kServico || ocupado_;
+  bool direcao = b == "CIMA" || b == "BAIXO" || b == "ESQ" || b == "DIR";
+  if (direcao) {
+    if (!baixo) { seg_.erase(b); return; }
+    if (!em_foco) return;
+    if (!ui && analogico) return;  // no site o analógico é o ponteiro (as setas vêm só do direcional)
+    seg_[b] = {true, std::chrono::steady_clock::now() + std::chrono::milliseconds(400)};
+    TeclaDirecao(b);
+    AgendaTick();
+    return;
+  }
+  if (!baixo) {  // soltar: só o A (o clique) tem o que desfazer
+    if (b == "A" && a_baixo_) { bool ok = orbit_.Botao(false); Log(std::string("clique (botao cima) ") + (ok ? "enviado" : "FALHOU")); a_baixo_ = false; }
+    return;
+  }
+  if (!em_foco) return;
+  if (b == "START") { AlternarMenu(); return; }
+  if (b == "SELECT") { Inicio(); return; }
+  if (ui) {  // início, menu e transições: a interface (HTML) manda
+    if (b == "A") TeclaPara(shell_, TeclaDo("Enter"));
+    else if (b == "B") TeclaPara(shell_, TeclaDo("Escape"));
+    return;
+  }
+  // um serviço aberto
+  if (b == "A") { bool ok = orbit_.Botao(true); Log(std::string("clique (botao baixo) ") + (ok ? "enviado" : "FALHOU")); a_baixo_ = true; }                         // o clique (segura enquanto o botão estiver apertado: arrasta)
+  else if (b == "B") {                                                            // voltar: sai da tela cheia, senão volta a página
+    if (site_fs_) TeclaPara(conteudo_, TeclaDo("Escape"));
+    else if (conteudo_ && conteudo_->GetBrowser() && conteudo_->GetBrowser()->CanGoBack()) conteudo_->GetBrowser()->GoBack();
+  } else if (b == "X") TeclaPara(conteudo_, TeclaDo("Espaco"));                   // play/pausa
+  else if (b == "Y") TeclaPara(conteudo_, TeclaDo("F"));                          // tela cheia
+  else if (b == "LB") TeclaPara(conteudo_, TeclaDo("PageUp"));
+  else if (b == "RB") TeclaPara(conteudo_, TeclaDo("PageDown"));
+}
+
 }  // namespace
 
 void IniciarMidia() {
   g_midia = new Midia;
   g_midia->Iniciar();
+  // `lumna-navegador --menu` (o Super+M do Orbit e o celular), `--inicio` e `--estado`
+  IniciarComandos([](const std::string& cmd) -> std::string {
+    if (cmd == "menu" || cmd == "alternar") { NaInterface([]() { g_midia->AlternarMenu(); }); return "{\"ok\":true}"; }
+    if (cmd == "inicio") { NaInterface([]() { g_midia->IrParaInicioPublico(); }); return "{\"ok\":true}"; }
+    if (cmd == "estado") return EstadoPublico();
+    return "{\"ok\":false,\"erro\":\"comando desconhecido (menu, inicio, estado)\"}";
+  });
+  // os controles (lumna-gamepad)
+  IniciarControle([](const std::string& b, bool baixo, bool an) { g_midia->BotaoControle(b, baixo, an); },
+                  [](double lx, double ly, double rx, double ry) { g_midia->EixosControle(lx, ly, rx, ry); });
 }
 
 }  // namespace lumna

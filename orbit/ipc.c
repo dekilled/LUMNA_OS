@@ -686,6 +686,9 @@ static void handle(struct ipc_client *client, char *line, struct ipc_buf *b) {
 			return;
 		}
 		put(b, "{\"ok\":true}");
+	} else if (!strcmp(cmd, "cursor")) {
+		/* onde o ponteiro está (coordenadas do layout): quem move o ponteiro por um controle parte daqui */
+		put(b, "{\"ok\":true,\"x\":%.1f,\"y\":%.1f}", server->cursor->x, server->cursor->y);
 	} else if (!strcmp(cmd, "toque")) {
 		/* toque baixo|move|cima DEDO X Y */
 		char *kind = arg1;

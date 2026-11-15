@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""O controle (gamepad) e o Super+M na Mídia, de ponta a ponta: o serviço lumna-gamepad REAL com um controle de mentira (FIFO), o Orbit sem tela, o
+navegador e uma página "sonda" que anota no título tudo o que recebe (teclas, mouse, cliques, rolagem). Sem mocks do navegador.
+
+  python3 navegador/testes/controle.py <pasta do orbit> <pasta stage do navegador> <pasta do gravity (com o binário "gamepad" compilado)>
+
+O que confere:
+  - a janela tem app_id "lumna-navegador" (é como o Orbit a reconhece);
+  - `lumna-navegador --estado|--menu|--inicio` (o Super+M do Orbit) falam com a instância que está rodando;
+  - no início e no menu: o direcional e o analógico navegam, A confirma, B volta, Start abre/fecha o menu, Select vai ao início;
+  - no site: o direcional manda setas, X manda Espaço, Y manda "f", A clica, o analógico esquerdo move o ponteiro de verdade, o direito rola;
+  - quem não está em foco não recebe o controle (aqui: o serviço sozinho não manda tecla nenhuma, o navegador é quem age).
+"""
+import atexit, json, os, re, shutil, socket, struct, subprocess, sys, tempfile, time
+
+orbit_dir, stage, gravity = [os.path.abspath(a) for a in sys.argv[1:4]]
+aqui = os.path.dirname(os.path.abspath(__file__))
+falhas = []
+procs = []
+
+
+def falha(m):
+    falhas.append(m)
+    print("FALHOU:", m, file=sys.stderr)
+
+
+def espera(cond, seg=8.0):
+    fim = time.time() + seg
+    while time.time() < fim:
+        try:
+            if cond():
+                return True
+        except Exception:
+            pass
+        time.sleep(0.1)
+    try:
+        return bool(cond())
+    except Exception:
+        return False
+
+
+run = tempfile.mkdtemp()
+os.chmod(run, 0o700)
+for d in ("cfg", "home", "dados", "falsos"):
+    os.makedirs(f"{run}/{d}")
+env = dict(os.environ, HOME=f"{run}/home", XDG_CONFIG_HOME=f"{run}/cfg", XDG_RUNTIME_DIR=run)
+env.pop("WAYLAND_DISPLAY", None)
+
+
+def sai():
+    for p in procs:
+        try:
+            p.kill()
+        except Exception:
+            pass
+
+
+atexit.register(sai)
+
+# um servidor para as páginas e a lista de serviços: o Alfa (a.html) e a sonda
+sock_http = socket.socket()
+sock_http.bind(("127.0.0.1", 0))
+porta = sock_http.getsockname()[1]
+sock_http.close()
+procs.append(subprocess.Popen([sys.executable, f"{aqui}/servidor.py", str(porta), f"{aqui}/paginas"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+json.dump([
+    {"id": "alfa", "nome": "Serviço Alfa", "url": f"http://127.0.0.1:{porta}/a.html"},
+    {"id": "sonda", "nome": "Sonda", "url": f"http://127.0.0.1:{porta}/sonda.html"},
+], open(f"{run}/servicos.json", "w"))
+
+# o Orbit sem tela
+envo = dict(env, WLR_BACKENDS="headless", WLR_HEADLESS_OUTPUTS="1", WLR_RENDERER="pixman", WLR_LIBINPUT_NO_DEVICES="1")
+orb = subprocess.Popen(["./orbit"], cwd=orbit_dir, env=envo, stdout=open(f"{run}/orbit.log", "w"), stderr=subprocess.STDOUT)
+procs.append(orb)
+time.sleep(2)
+m = re.search(r"DISPLAY=(:\d+)", open(f"{run}/orbit.log").read())
+if not m:
+    print("controle: dispensado (esta wlroots não tem XWayland)")
+    sys.exit(0)
+display = m.group(1)
+orbit_sock = [f for f in os.listdir(run) if re.match(r"orbit\..*\.sock", f)][0]
+
+
+def orbit(*a):
+    return subprocess.run([f"{orbit_dir}/orbit-msg", "-s", f"{run}/{orbit_sock}", *a], capture_output=True, text=True).stdout
+
+
+def janela(app_id="lumna-navegador"):
+    for j in json.loads(orbit("janelas") or "{}").get("janelas", []):
+        if j.get("app_id") == app_id:
+            return j
+    return None
+
+
+# o controle de mentira e o serviço lumna-gamepad (o de verdade)
+xbox = f"{run}/falsos/xbox.ev"
+os.mkfifo(xbox)
+open(f"{run}/falsos/xbox.dev", "w").write("[controle]\nnome=Xbox\nuniq=AA:BB:CC:DD:EE:01\nbus=usb\nrumble=nao\n")
+envg = dict(env, LUMNA_GAMEPAD_FALSOS=f"{run}/falsos", LUMNA_GAMEPAD_FOCO="outro-app", LUMNA_POWER_DIR=f"{run}/falsos")
+os.makedirs(f"{run}/bin")
+for n in ("wtype", "pgrep", "pkill"):
+    open(f"{run}/bin/{n}", "w").write("#!/bin/sh\nexit 0\n")
+    os.chmod(f"{run}/bin/{n}", 0o755)
+envg["PATH"] = f"{run}/bin:" + os.environ["PATH"]
+procs.append(subprocess.Popen([f"{gravity}/gamepad"], env=envg, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+
+# o navegador, aberto de OUTRA pasta
+envn = dict(env, DISPLAY=display, LUMNA_NAV_DEBUG="1", LUMNA_NAV_SEM_GPU="1", LUMNA_NAV_DADOS=f"{run}/dados", LUMNA_NAV_SERVICOS=f"{run}/servicos.json")
+nav_log = f"{run}/nav.log"
+nav = subprocess.Popen([f"{stage}/lumna-navegador"], cwd=run, env=envn, stdout=open(nav_log, "w"), stderr=subprocess.STDOUT)
+procs.append(nav)
+
+
+def log():
+    return open(nav_log, errors="replace").read()
+
+
+def conta(pad):
+    return len(re.findall(pad, log()))
+
+
+def evento(tipo, codigo, valor):
+    with open(xbox, "wb", buffering=0) as f:
+        f.write(struct.pack("qqHHi", 0, 0, tipo, codigo, valor))
+
+
+EV_KEY, EV_ABS = 1, 3
+BTN = {"A": 0x130, "B": 0x131, "X": 0x133, "Y": 0x134, "LB": 0x136, "RB": 0x137, "SELECT": 0x13a, "START": 0x13b}
+ABS_X, ABS_Y, ABS_RX, ABS_RY, HAT0X, HAT0Y = 0x00, 0x01, 0x03, 0x04, 0x10, 0x11
+
+
+def aperta(nome, seg=0.08):
+    evento(EV_KEY, BTN[nome], 1)
+    time.sleep(seg)
+    evento(EV_KEY, BTN[nome], 0)
+    time.sleep(0.15)
+
+
+def dpad(dir_):
+    eixo, v = {"CIMA": (HAT0Y, -1), "BAIXO": (HAT0Y, 1), "ESQ": (HAT0X, -1), "DIR": (HAT0X, 1)}[dir_]
+    evento(EV_ABS, eixo, v)
+    time.sleep(0.08)
+    evento(EV_ABS, eixo, 0)
+    time.sleep(0.15)
+
+
+def estado():
+    r = subprocess.run([f"{stage}/lumna-navegador", "--estado"], cwd=run, env=envn, capture_output=True, text=True)
+    return json.loads(r.stdout) if r.stdout.strip() else {}
+
+
+def titulo():
+    j = janela()
+    return j["titulo"] if j else ""
+
+
+def campo(nome):
+    mm = re.search(rf"\|{nome}=([^|]*)", titulo())
+    return mm.group(1) if mm else None
+
+
+# ---------------------------------------------------------------------------------------------------------------------------- 1. a janela e o modo cliente
+if not espera(lambda: "shell: desenhou" in log(), 30):
+    falha("a interface não abriu: " + log()[-300:])
+espera(lambda: janela() is not None and janela().get("foco"), 15)
+j = janela()
+if not j:
+    falha(f"a janela devia ter o app_id lumna-navegador (janelas: {orbit('janelas')[:300]})")
+if not espera(lambda: estado().get("estado") == "inicio", 5):
+    falha(f"lumna-navegador --estado devia dizer inicio: {estado()}")
+time.sleep(1.0)
+
+# ---------------------------------------------------------------------------------------------------------------------------- 2. o Super+M (lumna-navegador --menu) e o menu
+# (sem serviço aberto, o menu não abre: o seletor é "sobre o que estiver passando")
+subprocess.run([f"{stage}/lumna-navegador", "--menu"], cwd=run, env=envn, capture_output=True)
+time.sleep(0.5)
+if estado().get("estado") != "inicio":
+    falha(f"--menu sem serviço aberto não abre o menu: {estado()}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 3. no início: direcional + A
+n0 = conta(r"controle DIR baixo")
+dpad("DIR")
+if not espera(lambda: conta(r"controle DIR baixo") > n0, 4):
+    falha("o navegador devia receber o direcional do serviço de controles ('controle DIR baixo'): " + "|".join(re.findall(r"NAV controle[^\n]*", log())[-3:]))
+aperta("A")
+if not espera(lambda: estado().get("estado") == "servico" and estado().get("ativo") == "sonda", 12):
+    falha(f"direita + A no início devia abrir o segundo serviço (a sonda): {estado()} / {titulo()}")
+if not espera(lambda: titulo().startswith("SONDA"), 15):
+    falha(f"a página da sonda devia carregar: {titulo()}")
+espera(lambda: conta(r"site final") >= 1, 15)
+time.sleep(1.0)
+
+# ---------------------------------------------------------------------------------------------------------------------------- 4. no site: teclas
+dpad("ESQ")
+if not espera(lambda: (campo("k") or "").startswith("ArrowLeft"), 4):
+    falha(f"o direcional para a esquerda devia chegar ao site como ArrowLeft: {campo('k')}")
+dpad("CIMA")
+if not espera(lambda: (campo("k") or "").startswith("ArrowUp"), 4):
+    falha(f"o direcional para cima devia chegar ao site como ArrowUp: {campo('k')}")
+aperta("X")
+if not espera(lambda: (campo("k") or "").startswith("Space"), 4):
+    falha(f"X devia mandar Espaço (play/pausa) ao site: {campo('k')}")
+aperta("Y")
+if not espera(lambda: (campo("k") or "").startswith("f/"), 4):
+    falha(f"Y devia mandar a tecla f (tela cheia) ao site: {campo('k')}")
+aperta("RB")
+if not espera(lambda: (campo("k") or "").startswith("PageDown"), 4):
+    falha(f"RB devia mandar PageDown ao site: {campo('k')}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 5. no site: o ponteiro e o clique
+j = janela()
+orbit("mouse", "mover", str(j["x"] + 100), str(j["y"] + 100))  # o ponteiro de verdade parte daqui
+time.sleep(0.4)
+antes = campo("m")
+evento(EV_ABS, ABS_X, 32767)   # analógico esquerdo todo para a direita...
+time.sleep(0.7)
+evento(EV_ABS, ABS_X, 0)       # ...e solta
+time.sleep(0.4)
+depois = campo("m")
+try:
+    x0, y0 = [int(v) for v in antes.split(",")]
+    x1, y1 = [int(v) for v in depois.split(",")]
+    if x1 - x0 < 150:
+        falha(f"o analógico esquerdo devia mover o ponteiro para a direita (x {x0} → {x1})")
+    if abs(y1 - y0) > 40:
+        falha(f"movendo só para a direita o y quase não muda (y {y0} → {y1})")
+except Exception:
+    falha(f"o ponteiro devia mexer e a página devia receber o movimento (antes {antes}, depois {depois})")
+c0, d0 = int(campo("c") or 0), int(campo("d") or 0)
+aperta("A", 0.15)
+if not espera(lambda: int(campo("d") or 0) > d0 and int(campo("c") or 0) > c0, 4):
+    falha(f"A devia clicar no ponteiro (mousedown e click na página): d {d0}→{campo('d')} c {c0}→{campo('c')}")
+    orbit("mouse", "botao", "baixo"); time.sleep(0.1); orbit("mouse", "botao", "cima"); time.sleep(0.4)
+    print(f"  (diagnóstico: o clique direto pelo Orbit depois: {titulo()})", file=sys.stderr)
+    print(f"  (log do navegador: {re.findall(r'NAV clique[^\n]*', log())})", file=sys.stderr)
+# o ponteiro nunca chega à moldura de redimensionar: fica ao menos 12 px dentro da janela (empurra o analógico até o fim para a direita e para baixo)
+evento(EV_ABS, ABS_X, 32767); evento(EV_ABS, ABS_Y, 32767)
+time.sleep(1.8)
+evento(EV_ABS, ABS_X, 0); evento(EV_ABS, ABS_Y, 0)
+time.sleep(0.4)
+x2, y2 = [int(v) for v in (campo("m") or "0,0").split(",")]
+wj = janela()
+if x2 > wj["w"] - 12 or y2 > wj["h"] - 12:
+    falha(f"o ponteiro do controle tem de ficar 12 px dentro da janela (m={x2},{y2} numa janela {wj['w']}x{wj['h']})")
+c1 = int(campo("c") or 0)
+aperta("A", 0.15)
+if not espera(lambda: int(campo("c") or 0) > c1, 4):
+    falha(f"mesmo no canto da janela A ainda clica (c {c1} → {campo('c')})")
+
+# o analógico esquerdo NÃO manda setas ao site (ele é o ponteiro): a última tecla continua a de antes
+k_antes = campo("k")
+evento(EV_ABS, ABS_Y, 32767)
+time.sleep(0.5)
+evento(EV_ABS, ABS_Y, 0)
+time.sleep(0.4)
+if campo("k") != k_antes:
+    falha(f"no site o analógico esquerdo só move o ponteiro, não manda setas: {k_antes} → {campo('k')}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 6. no site: a rolagem (analógico direito)
+w0 = int(campo("w") or 0)
+evento(EV_ABS, ABS_RY, 32767)
+time.sleep(0.8)
+evento(EV_ABS, ABS_RY, 0)
+time.sleep(0.4)
+w1 = int(campo("w") or 0)
+if w1 - w0 < 200:
+    falha(f"o analógico direito para baixo devia rolar a página (deltaY total {w0} → {w1})")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 7. o menu: Start, Super+M (--menu), B, Select
+n = conta(r"estado menu")
+aperta("START")
+if not espera(lambda: conta(r"estado menu") > n and estado().get("estado") == "menu", 6):
+    falha(f"Start devia abrir o menu de serviços: {estado()}")
+time.sleep(1.2)
+aperta("START")
+if not espera(lambda: estado().get("estado") == "servico", 6):
+    falha(f"Start de novo devia fechar o menu: {estado()}")
+time.sleep(1.0)
+subprocess.run([f"{stage}/lumna-navegador", "--menu"], cwd=run, env=envn, capture_output=True)   # o Super+M do Orbit
+if not espera(lambda: estado().get("estado") == "menu", 6):
+    falha(f"lumna-navegador --menu (Super+M) devia abrir o menu: {estado()}")
+time.sleep(1.2)
+dpad("ESQ")  # no menu, o direcional navega a interface (HTML), não manda tecla ao site
+k_menu = campo("k")
+aperta("B")
+if not espera(lambda: estado().get("estado") == "servico", 6):
+    falha(f"B no menu devia fechar o menu (voltar ao vídeo): {estado()}")
+time.sleep(1.0)
+aperta("SELECT")
+if not espera(lambda: estado().get("estado") == "inicio", 6):
+    falha(f"Select devia ir ao início: {estado()}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 8. nada foi interpretado a mais
+if "Cannot add multiple" in log():
+    falha("o CEF recusou as duas visões na mesma janela")
+
+sai()
+shutil.rmtree(run, ignore_errors=True) if not falhas else print(f"(log em {run}: nav.log)", file=sys.stderr)
+if falhas:
+    sys.exit(1)
+print("controle: ok")

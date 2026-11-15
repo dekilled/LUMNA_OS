@@ -161,6 +161,7 @@ orbit-msg
   O mesmo para o rato (por exemplo, para arrastar e soltar):
     orbit-msg mouse mover 400 300
     orbit-msg mouse botao baixo      (ou: cima)
+    orbit-msg cursor                 (onde o ponteiro está: {"ok":true,"x":..,"y":..})
   ORBIT_LOG_DEBUG=1 no arranque liga o registo de depuração do wlroots.
   Arrastar e soltar: o arraste só começa com o número de série de um botão do
   rato premido ou de um único dedo em baixo (senão fica no registo, nível INFO,

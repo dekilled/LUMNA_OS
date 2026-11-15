@@ -1,0 +1,15 @@
+<!doctype html><meta charset=utf-8><title>SONDA</title>
+<style>html,body{overflow:hidden}body{margin:0;background:#123;color:#fff;font:20px sans-serif;height:3000px}#a{position:fixed;left:20px;top:20px}</style>
+<div id=a>sonda de entrada</div>
+<script>
+// Anota no TÍTULO da janela o que a página recebe (o teste lê o título pelo Orbit): última tecla, último ponto do mouse, cliques, rolagem.
+let k = '-', m = '-', c = 0, w = 0, d = 0, u = 0, b = '-';
+const t = () => { document.title = `SONDA|k=${k}|m=${m}|c=${c}|d=${d}|u=${u}|b=${b}|w=${w}`; };
+addEventListener('keydown', (e) => { k = (e.key === ' ' ? 'Space' : e.key) + '/' + e.code + '/' + e.keyCode; t(); });
+addEventListener('mousemove', (e) => { m = Math.round(e.clientX) + ',' + Math.round(e.clientY); t(); });
+addEventListener('mousedown', (e) => { d++; b = e.button + '@' + Math.round(e.clientX) + ',' + Math.round(e.clientY); t(); });
+addEventListener('mouseup', (e) => { u++; t(); });
+addEventListener('click', (e) => { c++; t(); });
+addEventListener('wheel', (e) => { w += Math.round(e.deltaY); t(); }, { passive: true });
+t();
+</script>

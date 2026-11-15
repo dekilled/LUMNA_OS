@@ -30,6 +30,45 @@ static bool segurado[GP_N];
 static gint64 repete_em[GP_N];
 static char lista_antes[512];
 
+static void difundir(const char *linha);
+
+/* ---------------- os analógicos ----------------
+ * Quem assina recebe {"evento":"eixo","esq":[x,y],"dir":[x,y],"disp":"ID"} (-1 a 1, sem zona morta) quando um analógico muda, no máximo ~60 vezes por segundo,
+ * e sempre o último valor (o que volta ao centro também chega). Um analógico segurado parado NÃO manda nada de novo (o evdev só avisa quando muda): quem
+ * usa para mover um ponteiro guarda o último valor e continua andando por conta própria. */
+struct eixos_enviados {
+	double v[4];
+	gint64 t;
+	bool pendente;
+};
+static struct eixos_enviados enviado[GP_MAX];
+
+static void eixos_enviar(int i, const struct gp_disp *d) {
+	double esq[2], dir[2];
+	gp_eixos(d, esq, dir);
+	struct eixos_enviados *e = &enviado[i];
+	double novo[4] = { esq[0], esq[1], dir[0], dir[1] };
+	bool mudou = false;
+	for (int k = 0; k < 4; k++) {
+		mudou |= novo[k] - e->v[k] > 0.01 || e->v[k] - novo[k] > 0.01;
+	}
+	if (!mudou) {
+		e->pendente = false;
+		return;
+	}
+	gint64 agora = g_get_monotonic_time();
+	if (agora - e->t < 16000) {
+		e->pendente = true;  // cedo demais: o timer manda o último valor logo depois
+		return;
+	}
+	memcpy(e->v, novo, sizeof(novo));
+	e->t = agora;
+	e->pendente = false;
+	char *l = g_strdup_printf("{\"evento\":\"eixo\",\"esq\":[%.3f,%.3f],\"dir\":[%.3f,%.3f],\"disp\":\"%s\"}\n", novo[0], novo[1], novo[2], novo[3], d->id);
+	difundir(l);
+	g_free(l);
+}
+
 /* ---------------- avisar quem assina ---------------- */
 
 static void difundir(const char *linha) {
@@ -159,7 +198,7 @@ static void botao(const struct gp_disp *d, const struct gp_evento *e, void *dado
 	if (d->ignorado) {
 		return;
 	}
-	char *l = g_strdup_printf("{\"evento\":\"botao\",\"botao\":\"%s\",\"pressionado\":%s,\"disp\":\"%s\"}\n", gp_botao_nome(e->botao), e->pressionado ? "true" : "false", d->id);
+	char *l = g_strdup_printf("{\"evento\":\"botao\",\"botao\":\"%s\",\"pressionado\":%s,\"analogico\":%s,\"disp\":\"%s\"}\n", gp_botao_nome(e->botao), e->pressionado ? "true" : "false", e->analogico ? "true" : "false", d->id);
 	difundir(l);
 	g_free(l);
 	segurado[e->botao] = e->pressionado;
@@ -177,6 +216,12 @@ static void botao(const struct gp_disp *d, const struct gp_evento *e, void *dado
 }
 
 static gboolean repetir(gpointer dados) {
+	for (int i = 0; i < ndisp; i++) {
+		if (enviado[i].pendente && !disp[i].ignorado) {
+			enviado[i].t = 0;  // já passou o intervalo: manda o último valor
+			eixos_enviar(i, &disp[i]);
+		}
+	}
 	gint64 agora = g_get_monotonic_time();
 	for (int b = GP_CIMA; b <= GP_DIR; b++) {
 		if (segurado[b] && agora >= repete_em[b]) {
@@ -193,6 +238,9 @@ static gboolean controle_legivel(gint fd, GIOCondition c, gpointer dados) {
 	struct gp_disp *d = dados;
 	if (!gp_ler(d, &cfg, botao, NULL) || (c & (G_IO_HUP | G_IO_ERR))) {
 		return G_SOURCE_REMOVE; /* some da lista na próxima varredura */
+	}
+	if (!d->ignorado) {
+		eixos_enviar((int)(d - disp), d);
 	}
 	return G_SOURCE_CONTINUE;
 }

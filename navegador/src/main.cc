@@ -7,6 +7,7 @@
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 #include "include/wrapper/cef_message_router.h"
+#include "externo.h"
 #include "midia.h"
 
 namespace {
@@ -73,6 +74,11 @@ class App : public CefApp, public CefBrowserProcessHandler, public CefRenderProc
 }  // namespace
 
 int main(int argc, char** argv) {
+  // o modo cliente: `lumna-navegador --menu` (o Super+M do Orbit), `--inicio`, `--estado` falam com a instância que já está rodando e saem
+  if (argc >= 2) {
+    std::string a = argv[1];
+    if (a == "--menu" || a == "--inicio" || a == "--estado") return lumna::EnviarComando(a.substr(2));
+  }
   const std::string aqui = ExeDir();
   CefMainArgs args(argc, argv);
   CefRefPtr<App> app(new App);

@@ -198,6 +198,105 @@ os.unlink(f"{falsos}/ps.dev")
 os.unlink(ps)
 confere(lambda: len(pedido("estado")["controles"]) == 1, "o controle desconectado sai da lista", 6)
 
+# 7b. os analógicos (esquerdo e direito) chegam a quem assina, de -1 a 1, e o que volta ao centro também chega
+ABS_X, ABS_Y, ABS_RX, ABS_RY = 0x00, 0x01, 0x03, 0x04
+ana = socket.socket(socket.AF_UNIX)
+ana.connect(sock)
+ana.sendall(b"assinar\n")
+ana.settimeout(3)
+buf_ana = b""
+time.sleep(0.4)
+
+
+def ultimo_eixo(seg=1.5):
+    """lê os eventos "eixo" que chegarem em `seg` segundos e devolve o último"""
+    global buf_ana
+    ult, fim = None, time.time() + seg
+    ana.settimeout(0.2)
+    while time.time() < fim:
+        try:
+            dados = ana.recv(65536)
+        except (socket.timeout, TimeoutError):
+            continue
+        if not dados:
+            break
+        buf_ana += dados
+        while b"\n" in buf_ana:
+            l, buf_ana = buf_ana.split(b"\n", 1)
+            if l and json.loads(l).get("evento") == "eixo":
+                ult = json.loads(l)
+    return ult
+
+
+evento(xbox, EV_ABS, ABS_X, 32767)    # esquerdo todo para a direita
+evento(xbox, EV_ABS, ABS_Y, -32768)   # e todo para cima
+evento(xbox, EV_ABS, ABS_RX, -32768)  # direito todo para a esquerda
+evento(xbox, EV_ABS, ABS_RY, 32767)   # e todo para baixo
+ev = ultimo_eixo()
+if not ev or abs(ev["esq"][0] - 1) > 0.02 or abs(ev["esq"][1] + 1) > 0.02 or abs(ev["dir"][0] + 1) > 0.02 or abs(ev["dir"][1] - 1) > 0.02:
+    falha(f"os analógicos chegam normalizados (esq x=+1 y=-1, dir x=-1 y=+1): {ev}")
+evento(xbox, EV_ABS, ABS_X, 0)
+evento(xbox, EV_ABS, ABS_Y, 0)
+evento(xbox, EV_ABS, ABS_RX, 0)
+evento(xbox, EV_ABS, ABS_RY, 0)
+ev = ultimo_eixo()
+if not ev or any(abs(v) > 0.03 for v in ev["esq"] + ev["dir"]):
+    falha(f"voltar ao centro também chega (o último valor, 0,0): {ev}")
+# muitos eventos seguidos: não passa de ~60 por segundo, e o último valor sempre chega
+for k in range(200):
+    evento(xbox, EV_ABS, ABS_X, -32768 + k * 300)
+ev = ultimo_eixo(1.0)
+if not ev or abs(ev["esq"][0] - ((-32768 + 199 * 300) / 32767.5)) > 0.05:
+    falha(f"depois de uma rajada o último valor chega: {ev}")
+evento(xbox, EV_ABS, ABS_X, 0)
+ultimo_eixo(0.5)
+# um controle ignorado não manda analógico
+pedido("ignorar AA:BB:CC:DD:EE:01 sim")
+evento(xbox, EV_ABS, ABS_X, 32767)
+ev = ultimo_eixo(0.6)
+if ev and ev["esq"][0] > 0.5:
+    falha(f"controle ignorado não manda analógico: {ev}")
+pedido("ignorar AA:BB:CC:DD:EE:01 nao")
+evento(xbox, EV_ABS, ABS_X, 0)
+ana.close()
+
+# 7c. as direções dizem de onde vieram: o analógico esquerdo (analogico=true) ou o direcional (analogico=false)
+def eventos_botao(seg=1.0):
+    global buf_ana
+    achados, fim = [], time.time() + seg
+    ana.settimeout(0.2)
+    while time.time() < fim:
+        try:
+            dados = ana.recv(65536)
+        except (socket.timeout, TimeoutError):
+            continue
+        if not dados:
+            break
+        buf_ana += dados
+        while b"\n" in buf_ana:
+            l, buf_ana = buf_ana.split(b"\n", 1)
+            if l and json.loads(l).get("evento") == "botao":
+                achados.append(json.loads(l))
+    return achados
+
+
+ana = socket.socket(socket.AF_UNIX)
+ana.connect(sock)
+ana.sendall(b"assinar\n")
+buf_ana = b""
+time.sleep(0.4)
+evento(xbox, EV_ABS, ABS_HAT0Y, 1)
+evento(xbox, EV_ABS, ABS_HAT0Y, 0)
+b = [x for x in eventos_botao() if x["botao"] == "BAIXO" and x["pressionado"]]
+if not b or b[0].get("analogico") is not False:
+    falha(f"o direcional manda analogico=false: {b}")
+evento(xbox, EV_ABS, ABS_Y, 32767)
+evento(xbox, EV_ABS, ABS_Y, 0)
+b = [x for x in eventos_botao() if x["botao"] == "BAIXO" and x["pressionado"]]
+if not b or b[0].get("analogico") is not True:
+    falha(f"o analógico esquerdo manda analogico=true: {b}")
+ana.close()
+
 # 8. um segundo serviço não toma o socket
 r = subprocess.run([f"{gravity}/gamepad"], env=dict(os.environ), capture_output=True, text=True, timeout=10)
 if r.returncode != 0 or "já está rodando" not in r.stderr:

@@ -11,6 +11,28 @@ CEF_ROOT=... sh navegador/dev.sh compilar                                # só c
 ```
 O Widevine é baixado pelo próprio CEF na primeira vez (de 1 a 3 minutos, depois **reinicie o app**); fica no perfil `~/.local/share/lumna/navegador/perfil`.
 
+## O controle (gamepad), o Super+M e o celular
+
+**Super+M** (o seletor do Orbit, `seletor_midia`) chama `lumna-navegador --menu`, que fala com a instância que está rodando (socket `$XDG_RUNTIME_DIR/lumna-navegador.sock`): `--menu` abre/fecha o menu de serviços, `--inicio` vai ao início, `--estado` devolve `{"ok":true,"estado":"inicio|servico|menu","ativo":"..."}`. Para usar a nova Mídia, no `orbit.ini`: `seletor_midia = lumna-navegador --menu` (hoje o padrão ainda é o `lumna-midia tela seletor` da Mídia antiga). O celular (LUMNA Connect) já funciona sem mudança: ele manda teclado e ponteiro virtuais pelo Orbit.
+
+O controle vem do serviço **`lumna-gamepad`**, que o navegador assina (`assinar`: botões e analógicos). Só age com a **janela da Mídia em foco** (com um jogo na frente o controle é do jogo). Mapeamento:
+
+| | Início, menu e splash (a interface) | Num serviço aberto (o site) |
+|---|---|---|
+| Direcional | navega (setas) | setas no site (adianta/atrasa, volume, rola) |
+| Analógico esquerdo | navega (setas) | **move o ponteiro de verdade** (o do Orbit) |
+| Analógico direito | — | **rola** a página |
+| A | confirma (Enter) | **clique** (segura enquanto apertado: arrasta) |
+| B | volta (Esc; fecha o menu) | sai da tela cheia; senão volta a página |
+| X | — | Espaço (play/pausa) |
+| Y | — | `f` (tela cheia) |
+| LB / RB | — | Page Up / Page Down |
+| **Start** | abre/fecha o menu de serviços (o mesmo do F2 e do Super+M) | idem |
+| **Select** | vai ao início | idem |
+| Guia | é do sistema (`guia=` em `gamepad.ini`: use `nada` para ele não abrir o LUMNA Jogos por cima) | idem |
+
+Detalhes que custaram um bug cada: o ponteiro fica **12 px dentro** da janela (nas bordas fica a moldura invisível de redimensionar, e clicar ali arrasta a janela; a página nem recebe o ponteiro); a rolagem do Orbit (`mouse rolar`) vale ~1 px a cada 15 unidades (calibrado); o analógico segurado parado não gera evento, então o navegador guarda o último valor e continua andando a 60 Hz; no site o analógico esquerdo **só** move o ponteiro (as setas vêm só do direcional: o serviço marca cada direção com `analogico: true|false`). O direcional segurado repete (400 ms, depois a cada 110 ms).
+
 ## Teclas (provisórias)
 | Tecla | O que faz |
 |---|---|
@@ -22,8 +44,9 @@ O Widevine é baixado pelo próprio CEF na primeira vez (de 1 a 3 minutos, depoi
 ## Variáveis de ambiente
 `LUMNA_NAV_DADOS` (pasta de dados), `LUMNA_NAV_SERVICOS` (JSON `[{"id","nome","url"}]` com outra lista de serviços), `LUMNA_NAV_TELA_CHEIA=1`, `LUMNA_NAV_OZONE=wayland` (padrão: x11), `LUMNA_NAV_SEM_GPU=1`, `LUMNA_NAV_DEBUG=1` (log `NAV ...` no terminal), `LUMNA_NAV_ZOOM_MENU=0.72` (a escala da página enquanto o menu está aberto; 0.72 é o padrão, escolhido pelo Eric; 1.0 desliga; lido ao abrir o app), `LUMNA_NAV_SEM_ANIMACAO=1` (o site pula direto ao tamanho final, sem animar), `LUMNA_NAV_ANIMACAO=real` (o jeito antigo: redimensiona o site a cada quadro; dá flick em páginas pesadas), `LUMNA_NAV_LARGURA/ALTURA`, `LUMNA_NAV_UI`.
 
-## Teste automático
-`sh navegador/testes/midia.sh <pasta do orbit> navegador/build/stage` (Orbit sem tela + XWayland; só pelo teclado).
+## Testes automáticos
+- `sh navegador/testes/midia.sh <pasta do orbit> navegador/build/stage` (Orbit sem tela + XWayland; só pelo teclado).
+- `python3 navegador/testes/controle.py <pasta do orbit> navegador/build/stage gravity` (o serviço `lumna-gamepad` real com um controle de mentira, o Orbit, o navegador e uma página "sonda" que anota no título as teclas, o mouse, os cliques e a rolagem que recebe; precisa do binário `gravity/gamepad`: `make -C gravity gamepad`).
 
 ## Como é feito (e por quê)
 - **Uma janela, duas camadas** (CEF Views, sem moldura): a interface em HTML (`ui/midia/`) por baixo e o site do serviço por cima. A janela é estilo **Chrome** (precisa dele: é o que baixa o Widevine sozinho) e esse estilo só aceita **um** BrowserView Chrome (o site); a interface é um BrowserView **Alloy**. **A ordem importa:** o site entra primeiro e a interface depois (e desce para o fundo com `ReorderChildView`); ao contrário, o CEF recusa ("Cannot add multiple Chrome style BrowserViews").

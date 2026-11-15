@@ -43,7 +43,8 @@ struct gp_disp {
 	bool ignorado;
 	int fd;                  /* aberto para leitura; -1 fechado */
 	/* o estado da tradução */
-	int eixo[2], eixo_min[2], eixo_max[2];
+	int eixo[2], eixo_min[2], eixo_max[2];        /* o analógico esquerdo (ABS_X, ABS_Y) */
+	int eixo_d[2], eixo_d_min[2], eixo_d_max[2];  /* o analógico direito (ABS_RX, ABS_RY) */
 	bool dir[4];             /* cima, baixo, esquerda, direita, pelo analógico ou pelo direcional */
 	bool hat[4];
 	bool gatilho[2];
@@ -53,6 +54,7 @@ struct gp_disp {
 struct gp_evento {
 	int botao;               /* enum gp_botao */
 	bool pressionado;
+	bool analogico;          /* só nas direções (CIMA, BAIXO, ESQ, DIR): veio do analógico esquerdo e não do direcional */
 };
 
 void gp_cfg_padrao(struct gp_cfg *c);
@@ -71,6 +73,8 @@ int gp_varrer(struct gp_disp *lista, int n, int max);
 int gp_bateria(const struct gp_disp *d);
 /* lê o que há no fd do controle e chama emite para cada botão que mudou (já com o trocar_ab e a zona morta); devolve false se o controle sumiu */
 bool gp_ler(struct gp_disp *d, const struct gp_cfg *c, void (*emite)(const struct gp_disp *, const struct gp_evento *, void *), void *dados);
+/* os analógicos de -1 a 1 (SEM zona morta: quem usa aplica a dele): esq[0]=x esq[1]=y (para baixo é positivo), dir[0]=x dir[1]=y */
+void gp_eixos(const struct gp_disp *d, double esq[2], double dir[2]);
 /* um tranco curto (ms); false se o controle não vibra */
 bool gp_vibrar(struct gp_disp *d, int ms);
 void gp_fechar(struct gp_disp *d);

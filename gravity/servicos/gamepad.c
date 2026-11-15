@@ -178,6 +178,9 @@ static void zerar_estado(struct gp_disp *d) {
 	d->eixo[0] = d->eixo[1] = 0;
 	d->eixo_min[0] = d->eixo_min[1] = -32768;
 	d->eixo_max[0] = d->eixo_max[1] = 32767;
+	d->eixo_d[0] = d->eixo_d[1] = 0;
+	d->eixo_d_min[0] = d->eixo_d_min[1] = -32768;
+	d->eixo_d_max[0] = d->eixo_d_max[1] = 32767;
 	d->efeito = -1;
 }
 
@@ -217,6 +220,10 @@ static bool abrir_real(const char *caminho, struct gp_disp *d) {
 		if (ioctl(fd, EVIOCGABS(e == 0 ? ABS_X : ABS_Y), &ai) == 0 && ai.maximum > ai.minimum) {
 			d->eixo_min[e] = ai.minimum;
 			d->eixo_max[e] = ai.maximum;
+		}
+		if (BIT(abs_, e == 0 ? ABS_RX : ABS_RY) && ioctl(fd, EVIOCGABS(e == 0 ? ABS_RX : ABS_RY), &ai) == 0 && ai.maximum > ai.minimum) {
+			d->eixo_d_min[e] = ai.minimum;
+			d->eixo_d_max[e] = ai.maximum;
 		}
 	}
 	return true;
@@ -389,13 +396,13 @@ static int de_tecla(int code) {
 
 typedef void (*emite_fn)(const struct gp_disp *, const struct gp_evento *, void *);
 
-static void dizer(const struct gp_disp *d, const struct gp_cfg *c, int botao, bool p, emite_fn emite, void *dados) {
+static void dizer(const struct gp_disp *d, const struct gp_cfg *c, int botao, bool p, bool analogico, emite_fn emite, void *dados) {
 	if (c->trocar_ab && botao == GP_A) {
 		botao = GP_B;
 	} else if (c->trocar_ab && botao == GP_B) {
 		botao = GP_A;
 	}
-	struct gp_evento e = { botao, p };
+	struct gp_evento e = { botao, p, analogico };
 	emite(d, &e, dados);
 }
 
@@ -404,7 +411,7 @@ static void direcao(struct gp_disp *d, const struct gp_cfg *c, int sentido, bool
 	bool agora = ativo_analogico || hat, antes = d->dir[sentido];
 	if (agora != antes) {
 		d->dir[sentido] = agora;
-		dizer(d, c, GP_CIMA + sentido, agora, emite, dados);
+		dizer(d, c, GP_CIMA + sentido, agora, ativo_analogico && !hat, emite, dados);
 	}
 }
 
@@ -446,13 +453,15 @@ bool gp_ler(struct gp_disp *d, const struct gp_cfg *c, emite_fn emite, void *dad
 						d->hat[b - GP_CIMA] = e->value != 0;
 						analogicos(d, c, emite, dados);
 					} else {
-						dizer(d, c, b, e->value != 0, emite, dados);
+						dizer(d, c, b, e->value != 0, false, emite, dados);
 					}
 				}
 			} else if (e->type == EV_ABS) {
 				if (e->code == ABS_X || e->code == ABS_Y) {
 					d->eixo[e->code == ABS_X ? 0 : 1] = e->value;
 					analogicos(d, c, emite, dados);
+				} else if (e->code == ABS_RX || e->code == ABS_RY) {
+					d->eixo_d[e->code == ABS_RX ? 0 : 1] = e->value;  /* o analógico direito: só guarda (quem quer o valor pede por gp_eixos) */
 				} else if (e->code == ABS_HAT0X) {
 					d->hat[2] = e->value < 0;
 					d->hat[3] = e->value > 0;
@@ -467,11 +476,24 @@ bool gp_ler(struct gp_disp *d, const struct gp_cfg *c, emite_fn emite, void *dad
 					bool p = e->value > 127;
 					if (p != d->gatilho[k]) {
 						d->gatilho[k] = p;
-						dizer(d, c, k == 0 ? GP_LT : GP_RT, p, emite, dados);
+						dizer(d, c, k == 0 ? GP_LT : GP_RT, p, false, emite, dados);
 					}
 				}
 			}
 		}
+	}
+}
+
+static double normalizado(int v, int mn, int mx) {
+	double meio = (mn + mx) / 2.0, meia = (mx - mn) / 2.0;
+	double r = meia > 0 ? (v - meio) / meia : 0;
+	return r < -1 ? -1 : r > 1 ? 1 : r;
+}
+
+void gp_eixos(const struct gp_disp *d, double esq[2], double dir[2]) {
+	for (int e = 0; e < 2; e++) {
+		esq[e] = normalizado(d->eixo[e], d->eixo_min[e], d->eixo_max[e]);
+		dir[e] = normalizado(d->eixo_d[e], d->eixo_d_min[e], d->eixo_d_max[e]);
 	}
 }
 
