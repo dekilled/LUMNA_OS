@@ -1,4 +1,5 @@
 // Teste de viabilidade do navegador do LUMNA: abre UMA janela do CEF (Views) numa página que descobre quais codecs e o Widevine o CEF tem, e mostra o resultado no título.
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 #include "include/cef_app.h"
@@ -12,6 +13,12 @@ class Cliente : public CefClient, public CefDisplayHandler, public CefLifeSpanHa
  public:
   CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
+  // Cada console.log da página sai no terminal; "FIM" encerra o teste (a menos que TESTE_MANTER=1, para olhar a janela).
+  bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t, const CefString& msg, const CefString&, int) override {
+    printf("%s\n", msg.ToString().c_str()); fflush(stdout);
+    if (msg.ToString() == "FIM" && !getenv("TESTE_MANTER")) CefQuitMessageLoop();
+    return true;
+  }
   void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) override {
     CEF_REQUIRE_UI_THREAD();
     if (auto view = CefBrowserView::GetForBrowser(browser)) {
@@ -44,12 +51,13 @@ class App : public CefApp, public CefBrowserProcessHandler {
   void OnBeforeCommandLineProcessing(const CefString&, CefRefPtr<CefCommandLine> cl) override {
     const char* plat = getenv("TESTE_OZONE");
     cl->AppendSwitchWithValue("ozone-platform", plat ? plat : "x11");
-    cl->AppendSwitch("disable-gpu");
+    if (!getenv("TESTE_GPU")) cl->AppendSwitch("disable-gpu");
     cl->AppendSwitch("no-sandbox");
     cl->AppendSwitch("no-first-run");
     cl->AppendSwitch("disable-dev-shm-usage");
-    if (const char* w = getenv("TESTE_WIDEVINE")) {
+    if (const char* w = getenv("TESTE_WIDEVINE")) {  // caminho do libwidevinecdm.so
       cl->AppendSwitchWithValue("widevine-cdm-path", w);
+      if (const char* ver = getenv("TESTE_WIDEVINE_VER")) cl->AppendSwitchWithValue("widevine-cdm-version", ver);
     }
   }
   void OnContextInitialized() override {

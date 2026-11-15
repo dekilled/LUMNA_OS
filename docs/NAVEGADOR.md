@@ -90,3 +90,12 @@ App de teste mínimo (CEF **Views**, C++, ~100 linhas, em [navegador/teste-cef/]
 - **Próximo passo duro:** o build próprio do CEF/Chromium com `proprietary_codecs=true ffmpeg_branding=Chrome` (muitas horas e ~100 GB; não cabe neste container). Alternativas: procurar um CEF já compilado com codecs, ou testar com o **Chromium de uma distribuição** (que costuma ter os codecs ligados) só para validar o resto.
 - **Widevine:** testar com o CDM do Chrome instalado, apontando `--widevine-cdm-path` (o app de teste já aceita `TESTE_WIDEVINE`). Tanto o CDM quanto o teste real do Netflix pedem uma máquina com internet e GPU.
 - Teste de vídeo real (YouTube/Netflix) e de Wayland nativo: **não foi possível aqui**, ficam para o PC do Eric.
+
+## Segundo teste: CEF já compilado com H.264/AAC (2026-11-15)
+
+Procurei um CEF pronto com os codecs. O único que achei foi o [`psmux/godwinmix-cef`](https://github.com/psmux/godwinmix-cef): scripts + releases no mesmo formato do oficial, `proprietary_codecs=true ffmpeg_branding=Chrome`, release `cef-154.0.34` (Chromium 154.0.8037.98, `linux64_minimal`, 155 MB, `libcef.so` de 470 MB). **É de um mantenedor desconhecido e vem sem licença de patentes** (H.264/AAC pedem licenciamento para distribuir). Hash SHA-256 conferido contra o publicado por ele (isso só prova que o arquivo não corrompeu, não a origem).
+
+- **Verificação estática** (sem executar): a `libcef.so` dele contém `ff_h264_decoder` e `ff_aac_decoder`; a do CEF oficial 156 não contém nenhum dos dois.
+- **Não foi executado no container** (o auto-classificador bloqueou rodar um binário de origem desconhecida). Quem roda é o Eric, no PC dele: `bash scripts/teste-cef-codecs.sh` (opções `--wayland`, `--gpu`, `--manter`, `--oficial`).
+- O teste agora **toca de verdade** um mp4 H.264+AAC de 3 s (`docs/navegador/teste-cef/teste.mp4`) e tenta o Widevine (com o CDM do Chrome do sistema, se existir), servindo a página por `http://127.0.0.1` (o EME **não funciona em `file://`**: "EME use is not allowed on unique origins").
+- **Validação do script** (no container): CEF oficial 156 → `toca_h264_aac = false` (`DEMUXER_ERROR_NO_SUPPORTED_STREAMS`), H.264/AAC falsos, VP9/AV1/Opus verdadeiros, ~199 MB de PSS. **Controle positivo** (Chrome for Testing 157, que tem codecs) → `toca_h264_aac = true`, áudio decodificado, então o mp4 e a página estão certos.

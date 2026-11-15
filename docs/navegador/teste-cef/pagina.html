@@ -1,6 +1,31 @@
-<!doctype html><meta charset=utf-8><title>carregando</title><body>teste</body><script>
-const tipos=['video/mp4; codecs="avc1.42E01E"','audio/mp4; codecs="mp4a.40.2"','video/webm; codecs="vp9"','video/mp4; codecs="av01.0.05M.08"','video/mp4; codecs="hev1.1.6.L93.B0"'];
-const r=tipos.map(t=>t.split(';')[0].replace('video/','v:').replace('audio/','a:')+'['+t.split('"')[1]+']='+MediaSource.isTypeSupported(t));
-let w='widevine=?';
-navigator.requestMediaKeySystemAccess('com.widevine.alpha',[{initDataTypes:['cenc'],videoCapabilities:[{contentType:'video/mp4; codecs="avc1.42E01E"'}]}]).then(()=>w='widevine=SIM',e=>w='widevine=NAO('+e.name+')').finally(()=>document.title=r.join(' | ')+' | '+w);
+<!doctype html><meta charset=utf-8><title>testando…</title>
+<body style="font:16px monospace;background:#111;color:#ddd;padding:20px"><pre id=o>testando…</pre><video id=v muted playsinline width=320 height=180></video></body>
+<script>
+// Teste de codecs e DRM do CEF do navegador do LUMNA. Cada linha vai para o terminal (via console) e para a janela.
+const linhas = [], pre = document.getElementById('o');
+function log(k, v) { linhas.push(k + ' = ' + v); console.log('RESULTADO ' + k + ' = ' + v); pre.textContent = linhas.join('\n'); }
+const espera = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+  log('motor', navigator.userAgent.replace(/.*(Chrome\/[0-9.]+).*/, '$1'));
+  const tipos = {
+    'h264': 'video/mp4; codecs="avc1.42E01E"', 'h264_alto': 'video/mp4; codecs="avc1.640028"', 'aac': 'audio/mp4; codecs="mp4a.40.2"',
+    'hevc': 'video/mp4; codecs="hev1.1.6.L93.B0"', 'vp9': 'video/webm; codecs="vp9"', 'av1': 'video/mp4; codecs="av01.0.05M.08"', 'opus': 'audio/webm; codecs="opus"'
+  };
+  for (const [n, t] of Object.entries(tipos)) log('suporta_' + n, MediaSource.isTypeSupported(t));
+  // o teste de verdade: tocar um mp4 H.264 + AAC de 3 s
+  const v = document.getElementById('v');
+  let erro = null; v.addEventListener('error', () => { erro = v.error ? (v.error.code + ' ' + v.error.message) : 'erro'; });
+  v.muted = true; v.src = 'teste.mp4';
+  try { await v.play(); } catch (e) { erro = erro || e.name + ': ' + e.message; }
+  await espera(1800);
+  log('toca_h264_aac', !erro && v.currentTime > 0.5 && v.videoWidth === 320);
+  log('  video', v.videoWidth + 'x' + v.videoHeight + ', t=' + v.currentTime.toFixed(2) + 's' + (erro ? ', erro: ' + erro : ''));
+  log('  audio_decodificado_bytes', v.webkitAudioDecodedByteCount !== undefined ? v.webkitAudioDecodedByteCount : 'n/d');
+  // Widevine: pede o sistema de chaves com a robustez mais baixa (L3, a que o Linux costuma ter)
+  const cfg = [{ initDataTypes: ['cenc'], videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42E01E"', robustness: 'SW_SECURE_DECODE' }, { contentType: 'video/mp4; codecs="avc1.42E01E"' }], audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"' }] }];
+  try { const a = await navigator.requestMediaKeySystemAccess('com.widevine.alpha', cfg); await a.createMediaKeys(); log('widevine', 'SIM'); log('  config', JSON.stringify(a.getConfiguration().videoCapabilities)); }
+  catch (e) { log('widevine', 'NAO (' + e.name + ': ' + e.message + ')'); }
+  document.title = 'h264=' + MediaSource.isTypeSupported(tipos.h264) + ' aac=' + MediaSource.isTypeSupported(tipos.aac) + ' toca=' + linhas.find(l => l.startsWith('toca_')).split(' = ')[1] + ' widevine=' + linhas.find(l => l.startsWith('widevine')).split(' = ')[1].split(' ')[0];
+  console.log('FIM');
+})();
 </script>
