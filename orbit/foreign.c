@@ -1,5 +1,7 @@
 #include "orbit.h"
 
+#include <stdlib.h>
+
 #include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/util/log.h>
 
@@ -130,9 +132,36 @@ void orbit_foreign_sync(struct orbit_view *view) {
 
 /* O wlroots 0.20 não deixa destruir o handle dentro de um pedido dele (ativar, fechar...): enquanto percorre os ouvintes de um sinal ele
  * põe marcadores na lista, e o handle confere que ela está vazia (assert). Um pedido da dock que mexe nas janelas chega aqui no meio
- * disso. Os nossos ouvintes saem já (eles apontam para a janela, que pode acabar); o handle em si sai no próximo ciclo do laço. */
-static void foreign_destroy_depois(void *handle) {
+ * disso. Os nossos ouvintes saem já (eles apontam para a janela, que pode acabar); o handle em si sai no próximo ciclo do laço.
+ * Os handles que esperam esse ciclo ficam numa lista: se o Orbit encerra antes dele (o logout: as janelas fecham e o laço para), o callback nunca roda,
+ * o handle chega vivo a wl_display_destroy e o wlroots aborta (SIGABRT) ou o laço já destruído é usado (SIGSEGV). orbit_foreign_finish os destrói na saída. */
+struct pendente {
+	struct wlr_foreign_toplevel_handle_v1 *handle;
+	struct wl_event_source *ocioso;
+	struct wl_list link;
+};
+static struct wl_list pendentes = { NULL, NULL };
+
+static void foreign_destroy_depois(void *dados) {
+	struct pendente *p = dados;
+	struct wlr_foreign_toplevel_handle_v1 *handle = p->handle;
+	wl_list_remove(&p->link);
+	free(p);
 	wlr_foreign_toplevel_handle_v1_destroy(handle);
+}
+
+/* na saída, depois de o laço parar (nada está no meio de um sinal): destrói já os handles que esperavam o próximo ciclo */
+void orbit_foreign_finish(void) {
+	if (!pendentes.next) {
+		return;
+	}
+	struct pendente *p, *tmp;
+	wl_list_for_each_safe(p, tmp, &pendentes, link) {
+		wl_event_source_remove(p->ocioso);
+		wl_list_remove(&p->link);
+		wlr_foreign_toplevel_handle_v1_destroy(p->handle);
+		free(p);
+	}
 }
 
 void orbit_foreign_destroy(struct orbit_view *view) {
@@ -147,5 +176,14 @@ void orbit_foreign_destroy(struct orbit_view *view) {
 	struct wlr_foreign_toplevel_handle_v1 *handle = view->foreign;
 	view->foreign = NULL;
 	view->foreign_output = NULL;
-	wl_event_loop_add_idle(wl_display_get_event_loop(view->server->display), foreign_destroy_depois, handle);
+	if (!pendentes.next) {
+		wl_list_init(&pendentes);
+	}
+	struct pendente *p = calloc(1, sizeof(*p));
+	if (!p) {
+		return; /* sem memória: o handle fica (a saída o recolhe com o display) */
+	}
+	p->handle = handle;
+	wl_list_insert(&pendentes, &p->link);
+	p->ocioso = wl_event_loop_add_idle(wl_display_get_event_loop(view->server->display), foreign_destroy_depois, p);
 }

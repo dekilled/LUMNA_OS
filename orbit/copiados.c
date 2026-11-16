@@ -350,3 +350,8 @@ void orbit_copiados_iniciar(struct orbit_server *server) {
 	wl_signal_add(&server->seat->events.set_selection, &h.set_selection);
 	wlr_log(WLR_INFO, "histórico de copiados ligado (até %d)", MAX_ITENS);
 }
+
+void orbit_copiados_finish(void) {
+	orbit_listener_off(&h.set_selection);
+	orbit_copiados_limpar();
+}

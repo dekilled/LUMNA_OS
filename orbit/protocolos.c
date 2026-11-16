@@ -288,3 +288,13 @@ bool orbit_protocols_bind(struct orbit_server *server) {
 	wl_signal_add(&server->seat->keyboard_state.events.focus_change, &protocols.keyboard_focus);
 	return true;
 }
+
+/* os ouvintes do bind, fora antes de wl_display_destroy (ver orbit_listener_off em orbit.h) */
+void orbit_protocols_finish(void) {
+	orbit_listener_off(&protocols.request_primary);
+	orbit_listener_off(&protocols.request_shape);
+	orbit_listener_off(&protocols.request_activate);
+	orbit_listener_off(&protocols.new_constraint);
+	orbit_listener_off(&protocols.pointer_focus);
+	orbit_listener_off(&protocols.keyboard_focus);
+}

@@ -618,6 +618,20 @@ void orbit_screen_apply_one(struct orbit_server *server, struct orbit_output *ou
 struct orbit_output *orbit_output_find_any(struct orbit_server *server, const char *name);
 void orbit_xkb_finish(void);
 
+/* Ao encerrar, o wlroots 0.19+ CONFERE (assert) que ninguém mais ouve os sinais dos objetos que ele destrói em wl_display_destroy: um ouvinte esquecido
+ * derruba o Orbit com SIGABRT na saída (uma queda por login/logout, com core dump e atraso). Tira um ouvinte (uma vez só: seguro se nunca foi ligado). */
+static inline void orbit_listener_off(struct wl_listener *l) {
+	if (l->link.prev && l->link.next) {
+		wl_list_remove(&l->link);
+		l->link.prev = l->link.next = NULL;
+	}
+}
+void orbit_foreign_finish(void);
+void orbit_protocols_finish(void);
+void orbit_im_finish(void);
+void orbit_copiados_finish(void);
+void orbit_clip_finish(void);
+
 bool orbit_layers_bind(struct orbit_server *server);
 struct wlr_box orbit_layer_usable(struct orbit_output *output, const struct wlr_box *full);
 void orbit_layers_close_output(struct orbit_output *output);

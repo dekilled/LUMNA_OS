@@ -128,3 +128,7 @@ void orbit_clip_ponte_iniciar(struct orbit_server *server, struct wl_display *re
 	wl_signal_add(&server->seat->events.set_selection, &ponte.set_selection);
 	wlr_log(WLR_INFO, "área de transferência (texto) ligada ao compositor de fora");
 }
+
+void orbit_clip_finish(void) {
+	orbit_listener_off(&ponte.set_selection);
+}

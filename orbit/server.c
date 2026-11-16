@@ -16,6 +16,12 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
+#include <wlr/types/wlr_gamma_control_v1.h>
+#include <wlr/types/wlr_idle_inhibit_v1.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
+#include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_output_power_management_v1.h>
+#include <wlr/types/wlr_session_lock_v1.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
@@ -63,6 +69,84 @@ static int filho_acabou(int sinal, void *dados) {
 		}
 	}
 	return 0;
+}
+
+/* tira TODOS os ouvintes que o Orbit pôs nos objetos do wlroots que acabam em wl_display_destroy (a lista vem dos asserts do wlroots 0.20) e confere que sobrou
+ * nenhum: se sobrar, avisa no log em vez de abortar. Os ouvintes de cada janela, saída e dispositivo saem nos próprios destroy (wl_display_destroy_clients e o backend). */
+#define CONFERE(sinal) do { if (!wl_list_empty(&(sinal).listener_list)) wlr_log(WLR_ERROR, "saída: ainda há ouvintes em " #sinal); } while (0)
+
+static void orbit_listeners_off(struct orbit_server *s) {
+	orbit_listener_off(&s->new_output);
+	orbit_listener_off(&s->new_xdg_toplevel);
+	orbit_listener_off(&s->new_xdg_popup);
+	orbit_listener_off(&s->new_deco);
+	orbit_listener_off(&s->new_layer_surface);
+	orbit_listener_off(&s->new_lock);
+	orbit_listener_off(&s->new_inhibitor);
+	orbit_listener_off(&s->gamma_set);
+	orbit_listener_off(&s->output_apply);
+	orbit_listener_off(&s->output_power_set_mode);
+	orbit_listener_off(&s->output_test);
+	orbit_listener_off(&s->cursor_motion);
+	orbit_listener_off(&s->cursor_motion_absolute);
+	orbit_listener_off(&s->cursor_button);
+	orbit_listener_off(&s->cursor_axis);
+	orbit_listener_off(&s->cursor_frame);
+	orbit_listener_off(&s->touch_down);
+	orbit_listener_off(&s->touch_motion);
+	orbit_listener_off(&s->touch_up);
+	orbit_listener_off(&s->touch_cancel);
+	orbit_listener_off(&s->touch_frame);
+	orbit_listener_off(&s->new_input);
+	orbit_listener_off(&s->request_cursor);
+	orbit_listener_off(&s->request_set_selection);
+	orbit_listener_off(&s->request_start_drag);
+	orbit_listener_off(&s->start_drag);
+	orbit_protocols_finish();
+	orbit_im_finish();
+	orbit_copiados_finish();
+	orbit_clip_finish();
+	/* a conferência: os mesmos sinais que o wlroots exige vazios */
+	if (s->backend) {
+		CONFERE(s->backend->events.new_input);
+		CONFERE(s->backend->events.new_output);
+	}
+	if (s->seat) {
+		CONFERE(s->seat->events.request_start_drag);
+		CONFERE(s->seat->events.start_drag);
+		CONFERE(s->seat->events.request_set_cursor);
+		CONFERE(s->seat->events.request_set_selection);
+		CONFERE(s->seat->events.set_selection);
+		CONFERE(s->seat->events.request_set_primary_selection);
+		CONFERE(s->seat->pointer_state.events.focus_change);
+		CONFERE(s->seat->keyboard_state.events.focus_change);
+	}
+	if (s->xdg_shell) {
+		CONFERE(s->xdg_shell->events.new_toplevel);
+		CONFERE(s->xdg_shell->events.new_popup);
+	}
+	if (s->layer_shell) {
+		CONFERE(s->layer_shell->events.new_surface);
+	}
+	if (s->deco_mgr) {
+		CONFERE(s->deco_mgr->events.new_toplevel_decoration);
+	}
+	if (s->gamma_manager) {
+		CONFERE(s->gamma_manager->events.set_gamma);
+	}
+	if (s->output_power) {
+		CONFERE(s->output_power->events.set_mode);
+	}
+	if (s->output_manager) {
+		CONFERE(s->output_manager->events.apply);
+		CONFERE(s->output_manager->events.test);
+	}
+	if (s->session_manager) {
+		CONFERE(s->session_manager->events.new_lock);
+	}
+	if (s->idle_inhibit) {
+		CONFERE(s->idle_inhibit->events.new_inhibitor);
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -218,9 +302,9 @@ int main(int argc, char *argv[]) {
 	orbit_ipc_finish();
 	wl_display_destroy_clients(server.display);
 	orbit_xwayland_finish(&server);
-	/* o wlroots confere que ninguém mais ouve estes sinais quando o display acaba */
-	wl_list_remove(&server.new_lock.link);
-	wl_list_remove(&server.new_inhibitor.link);
+	/* o wlroots confere (assert) que ninguém mais ouve os sinais dos objetos que ele destrói aqui: um ouvinte esquecido era um SIGABRT toda vez que a sessão acabava */
+	orbit_foreign_finish(); /* os handles de janela que esperavam o próximo ciclo do laço (que não vem mais) */
+	orbit_listeners_off(&server);
 	wl_display_destroy(server.display);
 	orbit_xkb_finish();
 	return 0;

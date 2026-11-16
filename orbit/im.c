@@ -290,3 +290,16 @@ bool orbit_im_bind(struct orbit_server *server) {
 	wl_signal_add(&server->seat->keyboard_state.events.focus_change, &relay.focus_change);
 	return true;
 }
+
+/* os ouvintes do bind, fora antes de wl_display_destroy (ver orbit_listener_off em orbit.h) */
+void orbit_im_finish(void) {
+	orbit_listener_off(&relay.new_text_input);
+	orbit_listener_off(&relay.new_input_method);
+	orbit_listener_off(&relay.new_virtual_keyboard);
+	orbit_listener_off(&relay.new_virtual_pointer);
+	orbit_listener_off(&relay.focus_change);
+	orbit_listener_off(&relay.grab_destroy);
+	orbit_listener_off(&relay.method_commit);
+	orbit_listener_off(&relay.method_grab);
+	orbit_listener_off(&relay.method_destroy);
+}
