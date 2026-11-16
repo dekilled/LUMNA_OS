@@ -1,0 +1,49 @@
+#!/bin/bash
+# Analisa as atualizações pendentes para a lista "Escolher pacotes" do Painel. Roda SEM root: usa o mesmo banco temporário do checkupdates (que sincroniza uma cópia, sem
+# tocar no banco do sistema) e SIMULA a instalação de cada pacote sozinho (pacman -S --print). Uma linha por pacote, separada por TAB:
+#   nome  versão-atual  versão-nova  repositório  situação  motivo
+# situação: ok (pode atualizar sozinho) | arrasta (puxaria a atualização de outros pacotes que já estão instalados) | quebra (o pacman recusa: dependência) | base (sistema base:
+# só junto com tudo). Sai 0 com a lista (pode ser vazia) e 1 se não deu para procurar. LUMNA_BASE_LISTA e CHECKUPDATES_DB trocam a lista de base e o banco (testes).
+set -u
+export LC_ALL=C
+BASE="${LUMNA_BASE_LISTA:-/usr/share/lumna/pacotes-base.txt}"
+export CHECKUPDATES_DB="${CHECKUPDATES_DB:-${TMPDIR:-/tmp}/lumna-analisar-db-$(id -u)}"
+bases=()
+if [ -r "$BASE" ]; then
+  while IFS= read -r l; do
+    l="${l%%#*}"; l="${l//[[:space:]]/}"
+    [ -n "$l" ] && bases+=("$l")
+  done < "$BASE"
+fi
+eh_base() { local p; for p in "${bases[@]}"; do [[ "$1" == $p ]] && return 0; done; return 1; }
+
+lista="$(checkupdates 2>/dev/null)"; rc=$?
+[ "$rc" = 2 ] && exit 0             # nada a atualizar
+[ "$rc" = 0 ] || exit 1
+
+while read -r nome antiga seta nova; do
+  [ "$seta" = "->" ] || continue
+  if eh_base "$nome"; then
+    printf '%s\t%s\t%s\t%s\tbase\t%s\n' "$nome" "$antiga" "$nova" "-" "Sistema base: só se atualiza junto com tudo."
+    continue
+  fi
+  if ! sim="$(pacman --dbpath "$CHECKUPDATES_DB" -S --needed --print --print-format 'LUMNA-SIM %r %n %v' -- "$nome" 2>&1)"; then
+    # a linha mais útil: "installing X breaks dependency 'Y' required by Z"; senão a mensagem de erro do pacman
+    motivo="$(printf '%s\n' "$sim" | grep -E 'breaks dependency' | head -n1 | sed 's/^:: //' | cut -c1-160)"
+    [ -n "$motivo" ] || motivo="$(printf '%s\n' "$sim" | grep -E '^error:|could not satisfy|unable to satisfy' | head -n1 | sed 's/^error: //' | cut -c1-160)"
+    printf '%s\t%s\t%s\t%s\tquebra\t%s\n' "$nome" "$antiga" "$nova" "-" "${motivo:-O pacman recusou atualizar este pacote sozinho.}"
+    continue
+  fi
+  repo="$(printf '%s\n' "$sim" | awk -v n="$nome" '$1 == "LUMNA-SIM" && $3 == n {print $2; exit}')"
+  arrasta=(); novos=()
+  while read -r marca _ outro _; do
+    [ "$marca" = "LUMNA-SIM" ] && [ "$outro" != "$nome" ] || continue
+    if pacman -Q "$outro" >/dev/null 2>&1; then arrasta+=("$outro"); else novos+=("$outro"); fi
+  done <<< "$sim"
+  if [ "${#arrasta[@]}" -gt 0 ]; then
+    printf '%s\t%s\t%s\t%s\tarrasta\t%s\n' "$nome" "$antiga" "$nova" "${repo:--}" "Puxaria também: ${arrasta[*]:0:4}$([ "${#arrasta[@]}" -gt 4 ] && echo " e mais $(( ${#arrasta[@]} - 4 ))")"
+  else
+    printf '%s\t%s\t%s\t%s\tok\t%s\n' "$nome" "$antiga" "$nova" "${repo:--}" "$([ "${#novos[@]}" -gt 0 ] && echo "Instala também (novos): ${novos[*]:0:4}" || true)"
+  fi
+done <<< "$lista"
+exit 0

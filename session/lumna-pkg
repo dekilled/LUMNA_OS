@@ -5,6 +5,8 @@
 #   lumna-pkg upgrade             atualiza o sistema inteiro (antes, tira um snapshot Btrfs, para voltar se der errado)
 #   lumna-pkg upgrade-lumna       atualiza SÓ o que vem do repositório [lumna] (os bancos do Arch ficam como estão: nada de atualização parcial do Arch); para e avisa se
 #                                 isso exigir mexer em pacotes do Arch (aí é a atualização completa)
+#   lumna-pkg upgrade-pacotes PACOTE...   atualiza SÓ os pacotes escolhidos (a lista "Escolher pacotes" do Painel): recusa o sistema base e qualquer escolha que puxe a
+#                                 atualização de OUTROS pacotes já instalados ou que o pacman recuse; usa um banco privado e novo, sem tocar no banco do sistema
 #   lumna-pkg agendar LIGADO ESCOPO HH:MM DIAS   liga/desliga a atualização no horário marcado (ligado|desligado, tudo|lumna, 03:00, todos|seg,qua,sex)
 #   lumna-pkg agendado            o que o timer chama no horário (não é para usar na mão): atualiza conforme /etc/lumna/atualizar.conf e anota o resultado
 #   lumna-pkg snapshots           lista os snapshots de antes das atualizações (os 5 últimos ficam)
@@ -136,6 +138,69 @@ upgrade_lumna() {
   return 0
 }
 
+# ---- só os pacotes escolhidos ----
+BASE_LISTA="${LUMNA_BASE_LISTA:-/usr/share/lumna/pacotes-base.txt}"
+PRIVDB="${LUMNA_PRIVDB:-$VARLIB/pacman-db}"
+
+# o pacote é do sistema base (a lista /usr/share/lumna/pacotes-base.txt, com padrões * e ?)? Esses só se atualizam junto com tudo
+eh_base() {
+  local l p
+  [ -r "$BASE_LISTA" ] || return 1
+  while IFS= read -r l; do
+    p="${l%%#*}"; p="${p//[[:space:]]/}"
+    [ -n "$p" ] && [[ "$1" == $p ]] && return 0
+  done < "$BASE_LISTA"
+  return 1
+}
+
+# códigos: 0 atualizou, 2 pedido inválido, 3 não dá para atualizar só esses (base, puxaria outros, o pacman recusou), 1 falhou
+upgrade_pacotes() {
+  local sel=("$@") n sim dragged="" novos="" outro marca _ com_atu=() atu
+  [ "${#sel[@]}" -gt 0 ] || { echo "uso: lumna-pkg upgrade-pacotes PACOTE..." >&2; return 2; }
+  for n in "${sel[@]}"; do
+    [[ "$n" =~ ^[a-z0-9@._+-]+$ ]] || { echo "nome de pacote inválido: $n" >&2; return 2; }
+    if eh_base "$n"; then
+      echo "$n é do sistema base e só se atualiza junto com tudo (Atualizar tudo)." >&2
+      return 3
+    fi
+  done
+  [ -e "${DBPATH}db.lck" ] && { echo "o pacman está em uso (${DBPATH}db.lck); tente de novo quando ele terminar." >&2; return 1; }
+  # um banco PRIVADO e novo (como o do checkupdates): o banco do sistema, que guarda o retrato do Arch da última atualização completa, não é tocado.
+  # O banco dos pacotes instalados (local) é o do sistema, por um link: o que se instala fica registrado de verdade.
+  mkdir -p "$PRIVDB/sync"
+  ln -sfn "${DBPATH}local" "$PRIVDB/local"
+  pacman --dbpath "$PRIVDB" -Sy --noconfirm --noprogressbar >/dev/null || { echo "não consegui sincronizar a lista de pacotes." >&2; return 1; }
+  atu=" $(pacman --dbpath "$PRIVDB" -Qu 2>/dev/null | awk '{print $1}' | tr '\n' ' ')"
+  for n in "${sel[@]}"; do
+    case "$atu" in
+      *" $n "*) com_atu+=("$n") ;;
+      *) echo "$n já está em dia: ficou de fora." ;;
+    esac
+  done
+  [ "${#com_atu[@]}" -gt 0 ] || { echo "Nada a atualizar entre os escolhidos."; return 0; }
+  if ! sim="$(pacman --dbpath "$PRIVDB" -S --needed --print --print-format 'LUMNA-SIM %r %n %v' -- "${com_atu[@]}" 2>&1)"; then
+    echo "Não dá para atualizar só esses pacotes: o pacman recusou a conta." >&2
+    printf '%s\n' "$sim" >&2
+    echo "Nada foi instalado. Atualize tudo, ou escolha outros pacotes." >&2
+    return 3
+  fi
+  while read -r marca _ outro _; do
+    [ "$marca" = "LUMNA-SIM" ] || continue
+    case " ${com_atu[*]} " in *" $outro "*) continue ;; esac
+    if pacman -Q "$outro" >/dev/null 2>&1; then dragged="$dragged $outro"; else novos="$novos $outro"; fi
+  done <<< "$sim"
+  if [ -n "$dragged" ]; then
+    echo "Esta escolha puxaria a atualização de outros pacotes que já estão instalados:$dragged" >&2
+    echo "O Arch não suporta atualização parcial: nada foi instalado. Marque esses também, ou atualize tudo." >&2
+    return 3
+  fi
+  [ -n "$novos" ] && echo "Também serão instalados (dependências novas):$novos"
+  echo "Atualizando: ${com_atu[*]}"
+  snapshot_antes
+  pacman --dbpath "$PRIVDB" -S --needed --noconfirm --noprogressbar -- "${com_atu[@]}" || return 1
+  return 0
+}
+
 # ---- o horário marcado ----
 agendar() {
   local modo="${1:-}" escopo="${2:-}" hora="${3:-}" dias="${4:-}" d lista=() nomes
@@ -214,6 +279,11 @@ case "${1:-}" in
     [ "$rc" = 10 ] && rc=0
     exit "$rc"
     ;;
+  upgrade-pacotes)
+    shift
+    rc=0; upgrade_pacotes "$@" || rc=$?
+    exit "$rc"
+    ;;
   agendar)
     shift
     agendar "$@"
@@ -246,7 +316,7 @@ case "${1:-}" in
     exec pacman "$@"
     ;;
   *)
-    echo "uso: lumna-pkg install|remove|upgrade|upgrade-lumna|agendar ...|snapshots|voltar [SNAPSHOT]|multilib on|off|pacman ..." >&2
+    echo "uso: lumna-pkg install|remove|upgrade|upgrade-lumna|upgrade-pacotes PACOTE...|agendar ...|snapshots|voltar [SNAPSHOT]|multilib on|off|pacman ..." >&2
     exit 2
     ;;
 esac

@@ -33,6 +33,31 @@ No topo: "N atualizações (X do LUMNA e Y do Arch e de outros programas)", **Pr
 
 **Não testado:** um `pacman` real com o repositório `[lumna]` publicado (só com pacman de mentira); o timer rodando de verdade no systemd (só o conteúdo dos arquivos); o aviso na tela quando o agendado termina (hoje o resultado só aparece na página e no log).
 
-## Falta (etapa 2)
+## Escolher pacotes (etapa 2)
 
-**Escolher pacotes**, com as caixinhas: cada pacote **simulado** antes (se arrastar outros pacotes ou quebrar dependência: ⚠ e bloqueado; kernel, glibc, systemd, mesa e outros de base sempre bloqueados), snapshot antes. Decisão do Eric: "simular e travar".
+Na mesma página, o botão **Escolher** abre uma lista com caixinhas. Decisão do Eric: **"simular e travar"**.
+
+**A análise (sem senha).** `session/lumna-pkg-analisar` usa o mesmo banco temporário do `checkupdates` (uma cópia sincronizada, sem tocar no banco do sistema) e **simula** cada pacote **sozinho** (`pacman -S --needed --print`).
+Cada pacote cai em uma situação:
+
+| Situação | O que significa | Pode marcar? |
+|---|---|---|
+| **ok** | atualiza sozinho (se pedir dependências *novas*, avisa: "Instala também (novos): ...") | sim |
+| **arrasta** | puxaria a atualização de **outros pacotes já instalados** ("Puxaria também: glibc") | não |
+| **quebra** | o pacman recusa (quebraria uma dependência: "installing X breaks dependency ... required by Y") | não |
+| **base** | sistema base: kernel, firmware, glibc, systemd, mesa, drivers, wayland, wlroots, pacman... (a lista em `session/pacotes-base.txt`, com padrões `*`/`?`); **nem é simulado** | não, só com "Atualizar tudo" |
+
+A lista de base é de propósito mais conservadora que a simulação: ela cobre o que **segue funcionando na simulação e mesmo assim** deixa o PC sem tela ou sem boot quando fica fora de harmonia.
+
+**A instalação (com senha).** `pkexec lumna-pkg upgrade-pacotes PACOTE...`: valida os nomes (roda como root), **recusa o base de novo** (não confia na interface), sincroniza um **banco privado** em `/var/lib/lumna/pacman-db`
+(o banco do sistema, com o retrato do Arch da última atualização completa, **não é tocado**; o banco de instalados é o do sistema, por um link), confere quais dos escolhidos têm atualização, **simula de novo** (a análise pode ser de minutos
+atrás) e só instala se a conta fecha: se puxar um pacote **já instalado** que não foi escolhido, ou se o pacman recusar, **não instala nada** (código 3). Tira o snapshot antes. Depois o Painel procura de novo.
+
+## Testes
+
+- `sh gravity/testes/pkg/lumna.sh`: "só o LUMNA" e o agendamento (com controle negativo).
+- `sh gravity/testes/pkg/pacotes.sh`: o analisador (ok com dependência nova, arrasta, quebra, base, nada a atualizar, checkupdates falhando) e o `upgrade-pacotes` (só os escolhidos, pelo banco privado, snapshot, recusa de arrasto, de recusa do pacman, do base, nomes inválidos, quem já está em dia, `db.lck`, sync falhando). Com controles negativos (sem a recusa de arrasto e sem a de base, o teste falha).
+- `sh gravity/testes/painel.sh` (parte `sistema`): a marcação "é do LUMNA", a leitura do agendamento e a leitura da saída do analisador.
+- `sh gravity/testes/painel_agenda.sh <orbit>` e `sh gravity/testes/painel_escolher.sh <orbit>`: o Painel de verdade num Orbit sem tela: o que os cliques mandam (dia, Tudo, interruptor; marcar, desmarcar, "Marcar os liberados", **bloqueado não marca**, "Atualizar" manda só os marcados). Controle negativo da interface feito.
+
+**Não testado:** um `pacman` real com o repositório `[lumna]` publicado e atualizações de verdade; o `checkupdates` real (o fake imita a saída); o timer no systemd; o tempo da análise num PC com muitas atualizações (cada pacote é simulado, centenas podem levar minutos: a tela avisa "Testando os pacotes um por um"); o aviso na tela quando o agendado termina.

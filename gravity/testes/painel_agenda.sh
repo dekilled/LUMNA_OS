@@ -23,25 +23,25 @@ print('sim' if r > 140 and b > 200 else 'nao')"
 sleep 6
 timeout 5 grim "$run/t.png" || falha "grim"
 # a página mostra a configuração gravada: Seg, Qua e Sex marcados; Ter, Qui, Sáb, Dom não; o interruptor ligado
-for x in 684 840 997; do [ "$(cheio $x 535)" = sim ] || falha "o dia em x=$x devia estar marcado (seg, qua, sex)"; done
-for x in 762 920 1075 1157; do [ "$(cheio $x 535)" = nao ] || falha "o dia em x=$x NÃO devia estar marcado"; done
+for x in 684 840 997; do [ "$(cheio $x 588)" = sim ] || falha "o dia em x=$x devia estar marcado (seg, qua, sex)"; done
+for x in 762 920 1075 1157; do [ "$(cheio $x 588)" = nao ] || falha "o dia em x=$x NÃO devia estar marcado"; done
 # um dia a mais (Qui): o Painel manda o lumna-pkg agendar com os dias novos, o que atualizar e o horário que já estavam
-clica 920 552
+clica 920 604
 grep -qx "agendar ligado lumna 04:30 seg,qua,qui,sex" "$run/pkg.log" || falha "Qui devia mandar: agendar ligado lumna 04:30 seg,qua,qui,sex (foi: $(cat "$run/pkg.log" 2>&1))"
 # "Tudo": o que atualizar muda e o resto fica
-clica 1011 477
+clica 1011 530
 grep -qx "agendar ligado tudo 04:30 seg,qua,sex" "$run/pkg.log" || falha "Tudo devia mandar: agendar ligado tudo 04:30 seg,qua,sex (foi: $(cat "$run/pkg.log" 2>&1))"
 # o interruptor desliga
-clica 1165 397
+clica 1165 449
 grep -qx "agendar desligado lumna 04:30 seg,qua,sex" "$run/pkg.log" || falha "o interruptor devia mandar: agendar desligado lumna 04:30 seg,qua,sex (foi: $(tail -1 "$run/pkg.log"))"
 # procurar: aparece "1 do LUMNA" e o botão "Só o LUMNA"
-clica 1125 278; sleep 4
+clica 468 331; sleep 4
 timeout 5 grim "$run/t.png"
 python3 -W ignore -c "
 from PIL import Image
 im = Image.open('$run/t.png').convert('RGB')
 # o botão 'Só o LUMNA' (superfície elevada com contorno) existe ao lado de 'Atualizar tudo' (roxo)? confere o roxo do 'Atualizar tudo' e o texto do contador
-roxos = sum(1 for r, g, b in im.crop((1020, 262, 1195, 308)).getdata() if r > 140 and b > 200)
+roxos = sum(1 for r, g, b in im.crop((850, 312, 1010, 350)).getdata() if r > 140 and b > 200)
 print('sim' if roxos > 500 else 'nao')" | grep -q sim || falha "depois de Procurar devia aparecer o botão Atualizar tudo (roxo)"
 kill $pid 2>/dev/null; pkill -x orbit
 [ $ok = 1 ] && { rm -rf "$run"; echo "painel_agenda: ok"; } || { echo "(em $run)"; exit 1; }

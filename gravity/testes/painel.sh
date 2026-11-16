@@ -16,7 +16,7 @@ env -u XDG_DATA_HOME -u XDG_CACHE_HOME -u XDG_CONFIG_HOME $ENVV "$T/testa_pacote
 # sistema (Sobre)
 cc $CF -o "$T/testa_sistema" testes/painel/testa_sistema.c servicos/sistema.c $LG
 python3 testes/painel/monta_sistema_falso.py "$T/raiz"
-LUMNA_RAIZ_SISTEMA="$T/raiz" LUMNA_ETC="$T/raiz/etc" LUMNA_VARLIB="$T/raiz/var/lib/lumna" PATH="$T/raiz/bin:$PATH" "$T/testa_sistema"
+LUMNA_RAIZ_SISTEMA="$T/raiz" LUMNA_ETC="$T/raiz/etc" LUMNA_VARLIB="$T/raiz/var/lib/lumna" LUMNA_PKG_ANALISAR="$T/raiz/bin/analisador" PATH="$T/raiz/bin:$PATH" "$T/testa_sistema"
 
 # hora (formato)
 cc $CF -o "$T/testa_hora" testes/painel/testa_hora.c servicos/hora.c $LG

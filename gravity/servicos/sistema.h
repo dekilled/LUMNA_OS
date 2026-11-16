@@ -38,6 +38,17 @@ void sistema_resumo(const struct sistema_info *s, char *buf, size_t tam);
 /* procura atualizações (leva alguns segundos: chame numa tarefa); devolve quantas, ou -1 se não deu para saber
  * (sem checkupdates nem pacman) */
 int sistema_atualizacoes(struct sistema_atualizacao *v, int max);
+/* A lista "Escolher pacotes": cada atualização pendente analisada pelo lumna-pkg-analisar (sem root; leva uns segundos por pacote: chame numa tarefa) */
+enum sistema_pacote_situacao { SISTEMA_PACOTE_OK, SISTEMA_PACOTE_ARRASTA, SISTEMA_PACOTE_QUEBRA, SISTEMA_PACOTE_BASE };
+struct sistema_pacote {
+	char nome[64], antiga[48], nova[48], repo[24];
+	enum sistema_pacote_situacao situacao; /* OK: pode atualizar sozinho; ARRASTA: puxaria outros já instalados; QUEBRA: o pacman recusa; BASE: só junto com tudo */
+	char motivo[200];
+	bool marcado;
+};
+/* devolve quantos (0: nada a atualizar), ou -1 se não deu para analisar. LUMNA_PKG_ANALISAR troca o programa (testes) */
+int sistema_analisar_pacotes(struct sistema_pacote *v, int max);
+
 /* A atualização no horário marcado: o que o Painel gravou (/etc/lumna/atualizar.conf, pelo lumna-pkg agendar) e o que o último agendado fez (/var/lib/lumna/atualizar.estado).
  * LUMNA_ETC e LUMNA_VARLIB trocam as pastas (testes). Sem arquivos: desligado, "tudo", 03:00, todos os dias. */
 struct sistema_agenda {

@@ -1,0 +1,52 @@
+# Pacotes que NÃO se atualizam sozinhos na lista "Escolher pacotes" do Painel: o Arch não suporta atualização parcial deles, e um deles novo com o resto velho
+# (ou o contrário) pode impedir o PC de ligar ou de mostrar a tela. Eles só se atualizam junto com tudo ("Atualizar tudo"). Um nome (ou padrão com * e ?) por linha.
+# Os outros pacotes não precisam estar aqui: o analisador simula cada um e bloqueia o que arrastar outros pacotes ou quebrar uma dependência.
+# kernel, firmware e o que o boot usa
+linux
+linux-*
+linux-firmware*
+*-ucode
+mkinitcpio
+mkinitcpio-*
+grub
+efibootmgr
+dracut
+# a base do sistema
+glibc
+lib32-glibc
+gcc
+gcc-libs
+lib32-gcc-libs
+binutils
+systemd
+systemd-libs
+systemd-sysvcompat
+util-linux
+util-linux-libs
+filesystem
+coreutils
+bash
+openssl
+zlib
+pacman
+pacman-mirrorlist
+archlinux-keyring
+# gráficos e entrada (a tela e o desktop do LUMNA dependem disto estar em harmonia)
+mesa
+mesa-*
+lib32-mesa
+lib32-mesa-*
+libdrm
+lib32-libdrm
+vulkan-*
+lib32-vulkan-*
+nvidia
+nvidia-*
+lib32-nvidia-*
+wayland
+wayland-protocols
+wlroots
+wlroots-*
+xorg-xwayland
+libinput
+libxkbcommon

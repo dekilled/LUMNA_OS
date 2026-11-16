@@ -100,6 +100,7 @@ static int n_snapshots(void) {
 	return n;
 }
 
+static int nesc = -2;       /* a lista "Escolher pacotes": -2: ainda não analisou; -1: não deu para analisar */
 static int natu = -2;       /* -2: ainda não procurou; -1: não deu para saber (sem checkupdates nem pacman) */
 static bool procurando;
 static struct sistema_evento hist[24];
@@ -118,7 +119,128 @@ static void procurar_pronto(void *dados) {
 static void procurar(void) {
 	if (!procurando) {
 		procurando = true;
+		nesc = -2; /* a análise dos pacotes é de antes: refaz quando pedirem */
 		pn_tarefa(procurar_trabalho, procurar_pronto, NULL);
+	}
+}
+
+/* ---- escolher pacotes ---- */
+/* A lista com caixinhas: cada atualização é testada sozinha pelo lumna-pkg-analisar (sem root). Só se marca o que o teste liberou; o resto mostra o motivo. */
+static struct sistema_pacote esc[SISTEMA_MAX_ATUALIZACOES];
+static bool analisando, modo_escolha;
+static int nesc_tarefa;
+
+static void analisar_trabalho(void *dados) {
+	nesc_tarefa = sistema_analisar_pacotes(esc, SISTEMA_MAX_ATUALIZACOES);
+}
+
+static void analisar_pronto(void *dados) {
+	nesc = nesc_tarefa;
+	analisando = false;
+}
+
+static void escolher_abrir(void) {
+	modo_escolha = true;
+	if (!analisando && nesc == -2) {
+		analisando = true;
+		pn_tarefa(analisar_trabalho, analisar_pronto, NULL);
+	}
+}
+
+static int esc_marcados(void) {
+	int n = 0;
+	for (int i = 0; i < nesc && i < SISTEMA_MAX_ATUALIZACOES; i++) {
+		n += esc[i].marcado && esc[i].situacao == SISTEMA_PACOTE_OK;
+	}
+	return n;
+}
+
+static const char *esc_situacao_texto(const struct sistema_pacote *p) {
+	switch (p->situacao) {
+	case SISTEMA_PACOTE_OK: return p->marcado ? "Vai atualizar" : "Pode atualizar sozinho";
+	case SISTEMA_PACOTE_ARRASTA: return "Puxa outros pacotes";
+	case SISTEMA_PACOTE_QUEBRA: return "Quebraria uma dependência";
+	default: return "Sistema base";
+	}
+}
+
+/* a caixinha: marcada (acento + visto), livre (contorno) ou bloqueada (cadeado) */
+static void esc_caixa(const struct sistema_pacote *p, uint32_t i) {
+	bool livre = p->situacao == SISTEMA_PACOTE_OK;
+	CLAY(CLAY_IDI("es-caixa", i), { .layout = { .sizing = { CLAY_SIZING_FIXED(24), CLAY_SIZING_FIXED(24) }, .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER } },
+		.backgroundColor = p->marcado ? gv_t.acento : (Clay_Color){ 0 }, .cornerRadius = CLAY_CORNER_RADIUS(6),
+		.border = { .color = livre ? (p->marcado ? gv_t.acento : gv_t.borda_controle) : gv_t.borda, .width = CLAY_BORDER_OUTSIDE(2) } }) {
+		if (p->marcado) {
+			gv_icone("check", 16, gv_t.sobre_acento);
+		} else if (!livre) {
+			gv_icone("lock", 14, gv_t.texto_suave);
+		}
+	}
+}
+
+static void esc_desenhar(void) {
+	CLAY(CLAY_ID("es-topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 8, 8 }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
+			gv_texto(CLAY_STRING("Escolha o que atualizar"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+			gv_texto(CLAY_STRING("Cada pacote é testado sozinho. O que fica bloqueado precisa de \"Atualizar tudo\": o Arch não aceita atualização parcial disso."),
+				gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+		}
+		int marc = esc_marcados();
+		if (gv_botao_ext(CLAY_ID("es-todos"), &(gv_botao_opcoes){ .icone = "check", .texto = "Marcar os liberados", .estilo = GV_BOTAO_ELEVADO, .desativado = analisando || nesc <= 0 })) {
+			for (int i = 0; i < nesc; i++) {
+				esc[i].marcado = esc[i].situacao == SISTEMA_PACOTE_OK;
+			}
+		}
+		if (gv_botao_ext(CLAY_ID("es-instalar"), &(gv_botao_opcoes){ .icone = "download", .texto = marc ? gv_fmt("Atualizar %d", marc).chars : "Atualizar",
+			    .estilo = GV_BOTAO_CHEIO, .desativado = marc == 0 || analisando })) {
+			GString *cmd = g_string_new("pkexec /usr/lib/lumna/lumna-pkg upgrade-pacotes");
+			for (int i = 0; i < nesc; i++) {
+				if (esc[i].marcado && esc[i].situacao == SISTEMA_PACOTE_OK) {
+					char *q = g_shell_quote(esc[i].nome);
+					g_string_append_printf(cmd, " %s", q);
+					g_free(q);
+				}
+			}
+			g_string_append(cmd, " && { echo; echo 'Pronto. Os outros pacotes continuam como estavam.'; }");
+			pn_terminal_atualizar(cmd->str);
+			g_string_free(cmd, true);
+		}
+		if (gv_botao_ext(CLAY_ID("es-voltar"), &(gv_botao_opcoes){ .texto = "Voltar", .estilo = GV_BOTAO_SIMPLES })) {
+			modo_escolha = false;
+		}
+	}
+	if (analisando) {
+		gv_texto(CLAY_STRING("Testando os pacotes um por um… pode levar alguns minutos."), gv_t.tamanho_corpo, gv_t.texto_secundario, GV_PESO_NORMAL);
+		return;
+	}
+	if (nesc < 0) {
+		gv_texto(CLAY_STRING("Não consegui analisar as atualizações (falta o checkupdates ou o pacman não respondeu)."), gv_t.tamanho_corpo, gv_t.aviso, GV_PESO_NORMAL);
+		return;
+	}
+	if (nesc == 0) {
+		gv_texto(CLAY_STRING("Nada para atualizar."), gv_t.tamanho_corpo, gv_t.sucesso, GV_PESO_NORMAL);
+		return;
+	}
+	for (int i = 0; i < nesc && i < 200; i++) {
+		struct sistema_pacote *p = &esc[i];
+		bool livre = p->situacao == SISTEMA_PACOTE_OK;
+		Clay_ElementId id = CLAY_IDI("es-linha", (uint32_t)i);
+		if (livre && gv_tocado(id)) {
+			p->marcado = !p->marcado;
+		}
+		CLAY(id, { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 10, 14, 8, 8 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } },
+			.backgroundColor = livre && gv_por_cima(id) ? gv_t.sob_cursor : (Clay_Color){ 0 }, .cornerRadius = CLAY_CORNER_RADIUS(gv_t.raio_medio),
+			.border = { .color = gv_t.borda, .width = { .bottom = 1 } } }) {
+			esc_caixa(p, (uint32_t)i);
+			CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 2 } }) {
+				gv_texto(gv_str(p->repo[0] && strcmp(p->repo, "-") ? gv_fmt("%s  ·  %s", p->nome, p->repo).chars : p->nome), gv_t.tamanho_corpo + 1, livre ? gv_t.texto : gv_t.texto_secundario, GV_PESO_NORMAL);
+				gv_texto(gv_fmt("%s  →  %s", p->antiga, p->nova), gv_t.tamanho_corpo - 2, gv_t.texto_secundario, GV_PESO_NORMAL);
+				if (p->motivo[0]) {
+					gv_texto(gv_str(p->motivo), gv_t.tamanho_corpo - 2, livre ? gv_t.texto_suave : gv_t.aviso, GV_PESO_NORMAL);
+				}
+			}
+			gv_texto(gv_str(esc_situacao_texto(p)), gv_t.tamanho_corpo - 1, livre ? (p->marcado ? gv_t.sucesso : gv_t.texto_secundario) : gv_t.aviso, GV_PESO_NORMAL);
+		}
 	}
 }
 
@@ -329,10 +451,12 @@ void pn_sobre_atu_desenhar(void) {
 	} else if (g != geracao_vista) {
 		geracao_vista = g;
 		natu = -2;
+		nesc = -2;
+		modo_escolha = false;
 		nhist = sistema_historico(hist, 24);
 		procurar();
 	}
-	CLAY(CLAY_ID("at-topo"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 4, 14 }, .childGap = 14, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
+	CLAY(CLAY_ID("at-topo"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .padding = { 4, 4, 4, 14 }, .childGap = 12 } }) {
 		CLAY_AUTO_ID({ .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 3 } }) {
 			if (procurando) {
 				gv_texto(CLAY_STRING("Procurando atualizações…"), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
@@ -354,12 +478,16 @@ void pn_sobre_atu_desenhar(void) {
 				gv_texto(gv_fmt("%d do LUMNA e %d do Arch e de outros programas", dolumna, natu - dolumna), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
 		}
+		CLAY(CLAY_ID("at-botoes"), { .layout = { .sizing = { CLAY_SIZING_GROW(0) }, .childGap = 10, .childAlignment = { .y = CLAY_ALIGN_Y_CENTER } } }) {
 		if (gv_botao_ext(CLAY_ID("at-procurar"), &(gv_botao_opcoes){ .icone = "refresh", .texto = "Procurar", .estilo = GV_BOTAO_ELEVADO, .desativado = procurando })) {
 			procurar();
 		}
 		int dolumna_n = 0;
 		for (int i = 0; i < natu && i < SISTEMA_MAX_ATUALIZACOES; i++) {
 			dolumna_n += atu[i].lumna;
+		}
+		if (natu > 0 && gv_botao(CLAY_ID("at-escolher"), "check", "Escolher", GV_BOTAO_ELEVADO)) {
+			escolher_abrir();
 		}
 		if (dolumna_n > 0 && gv_botao(CLAY_ID("at-lumna"), "download", "Só o LUMNA", GV_BOTAO_ELEVADO)) {
 			/* só os pacotes do [lumna]; se isso exigir pacotes do Arch mais novos, o lumna-pkg não instala nada e diz para atualizar tudo */
@@ -376,6 +504,11 @@ void pn_sobre_atu_desenhar(void) {
 			    "Voltar o sistema ao estado de antes da última atualização? (reinicia depois)", true)) {
 			pn_terminal("pkexec /usr/lib/lumna/lumna-pkg voltar");
 		}
+		}
+	}
+	if (modo_escolha) {
+		esc_desenhar();
+		return;
 	}
 	ag_desenhar();
 	if (natu > 0) {

@@ -1,10 +1,24 @@
 #!/bin/sh
-# pacman de mentira para o "só LUMNA": responde pelo que o teste deixou em $FAKE (qu, lumna-pkgs, sim, sim-falha, syu-out, syu-rc) e anota cada chamada
+# pacman de mentira para o "só LUMNA" e a lista de pacotes: responde pelo que o teste deixou em $FAKE (qu, lumna-pkgs, sim, sim-NOME, sim-falha, sim-falha-NOME, instalados,
+# syu-out, syu-rc, sync-falha) e anota cada chamada (inteira, com o --dbpath)
 echo "pacman $*" >> "$FALSO_LOG"
-case "$*" in
+ultimo=""; for a in "$@"; do ultimo=$a; done
+args=""; pula=0
+for a in "$@"; do
+	if [ $pula = 1 ]; then pula=0; continue; fi
+	if [ "$a" = --dbpath ]; then pula=1; continue; fi
+	args="$args $a"
+done
+args=${args# }
+case "$args" in
 "-Qu") [ -s "$FAKE/qu" ] && { cat "$FAKE/qu"; exit 0; }; exit 1 ;;
+"-Q "*) grep -qx "${args#-Q }" "$FAKE/instalados" 2>/dev/null; exit $? ;;
 "-Slq lumna") cat "$FAKE/lumna-pkgs"; exit 0 ;;
-*"--print"*) [ -e "$FAKE/sim-falha" ] && { echo "error: failed to prepare transaction (could not satisfy dependencies)"; exit 1; }; cat "$FAKE/sim"; exit 0 ;;
+"-Sy --noconfirm --noprogressbar") [ -e "$FAKE/sync-falha" ] && exit 1; exit 0 ;;
+*"--print"*)
+	if [ -e "$FAKE/sim-falha" ] || [ -e "$FAKE/sim-falha-$ultimo" ]; then echo "error: failed to prepare transaction (could not satisfy dependencies)"; echo ":: installing libfoo breaks dependency 'libfoo.so=1' required by bar"; exit 1; fi
+	if [ -f "$FAKE/sim-$ultimo" ]; then cat "$FAKE/sim-$ultimo"; else cat "$FAKE/sim"; fi
+	exit 0 ;;
 "-Syu "*) cat "$FAKE/syu-out" 2>/dev/null; exit "$(cat "$FAKE/syu-rc" 2>/dev/null || echo 0)" ;;
 esac
 exit 0

@@ -22,6 +22,12 @@ int main(void) {
 	sistema_agenda_ler(&ag);
 	assert(ag.ligado && !strcmp(ag.escopo, "lumna") && !strcmp(ag.hora, "04:30") && !strcmp(ag.dias, "seg,qua,sex"));
 	assert(ag.ultimo == 1790000000 && !strcmp(ag.resultado, "ok") && !strcmp(ag.ultimo_escopo, "lumna") && !strcmp(ag.pacotes, "lumna-orbit lumna-shell"));
+	/* a lista "Escolher pacotes": a saída do analisador vira a estrutura (TSV: nome, versões, repositório, situação, motivo) */
+	struct sistema_pacote pk[8];
+	n = sistema_analisar_pacotes(pk, 8);
+	assert(n == 4 && !strcmp(pk[0].nome, "vlc") && pk[0].situacao == SISTEMA_PACOTE_OK && !strcmp(pk[0].repo, "extra") && strstr(pk[0].motivo, "libnovo"));
+	assert(pk[1].situacao == SISTEMA_PACOTE_ARRASTA && strstr(pk[1].motivo, "glibc") && pk[2].situacao == SISTEMA_PACOTE_QUEBRA && pk[3].situacao == SISTEMA_PACOTE_BASE);
+	assert(!strcmp(pk[3].nome, "linux") && !strcmp(pk[3].antiga, "6.10.1-1") && !strcmp(pk[3].nova, "6.10.2-1"));
 	struct sistema_evento h[16];
 	n = sistema_historico(h, 16);
 	assert(n == 3 && !strcmp(h[0].acao, "removido") && !strcmp(h[0].nome, "velho") && !strcmp(h[1].acao, "atualizado") && !strcmp(h[1].de, "1.0-1") && !strcmp(h[1].para, "1.1-1"));

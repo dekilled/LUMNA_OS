@@ -351,3 +351,34 @@ int sistema_historico(struct sistema_evento *v, int max) {
 	g_free(texto);
 	return n;
 }
+
+int sistema_analisar_pacotes(struct sistema_pacote *v, int max) {
+	const char *prog = g_getenv("LUMNA_PKG_ANALISAR");
+	char *argv[] = { "timeout", "600", (char *)(prog && *prog ? prog : "/usr/lib/lumna/lumna-pkg-analisar"), NULL };
+	char *saida = NULL;
+	int estado = 0;
+	if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &saida, NULL, &estado, NULL) || !saida || !WIFEXITED(estado) || WEXITSTATUS(estado) != 0) {
+		g_free(saida);
+		return -1;
+	}
+	int n = 0;
+	char **linhas = g_strsplit(saida, "\n", -1);
+	for (char **l = linhas; *l && n < max; l++) {
+		char **c = g_strsplit(*l, "\t", 6);
+		if (g_strv_length(c) == 6) {
+			struct sistema_pacote *p = &v[n];
+			memset(p, 0, sizeof(*p));
+			g_strlcpy(p->nome, c[0], sizeof(p->nome));
+			g_strlcpy(p->antiga, c[1], sizeof(p->antiga));
+			g_strlcpy(p->nova, c[2], sizeof(p->nova));
+			g_strlcpy(p->repo, c[3], sizeof(p->repo));
+			p->situacao = !strcmp(c[4], "ok") ? SISTEMA_PACOTE_OK : !strcmp(c[4], "arrasta") ? SISTEMA_PACOTE_ARRASTA : !strcmp(c[4], "base") ? SISTEMA_PACOTE_BASE : SISTEMA_PACOTE_QUEBRA;
+			g_strlcpy(p->motivo, c[5], sizeof(p->motivo));
+			n++;
+		}
+		g_strfreev(c);
+	}
+	g_strfreev(linhas);
+	g_free(saida);
+	return n;
+}
