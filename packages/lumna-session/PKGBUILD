@@ -70,6 +70,9 @@ package() {
   # ajudantes de administrador (o Painel e a Loja chamam por pkexec) e as políticas deles
   install -Dm755 lumna-pkg "$pkgdir/usr/lib/lumna/lumna-pkg"
   install -Dm644 os.lumna.pkg.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.policy"
+  # a atualização no horário marcado (o timer só dispara depois de o Painel agendar: lumna-pkg agendar)
+  install -Dm644 lumna-atualizar.service "$pkgdir/usr/lib/systemd/system/lumna-atualizar.service"
+  install -Dm644 lumna-atualizar.timer "$pkgdir/usr/lib/systemd/system/lumna-atualizar.timer"
   # o AUR: um ajudante e uma ação próprios, que pedem a senha toda vez
   install -Dm755 lumna-pkg-aur "$pkgdir/usr/lib/lumna/lumna-pkg-aur"
   install -Dm644 os.lumna.pkg.aur.policy "$pkgdir/usr/share/polkit-1/actions/os.lumna.pkg.aur.policy"

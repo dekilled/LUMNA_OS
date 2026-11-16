@@ -122,8 +122,198 @@ static void procurar(void) {
 	}
 }
 
+/* ---- a atualização agendada ---- */
+static struct sistema_agenda ag;
+static bool ag_lida, ag_ocupada, ag_erro;
+static char ag_aviso[260];
+static const char *const ag_dia_curto[7] = { "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom" };
+static const char *const ag_dia_val[7] = { "seg", "ter", "qua", "qui", "sex", "sab", "dom" };
+static char ag_hora_txt[48][6];
+static const char *ag_hora_ptr[48];
+static bool ag_iniciada;
+
+/* os dias marcados em ag.dias ("todos" ou "seg,qua,sex") */
+static void ag_dias_marcados(bool m[7]) {
+	for (int i = 0; i < 7; i++) {
+		m[i] = !strcmp(ag.dias, "todos");
+	}
+	char **partes = g_strsplit(ag.dias, ",", -1);
+	for (char **q = partes; *q; q++) {
+		for (int i = 0; i < 7; i++) {
+			if (!strcmp(*q, ag_dia_val[i])) {
+				m[i] = true;
+			}
+		}
+	}
+	g_strfreev(partes);
+}
+
+/* os dias marcados como o lumna-pkg entende: "todos" se são os sete, senão a lista */
+static void ag_dias_texto(const bool m[7], char *saida, size_t tam) {
+	int n = 0;
+	saida[0] = '\0';
+	for (int i = 0; i < 7; i++) {
+		if (m[i]) {
+			n++;
+			g_strlcat(saida, saida[0] ? "," : "", tam);
+			g_strlcat(saida, ag_dia_val[i], tam);
+		}
+	}
+	if (n == 7) {
+		g_strlcpy(saida, "todos", tam);
+	}
+}
+
+static void ag_ler(void) {
+	sistema_agenda_ler(&ag);
+	ag_lida = true;
+}
+
+struct ag_pedido {
+	char args[4][40];
+	bool ok;
+	char erro[240];
+};
+
+static const char *ag_ajudante(void) {
+	const char *e = g_getenv("LUMNA_PKG");
+	return e && *e ? e : "/usr/lib/lumna/lumna-pkg";
+}
+
+/* o lumna-pkg agendar, com root (pkexec: a senha é pedida na hora), numa tarefa */
+static void ag_trabalho(void *dados) {
+	struct ag_pedido *p = dados;
+	char *argv[10];
+	int k = 0;
+	if (!g_getenv("LUMNA_PKG_SEM_PKEXEC")) { /* testes: sem a senha do administrador */
+		argv[k++] = "pkexec";
+	}
+	argv[k++] = (char *)ag_ajudante();
+	argv[k++] = "agendar";
+	for (int i = 0; i < 4; i++) {
+		argv[k++] = p->args[i];
+	}
+	argv[k] = NULL;
+	char *err = NULL;
+	int estado = 0;
+	bool rodou = g_spawn_sync(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL, NULL, &err, &estado, NULL);
+	p->ok = rodou && WIFEXITED(estado) && WEXITSTATUS(estado) == 0;
+	g_strlcpy(p->erro, err ? g_strstrip(err) : "", sizeof(p->erro));
+	g_free(err);
+}
+
+static void ag_pronto(void *dados) {
+	struct ag_pedido *p = dados;
+	if (p->ok) {
+		ag_aviso[0] = '\0';
+	} else {
+		g_snprintf(ag_aviso, sizeof(ag_aviso), "Não deu para agendar: %s", p->erro[0] ? p->erro : "faltou a senha do administrador.");
+	}
+	ag_erro = !p->ok;
+	ag_ocupada = false;
+	ag_ler();
+	g_free(p);
+}
+
+static void ag_aplicar(bool ligado, const char *escopo, const char *hora, const char *dias) {
+	if (ag_ocupada) {
+		return;
+	}
+	struct ag_pedido *p = g_new0(struct ag_pedido, 1);
+	g_strlcpy(p->args[0], ligado ? "ligado" : "desligado", sizeof(p->args[0]));
+	g_strlcpy(p->args[1], escopo, sizeof(p->args[1]));
+	g_strlcpy(p->args[2], hora, sizeof(p->args[2]));
+	g_strlcpy(p->args[3], dias, sizeof(p->args[3]));
+	ag_ocupada = true;
+	pn_tarefa(ag_trabalho, ag_pronto, p);
+}
+
+static const char *ag_resultado_texto(void) {
+	if (!ag.ultimo) {
+		return "Ainda não rodou.";
+	}
+	const char *oq = !strcmp(ag.ultimo_escopo, "lumna") ? "só o LUMNA" : "tudo";
+	if (!strcmp(ag.resultado, "ok")) {
+		return gv_fmt("Última vez: %s (%s) — atualizou%s%s", pn_dia(ag.ultimo), oq, ag.pacotes[0] ? ": " : ".", ag.pacotes).chars;
+	}
+	if (!strcmp(ag.resultado, "nada")) {
+		return gv_fmt("Última vez: %s (%s) — não havia nada para atualizar.", pn_dia(ag.ultimo), oq).chars;
+	}
+	if (!strcmp(ag.resultado, "precisa-completa")) {
+		return gv_fmt("Última vez: %s — o LUMNA pedia pacotes do Arch mais novos; nada foi instalado. Use \"Atualizar tudo\".", pn_dia(ag.ultimo)).chars;
+	}
+	return gv_fmt("Última vez: %s (%s) — falhou. O motivo está em /var/log/lumna-atualizar.log.", pn_dia(ag.ultimo), oq).chars;
+}
+
+static void ag_desenhar(void) {
+	if (!ag_iniciada) {
+		ag_iniciada = true;
+		for (int i = 0; i < 48; i++) {
+			snprintf(ag_hora_txt[i], sizeof(ag_hora_txt[i]), "%02d:%02d", i / 2, (i % 2) * 30);
+			ag_hora_ptr[i] = ag_hora_txt[i];
+		}
+	}
+	if (!ag_lida) {
+		ag_ler();
+	}
+	pn_subtitulo(CLAY_ID("at-ag-t"), "Atualização agendada");
+	pn_linha_comecar(CLAY_ID("at-ag"), "clock", "Atualizar sozinho no horário marcado",
+		ag.ligado ? "O LUMNA tira um snapshot antes (dá para desfazer) e atualiza no horário; se o PC estiver desligado, atualiza ao ligar."
+			  : "Desligado: você atualiza quando quiser. Ligue para escolher um horário.");
+	bool lig = ag.ligado;
+	if (gv_interruptor(CLAY_ID("at-ag-v"), &lig) && !ag_ocupada) {
+		ag_aplicar(lig, ag.escopo, ag.hora, ag.dias);
+	}
+	pn_linha_acabar();
+	if (ag.ligado) {
+		int esc = !strcmp(ag.escopo, "lumna") ? 1 : 0;
+		pn_linha_comecar(CLAY_ID("at-ag-esc"), "download", "O que atualizar",
+			esc ? "Só os pacotes do LUMNA; o resto do Arch fica como está (se faltar algo do Arch, nada é instalado e a página avisa)." : "O sistema inteiro (o LUMNA e o Arch).");
+		static const char *const escopos[] = { "Tudo", "Só o LUMNA" };
+		if (pn_segmentos(CLAY_ID("at-ag-seg"), escopos, 2, &esc) && !ag_ocupada) {
+			ag_aplicar(true, esc ? "lumna" : "tudo", ag.hora, ag.dias);
+		}
+		pn_linha_acabar();
+		/* os dias: sete botões (quais quiser); sempre fica ao menos um */
+		bool marc[7];
+		ag_dias_marcados(marc);
+		pn_linha_comecar(CLAY_ID("at-ag-dias"), "clock", "Dias", NULL);
+		for (int i = 0; i < 7; i++) {
+			if (gv_botao_ext(CLAY_IDI("at-ag-dia", (uint32_t)i), &(gv_botao_opcoes){ .texto = ag_dia_curto[i], .estilo = marc[i] ? GV_BOTAO_CHEIO : GV_BOTAO_ELEVADO }) && !ag_ocupada) {
+				bool novo[7];
+				memcpy(novo, marc, sizeof(novo));
+				novo[i] = !novo[i];
+				int qtos = 0;
+				for (int k = 0; k < 7; k++) {
+					qtos += novo[k];
+				}
+				if (qtos > 0) {
+					char dias[40];
+					ag_dias_texto(novo, dias, sizeof(dias));
+					ag_aplicar(true, ag.escopo, ag.hora, dias);
+				}
+			}
+		}
+		pn_linha_acabar();
+		int hora = 6;
+		for (int i = 0; i < 48; i++) {
+			if (!strcmp(ag.hora, ag_hora_txt[i])) {
+				hora = i;
+			}
+		}
+		if (pn_ajuste_lista(CLAY_ID("at-ag-hora"), "clock", "Horário", NULL, ag_hora_ptr, 48, &hora) && !ag_ocupada) {
+			ag_aplicar(true, ag.escopo, ag_hora_txt[hora], ag.dias);
+		}
+	}
+	if (ag_aviso[0]) {
+		gv_texto(gv_str(ag_aviso), gv_t.tamanho_corpo - 1, ag_erro ? gv_t.aviso : gv_t.texto_secundario, GV_PESO_NORMAL);
+	}
+	gv_texto(gv_str(ag_resultado_texto()), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
+}
+
 void pn_sobre_atu_abrir(void) {
 	nhist = sistema_historico(hist, 24);
+	ag_ler();
 }
 
 static int geracao_vista = -1;
@@ -156,11 +346,24 @@ void pn_sobre_atu_desenhar(void) {
 			} else if (natu == 0) {
 				gv_texto(CLAY_STRING("Tudo em dia"), gv_t.tamanho_destaque, gv_t.sucesso, GV_PESO_MEDIO);
 			} else {
+				int dolumna = 0;
+				for (int i = 0; i < natu && i < SISTEMA_MAX_ATUALIZACOES; i++) {
+					dolumna += atu[i].lumna;
+				}
 				gv_texto(gv_fmt("%d atualizações disponíveis", natu), gv_t.tamanho_destaque, gv_t.texto, GV_PESO_MEDIO);
+				gv_texto(gv_fmt("%d do LUMNA e %d do Arch e de outros programas", dolumna, natu - dolumna), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 			}
 		}
 		if (gv_botao_ext(CLAY_ID("at-procurar"), &(gv_botao_opcoes){ .icone = "refresh", .texto = "Procurar", .estilo = GV_BOTAO_ELEVADO, .desativado = procurando })) {
 			procurar();
+		}
+		int dolumna_n = 0;
+		for (int i = 0; i < natu && i < SISTEMA_MAX_ATUALIZACOES; i++) {
+			dolumna_n += atu[i].lumna;
+		}
+		if (dolumna_n > 0 && gv_botao(CLAY_ID("at-lumna"), "download", "Só o LUMNA", GV_BOTAO_ELEVADO)) {
+			/* só os pacotes do [lumna]; se isso exigir pacotes do Arch mais novos, o lumna-pkg não instala nada e diz para atualizar tudo */
+			pn_terminal_atualizar("pkexec /usr/lib/lumna/lumna-pkg upgrade-lumna && { echo; echo 'Pronto. Se o desktop mudou, saia da sessão e entre de novo.'; }");
 		}
 		if (natu > 0 && gv_botao(CLAY_ID("at-instalar"), "download", "Atualizar tudo", GV_BOTAO_CHEIO)) {
 			/* num terminal, para ver o que o pacman faz. O lumna-pkg tira um snapshot do sistema antes (dá para voltar), e o yay, se
@@ -174,9 +377,10 @@ void pn_sobre_atu_desenhar(void) {
 			pn_terminal("pkexec /usr/lib/lumna/lumna-pkg voltar");
 		}
 	}
+	ag_desenhar();
 	if (natu > 0) {
 		for (int i = 0; i < natu && i < 40; i++) {
-			pn_linha_comecar(CLAY_IDI("at-linha", (uint32_t)i), NULL, atu[i].nome, NULL);
+			pn_linha_comecar(CLAY_IDI("at-linha", (uint32_t)i), NULL, atu[i].lumna ? gv_fmt("%s  ·  LUMNA", atu[i].nome).chars : atu[i].nome, NULL);
 			gv_texto(gv_fmt("%s  →  %s", atu[i].antiga, atu[i].nova), gv_t.tamanho_corpo - 1, gv_t.texto_secundario, GV_PESO_NORMAL);
 			pn_linha_acabar();
 		}

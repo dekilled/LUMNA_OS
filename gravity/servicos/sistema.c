@@ -183,6 +183,8 @@ void sistema_resumo(const struct sistema_info *s, char *buf, size_t tam) {
 		s->distro, s->kernel, s->arquitetura, disco);
 }
 
+static void marcar_lumna(struct sistema_atualizacao *v, int n);
+
 int sistema_atualizacoes(struct sistema_atualizacao *v, int max) {
 	/* checkupdates (pacman-contrib) sincroniza uma cópia do banco: sem senha. Sem ele, o que o pacman já sabe. */
 	const char *comandos[][3] = { { "checkupdates", NULL, NULL }, { "pacman", "-Qu", NULL } };
@@ -213,9 +215,80 @@ int sistema_atualizacoes(struct sistema_atualizacao *v, int max) {
 		}
 		g_strfreev(linhas);
 		g_free(saida);
+		marcar_lumna(v, n);
 		return n;
 	}
 	return -1;
+}
+
+/* o que vem do repositório [lumna] (pacman -Slq lumna: só lê o banco, sem root) */
+static void marcar_lumna(struct sistema_atualizacao *v, int n) {
+	char *argv[] = { "timeout", "20", "pacman", "-Slq", "lumna", NULL };
+	char *saida = NULL;
+	int estado = 0;
+	for (int i = 0; i < n; i++) {
+		v[i].lumna = false;
+	}
+	if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &saida, NULL, &estado, NULL) || !saida || !WIFEXITED(estado) || WEXITSTATUS(estado) != 0) {
+		g_free(saida);
+		return;
+	}
+	char **nomes = g_strsplit(saida, "\n", -1);
+	for (char **l = nomes; *l; l++) {
+		for (int i = 0; i < n; i++) {
+			if (**l && !strcmp(v[i].nome, *l)) {
+				v[i].lumna = true;
+			}
+		}
+	}
+	g_strfreev(nomes);
+	g_free(saida);
+}
+
+static char *ler_arquivo_curto(const char *caminho) {
+	char *txt = NULL;
+	return g_file_get_contents(caminho, &txt, NULL, NULL) ? txt : NULL;
+}
+
+/* "chave=valor" por linha: o valor de `chave` ou NULL */
+static char *agenda_valor(const char *txt, const char *chave) {
+	if (!txt) {
+		return NULL;
+	}
+	size_t n = strlen(chave);
+	char **linhas = g_strsplit(txt, "\n", -1);
+	char *r = NULL;
+	for (char **l = linhas; *l && !r; l++) {
+		if (!strncmp(*l, chave, n) && (*l)[n] == '=') {
+			r = g_strstrip(g_strdup(*l + n + 1));
+		}
+	}
+	g_strfreev(linhas);
+	return r;
+}
+
+void sistema_agenda_ler(struct sistema_agenda *a) {
+	memset(a, 0, sizeof(*a));
+	g_strlcpy(a->escopo, "tudo", sizeof(a->escopo));
+	g_strlcpy(a->hora, "03:00", sizeof(a->hora));
+	g_strlcpy(a->dias, "todos", sizeof(a->dias));
+	const char *etc = g_getenv("LUMNA_ETC"), *varlib = g_getenv("LUMNA_VARLIB");
+	char *conf_caminho = g_strdup_printf("%s/lumna/atualizar.conf", etc && *etc ? etc : "/etc");
+	char *estado_caminho = g_strdup_printf("%s/atualizar.estado", varlib && *varlib ? varlib : "/var/lib/lumna");
+	char *conf = ler_arquivo_curto(conf_caminho), *est = ler_arquivo_curto(estado_caminho);
+	char *v;
+	if ((v = agenda_valor(conf, "modo"))) { a->ligado = !strcmp(v, "ligado"); g_free(v); }
+	if ((v = agenda_valor(conf, "escopo")) && (!strcmp(v, "lumna") || !strcmp(v, "tudo"))) { g_strlcpy(a->escopo, v, sizeof(a->escopo)); }
+	g_free(v);
+	if ((v = agenda_valor(conf, "hora")) && strlen(v) == 5 && v[2] == ':') { g_strlcpy(a->hora, v, sizeof(a->hora)); }
+	g_free(v);
+	if ((v = agenda_valor(conf, "dias")) && *v) { g_strlcpy(a->dias, v, sizeof(a->dias)); }
+	g_free(v);
+	if ((v = agenda_valor(est, "quando"))) { a->ultimo = g_ascii_strtoll(v, NULL, 10); g_free(v); }
+	if ((v = agenda_valor(est, "resultado"))) { g_strlcpy(a->resultado, v, sizeof(a->resultado)); g_free(v); }
+	if ((v = agenda_valor(est, "escopo"))) { g_strlcpy(a->ultimo_escopo, v, sizeof(a->ultimo_escopo)); g_free(v); }
+	if ((v = agenda_valor(est, "pacotes"))) { g_strlcpy(a->pacotes, v, sizeof(a->pacotes)); g_free(v); }
+	g_free(conf); g_free(est); g_free(conf_caminho); g_free(estado_caminho);
 }
 
 static int64_t iso_para_unix(const char *s) {

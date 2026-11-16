@@ -3,6 +3,10 @@
 #   lumna-pkg install PACOTE...   instala dos repositórios (sincroniza antes, se nunca sincronizou)
 #   lumna-pkg remove PACOTE...    remove com as dependências que ficarem sobrando
 #   lumna-pkg upgrade             atualiza o sistema inteiro (antes, tira um snapshot Btrfs, para voltar se der errado)
+#   lumna-pkg upgrade-lumna       atualiza SÓ o que vem do repositório [lumna] (os bancos do Arch ficam como estão: nada de atualização parcial do Arch); para e avisa se
+#                                 isso exigir mexer em pacotes do Arch (aí é a atualização completa)
+#   lumna-pkg agendar LIGADO ESCOPO HH:MM DIAS   liga/desliga a atualização no horário marcado (ligado|desligado, tudo|lumna, 03:00, todos|seg,qua,sex)
+#   lumna-pkg agendado            o que o timer chama no horário (não é para usar na mão): atualiza conforme /etc/lumna/atualizar.conf e anota o resultado
 #   lumna-pkg snapshots           lista os snapshots de antes das atualizações (os 5 últimos ficam)
 #   lumna-pkg voltar [SNAPSHOT]   volta o sistema ao estado de um snapshot (o último, se não disser): reinicie depois
 #   lumna-pkg multilib on|off     liga/desliga o repositório de 32 bits (Steam, Wine)
@@ -76,6 +80,121 @@ pacman_confere() {
   esac
 }
 
+# ---- só o LUMNA ----
+# Os bancos do pacman (/var/lib/pacman/sync) guardam o retrato do Arch na última atualização completa. "Atualizar só o LUMNA" baixa APENAS o lumna.db novo: o pacman então
+# só enxerga versões novas dos pacotes do [lumna] e confere as dependências contra o resto do sistema como ele está. O que exigir um Arch mais novo não é instalado (o
+# Arch não suporta atualização parcial): sai com código 3 e a mensagem diz que é preciso atualizar tudo.
+DBPATH="${LUMNA_DBPATH:-$(pacman-conf DBPath 2>/dev/null || echo /var/lib/pacman/)}"
+ETC="${LUMNA_ETC:-/etc}"
+VARLIB="${LUMNA_VARLIB:-/var/lib/lumna}"
+LOGAT="${LUMNA_LOG_ATUALIZAR:-/var/log/lumna-atualizar.log}"
+
+sync_lumna() {
+  local srv dir tmp
+  [ -e "${DBPATH}db.lck" ] && { echo "o pacman está em uso (${DBPATH}db.lck); tente de novo quando ele terminar." >&2; return 1; }
+  srv="$(pacman-conf --repo=lumna Server 2>/dev/null | head -n1 || true)"
+  [ -n "$srv" ] || { echo "o repositório [lumna] não está configurado neste sistema." >&2; return 1; }
+  srv="${srv//\$repo/lumna}"; srv="${srv//\$arch/$(uname -m)}"
+  dir="${DBPATH}sync"
+  mkdir -p "$dir"
+  tmp="$(mktemp "$dir/.lumna.db.XXXXXX")"
+  if ! curl -fsSL --retry 2 --max-time 90 -o "$tmp" "$srv/lumna.db" || ! bsdtar -tf "$tmp" >/dev/null 2>&1; then
+    rm -f "$tmp"
+    echo "não consegui baixar a lista de pacotes do repositório LUMNA ($srv)." >&2
+    return 1
+  fi
+  # uma assinatura velha do banco antigo faria o pacman recusar o novo (o [lumna] é "Optional": sem assinatura vale)
+  rm -f "$dir/lumna.db.sig"
+  curl -fsSL --max-time 30 -o "$dir/lumna.db.sig" "$srv/lumna.db.sig" 2>/dev/null || rm -f "$dir/lumna.db.sig"
+  mv -f "$tmp" "$dir/lumna.db"
+}
+
+# códigos: 0 atualizou, 10 já estava em dia, 3 precisa da atualização completa, 1 falhou
+upgrade_lumna() {
+  sync_lumna || return 1
+  local pend=() sim fora
+  mapfile -t pend < <(comm -12 <(pacman -Qu 2>/dev/null | awk '{print $1}' | sort) <(pacman -Slq lumna 2>/dev/null | sort))
+  if [ "${#pend[@]}" -eq 0 ]; then
+    echo "O LUMNA já está em dia."
+    return 10
+  fi
+  echo "Atualizações do LUMNA: ${pend[*]}"
+  if ! sim="$(pacman -S --needed --print --print-format 'LUMNA-SIM %r %n %v' -- "${pend[@]}" 2>&1)"; then
+    echo "Não dá para atualizar só o LUMNA agora: o pacman recusou a conta." >&2
+    printf '%s\n' "$sim" >&2
+    echo "Isso costuma ser um pacote do LUMNA que pede algo mais novo do Arch: atualize tudo." >&2
+    return 3
+  fi
+  fora="$(printf '%s\n' "$sim" | awk '$1 == "LUMNA-SIM" && $2 != "lumna" {print $3}' | tr '\n' ' ')"
+  if [ -n "$fora" ]; then
+    echo "Atualizar o LUMNA exigiria atualizar também pacotes do Arch: $fora" >&2
+    echo "O Arch não suporta atualização parcial: nada foi instalado. Atualize tudo." >&2
+    return 3
+  fi
+  snapshot_antes
+  pacman -S --needed --noconfirm --noprogressbar -- "${pend[@]}" || return 1
+  return 0
+}
+
+# ---- o horário marcado ----
+agendar() {
+  local modo="${1:-}" escopo="${2:-}" hora="${3:-}" dias="${4:-}" d lista=() nomes
+  case "$modo" in ligado|desligado) ;; *) echo "uso: lumna-pkg agendar ligado|desligado tudo|lumna HH:MM todos|seg,ter,..." >&2; exit 2 ;; esac
+  case "$escopo" in tudo|lumna) ;; *) echo "escopo inválido: use tudo ou lumna" >&2; exit 2 ;; esac
+  [[ "$hora" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || { echo "hora inválida: use HH:MM (00:00 a 23:59)" >&2; exit 2; }
+  [[ "$dias" =~ ^(todos|(seg|ter|qua|qui|sex|sab|dom)(,(seg|ter|qua|qui|sex|sab|dom))*)$ ]] || { echo "dias inválidos: use todos ou uma lista como seg,qua,sex" >&2; exit 2; }
+  nomes="*"
+  if [ "$dias" != todos ]; then
+    nomes=""
+    IFS=, read -ra lista <<< "$dias"
+    for d in "${lista[@]}"; do
+      case "$d" in seg) d=Mon ;; ter) d=Tue ;; qua) d=Wed ;; qui) d=Thu ;; sex) d=Fri ;; sab) d=Sat ;; dom) d=Sun ;; esac
+      nomes="${nomes:+$nomes,}$d"
+    done
+  fi
+  mkdir -p "$ETC/lumna" "$ETC/systemd/system/lumna-atualizar.timer.d"
+  printf 'modo=%s\nescopo=%s\nhora=%s\ndias=%s\n' "$modo" "$escopo" "$hora" "$dias" > "$ETC/lumna/atualizar.conf"
+  chmod 644 "$ETC/lumna/atualizar.conf"
+  # Persistent=true: se o PC estava desligado na hora marcada, roda assim que ligar
+  printf '[Timer]\nOnCalendar=\nOnCalendar=%s *-*-* %s:00\nPersistent=true\n' "$([ "$nomes" = '*' ] && echo '' || echo "$nomes")" "$hora" | sed 's/OnCalendar= \*-\*-\*/OnCalendar=*-*-*/' > "$ETC/systemd/system/lumna-atualizar.timer.d/horario.conf"
+  if [ -z "${LUMNA_SEM_SYSTEMCTL:-}" ]; then
+    systemctl daemon-reload
+    if [ "$modo" = ligado ]; then systemctl enable --now lumna-atualizar.timer; else systemctl disable --now lumna-atualizar.timer || true; fi
+  fi
+  echo "Atualização agendada: $modo ($escopo, $hora, $dias)"
+}
+
+# o que o timer chama: faz a atualização do jeito configurado e anota o resultado (o Painel lê o estado). Não instala nada do AUR (precisa de senha e de uma pessoa).
+agendado() {
+  local escopo rc=0 saida resultado pacotes=""
+  escopo="$(sed -n 's/^escopo=//p' "$ETC/lumna/atualizar.conf" 2>/dev/null | head -n1)"
+  [ "$escopo" = lumna ] || escopo=tudo
+  mkdir -p "$(dirname "$LOGAT")" "$VARLIB"
+  if [ -f "$LOGAT" ] && [ "$(wc -c < "$LOGAT")" -gt 524288 ]; then tail -n 2000 "$LOGAT" > "$LOGAT.novo" && mv -f "$LOGAT.novo" "$LOGAT"; fi
+  echo "== $(date '+%F %T') atualização agendada (escopo: $escopo) ==" >> "$LOGAT"
+  saida="$(mktemp)"
+  if [ "$escopo" = lumna ]; then
+    upgrade_lumna > "$saida" 2>&1 || rc=$?
+  else
+    { snapshot_antes; pacman -Syu --noconfirm --noprogressbar; } > "$saida" 2>&1 || rc=$?
+  fi
+  cat "$saida" >> "$LOGAT"
+  case "$rc" in
+    0) if grep -q 'there is nothing to do' "$saida"; then resultado=nada; else resultado=ok; fi ;;
+    10) resultado=nada ;;
+    3) resultado=precisa-completa ;;
+    *) resultado=falhou ;;
+  esac
+  pacotes="$(sed -n 's/^Atualizações do LUMNA: //p' "$saida" | head -n1)"
+  printf 'quando=%s\nescopo=%s\nresultado=%s\npacotes=%s\n' "$(date +%s)" "$escopo" "$resultado" "$pacotes" > "$VARLIB/atualizar.estado.novo"
+  chmod 644 "$VARLIB/atualizar.estado.novo"
+  mv -f "$VARLIB/atualizar.estado.novo" "$VARLIB/atualizar.estado"
+  echo "== resultado: $resultado ==" >> "$LOGAT"
+  rm -f "$saida"
+  [ "$resultado" = falhou ] && return 1
+  return 0
+}
+
 case "${1:-}" in
   install)
     shift
@@ -89,6 +208,18 @@ case "${1:-}" in
   upgrade)
     snapshot_antes
     exec pacman -Syu --noconfirm --noprogressbar
+    ;;
+  upgrade-lumna)
+    rc=0; upgrade_lumna || rc=$?
+    [ "$rc" = 10 ] && rc=0
+    exit "$rc"
+    ;;
+  agendar)
+    shift
+    agendar "$@"
+    ;;
+  agendado)
+    agendado
     ;;
   snapshots)
     ls -1d "$SNAPDIR"/antes-* 2>/dev/null | sort | sed 's|.*/||'
@@ -115,7 +246,7 @@ case "${1:-}" in
     exec pacman "$@"
     ;;
   *)
-    echo "uso: lumna-pkg install|remove|upgrade|snapshots|voltar [SNAPSHOT]|multilib on|off|pacman ..." >&2
+    echo "uso: lumna-pkg install|remove|upgrade|upgrade-lumna|agendar ...|snapshots|voltar [SNAPSHOT]|multilib on|off|pacman ..." >&2
     exit 2
     ;;
 esac

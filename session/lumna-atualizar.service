@@ -1,0 +1,13 @@
+[Unit]
+Description=Atualização agendada do LUMNA
+# não roda no meio de outra operação do pacman (o lumna-pkg também confere o db.lck)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/lumna/lumna-pkg agendado
+# a atualização não pode atrapalhar quem está usando o PC
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=2h

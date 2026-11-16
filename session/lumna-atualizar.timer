@@ -1,0 +1,11 @@
+[Unit]
+Description=Horário da atualização agendada do LUMNA
+
+[Timer]
+# O horário vem do que a pessoa escolheu no Painel (Sistema > Atualizações): o lumna-pkg agendar grava
+# /etc/systemd/system/lumna-atualizar.timer.d/horario.conf e liga este timer. Sem isso ele não dispara.
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

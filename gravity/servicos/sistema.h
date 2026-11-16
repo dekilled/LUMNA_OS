@@ -22,6 +22,7 @@ struct sistema_info {
 #define SISTEMA_MAX_ATUALIZACOES 400
 struct sistema_atualizacao {
 	char nome[64], antiga[48], nova[48];
+	bool lumna; /* vem do repositório [lumna] (o "só o LUMNA" atualiza só estes) */
 };
 
 struct sistema_evento {
@@ -37,6 +38,20 @@ void sistema_resumo(const struct sistema_info *s, char *buf, size_t tam);
 /* procura atualizações (leva alguns segundos: chame numa tarefa); devolve quantas, ou -1 se não deu para saber
  * (sem checkupdates nem pacman) */
 int sistema_atualizacoes(struct sistema_atualizacao *v, int max);
+/* A atualização no horário marcado: o que o Painel gravou (/etc/lumna/atualizar.conf, pelo lumna-pkg agendar) e o que o último agendado fez (/var/lib/lumna/atualizar.estado).
+ * LUMNA_ETC e LUMNA_VARLIB trocam as pastas (testes). Sem arquivos: desligado, "tudo", 03:00, todos os dias. */
+struct sistema_agenda {
+	bool ligado;
+	char escopo[8];     /* "tudo" ou "lumna" */
+	char hora[8];       /* "03:00" */
+	char dias[40];      /* "todos" ou "seg,qua,sex" */
+	int64_t ultimo;     /* quando o agendado rodou por último (unix; 0: nunca) */
+	char resultado[24]; /* ok, nada, precisa-completa, falhou ("" se nunca) */
+	char ultimo_escopo[8];
+	char pacotes[200];  /* os pacotes do LUMNA que o último agendado atualizou */
+};
+void sistema_agenda_ler(struct sistema_agenda *a);
+
 /* os últimos eventos do pacman.log, do mais novo para o mais velho */
 int sistema_historico(struct sistema_evento *v, int max);
 

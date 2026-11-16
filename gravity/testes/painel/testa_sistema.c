@@ -14,7 +14,14 @@ int main(void) {
 	assert(strstr(resumo, "LUMNA OS 1.2.3") && strstr(resumo, "ThinkPad"));
 	struct sistema_atualizacao a[16];
 	int n = sistema_atualizacoes(a, 16);
-	assert(n == 2 && !strcmp(a[0].nome, "firefox") && !strcmp(a[0].antiga, "130.0-1") && !strcmp(a[0].nova, "131.0-1") && !strcmp(a[1].nome, "linux"));
+	assert(n == 3 && !strcmp(a[0].nome, "firefox") && !strcmp(a[0].antiga, "130.0-1") && !strcmp(a[0].nova, "131.0-1") && !strcmp(a[1].nome, "linux"));
+	/* quais vêm do repositório [lumna] (pacman -Slq lumna): só o lumna-orbit */
+	assert(!a[0].lumna && !a[1].lumna && a[2].lumna && !strcmp(a[2].nome, "lumna-orbit"));
+	/* a atualização agendada: o que o Painel gravou e o que o último agendado fez */
+	struct sistema_agenda ag;
+	sistema_agenda_ler(&ag);
+	assert(ag.ligado && !strcmp(ag.escopo, "lumna") && !strcmp(ag.hora, "04:30") && !strcmp(ag.dias, "seg,qua,sex"));
+	assert(ag.ultimo == 1790000000 && !strcmp(ag.resultado, "ok") && !strcmp(ag.ultimo_escopo, "lumna") && !strcmp(ag.pacotes, "lumna-orbit lumna-shell"));
 	struct sistema_evento h[16];
 	n = sistema_historico(h, 16);
 	assert(n == 3 && !strcmp(h[0].acao, "removido") && !strcmp(h[0].nome, "velho") && !strcmp(h[1].acao, "atualizado") && !strcmp(h[1].de, "1.0-1") && !strcmp(h[1].para, "1.1-1"));

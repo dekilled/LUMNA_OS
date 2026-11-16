@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$*" in
+DBPath) echo "$FAKE/db/" ;;
+"--repo=lumna Server") echo "file://$FAKE/repo" ;;
+esac

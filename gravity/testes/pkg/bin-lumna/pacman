@@ -1,0 +1,10 @@
+#!/bin/sh
+# pacman de mentira para o "só LUMNA": responde pelo que o teste deixou em $FAKE (qu, lumna-pkgs, sim, sim-falha, syu-out, syu-rc) e anota cada chamada
+echo "pacman $*" >> "$FALSO_LOG"
+case "$*" in
+"-Qu") [ -s "$FAKE/qu" ] && { cat "$FAKE/qu"; exit 0; }; exit 1 ;;
+"-Slq lumna") cat "$FAKE/lumna-pkgs"; exit 0 ;;
+*"--print"*) [ -e "$FAKE/sim-falha" ] && { echo "error: failed to prepare transaction (could not satisfy dependencies)"; exit 1; }; cat "$FAKE/sim"; exit 0 ;;
+"-Syu "*) cat "$FAKE/syu-out" 2>/dev/null; exit "$(cat "$FAKE/syu-rc" 2>/dev/null || echo 0)" ;;
+esac
+exit 0
