@@ -69,6 +69,7 @@ json.dump([
     {"id": "nav", "nome": "Setas", "url": f"http://127.0.0.1:{porta}/nav.html"},                          # o padrão: modo "setas" (a seção 7c)
     {"id": "tv", "nome": "TV", "url": f"http://127.0.0.1:{porta}/eco-ua", "ua_tv": True, "voltar": "esc"},  # interface de TV: User-Agent de TV, B = Escape
     {"id": "eco", "nome": "Eco", "url": f"http://127.0.0.1:{porta}/eco-ua"},                               # igual, sem o User-Agent de TV
+    {"id": "login", "nome": "Login", "url": f"http://127.0.0.1:{porta}/login.html"},                      # abre popups (window.open), como o "Entrar com o Google"
 ], open(f"{run}/servicos.json", "w"))
 
 # o Orbit sem tela
@@ -482,6 +483,54 @@ else:
         falha(f"depois do serviço de TV, outro serviço volta ao User-Agent normal: {titulo()}")
     if campo("nav") != "1":
         falha(f"nos outros sites o nav.js está na página: {titulo()}")
+
+# ---------------------------------------------------------------------------------------------------------------------------- 7d. o popup de login (window.open): fica DENTRO da janela, mantém window.opener, o controle fala com ele
+if not abre(5, "login"):
+    falha(f"devia abrir o serviço 'login': {estado()}")
+elif not espera(lambda: titulo().startswith("LOGIN|"), 15):
+    falha(f"a página de login devia carregar: {titulo()}")
+else:
+    time.sleep(1.5)
+    dpad("DIR"); dpad("ESQ")
+    if not sinal("k", "ArrowLeft"):
+        falha(f"o direcional devia chegar à página de login: {titulo()}")
+    n_ab = conta(r"NAV popup aberto"); n_fe = conta(r"NAV popup fechado")
+    # o primeiro botão: o popup devolve o resultado por window.opener e fecha sozinho
+    for _ in range(4):
+        dpad("ESQ") if campo("f") != "b1" else None
+    aperta("A")
+    if not espera(lambda: conta(r"NAV popup aberto") > n_ab, 8):
+        falha("A no botão devia abrir o popup DENTRO da janela (popup aberto): " + "|".join(re.findall(r"NAV popup[^\n]*|NAV site ERRO[^\n]*", log())[-4:]))
+    if not espera(lambda: campo("msg") == "token-ok", 6):
+        falha(f"o popup devia falar com a página pelo window.opener (postMessage): {titulo()}")
+    if not espera(lambda: conta(r"NAV popup fechado") > n_fe, 6):
+        falha("o popup devia fechar sozinho (window.close)")
+    if not titulo().startswith("LOGIN|"):
+        falha(f"depois do popup a página de login continua na tela (antes ficava preta): {titulo()}")
+    if "popup: abriu opener=1 nav=0" not in log() and "popup: abriu opener=1" not in log():
+        falha("o popup devia ter window.opener")
+    # o segundo botão: o popup fica aberto e RECEBE o controle (setas, B fecha)
+    n_ab = conta(r"NAV popup aberto"); n_fe = conta(r"NAV popup fechado")
+    dpad("DIR"); time.sleep(0.4)
+    aperta("A")
+    if not espera(lambda: conta(r"NAV popup aberto") > n_ab, 8):
+        falha(f"o segundo botão devia abrir o popup: {titulo()} {campo('f')}")
+    else:
+        time.sleep(1.2)
+        k0 = campo("k")
+        dpad("DIR")
+        if not espera(lambda: "popup: tecla ArrowRight" in log(), 4):
+            falha("com o popup aberto o direcional vai para o POPUP")
+        if campo("k") != k0:
+            falha(f"...e não para a página de trás: {k0} → {campo('k')}")
+        if "popup: nav-depois=1" not in log():
+            falha("o nav.js também entra na página do popup")
+        aperta("B")
+        if not espera(lambda: conta(r"NAV popup fechado") > n_fe, 5):
+            falha("B no popup devia fechá-lo (sem história para voltar)")
+        dpad("ESQ")
+        if not sinal("k", "ArrowLeft"):
+            falha(f"depois de fechar, o controle volta à página: {titulo()}")
 
 # ---------------------------------------------------------------------------------------------------------------------------- 8. nada foi interpretado a mais
 if "Cannot add multiple" in log():

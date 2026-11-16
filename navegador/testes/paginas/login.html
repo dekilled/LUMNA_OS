@@ -1,0 +1,14 @@
+<!doctype html><meta charset=utf-8><title>LOGIN</title>
+<style>html,body{margin:0;height:100%;background:#211;color:#fff;font:20px sans-serif}button{position:absolute;top:100px;width:200px;height:80px;font:20px sans-serif}</style>
+<button id=b1 style="left:100px">Entrar (fecha sozinho)</button>
+<button id=b2 style="left:400px">Entrar (fica aberto)</button>
+<script>
+// Imita o "Entrar com o Google": o botão abre um popup (window.open) que devolve o resultado à página por window.opener / postMessage.
+let msg = '-', k = '-', n = 0;
+const t = () => { document.title = `LOGIN|msg=${msg}|k=${k}|n=${n}`; };
+document.getElementById('b1').onclick = () => { n++; window.open('popup.html?fecha=1', 'login', 'width=500,height=600'); t(); };
+document.getElementById('b2').onclick = () => { n++; window.open('popup.html', 'login2', 'width=500,height=600'); t(); };
+addEventListener('message', (e) => { msg = String(e.data); t(); });
+addEventListener('keydown', (e) => { k = e.key; t(); }, true);
+t();
+</script>

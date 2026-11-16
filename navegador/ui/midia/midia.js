@@ -50,6 +50,7 @@ function desenhar() {
   mais.onclick = () => { zona = 'servicos'; idx = t.children.length; ativar(); };
   t.appendChild(mais);
   if (!zonaItens('continuar').length && zona === 'continuar') zona = 'servicos';
+  mostrarPagina(zona === 'servicos' ? Math.floor(idx / POR_PAGINA) : Math.min(pagSvc, Math.ceil(t.children.length / POR_PAGINA) - 1));
   marcar();
 }
 
@@ -269,8 +270,26 @@ function zonaItens(z) {
   if (z === 'acoes') return [...$('acoes-itens').children];
   return [...$(z).children];
 }
+// A fila de streamings: POR_PAGINA por tela. Ao passar do último, a fila desliza (a transição é do CSS: --pg) e entram os seguintes; os pontos mostram a página.
+const POR_PAGINA = 6;
+let pagSvc = 0;
+function mostrarPagina(p) {
+  const t = $('servicos'), total = Math.max(1, Math.ceil(t.children.length / POR_PAGINA));
+  p = Math.max(0, Math.min(total - 1, p));
+  const pt = $('pontos');
+  if (pt.children.length !== total) { pt.innerHTML = ''; if (total > 1) for (let i = 0; i < total; i++) pt.appendChild(el('i')); }
+  [...pt.children].forEach((d, i) => d.classList.toggle('on', i === p));
+  if (p === pagSvc && t.style.getPropertyValue('--pg') === String(p)) return;
+  pagSvc = p;
+  t.style.setProperty('--pg', p);
+  setTimeout(() => {   // para o teste: onde estão o primeiro e o último cartões depois de deslizar (x < 0 = fora da tela, à esquerda)
+    const k = [...t.children], r0 = k[0].getBoundingClientRect(), rf = k[Math.min(k.length, (p + 1) * POR_PAGINA) - 1].getBoundingClientRect();
+    console.log(`pagina ${p}/${total} primeiro.x=${Math.round(r0.left)} ultimo-da-pagina.x=${Math.round(rf.left)} largura=${innerWidth}`);
+  }, 700);
+}
 function marcar() {
   document.querySelectorAll('.foco').forEach((e) => e.classList.remove('foco'));
+  if (zona === 'servicos') mostrarPagina(Math.floor(idx / POR_PAGINA));
   const it = zonaItens(zona)[idx]; if (it) { it.classList.add('foco'); if (zona === 'grade') it.scrollIntoView({ block: 'nearest' }); }
   if (zona === 'form') { const f = zonaItens('form')[idx]; if (f && f.tagName === 'INPUT') f.focus(); else if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur(); }
   console.log(`foco zona=${zona} idx=${idx}/${zonaItens(zona).length}`);
@@ -438,6 +457,9 @@ window.lumna = {
     $('folha').setAttribute('aria-hidden', String(!ligado));
     if (ligado) { q('estado').then((r) => { estado = JSON.parse(r); zona = 'folha'; desenharFolha(ativo); }); }
     else if (zona === 'folha') { zona = vista === 'catalogo' ? 'grade' : 'servicos'; idx = 0; marcar(); }
+  },
+  servicos() {   // a lista de streamings mudou por fora (lumna-navegador --adicionar): redesenha a fila sem mexer no foco
+    q('estado').then((r) => { estado = JSON.parse(r); if (document.body.className === 'inicio' || document.body.className === 'catalogo') desenhar(); });
   },
   recarregar() {   // de volta ao início (de um serviço): volta para onde estava, o início ou o catálogo
     q('estado').then(async (r) => {

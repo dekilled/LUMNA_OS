@@ -199,7 +199,27 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
 
   // ----- chamados pelos clientes das visões
   bool Ehshell(CefRefPtr<CefBrowser> b) const { return shell_ && shell_->GetBrowser() && shell_->GetBrowser()->IsSame(b); }
-  void Navegar(const std::string& url) {  // pop-ups e links "nova janela" dos sites abrem na mesma visão
+  // O popup de login do site (window.open): uma janela pequena à parte (ver JanelaPopup). O controle passa a falar com ele; B volta/cancela; fecha sozinho ao sair do serviço.
+  bool PopupCriado(CefRefPtr<CefBrowserView> p);
+  void PopupJanela(CefRefPtr<CefWindow> w) { popup_win_ = w; }
+  void PopupFechou(CefRefPtr<CefBrowser> b) {
+    if (popup_ && popup_->GetBrowser() && !popup_->GetBrowser()->IsSame(b)) return;
+    auto w = popup_win_;
+    popup_ = nullptr;
+    popup_win_ = nullptr;
+    Log("popup fechado");
+    if (w) w->Close();
+    if (conteudo_) conteudo_->RequestFocus();
+  }
+  void FechaPopup() {
+    if (popup_ && popup_->GetBrowser()) popup_->GetBrowser()->GetHost()->CloseBrowser(true);
+  }
+  void PopupCarregou(CefRefPtr<CefFrame> f) {  // o controle também navega pelo popup (o nav.js vai na página dele)
+    if (nav_js_.empty()) nav_js_ = LerArquivo(ui_ + "/nav.js");
+    if (!nav_js_.empty() && f->IsMain()) f->ExecuteJavaScript(nav_js_, "lumna://nav.js", 0);
+  }
+  CefRefPtr<CefBrowserView> AlvoSite() const { return popup_ ? popup_ : conteudo_; }  // quem recebe as teclas/rolagem do controle: o popup, se houver
+  void Navegar(const std::string& url) {  // links "nova janela" dos sites abrem na mesma visão
     if (conteudo_ && conteudo_->GetBrowser()) conteudo_->GetBrowser()->GetMainFrame()->LoadURL(url);
   }
   void TituloMudou(const std::string& t) {
@@ -229,7 +249,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   }
   bool MudaServico(const std::string& cmd, std::string* erro);  // favorito, modo, remover, adicionar da biblioteca, novo site
   bool AdicionaSite(const std::string& nome, const std::string& url, std::string* erro);
-  void AdicionarSitePublico(const std::string& nome, const std::string& url) { std::string e; if (!AdicionaSite(nome, url, &e)) Log("adicionar: " + e); }
+  void AdicionarSitePublico(const std::string& nome, const std::string& url) { std::string e; if (!AdicionaSite(nome, url, &e)) Log("adicionar: " + e); else ShellJS("lumna.servicos()"); }
   void AlternarMenu() { if (estado_ == Estado::kMenu) FecharMenu(); else AbrirMenu(); }  // F2, Super+M (lumna-navegador --menu) e o botão Start
   void IrParaInicioPublico() { Inicio(); }
   void SiteTelaCheia(bool f) { site_fs_ = f; }
@@ -382,8 +402,10 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   double lx_ = 0, ly_ = 0, rx_ = 0, ry_ = 0;
   bool tick_ = false, pont_ativo_ = false, site_fs_ = false, a_baixo_ = false;
   bool lb_ = false, rb_ = false, acorde_ = false, nav_injetado_ = false, ua_tv_ = false;  // LB/RB apertados; o acorde LB+RB já valeu; o nav.js já foi registrado; o User-Agent de TV está ligado
-  std::string modo_tmp_;
+  std::string modo_tmp_, nav_js_;
   double rola_acc_ = 0;
+  CefRefPtr<CefBrowserView> popup_;
+  CefRefPtr<CefWindow> popup_win_;
   double px_ = 0, py_ = 0;
   CefRect jan_;
   std::chrono::steady_clock::time_point tick_t_, jan_t_;
@@ -443,6 +465,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   }
   void Mudar(Estado e) {
     estado_ = e;
+    if (e != Estado::kServico) FechaPopup();
     Log(std::string("estado ") + NomeEstado(e) + (ativo_.empty() ? "" : " " + ativo_));
     PublicaEstado();
   }
@@ -453,6 +476,7 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
   // Como o controle age no site aberto: "setas" (o direcional e o analógico esquerdo movem o foco entre os itens clicáveis, A clica) ou "cursor" (o analógico esquerdo
   // move um ponteiro). Vem do serviço; LB+RB juntos trocam só até sair dele (modo_tmp_).
   std::string ModoSite() const {
+    if (popup_) return "setas";  // o popup de login é um formulário: setas + OK (o ponteiro do controle só anda dentro da janela da Mídia)
     if (!modo_tmp_.empty()) return modo_tmp_;
     const Servico* sv = Acha(ativo_);
     return sv && sv->modo == "cursor" ? "cursor" : "setas";
@@ -514,11 +538,56 @@ class Midia : public CefWindowDelegate, public CefMessageRouterBrowserSide::Hand
 
 // A janela é estilo Chrome e só admite UM BrowserView Chrome: o do site (precisa do Widevine automático e dos componentes do Chrome).
 // A nossa interface em HTML é um BrowserView estilo Alloy (leve, sem a UI do Chrome), que a mesma janela aceita ao lado.
+// O site e seus popups: o login "Entrar com o Google" (e os de outros sites) abre um popup com window.open e conversa com a página por window.opener/postMessage;
+// carregá-lo na mesma visão (como os links "nova janela") quebra isso e deixa a tela preta. O popup tem de ser uma visão Chrome como a do site (o CEF exige o mesmo
+// estilo do opener) e a janela da Mídia só aceita UMA visão Chrome: por isso ele ganha uma janela própria (pequena, com moldura), que o Orbit põe por cima.
+class JanelaPopup : public CefWindowDelegate {
+ public:
+  JanelaPopup(Midia* m, CefRefPtr<CefBrowserView> v, CefSize t) : m_(m), v_(v), t_(t) {}
+  void OnWindowCreated(CefRefPtr<CefWindow> w) override;
+  bool CanClose(CefRefPtr<CefWindow>) override {
+    auto b = v_ ? v_->GetBrowser() : nullptr;
+    return !b || b->GetHost()->TryCloseBrowser();
+  }
+  bool GetLinuxWindowProperties(CefRefPtr<CefWindow>, CefLinuxWindowProperties& p) override {
+    CefString(&p.wayland_app_id) = "lumna-navegador-popup";   // outro app_id: o Orbit continua reconhecendo a janela principal da Mídia
+    CefString(&p.wm_class_class) = "lumna-navegador-popup";
+    CefString(&p.wm_class_name) = "lumna-navegador-popup";
+    return true;
+  }
+  cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+  CefSize GetPreferredSize(CefRefPtr<CefView>) override { return t_; }
+ private:
+  Midia* m_;
+  CefRefPtr<CefBrowserView> v_;
+  CefSize t_;
+  IMPLEMENT_REFCOUNTING(JanelaPopup);
+};
+class DelegadoSite : public CefBrowserViewDelegate {
+ public:
+  explicit DelegadoSite(Midia* m) : m_(m) {}
+  bool OnPopupBrowserViewCreated(CefRefPtr<CefBrowserView>, CefRefPtr<CefBrowserView> popup, bool devtools) override;
+ private:
+  Midia* m_;
+  IMPLEMENT_REFCOUNTING(DelegadoSite);
+};
+
 class DelegadoShell : public CefBrowserViewDelegate {
  public:
   cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_ALLOY; }
   IMPLEMENT_REFCOUNTING(DelegadoShell);
 };
+
+bool DelegadoSite::OnPopupBrowserViewCreated(CefRefPtr<CefBrowserView>, CefRefPtr<CefBrowserView> popup, bool devtools) {
+  return !devtools && m_->PopupCriado(popup);
+}
+void JanelaPopup::OnWindowCreated(CefRefPtr<CefWindow> w) {
+  w->SetTitle("Entrar");
+  w->AddChildView(v_);
+  w->Show();
+  v_->RequestFocus();
+  m_->PopupJanela(w);
+}
 
 class FuncTask : public CefTask {
  public:
@@ -559,7 +628,7 @@ void Midia::Passo() {
 // ---------------------------------------------------------------------------------------------------------------------------- clientes das visões
 class Cliente : public CefClient, public CefLifeSpanHandler, public CefRequestHandler, public CefDisplayHandler, public CefLoadHandler, public CefFocusHandler, public CefKeyboardHandler {
  public:
-  Cliente(Midia* m, bool shell) : m_(m), shell_(shell) {}
+  Cliente(Midia* m, bool shell, bool popup = false) : m_(m), shell_(shell), popup_(popup) {}
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
   CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
   CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
@@ -573,6 +642,7 @@ class Cliente : public CefClient, public CefLifeSpanHandler, public CefRequestHa
     return false;
   }
   void OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> f, int code) override {
+    if (popup_) { m_->PopupCarregou(f); Log("popup carregou " + f->GetURL().ToString()); return; }
     if (!shell_ && f->IsMain()) m_->SiteCarregou(f->GetURL());
     if (f->IsMain()) Log(std::string(shell_ ? "shell" : "site") + " carregou " + f->GetURL().ToString() + " (" + std::to_string(code) + ")");
   }
@@ -588,25 +658,36 @@ class Cliente : public CefClient, public CefLifeSpanHandler, public CefRequestHa
     m_->roteador()->OnBeforeBrowse(b, f);
     return false;
   }
-  void OnBeforeClose(CefRefPtr<CefBrowser> b) override { m_->roteador()->OnBeforeClose(b); }
-  bool OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int, const CefString& url, const CefString&, cef_window_open_disposition_t, bool,
-                     const CefPopupFeatures&, CefWindowInfo&, CefRefPtr<CefClient>&, CefBrowserSettings&, CefRefPtr<CefDictionaryValue>&,
+  void OnBeforeClose(CefRefPtr<CefBrowser> b) override {
+    m_->roteador()->OnBeforeClose(b);
+    if (popup_) m_->PopupFechou(b);
+  }
+  bool OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int, const CefString& url, const CefString&, cef_window_open_disposition_t disp, bool,
+                     const CefPopupFeatures&, CefWindowInfo&, CefRefPtr<CefClient>& client, CefBrowserSettings&, CefRefPtr<CefDictionaryValue>&,
                      bool*) override {
-    if (!shell_) m_->Navegar(url);  // "abrir em nova janela": na mesma visão
-    return true;                    // nunca abre janela solta
+    if (shell_ || popup_) return true;  // nada de janela solta; o popup do popup também não
+    // window.open(...) (um popup de login): uma visão por cima do site, que mantém window.opener; os links "nova janela/aba" abrem na mesma visão
+    if (disp == CEF_WOD_NEW_POPUP) {
+      Log("popup pedido " + url.ToString());
+      client = new Cliente(m_, false, true);
+      return false;
+    }
+    m_->Navegar(url);
+    return true;
   }
   void OnTitleChange(CefRefPtr<CefBrowser>, const CefString& t) override {
-    if (!shell_) m_->TituloMudou(t);
+    if (!shell_ && !popup_) m_->TituloMudou(t);
   }
-  void OnFullscreenModeChange(CefRefPtr<CefBrowser>, bool fs) override { if (!shell_) m_->SiteTelaCheia(fs); }
+  void OnFullscreenModeChange(CefRefPtr<CefBrowser>, bool fs) override { if (!shell_ && !popup_) m_->SiteTelaCheia(fs); }
   bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t, const CefString& msg, const CefString&, int) override {
     if (shell_) Log("shell: " + msg.ToString());
+    else if (popup_) Log("popup: " + msg.ToString());
     return false;
   }
 
  private:
   Midia* m_;
-  bool shell_;
+  bool shell_, popup_;
   IMPLEMENT_REFCOUNTING(Cliente);
 };
 
@@ -621,7 +702,7 @@ void Midia::Iniciar() {
   shell_ = CefBrowserView::CreateBrowserView(cliente_shell_, "file://" + ui_ + "/index.html", cfg, nullptr, nullptr, new DelegadoShell);
   CefBrowserSettings cfg2;
   cfg2.background_color = 0xFF000000;
-  conteudo_ = CefBrowserView::CreateBrowserView(cliente_conteudo_, "about:blank", cfg2, nullptr, nullptr, nullptr);
+  conteudo_ = CefBrowserView::CreateBrowserView(cliente_conteudo_, "about:blank", cfg2, nullptr, nullptr, new DelegadoSite(this));
   Log("estilos: shell " + std::to_string(shell_->GetRuntimeStyle()) + ", site " + std::to_string(conteudo_->GetRuntimeStyle()) + " (1 chrome, 2 alloy)");
   CefWindow::CreateTopLevelWindow(this);
 }
@@ -840,6 +921,17 @@ void Midia::PreparaSite(const Servico* sv) {
     if (tv) p->SetString("platform", "Linux armv7l");
     Chamar("Emulation.setUserAgentOverride", p, [tv](bool ok, CefRefPtr<CefDictionaryValue>) { Log(std::string("User-Agent de TV ") + (tv ? "ligado" : "desligado") + (ok ? "" : ": FALHOU")); });
   }
+}
+
+bool Midia::PopupCriado(CefRefPtr<CefBrowserView> p) {
+  if (!window_) return false;
+  if (popup_ && popup_ != p) FechaPopup();
+  popup_ = p;
+  CefRect c = Cheio();
+  CefSize t(std::min(c.width, std::max(520, static_cast<int>(c.width * 0.42))), std::min(c.height, std::max(560, static_cast<int>(c.height * 0.8))));
+  CefWindow::CreateTopLevelWindow(new JanelaPopup(this, p, t));
+  Log("popup aberto " + std::to_string(t.width) + "x" + std::to_string(t.height));
+  return true;
 }
 
 void Midia::AbrirServico(const std::string& id, const std::string& url) {
@@ -1240,14 +1332,14 @@ void Midia::TeclaPara(CefRefPtr<CefBrowserView> v, const Tecla& t) {
 
 void Midia::TeclaDirecao(const std::string& b) {
   bool ui = estado_ != Estado::kServico || ocupado_;
-  TeclaPara(ui ? shell_ : conteudo_, TeclaDo(b));
+  TeclaPara(ui ? shell_ : AlvoSite(), TeclaDo(b));
 }
 
 bool Midia::EmFoco() {
   if (getenv("LUMNA_NAV_CONTROLE_SEMPRE") || (window_ && window_->IsActive())) return true;
   auto agora = std::chrono::steady_clock::now();
   if (agora - foco_t_ > std::chrono::milliseconds(300)) {  // não pergunta ao Orbit a cada quadro
-    foco_orbit_ = orbit_.JanelaEmFoco("lumna-navegador");
+    foco_orbit_ = orbit_.JanelaEmFoco("lumna-navegador") || (popup_ && orbit_.JanelaEmFoco("lumna-navegador-popup"));
     foco_t_ = agora;
   }
   return foco_orbit_;
@@ -1324,14 +1416,15 @@ void Midia::TickControle() {
       double px_s = 1800 * k * k + 120 * k;  // fino perto do centro, rápido no fim do curso
       if (cursor) {
         orbit_.Rolar((ry_ > 0 ? 1 : -1) * px_s * dt * 15.0);
-      } else if (conteudo_ && conteudo_->GetBrowser()) {  // no modo "setas" não há ponteiro sobre a página: a roda vai direto ao site, no meio dele
+      } else if (AlvoSite() && AlvoSite()->GetBrowser()) {  // no modo "setas" não há ponteiro sobre a página: a roda vai direto ao site (ou ao popup), no meio dele
         rola_acc_ += (ry_ > 0 ? -1 : 1) * px_s * dt;
         int d = static_cast<int>(rola_acc_);
         if (d != 0) {
           rola_acc_ -= d;
           CefMouseEvent me;
-          me.x = destino_.width / 2; me.y = destino_.height / 2; me.modifiers = 0;
-          conteudo_->GetBrowser()->GetHost()->SendMouseWheelEvent(me, 0, d);
+          CefSize t = popup_ ? popup_->GetSize() : CefSize(destino_.width, destino_.height);
+          me.x = t.width / 2; me.y = t.height / 2; me.modifiers = 0;
+          AlvoSite()->GetBrowser()->GetHost()->SendMouseWheelEvent(me, 0, d);
         }
       }
     }
@@ -1399,7 +1492,7 @@ void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
       bool era_acorde = acorde_;
       (b == "LB" ? lb_ : rb_) = false;
       if (!lb_ && !rb_) acorde_ = false;
-      if (!era_acorde && em_foco) TeclaPara(conteudo_, TeclaDo(b == "LB" ? "PageUp" : "PageDown"));
+      if (!era_acorde && em_foco) TeclaPara(AlvoSite(), TeclaDo(b == "LB" ? "PageUp" : "PageDown"));
     } else if (b == "LB") lb_ = false;
     else if (b == "RB") rb_ = false;
     return;
@@ -1433,14 +1526,16 @@ void Midia::BotaoControle(const std::string& b, bool baixo, bool analogico) {
   }
   // um serviço aberto
   if (b == "A") {
-    if (ModoSite() == "setas") TeclaPara(conteudo_, TeclaDo("EnterSite"));       // modo setas: o OK (o nav.js clica no item em foco; um site de TV age como no controle remoto)
+    if (ModoSite() == "setas") TeclaPara(AlvoSite(), TeclaDo("EnterSite"));       // modo setas: o OK (o nav.js clica no item em foco; um site de TV age como no controle remoto)
     else { bool ok = orbit_.Botao(true); Log(std::string("clique (botao baixo) ") + (ok ? "enviado" : "FALHOU")); a_baixo_ = true; }  // o clique (segura enquanto o botão estiver apertado: arrasta)
   } else if (b == "B") {                                                          // voltar: sai da tela cheia; o "voltar" do serviço: Escape (interfaces de TV) ou a página anterior
     const Servico* sv = Acha(ativo_);
-    if (site_fs_ || (sv && sv->voltar == "esc")) TeclaPara(conteudo_, TeclaDo("Escape"));
+    if (popup_) {  // o popup de login: volta a página dele; sem para onde voltar, cancela (fecha)
+      if (popup_->GetBrowser() && popup_->GetBrowser()->CanGoBack()) popup_->GetBrowser()->GoBack(); else FechaPopup();
+    } else if (site_fs_ || (sv && sv->voltar == "esc")) TeclaPara(conteudo_, TeclaDo("Escape"));
     else if (conteudo_ && conteudo_->GetBrowser() && conteudo_->GetBrowser()->CanGoBack()) conteudo_->GetBrowser()->GoBack();
-  } else if (b == "X") TeclaPara(conteudo_, TeclaDo("Espaco"));                   // play/pausa
-  else if (b == "Y") TeclaPara(conteudo_, TeclaDo("F"));                          // tela cheia
+  } else if (b == "X") TeclaPara(AlvoSite(), TeclaDo("Espaco"));                   // play/pausa
+  else if (b == "Y") TeclaPara(AlvoSite(), TeclaDo("F"));                          // tela cheia
   else if (b == "LT") SalvarAtual("depois");     // salva o que está vendo na lista "assistir mais tarde"
   else if (b == "RT") SalvarAtual("favorito");   // ...ou nos favoritos
 }

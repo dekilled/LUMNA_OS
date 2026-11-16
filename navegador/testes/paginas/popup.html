@@ -1,0 +1,10 @@
+<!doctype html><meta charset=utf-8><title>POPUP</title>
+<body style="background:#eef;color:#113;font:24px sans-serif">Janela de login (popup)
+<script>
+// devolve o resultado ao opener e (com ?fecha=1) fecha sozinha, como a janela de login do Google
+console.log('abriu opener=' + (window.opener ? 1 : 0) + ' nav=' + (window.__lumnaNav ? 1 : 0));
+if (window.opener) window.opener.postMessage('token-ok', '*');
+if (location.search.includes('fecha')) setTimeout(() => window.close(), 500);
+addEventListener('keydown', (e) => { console.log('tecla ' + e.key); }, true);
+setTimeout(() => console.log('nav-depois=' + (window.__lumnaNav ? 1 : 0)), 800);
+</script>

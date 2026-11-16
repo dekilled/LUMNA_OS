@@ -185,6 +185,75 @@ tecla(K["enter"])
 if not espera(lambda: cli("--estado").stdout.find('"ativo":"alfa"') >= 0, 12):
     falha(f"Enter no favorito o abre: {cli('--estado').stdout}")
 
+# ---------------------------------------------------------------------------------------------------------------------------- 7. a fila em PÁGINAS de 6: passar do sexto desliza a fila inteira para fora, e entram os recém-adicionados
+cli("--inicio")
+time.sleep(1.5)
+tecla(K["esc"])   # (se voltou ao catálogo, volta ao início)
+time.sleep(0.6)
+while len(lista()) < 8:
+    cli("--adicionar", f"Novo {len(lista())}", f"https://novo{len(lista())}.example.com")
+    time.sleep(0.4)
+time.sleep(1.0)
+cli("--inicio")
+time.sleep(1.5)
+tecla(K["esc"])
+time.sleep(0.5)
+
+
+def foto(nome):
+    """SERVICOS_PRINTS=<pasta>: guarda um print da tela (grim) para olhar a olho"""
+    pasta = os.environ.get("SERVICOS_PRINTS")
+    w = [f for f in os.listdir(run) if re.match(r"wayland-\d+$", f)]
+    if pasta and w:
+        os.makedirs(pasta, exist_ok=True)
+        subprocess.run(["grim", f"{pasta}/{nome}.png"], env=dict(env, WAYLAND_DISPLAY=w[0]), capture_output=True)
+
+
+def pagina():
+    mm = re.findall(r"NAV shell: pagina (\d+)/(\d+) primeiro.x=(-?\d+) ultimo-da-pagina.x=(-?\d+) largura=(\d+)", log())
+    return tuple(int(x) for x in mm[-1]) if mm else None
+
+
+for _ in range(12):   # vai ao primeiro cartão da fila
+    if foco() and foco()[0] == "servicos" and foco()[1] == "0":
+        break
+    tecla(K["esq"])
+tecla(K["esq"], K["esq"])
+if foco() != ("servicos", "0", "9"):
+    falha(f"a fila tem os 8 serviços + o Adicionar (9 cartões), o foco no primeiro: {foco()}")
+n0 = len(re.findall(r"NAV shell: pagina ", log()))
+foto("fila-1-primeira-pagina")
+tecla(*[K["dir"]] * 5)
+time.sleep(1.0)
+if foco() != ("servicos", "5", "9"):
+    falha(f"cinco setas para a direita chegam ao sexto cartão: {foco()}")
+p5 = pagina()
+if len(re.findall(r"NAV shell: pagina ", log())) > n0 and p5 and p5[0] != 0:
+    falha(f"até o sexto cartão a fila NÃO desliza: {p5}")
+tecla(K["dir"])   # o sétimo: os 6 primeiros deslizam para fora da tela
+espera(lambda: pagina() and pagina()[0] == 1, 4)
+pg = pagina()
+if not pg or pg[0] != 1 or pg[1] != 2:
+    falha(f"passar do sexto cartão devia deslizar para a página 2 de 2: {pg}")
+else:
+    if pg[2] >= 0:
+        falha(f"os 6 primeiros cartões saem da tela (x do primeiro = {pg[2]})")
+    if not (0 <= pg[3] < pg[4]):
+        falha(f"o último cartão (o Adicionar) entra na tela (x = {pg[3]} de {pg[4]})")
+time.sleep(0.5)
+foto("fila-2-segunda-pagina")
+if foco() != ("servicos", "6", "9"):
+    falha(f"o foco vai para o sétimo cartão: {foco()}")
+tecla(K["dir"], K["dir"], K["dir"])   # o último: não há mais páginas
+if foco() != ("servicos", "8", "9"):
+    falha(f"o foco para no Adicionar: {foco()}")
+tecla(K["esq"], K["esq"], K["esq"])   # volta ao sétimo
+tecla(K["esq"])                        # o sexto: a fila desliza de volta
+espera(lambda: pagina() and pagina()[0] == 0, 4)
+pg = pagina()
+if not pg or pg[0] != 0 or pg[2] < 0:
+    falha(f"voltar ao sexto cartão desliza de volta para a página 1 (primeiro cartão visível): {pg}")
+
 for p in procs:
     p.kill()
 if os.environ.get("SERVICOS_PRINTS"):

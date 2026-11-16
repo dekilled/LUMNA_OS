@@ -122,3 +122,12 @@ body.catalogo .btn-emma { display:flex; }
 .form-botoes { display:flex; gap:1vw; justify-content:flex-end; margin-top:1vh; }
 .btn-form { padding:1.4vh 2vw; border-radius:12px; border:2px solid #3a3350; font-size:2.3vh; cursor:pointer; } .btn-form.foco { border-color:#d6b4ff; background:rgba(191,139,255,.2); }
 .dica-form { color:var(--suave); font-size:1.9vh; }
+
+/* os streamings: páginas de 6, e passar do último desliza a fila inteira para fora da tela (os recém-adicionados entram do outro lado) */
+.servicos .vp { overflow:hidden; padding:1.6vh 1vw; margin:-1.6vh -1vw 0; }
+#servicos { display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 5 * 1.3vw) / 6); gap:1.3vw; width:100%;
+  transform:translateX(calc(var(--pg, 0) * -1 * (100% + 1.3vw))); transition:transform .5s cubic-bezier(.2,.8,.2,1); }
+#servicos .tile { max-width:none; min-width:0; }
+.pontos { display:flex; justify-content:center; gap:1vh; margin-top:1.2vh; min-height:1.2vh; }
+.pontos i { width:1.2vh; height:1.2vh; border-radius:50%; background:rgba(255,255,255,.22); transition:background .3s, transform .3s; }
+.pontos i.on { background:var(--acento); transform:scale(1.25); }
