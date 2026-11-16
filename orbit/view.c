@@ -463,6 +463,8 @@ void orbit_view_map(struct orbit_view *view) {
 		orbit_float_place_new(view);
 	}
 	wl_list_insert(view->server->views.prev, &view->link);
+	/* o rastro do foco (~/.local/state/lumna/orbit.log): quem abre e quem fecha, para achar o que tira o foco sem motivo */
+	wlr_log(WLR_INFO, "janela %u (%s) abriu%s", view->id, orbit_view_app_id(view), view->floating ? " (flutuante)" : "");
 	orbit_foreign_map(view);
 	orbit_ipc_view_event(view, "janela_aberta");
 	struct orbit_server *server = view->server;
@@ -498,6 +500,7 @@ void orbit_view_unmap(struct orbit_view *view) {
 	orbit_win_anim_close(view); /* a última imagem fica num fantasma que esmaece (antes de a janela sair da arrumação) */
 	struct orbit_server *server = view->server;
 	bool was_focused = server->focused == view;
+	wlr_log(WLR_INFO, "janela %u (%s) fechou%s", view->id, orbit_view_app_id(view), was_focused ? " (tinha o foco)" : " (sem foco)");
 	struct orbit_view *partner = view == server->split_top ? server->split_bottom
 		: view == server->split_bottom ? server->split_top : NULL;
 	orbit_split_release(server, view);
