@@ -70,6 +70,25 @@ static bool existe(const char *caminho) {
 	return stat(caminho, &st) == 0 && S_ISREG(st.st_mode);
 }
 
+/* Alguém sabe ler SVG? O librsvg direto (gv_rsvg.c) ou, se o gdk-pixbuf ainda tiver o carregador. Sem ninguém, o ícone SVG nem entra na busca: ele falharia em
+ * silêncio e o app ficava sem ícone mesmo com os PNG do tema ao lado. */
+static bool svg_legivel(void) {
+	static int sim = -1;
+	if (sim < 0) {
+		sim = gv__svg_disponivel();
+		if (!sim) {
+			GSList *fs = gdk_pixbuf_get_formats();
+			for (GSList *l = fs; l && !sim; l = l->next) {
+				char *nome = gdk_pixbuf_format_get_name(l->data);
+				sim = nome && !strcmp(nome, "svg");
+				g_free(nome);
+			}
+			g_slist_free(fs);
+		}
+	}
+	return sim;
+}
+
 /* Procura o ícone de um app: o tema de GRAVITY_ICONES, depois hicolor, depois /usr/share/pixmaps.
  * Sem ler o index.theme: as pastas de sempre (scalable e os tamanhos, maior primeiro). */
 static char *achar_icone(const char *nome, int tamanho) {
@@ -94,7 +113,7 @@ static char *achar_icone(const char *nome, int tamanho) {
 		for (guint b = 0; b < bases->len && !achado; b++) {
 			const char *base = bases->pdata[b];
 			snprintf(caminho, sizeof(caminho), "%s/%s/scalable/apps/%s.svg", base, temas[t], nome);
-			if (existe(caminho)) {
+			if (svg_legivel() && existe(caminho)) {
 				achado = g_strdup(caminho);
 				break;
 			}
@@ -123,6 +142,9 @@ static char *achar_icone(const char *nome, int tamanho) {
 	for (const char *const *d = g_get_system_data_dirs(); *d && !achado; d++) {
 		static const char *const ext[] = { "svg", "png", "xpm" };
 		for (size_t e = 0; e < G_N_ELEMENTS(ext) && !achado; e++) {
+			if (!strcmp(ext[e], "svg") && !svg_legivel()) {
+				continue;
+			}
 			snprintf(caminho, sizeof(caminho), "%s/pixmaps/%s.%s", *d, nome, ext[e]);
 			if (existe(caminho)) {
 				achado = g_strdup(caminho);
@@ -164,6 +186,15 @@ static cairo_surface_t *para_cairo(GdkPixbuf *pb) {
 }
 
 cairo_surface_t *gv__imagem_carregar(const char *caminho) {
+	int sw, sh;
+	if (caminho && gv__eh_svg(caminho) && gv__svg_tamanho(caminho, &sw, &sh)) {
+		/* um papel de parede em SVG: no tamanho natural (no máximo 4096 de lado) */
+		double k = fmin(1.0, 4096.0 / fmax(sw, sh));
+		cairo_surface_t *sup = gv__svg_rasterizar(caminho, (int)ceil(sw * k), (int)ceil(sh * k));
+		if (sup) {
+			return sup;
+		}
+	}
 	GdkPixbuf *pb = caminho && *caminho ? gdk_pixbuf_new_from_file(caminho, NULL) : NULL;
 	if (!pb) {
 		return NULL;
@@ -189,12 +220,19 @@ static gpointer trabalhar(gpointer dados) {
 		} else {
 			caminho = g_strdup(p->chave);
 		}
-		GdkPixbufFormat *formato = caminho ? gdk_pixbuf_get_file_info(caminho, &r->nw, &r->nh) : NULL;
-		if (formato && r->nw > 0 && r->nh > 0) {
-			char *nome = gdk_pixbuf_format_get_name(formato);
-			r->vetor = nome && !strcmp(nome, "svg");
-			bool jpeg = nome && !strcmp(nome, "jpeg");
-			g_free(nome);
+		/* SVG: pelo librsvg direto (o gdk-pixbuf não tem mais carregador de SVG com o librsvg 2.60+); sem ele, o gdk-pixbuf de antes */
+		bool via_rsvg = caminho && gv__eh_svg(caminho) && gv__svg_tamanho(caminho, &r->nw, &r->nh);
+		GdkPixbufFormat *formato = via_rsvg ? NULL : (caminho ? gdk_pixbuf_get_file_info(caminho, &r->nw, &r->nh) : NULL);
+		if (via_rsvg || (formato && r->nw > 0 && r->nh > 0)) {
+			bool jpeg = false;
+			if (via_rsvg) {
+				r->vetor = true;
+			} else {
+				char *nome = gdk_pixbuf_format_get_name(formato);
+				r->vetor = nome && !strcmp(nome, "svg");
+				jpeg = nome && !strcmp(nome, "jpeg");
+				g_free(nome);
+			}
 			/* Só o JPEG descodifica já reduzido; os outros formatos abrem a imagem inteira (largura × altura × 4 bytes) para só então reduzir. Uma pasta de
 			 * fotos grandes (ou de capturas de scanner) com quatro threads fazendo isso ao mesmo tempo comia a memória toda e o sistema matava o app. Acima
 			 * do limite não há miniatura: o ícone genérico fica. */
@@ -227,8 +265,13 @@ static gpointer trabalhar(gpointer dados) {
 			w = MAX(w, 1);
 			h = MAX(h, 1);
 			GError *erro = NULL;
-			GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_scale(caminho, w, h, p->ajuste != GV_AJUSTE_ESTICAR, &erro);
-			if (pb) {
+			GdkPixbuf *pb = via_rsvg ? NULL : gdk_pixbuf_new_from_file_at_scale(caminho, w, h, p->ajuste != GV_AJUSTE_ESTICAR, &erro);
+			if (via_rsvg) {
+				r->sup = gv__svg_rasterizar(caminho, w, h);
+				if (!r->sup) {
+					fprintf(stderr, "gravity: %s: o librsvg não conseguiu desenhar\n", caminho);
+				}
+			} else if (pb) {
 				/* a orientação das fotos do celular (EXIF) */
 				GdkPixbuf *girada = gdk_pixbuf_apply_embedded_orientation(pb);
 				g_object_unref(pb);

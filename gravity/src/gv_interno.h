@@ -220,5 +220,10 @@ void gv__anim_quadro(void);
 
 /* uma imagem inteira, já no formato do cairo (NULL: não abriu); o bloqueio das outras telas */
 cairo_surface_t *gv__imagem_carregar(const char *caminho);
+/* SVG pelo librsvg (gv_rsvg.c): o gdk-pixbuf não lê mais SVG com o librsvg 2.60+ */
+bool gv__svg_disponivel(void);
+bool gv__eh_svg(const char *caminho);
+bool gv__svg_tamanho(const char *caminho, int *w, int *h);
+cairo_surface_t *gv__svg_rasterizar(const char *caminho, int w, int h);
 
 #endif
