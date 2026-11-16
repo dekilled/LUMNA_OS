@@ -25,6 +25,7 @@ snap=$(grep -n "snapshot -r" "$t/log" | head -1 | cut -d: -f1); ins=$(grep -n "^
 [ -n "$snap" ] && [ -n "$ins" ] && [ "$snap" -lt "$ins" ] || fail "o snapshot vem ANTES da instalação"
 [ -s "$FAKE/db/sync/lumna.db" ] || fail "o banco do [lumna] devia ser baixado para o sync"
 cmp -s "$FAKE/db/sync/lumna.db" "$FAKE/repo/lumna.db" || fail "o banco baixado devia ser o do repositório"
+[ "$(stat -c %a "$FAKE/db/sync/lumna.db")" = 644 ] || fail "o banco do [lumna] tem de ser legível por todos (644), senão o pacman/checkupdates de quem não é root diz 'base de dados inválida' (foi: $(stat -c %a "$FAKE/db/sync/lumna.db"))"
 
 # 2. a atualização do LUMNA exigiria pacotes do Arch: para, não instala nada e não tira snapshot
 printf 'LUMNA-SIM lumna lumna-orbit 1.1\nLUMNA-SIM extra wlroots 0.99-1\n' > "$FAKE/sim"

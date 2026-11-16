@@ -108,6 +108,9 @@ sync_lumna() {
   # uma assinatura velha do banco antigo faria o pacman recusar o novo (o [lumna] é "Optional": sem assinatura vale)
   rm -f "$dir/lumna.db.sig"
   curl -fsSL --max-time 30 -o "$dir/lumna.db.sig" "$srv/lumna.db.sig" 2>/dev/null || rm -f "$dir/lumna.db.sig"
+  # o mktemp cria o arquivo com modo 600: o pacman de quem NÃO é root (o checkupdates e o Painel, que procuram atualizações sem senha) não leria o banco e diria
+  # "base de dados inválida (assinatura PGP)". Os bancos do pacman são 644.
+  chmod 644 "$tmp"
   mv -f "$tmp" "$dir/lumna.db"
 }
 
