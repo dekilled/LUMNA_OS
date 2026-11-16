@@ -85,6 +85,9 @@ static void request_activate(struct wl_listener *listener, void *data) {
 				wlr_log(WLR_INFO, "ativação da janela %u ignorada: trocaria o modo da tela %s", view->id, view->output->wlr->name);
 				return;
 			}
+			if (server->focused != view) {
+				wlr_log(WLR_INFO, "pedido de foco (xdg-activation) da janela %u (%s)", view->id, orbit_view_app_id(view));
+			}
 			if (view->minimized) {
 				orbit_view_set_minimized(view, false);
 			}

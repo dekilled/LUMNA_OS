@@ -194,6 +194,10 @@ void orbit_focus(struct orbit_view *view) {
 			wlr_xdg_toplevel_set_activated(previous->toplevel, false);
 		}
 	}
+	if (previous_view != view) {   /* o rastro de quem tira o foco de quem (~/.local/state/lumna/orbit.log): para achar o culpado quando o foco pula sem motivo */
+		wlr_log(WLR_INFO, "foco: janela %u (%s) -> janela %u (%s)", previous_view ? previous_view->id : 0,
+			previous_view ? orbit_view_app_id(previous_view) : "-", view->id, orbit_view_app_id(view));
+	}
 	server->focused = view;
 	view->focus_seq = ++server->focus_seq;
 	wlr_scene_node_raise_to_top(&view->scene_tree->node);
@@ -260,14 +264,20 @@ void focus_top(struct orbit_server *server, struct orbit_output *output) {
 			return;
 		}
 	}
+	/* a janela USADA MAIS RECENTEMENTE nesta tela e espaço (a que está logo atrás na pilha, a mesma ordem do Alt+Tab). A lista `views` é a ordem de
+	 * criação: pegar a primeira dela mandava o foco para a janela mais antiga ("um app lá no fundo") toda vez que uma fechava. */
+	struct orbit_view *best = NULL;
 	wl_list_for_each(view, &server->views, link) {
-		if (view->mapped && !view->minimized && view->output == output && view->tag == output->tag) {
-			orbit_focus(view);
-			if (output_is_phone(output->wlr)) {
-				orbit_arrange(server);
-			}
-			return;
+		if (view->mapped && !view->minimized && view->output == output && view->tag == output->tag && (!best || view->focus_seq > best->focus_seq)) {
+			best = view;
 		}
+	}
+	if (best) {
+		orbit_focus(best);
+		if (output_is_phone(output->wlr)) {
+			orbit_arrange(server);
+		}
+		return;
 	}
 	if (server->focused && server->focused->output == output) {
 		orbit_unfocus(server);
@@ -510,7 +520,9 @@ void orbit_view_unmap(struct orbit_view *view) {
 	orbit_arrange(server);
 	if (was_focused && partner && partner->mapped && partner->output == output) {
 		orbit_focus(partner);
-	} else if (output) {
+	} else if (output && (was_focused || !server->focused || output_is_phone(output->wlr) || orbit_output_isolated(output))) {
+		/* só quem perdeu a janela com foco (ou ninguém tem foco) escolhe um novo foco: uma janela SEM foco que fecha (um popup, uma janela auxiliar
+		 * do Electron) não pode tirar o foco de quem está em uso (o VS Code perdia o foco assim). Gaming/Mídia/celular reescolhem sempre (o quiosque) */
 		focus_top(server, output);
 	}
 	orbit_mode_ensure_shell(server, output);

@@ -121,10 +121,17 @@ static void xwl_request_configure(struct wl_listener *listener, void *data) {
 	wlr_xwayland_surface_configure(view->xsurface, (int16_t)view->scene_tree->node.x, (int16_t)view->scene_tree->node.y, w, h);
 }
 
+static bool server_focused_differs(const struct orbit_view *view) {
+	return view->server->focused != view;
+}
+
 static void xwl_request_activate(struct wl_listener *listener, void *data) {
 	struct orbit_view *view = wl_container_of(listener, view, request_activate_x);
 	/* o app pediu o foco (a Steam abrindo uma janela): só vale se ela está na tela que a pessoa vê, e não tira um jogo da frente no Gaming */
 	if (view->mapped && view->output && view->tag == view->output->tag && orbit_view_may_take_focus(view)) {
+		if (server_focused_differs(view)) {
+			wlr_log(WLR_INFO, "pedido de foco (X11, _NET_ACTIVE_WINDOW) da janela %u (%s)", view->id, orbit_view_app_id(view));
+		}
 		orbit_focus(view);
 	}
 }
