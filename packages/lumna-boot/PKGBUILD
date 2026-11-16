@@ -2,7 +2,7 @@
 # mais o ajudante lumna-boot-tema que aplica os dois no sistema. Os arquivos gerados (imagens, fontes, script) vêm de iso/branding/.
 pkgname=lumna-boot
 pkgver=0.0.1
-pkgrel=2
+pkgrel=3
 pkgdesc="Visual de boot do LUMNA OS: tema do GRUB e animação de boot (Plymouth)"
 install=lumna-boot.install
 arch=(any)

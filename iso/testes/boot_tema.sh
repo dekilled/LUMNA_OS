@@ -19,6 +19,7 @@ cat > "$bin/grub-mkconfig" <<EOF
 #!/bin/sh
 echo "\$*" >> "$run/mkconfig.log"
 while [ \$# -gt 0 ]; do [ "\$1" = -o ] && saida=\$2; shift; done
+if [ -e "$run/sem-kernel" ]; then printf "menuentry 'UEFI Firmware Settings' {\\n\\tfwsetup\\n}\\n" > "\$saida"; echo "Found fallback: nada"; exit 0; fi
 cat > "\$saida" <<'CFG'
 menuentry 'LUMNA OS' --class lumna --class gnu-linux --class os \$menuentry_id_option 'gnulinux-simple-x' {
 	linux /boot/vmlinuz-linux
@@ -72,6 +73,20 @@ sh "$ajudante" plymouth --sem-initramfs >/dev/null
 # 4. o gancho do pacman só mexe no menu de quem aplicou
 : > "$run/mkconfig.log"
 sh "$ajudante" regerar >/dev/null; [ -s "$run/mkconfig.log" ] || falha "regerar com o tema aplicado devia refazer o menu"
+# 4b. o registro: /var/log/lumna-boot.log guarda o que havia em /boot, a saída do grub-mkconfig e o resultado
+log="$raiz/var/log/lumna-boot.log"
+[ -f "$log" ] && grep -q "regerando o menu do GRUB (origem: manual)" "$log" || falha "o registro devia existir com a origem"
+sh "$ajudante" regerar --gancho >/dev/null; grep -q "origem: pacman" "$log" || falha "o gancho do pacman registra a origem pacman"
+grep -q "menu pronto: .* entradas, 1 com kernel" "$log" || falha "o registro diz quantas entradas e quantas com kernel ($(tail -3 "$log"))"
+# 4c. o que quebrou o menu do Eric: o grub-mkconfig rodando com o /boot sem kernel grava um menu SEM entrada do sistema. O menu anterior tem de ficar.
+cp "$cfg" "$run/cfg-bom"
+touch "$run/sem-kernel"
+sh "$ajudante" regerar --gancho >/dev/null 2>"$run/erro.txt"
+cmp -s "$cfg" "$run/cfg-bom" || falha "o menu novo sem entrada de kernel NÃO pode substituir o bom"
+grep -q "ERRO: o menu novo ficou SEM nenhuma entrada de kernel" "$log" || falha "o registro conta que manteve o menu anterior"
+grep -q "mantive o anterior" "$run/erro.txt" || falha "o pacman mostra o aviso (stderr)"
+rm -f "$run/sem-kernel"
+sh "$ajudante" regerar >/dev/null; grep -q "^menuentry 'LUMNA OS'" "$cfg" || falha "com o kernel de volta o menu é refeito normalmente"
 # 5. desfazer
 sh "$ajudante" desfazer >/dev/null || falha "desfazer"
 [ ! -e "$raiz/boot/grub/themes/lumna" ] || falha "desfazer devia tirar o tema"

@@ -14,4 +14,4 @@ Target = linux-hardened
 [Action]
 Description = Refazendo o menu do GRUB com o tema do LUMNA (se ele estiver aplicado)...
 When = PostTransaction
-Exec = /usr/bin/lumna-boot-tema regerar
+Exec = /usr/bin/lumna-boot-tema regerar --gancho

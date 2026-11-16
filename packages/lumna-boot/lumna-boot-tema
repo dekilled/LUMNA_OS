@@ -16,11 +16,12 @@ RAIZ=${LUMNA_RAIZ:-}
 TEMA_GRUB_ORIGEM=${LUMNA_TEMA_GRUB:-/usr/share/lumna/grub/lumna}
 ACAO=${1:-}
 [ $# -gt 0 ] && shift
-SEM_INITRAMFS=0; SEM_MENU=0
+SEM_INITRAMFS=0; SEM_MENU=0; ORIGEM=manual
 for a in "$@"; do
 	case "$a" in
 	--sem-initramfs) SEM_INITRAMFS=1 ;;
 	--sem-menu) SEM_MENU=1 ;;
+	--gancho) ORIGEM=pacman ;;
 	*) echo "lumna-boot-tema: opção desconhecida: $a" >&2; exit 2 ;;
 	esac
 done
@@ -32,6 +33,17 @@ GRUB_DIR="$RAIZ/boot/grub"
 TEMA_GRUB="$GRUB_DIR/themes/lumna"
 
 dizer() { echo "lumna-boot-tema: $*"; }
+
+# O registro do que o ajudante fez com o menu (o gancho do pacman roda sem ninguém olhando): /var/log/lumna-boot.log. Foi a falta dele que escondeu por que o menu
+# do PC do Eric ficou sem o kernel depois de um update. Guarda o que havia em /boot, a saída inteira do grub-mkconfig e o resultado; passa de 256 KB, fica com o fim.
+LOG=${LUMNA_LOG_BOOT:-$RAIZ/var/log/lumna-boot.log}
+registra() {
+	mkdir -p "$(dirname "$LOG")" 2>/dev/null || return 0
+	if [ -f "$LOG" ] && [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
+		tail -n 800 "$LOG" > "$LOG.novo" 2>/dev/null && mv -f "$LOG.novo" "$LOG" 2>/dev/null || true
+	fi
+	printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG" 2>/dev/null || true
+}
 
 # põe CHAVE=VALOR no /etc/default/grub (troca a linha, ou acrescenta no fim)
 grub_definir() {
@@ -81,16 +93,32 @@ titulos_no_menu() {
 	}" "$cfg"
 }
 
+# Se o grub-mkconfig rodar quando o /boot está sem kernel (um update em andamento: o pacman apaga o vmlinuz antigo e o mkinitcpio põe o novo depois), ele grava um menu SEM a
+# entrada do sistema, e o PC fica sem como subir pelo GRUB (15/11/2026). Por isso o menu anterior fica guardado e volta se o novo não tiver nenhuma linha "linux".
 gerar_menu() {
 	[ "$SEM_MENU" = 1 ] && return 0
+	cfg="$GRUB_DIR/grub.cfg"
+	anterior="$cfg.lumna-anterior"
+	registra "== regerando o menu do GRUB (origem: $ORIGEM) =="
+	registra "/boot tem: $(ls "$RAIZ/boot" 2>/dev/null | grep -E '^(vmlinuz|initramfs|intel-ucode|amd-ucode)' | tr '\n' ' ')"
+	[ -f "$cfg" ] && cp -p "$cfg" "$anterior" 2>/dev/null || true
 	if [ -n "$RAIZ" ]; then
-		grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1
+		grub-mkconfig -o "$cfg" >>"$LOG" 2>&1 || registra "ERRO: o grub-mkconfig terminou com erro"
 	else
 		# em português (os nomes das entradas), se o sistema tem o idioma
-		LANG=${LUMNA_LANG_GRUB:-pt_BR.UTF-8} grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1 || grub-mkconfig -o "$GRUB_DIR/grub.cfg" >/dev/null 2>&1
+		LANG=${LUMNA_LANG_GRUB:-pt_BR.UTF-8} grub-mkconfig -o "$cfg" >>"$LOG" 2>&1 || grub-mkconfig -o "$cfg" >>"$LOG" 2>&1 || registra "ERRO: o grub-mkconfig terminou com erro"
+	fi
+	if ! grep -qE '^[[:space:]]*linux[[:space:]]' "$cfg" 2>/dev/null && grep -qE '^[[:space:]]*linux[[:space:]]' "$anterior" 2>/dev/null; then
+		cp -p "$anterior" "$cfg"
+		registra "ERRO: o menu novo ficou SEM nenhuma entrada de kernel (o /boot estava sem vmlinuz?): mantive o menu anterior. Rode 'sudo lumna-boot-tema regerar' quando o update terminar."
+		echo "lumna-boot-tema: o menu novo ficou sem entrada de kernel; mantive o anterior (veja $LOG)" >&2
+		return 0
 	fi
 	classes_no_menu
 	titulos_no_menu
+	registra "menu pronto: $(grep -cE '^[[:space:]]*(menuentry|submenu) ' "$cfg" 2>/dev/null || echo 0) entradas, $(grep -cE '^[[:space:]]*linux[[:space:]]' "$cfg" 2>/dev/null || echo 0) com kernel"
+	[ -z "$(grep -E '^[[:space:]]*linux[[:space:]]' "$cfg" 2>/dev/null)" ] && registra "AVISO: nenhuma entrada com kernel (e não havia menu anterior com kernel para manter)"
+	return 0
 }
 
 parte_grub() {
@@ -218,6 +246,7 @@ diagnostico() {
 	titulo "/etc/default/grub"
 	grep -E '^(GRUB_THEME|GRUB_GFXMODE|GRUB_GFXPAYLOAD_LINUX|GRUB_TERMINAL_OUTPUT|GRUB_CMDLINE_LINUX_DEFAULT|GRUB_DISABLE_OS_PROBER|GRUB_TIMEOUT)=' "$DEFAULT" 2>&1
 	titulo "o tema está em /boot/grub/themes/lumna?"; ls "$TEMA_GRUB" 2>&1 | head -4
+	titulo "o registro do ajudante (${LOG}), as últimas linhas"; tail -n 25 "$LOG" 2>&1 || true
 	titulo "grub.cfg: o tema entrou no menu?"; grep -nE 'set theme=|theme\.txt|gfxmode|terminal_output|insmod (gfxterm|png)' "$GRUB_DIR/grub.cfg" 2>&1 | head -8
 	titulo "mkinitcpio: HOOKS e MODULES (o plymouth entra depois do udev; o driver da placa tem de subir cedo)"; grep -E '^(HOOKS|MODULES)=' "$MKINIT" 2>&1
 	titulo "o initramfs tem o plymouth e o tema?"
