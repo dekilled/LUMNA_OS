@@ -60,6 +60,7 @@ struct sistema_agenda {
 	char resultado[24]; /* ok, nada, precisa-completa, falhou ("" se nunca) */
 	char ultimo_escopo[8];
 	char pacotes[200];  /* os pacotes do LUMNA que o último agendado atualizou */
+	int quantos;        /* quantos pacotes o último agendado atualizou (escopo "tudo") */
 };
 void sistema_agenda_ler(struct sistema_agenda *a);
 

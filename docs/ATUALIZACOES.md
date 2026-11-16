@@ -18,7 +18,7 @@ Um timer do systemd (`lumna-atualizar.timer`, `Persistent=true`: **se o PC estav
 
 - a configuração vem de `/etc/lumna/atualizar.conf` (`modo`, `escopo` = `tudo`|`lumna`, `hora` = HH:MM, `dias` = `todos`|`seg,qua,...`), gravada por `pkexec lumna-pkg agendar LIGADO ESCOPO HH:MM DIAS` (a entrada é **validada** à risca: roda como root); o horário vai para `/etc/systemd/system/lumna-atualizar.timer.d/horario.conf`;
 - escopo "tudo": snapshot + `pacman -Syu`; escopo "lumna": o de cima. **Não atualiza o AUR** (precisa de senha e de uma pessoa);
-- o resultado fica em `/var/log/lumna-atualizar.log` (até 512 KB) e em `/var/lib/lumna/atualizar.estado` (`ok`, `nada`, `precisa-completa` ou `falhou`), que a página mostra ("Última vez: ...");
+- o resultado fica em `/var/log/lumna-atualizar.log` (até 512 KB) e em `/var/lib/lumna/atualizar.estado` (`ok`, `nada`, `precisa-completa` ou `falhou`, mais os pacotes do LUMNA atualizados e, no escopo "tudo", quantos pacotes), que a página mostra ("Última vez: ...") e o aviso na tela usa;
 - roda com `Nice=19` e IO ocioso, para não atrapalhar quem está usando.
 
 ## A página
@@ -28,10 +28,23 @@ No topo: "N atualizações (X do LUMNA e Y do Arch e de outros programas)", **Pr
 ## Testes
 
 - `sh gravity/testes/pkg/lumna.sh`: o `lumna-pkg` com pacman/systemctl de mentira (com controle negativo): só instala o do LUMNA, não sincroniza o Arch, para quando exige o Arch, recusa entradas inválidas, estado e log do agendado, escopo "tudo".
+- `sh gravity/testes/pkg/aviso.sh`: o vigia, com `gdbus` de mentira (primeira vez, avisa uma vez, não repete, "tudo" com a contagem, "nada" não avisa, adiada, falhou crítica, `gdbus` falhando não marca como visto, aspas no texto). **Também testado com o `lumna-avisos` de verdade e o `gdbus` de verdade** num Orbit sem tela (`dbus-run-session`): o aviso aparece no canto da tela com o texto certo.
 - `sh gravity/testes/painel.sh` (parte `sistema`): a marcação "é do LUMNA" e a leitura do agendamento.
 - `sh gravity/testes/painel_agenda.sh <orbit>`: o Painel de verdade num Orbit sem tela; confere a configuração mostrada e o que os cliques (dia, Tudo, interruptor) mandam.
 
-**Não testado:** um `pacman` real com o repositório `[lumna]` publicado (só com pacman de mentira); o timer rodando de verdade no systemd (só o conteúdo dos arquivos); o aviso na tela quando o agendado termina (hoje o resultado só aparece na página e no log).
+**Não testado:** um `pacman` real com o repositório `[lumna]` publicado (só com pacman de mentira); o timer rodando de verdade no systemd (só o conteúdo dos arquivos); o vigia do aviso rodando de verdade na sessão do PC (só o script, de mentira e contra o lumna-avisos num Orbit sem tela).
+
+## O aviso na tela quando o agendado termina
+
+O serviço roda como root, mas o servidor de avisos do LUMNA (`lumna-avisos`, o `org.freedesktop.Notifications`) mora no **barramento privado da sessão** (o Orbit sobe com `dbus-run-session`), que o root **não alcança**. Por isso quem avisa é o vigia
+**`lumna-atualizar-aviso`** (`/usr/bin`, lançado na sessão em `lumna-orbit-session`), que roda como a pessoa e olha o `atualizar.estado` a cada minuto (a primeira checagem, 10 s depois do login):
+
+- se o agendado rodou **depois da última vez em que a pessoa foi avisada** (`~/.local/state/lumna/atualizar-visto`), mostra o resultado pelo `gdbus` (sem dependência nova: vem com o glib): **concluída** (o que atualizou; lembra de sair da sessão ou reiniciar), **adiada** (o LUMNA pedia pacotes do Arch mais novos; use "Atualizar tudo") ou **falhou** (urgência crítica, aponta o log e o "Desfazer a última atualização");
+- **"nada a atualizar" não avisa** (não incomoda);
+- cobre o **PC desligado na hora marcada**: o `Persistent=true` roda o agendado ao ligar, e o aviso sai assim que a pessoa entra e o vigia sobe (o resultado ficou no `atualizar.estado`);
+- na primeira vez numa conta só guarda o que já existe (um resultado antigo não vira aviso); se o `gdbus` falha (o `lumna-avisos` ainda não subiu), **não marca como visto** e tenta no ciclo seguinte; nunca avisa duas vezes o mesmo resultado.
+
+**Só na sessão nova (Orbit).** A sessão clássica (Hyprland) não lança o vigia.
 
 ## Escolher pacotes (etapa 2)
 
@@ -60,4 +73,4 @@ atrás) e só instala se a conta fecha: se puxar um pacote **já instalado** que
 - `sh gravity/testes/painel.sh` (parte `sistema`): a marcação "é do LUMNA", a leitura do agendamento e a leitura da saída do analisador.
 - `sh gravity/testes/painel_agenda.sh <orbit>` e `sh gravity/testes/painel_escolher.sh <orbit>`: o Painel de verdade num Orbit sem tela: o que os cliques mandam (dia, Tudo, interruptor; marcar, desmarcar, "Marcar os liberados", **bloqueado não marca**, "Atualizar" manda só os marcados). Controle negativo da interface feito.
 
-**Não testado:** um `pacman` real com o repositório `[lumna]` publicado e atualizações de verdade; o `checkupdates` real (o fake imita a saída); o timer no systemd; o tempo da análise num PC com muitas atualizações (cada pacote é simulado, centenas podem levar minutos: a tela avisa "Testando os pacotes um por um"); o aviso na tela quando o agendado termina.
+**Não testado:** um `pacman` real com o repositório `[lumna]` publicado e atualizações de verdade; o `checkupdates` real (o fake imita a saída); o timer no systemd; o tempo da análise num PC com muitas atualizações (cada pacote é simulado, centenas podem levar minutos: a tela avisa "Testando os pacotes um por um"); o ícone `lumna` do aviso (este container não tem o tema de ícones instalado: aparece um quadrado no lugar; no PC deve aparecer o do LUMNA, o mesmo do aviso de configuração inicial).

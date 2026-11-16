@@ -288,6 +288,7 @@ void sistema_agenda_ler(struct sistema_agenda *a) {
 	if ((v = agenda_valor(est, "resultado"))) { g_strlcpy(a->resultado, v, sizeof(a->resultado)); g_free(v); }
 	if ((v = agenda_valor(est, "escopo"))) { g_strlcpy(a->ultimo_escopo, v, sizeof(a->ultimo_escopo)); g_free(v); }
 	if ((v = agenda_valor(est, "pacotes"))) { g_strlcpy(a->pacotes, v, sizeof(a->pacotes)); g_free(v); }
+	if ((v = agenda_valor(est, "quantos"))) { a->quantos = (int)g_ascii_strtoll(v, NULL, 10); g_free(v); }
 	g_free(conf); g_free(est); g_free(conf_caminho); g_free(estado_caminho);
 }
 

@@ -356,6 +356,9 @@ static const char *ag_resultado_texto(void) {
 	}
 	const char *oq = !strcmp(ag.ultimo_escopo, "lumna") ? "só o LUMNA" : "tudo";
 	if (!strcmp(ag.resultado, "ok")) {
+		if (!ag.pacotes[0] && ag.quantos > 0) {
+			return gv_fmt("Última vez: %s (%s) — atualizou %d pacotes.", pn_dia(ag.ultimo), oq, ag.quantos).chars;
+		}
 		return gv_fmt("Última vez: %s (%s) — atualizou%s%s", pn_dia(ag.ultimo), oq, ag.pacotes[0] ? ": " : ".", ag.pacotes).chars;
 	}
 	if (!strcmp(ag.resultado, "nada")) {

@@ -107,11 +107,12 @@ printf 'firefox 1 -> 2\n' > "$FAKE/qu"; zera
 bash "$PKG" agendado >/dev/null 2>&1; grep -q "^resultado=nada" "$est" || fail "em dia: $(cat "$est")"
 # tudo: pacman -Syu com snapshot
 printf 'modo=ligado\nescopo=tudo\nhora=03:00\ndias=todos\n' > "$t/etc/lumna/atualizar.conf"; zera
-printf 'resolving dependencies...\n' > "$FAKE/syu-out"; echo 0 > "$FAKE/syu-rc"
+printf 'resolving dependencies...\n(1/3) upgrading foo\n(2/3) upgrading bar\n(3/3) upgrading baz\n' > "$FAKE/syu-out"; echo 0 > "$FAKE/syu-rc"
 bash "$PKG" agendado >/dev/null 2>&1 || fail "agendado (tudo) devia terminar bem"
 grep -q "^pacman -Syu --noconfirm --noprogressbar" "$t/log" || fail "escopo tudo: pacman -Syu: $(cat "$t/log")"
 grep -q "subvolume snapshot" "$t/log" || fail "escopo tudo: snapshot antes"
 grep -q "^resultado=ok" "$est" || fail "tudo ok: $(cat "$est")"
+grep -q "^quantos=3$" "$est" || fail "o estado do 'tudo' conta os pacotes atualizados (3): $(cat "$est")"
 printf ' there is nothing to do\n' > "$FAKE/syu-out"; zera
 bash "$PKG" agendado >/dev/null 2>&1; grep -q "^resultado=nada" "$est" || fail "tudo sem nada a fazer: $(cat "$est")"
 echo 1 > "$FAKE/syu-rc"; zera

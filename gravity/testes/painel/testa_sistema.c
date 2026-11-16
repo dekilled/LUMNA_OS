@@ -21,7 +21,7 @@ int main(void) {
 	struct sistema_agenda ag;
 	sistema_agenda_ler(&ag);
 	assert(ag.ligado && !strcmp(ag.escopo, "lumna") && !strcmp(ag.hora, "04:30") && !strcmp(ag.dias, "seg,qua,sex"));
-	assert(ag.ultimo == 1790000000 && !strcmp(ag.resultado, "ok") && !strcmp(ag.ultimo_escopo, "lumna") && !strcmp(ag.pacotes, "lumna-orbit lumna-shell"));
+	assert(ag.ultimo == 1790000000 && !strcmp(ag.resultado, "ok") && !strcmp(ag.ultimo_escopo, "lumna") && !strcmp(ag.pacotes, "lumna-orbit lumna-shell") && ag.quantos == 14);
 	/* a lista "Escolher pacotes": a saída do analisador vira a estrutura (TSV: nome, versões, repositório, situação, motivo) */
 	struct sistema_pacote pk[8];
 	n = sistema_analisar_pacotes(pk, 8);

@@ -44,6 +44,8 @@ package() {
   # a sessão do Orbit e a tela de login
   install -Dm755 lumna-orbit-session "$pkgdir/usr/bin/lumna-orbit-session"
   install -Dm755 lumna-navegadores-barra "$pkgdir/usr/bin/lumna-navegadores-barra"
+  # o aviso na tela quando a atualização agendada termina (roda dentro da sessão: o servidor de avisos é do barramento da sessão)
+  install -Dm755 lumna-atualizar-aviso "$pkgdir/usr/bin/lumna-atualizar-aviso"
   install -Dm755 lumna-entrada-greeter "$pkgdir/usr/bin/lumna-entrada-greeter"
   install -Dm644 lumna-orbit.desktop "$pkgdir/usr/share/wayland-sessions/lumna-orbit.desktop"
   install -Dm755 lumna-modo "$pkgdir/usr/bin/lumna-modo"

@@ -251,7 +251,10 @@ agendado() {
     *) resultado=falhou ;;
   esac
   pacotes="$(sed -n 's/^Atualizações do LUMNA: //p' "$saida" | head -n1)"
-  printf 'quando=%s\nescopo=%s\nresultado=%s\npacotes=%s\n' "$(date +%s)" "$escopo" "$resultado" "$pacotes" > "$VARLIB/atualizar.estado.novo"
+  # quantos pacotes foram atualizados (o pacman escreve uma linha "upgrading nome..." por pacote; o escopo "lumna" já lista os nomes)
+  quantos="$(grep -c '^([0-9]*/[0-9]*) upgrading ' "$saida" 2>/dev/null || true)"
+  [ -n "$quantos" ] || quantos=0
+  printf 'quando=%s\nescopo=%s\nresultado=%s\npacotes=%s\nquantos=%s\n' "$(date +%s)" "$escopo" "$resultado" "$pacotes" "$quantos" > "$VARLIB/atualizar.estado.novo"
   chmod 644 "$VARLIB/atualizar.estado.novo"
   mv -f "$VARLIB/atualizar.estado.novo" "$VARLIB/atualizar.estado"
   echo "== resultado: $resultado ==" >> "$LOGAT"

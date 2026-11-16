@@ -22,7 +22,7 @@ os.chmod(r + "/bin/pacman", 0o755)
 # a atualização agendada: o que o Painel gravou e o que o último agendado fez
 os.makedirs(r + "/etc/lumna", exist_ok=True); os.makedirs(r + "/var/lib/lumna", exist_ok=True)
 open(r + "/etc/lumna/atualizar.conf", "w").write("modo=ligado\nescopo=lumna\nhora=04:30\ndias=seg,qua,sex\n")
-open(r + "/var/lib/lumna/atualizar.estado", "w").write("quando=1790000000\nescopo=lumna\nresultado=ok\npacotes=lumna-orbit lumna-shell\n")
+open(r + "/var/lib/lumna/atualizar.estado", "w").write("quando=1790000000\nescopo=lumna\nresultado=ok\npacotes=lumna-orbit lumna-shell\nquantos=14\n")
 
 # o analisador de pacotes (a lista "Escolher pacotes"): uma saída fixa, no formato TSV do lumna-pkg-analisar
 open(r + "/bin/analisador", "w").write("#!/bin/sh\nprintf 'vlc\\t3.0.20-1\\t3.0.21-1\\textra\\tok\\tInstala também (novos): libnovo\\nfirefox\\t130-1\\t131-1\\textra\\tarrasta\\tPuxaria também: glibc\\nlibfoo\\t1-1\\t2-1\\t-\\tquebra\\tbreaks dependency\\nlinux\\t6.10.1-1\\t6.10.2-1\\t-\\tbase\\tSistema base\\n'\n")

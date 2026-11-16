@@ -1,0 +1,51 @@
+#!/bin/sh
+# Avisa na tela quando a atualização AGENDADA termina (o serviço lumna-atualizar roda como root, de madrugada ou ao ligar; o servidor de avisos do LUMNA mora no barramento
+# PRIVADO da sessão, que o root não alcança: por isso quem avisa é este vigia, que roda dentro da sessão da pessoa). Lê /var/lib/lumna/atualizar.estado: se o agendado
+# rodou depois da última vez que a pessoa foi avisada, mostra o resultado (atualizou, precisa da atualização completa, ou falhou). "Nada a atualizar" não avisa (não vale
+# incomodar). Também cobre o PC que estava desligado na hora marcada: o agendado roda ao ligar e o aviso sai assim que a pessoa entra.
+# LUMNA_VARLIB e XDG_STATE_HOME trocam as pastas e LUMNA_AVISO_UMA_VEZ=1 olha uma vez só e sai (testes).
+ESTADO="${LUMNA_VARLIB:-/var/lib/lumna}/atualizar.estado"
+VISTO="${XDG_STATE_HOME:-$HOME/.local/state}/lumna/atualizar-visto"
+mkdir -p "$(dirname "$VISTO")"
+
+campo() { sed -n "s/^$1=//p" "$ESTADO" 2>/dev/null | head -n1; }
+
+# um aviso pela interface de avisos da sessão (o org.freedesktop.Notifications do lumna-avisos); urgência: 1 normal, 2 crítica
+avisar() {
+  titulo=$1; corpo=$2; urg=$3
+  if command -v gdbus >/dev/null 2>&1; then
+    q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/\\\\'/g")"; }
+    gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications \
+      --method org.freedesktop.Notifications.Notify "LUMNA" 0 "lumna" "$(q "$titulo")" "$(q "$corpo")" "[]" "{'urgency': <byte $urg>}" 12000 >/dev/null 2>&1
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send -a LUMNA -u "$([ "$urg" = 2 ] && echo critical || echo normal)" -t 12000 "$titulo" "$corpo"
+  else
+    return 1
+  fi
+}
+
+checar() {
+  [ -r "$ESTADO" ] || return 0
+  quando=$(campo quando); [ -n "$quando" ] || return 0
+  # a primeira vez nesta conta: só guarda (um resultado antigo não vira aviso)
+  if [ ! -f "$VISTO" ]; then printf '%s\n' "$quando" > "$VISTO"; return 0; fi
+  visto=$(cat "$VISTO" 2>/dev/null || echo 0)
+  [ "$quando" -gt "$visto" ] 2>/dev/null || return 0
+  escopo=$(campo escopo); resultado=$(campo resultado); pacotes=$(campo pacotes); quantos=$(campo quantos)
+  oq=$([ "$escopo" = lumna ] && echo "só o LUMNA" || echo "o sistema")
+  case "$resultado" in
+    ok)
+      if [ -n "$pacotes" ]; then corpo="Atualizou $oq: $pacotes."; elif [ "${quantos:-0}" -gt 0 ] 2>/dev/null; then corpo="Atualizou $oq: $quantos pacotes."; else corpo="Atualizou $oq."; fi
+      avisar "Atualização agendada concluída" "$corpo Se o desktop ou o kernel mudaram, saia da sessão (ou reinicie) para usar a versão nova." 1 || return 0 ;;
+    precisa-completa)
+      avisar "Atualização do LUMNA adiada" "O LUMNA pede pacotes do Arch mais novos e nada foi instalado. Abra Configurações > Sistema > Atualizações e use \"Atualizar tudo\"." 1 || return 0 ;;
+    falhou)
+      avisar "A atualização agendada falhou" "O motivo está em /var/log/lumna-atualizar.log. Se algo ficou estranho, \"Desfazer a última atualização\" está em Configurações > Sistema > Atualizações." 2 || return 0 ;;
+  esac
+  # só marca como visto se o aviso saiu (ou se não havia o que avisar): o servidor de avisos pode ainda não ter subido; tenta de novo no próximo ciclo
+  printf '%s\n' "$quando" > "$VISTO"
+}
+
+if [ -n "${LUMNA_AVISO_UMA_VEZ:-}" ]; then checar; exit 0; fi
+sleep 10   # o lumna-avisos sobe junto com este vigia
+while :; do checar; sleep 60; done
