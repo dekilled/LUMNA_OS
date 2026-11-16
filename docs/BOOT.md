@@ -19,7 +19,7 @@ lumna-boot-tema diagnostico          # se o tema ou a animação não aparecem: 
   a pessoa já tem (as de Windows e BigLinux ficam como estão: cada uma ganha o ícone pela classe que já tem; sem ícone próprio, o do Linux genérico).
 - **Plymouth:** põe o gancho `plymouth` do `mkinitcpio` logo depois do `udev` (ou do `systemd`), `Theme=lumna` em `/etc/plymouth/plymouthd.conf` e refaz o initramfs.
   O pacote também traz um complemento do `greetd` (`greetd.service.d/plymouth.conf`): a animação fica até o login aparecer.
-- Um gancho do pacman (`90-lumna-boot.hook`) refaz o menu e as classes depois de um kernel novo ou do `grub`, só em quem aplicou o tema.
+- Um gancho do pacman (`99-lumna-boot.hook`: o número importa, ver o incidente abaixo) refaz o menu e as classes depois de um kernel novo ou do `grub`, só em quem aplicou o tema.
 
 ## O tema do GRUB
 
@@ -64,3 +64,11 @@ a barra de início automático fina embaixo com a contagem, e a nebulosa com o l
 - **Limites do GRUB** (medidos): o destaque passa da área do item pelas bordas do 9-slice (20 dos lados, 12 em cima e embaixo) e o conteúdo do item selecionado desce 12 px, então o passo entre a 1ª e a 2ª linha é 12 px menor que entre as outras (rows 1 e 3 batem com o esboço, a 2ª fica ~5 px acima);
   a barra de início tem altura mínima de 28 px (o trilho de 12 px está no fundo e o preenchimento é um pixmap com margem transparente); o `item_*` e as porcentagens são fixos em 1920x1080 (em telas menores o fundo estica, e o item não).
 - Quem já aplicou o tema precisa rodar **`sudo lumna-boot-tema aplicar`** de novo (o pacote não mexe no carregador sozinho).
+
+## Incidente: o menu ficou sem a entrada do LUMNA depois de um update (2026-11-15/16, PC do Eric)
+
+**Sintoma:** depois de um `pacman -Syu` (kernel e `grub` novos, 15/11 às 19:39) o GRUB do LUMNA abria com o tema, mas **sem a entrada "LUMNA OS Linux" nem as Opções avançadas**: só "UEFI Firmware Settings" e as entradas "EFI BootNext" (que o GRUB novo gera, uma por item da UEFI). Escolher qualquer uma delas não subia o sistema (as "BootNext" só reiniciam). O kernel e o initramfs estavam intactos em `/boot` (datados do mesmo minuto).
+
+**Causa (o gancho nosso):** o gancho era instalado como `90-lumna-boot.hook` e o pacman os roda em ordem alfabética: ele rodava **antes** do `90-mkinitcpio-install`, que é quem copia o kernel e gera o initramfs em `/boot` (e, antes, o `60-mkinitcpio-remove` tinha apagado os antigos). O `grub-mkconfig` rodava com `/boot` sem kernel, não achava nada e gravava um menu sem a entrada principal. **Correção:** o gancho passou a se chamar `99-lumna-boot.hook` (pkgrel 2). **Prova do conserto à mão:** rodando o `grub-mkconfig` de dentro do LUMNA depois (kernel já no lugar), a saída trouxe `Imagem Linux encontrada: /boot/vmlinuz-linux`. **Não testado de ponta a ponta:** um update de kernel de verdade com o gancho novo (só dá para ver no PC no próximo kernel novo; se o menu perder a entrada de novo, mandar o `grep menuentry /boot/grub/grub.cfg` e o `pacman.log`).
+
+**Recuperação (de outro sistema, sem pendrive):** montar o subvolume `@` e a EFI do LUMNA em uma pasta, espelhar `/dev /proc /sys /run` com `mount --rbind`, e `chroot <pasta> grub-mkconfig -o /boot/grub/grub.cfg` seguido de `lumna-boot-tema regerar`; guardar antes uma cópia do `grub.cfg`.

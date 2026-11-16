@@ -1,3 +1,6 @@
+# O nome do arquivo instalado (99-lumna-boot.hook) importa: o pacman roda os ganchos em ordem alfabética, e este tem de rodar DEPOIS do
+# 90-mkinitcpio-install, que é quem põe o kernel (vmlinuz) e o initramfs em /boot. Com o nome 90-lumna-boot ele rodava ANTES: o grub-mkconfig não achava
+# kernel nenhum e gravava um menu SEM a entrada do LUMNA (o menu quebrado de 15/11/2026 no PC do Eric).
 [Trigger]
 Operation = Install
 Operation = Upgrade

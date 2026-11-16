@@ -2,7 +2,7 @@
 # mais o ajudante lumna-boot-tema que aplica os dois no sistema. Os arquivos gerados (imagens, fontes, script) vêm de iso/branding/.
 pkgname=lumna-boot
 pkgver=0.0.1
-pkgrel=1
+pkgrel=2
 pkgdesc="Visual de boot do LUMNA OS: tema do GRUB e animação de boot (Plymouth)"
 install=lumna-boot.install
 arch=(any)
@@ -21,7 +21,7 @@ package() {
   install -m644 grub/lumna/*.* "$pkgdir/usr/share/lumna/grub/lumna/"
   install -m644 grub/lumna/icons/* "$pkgdir/usr/share/lumna/grub/lumna/icons/"
   # depois de um kernel novo (ou do grub) o menu é refeito com os ícones das entradas
-  install -Dm644 lumna-boot.hook "$pkgdir/usr/share/libalpm/hooks/90-lumna-boot.hook"
+  install -Dm644 lumna-boot.hook "$pkgdir/usr/share/libalpm/hooks/99-lumna-boot.hook"
   # a animação fica até o login aparecer
   install -Dm644 greetd-plymouth.conf "$pkgdir/usr/lib/systemd/system/greetd.service.d/plymouth.conf"
 }
