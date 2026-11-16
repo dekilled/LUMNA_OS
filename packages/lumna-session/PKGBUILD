@@ -45,7 +45,7 @@ package() {
   install -Dm755 lumna-orbit-session "$pkgdir/usr/bin/lumna-orbit-session"
   install -Dm755 lumna-navegadores-barra "$pkgdir/usr/bin/lumna-navegadores-barra"
   # a rede é do NetworkManager: o systemd-networkd e o iwd não sobem juntos (a placa ficava com dois IPs e duas rotas padrão) a menos que a pessoa peça
-  for _u in systemd-networkd.service systemd-networkd.socket systemd-networkd-wait-online.service iwd.service; do
+  for _u in systemd-networkd.service systemd-networkd.socket systemd-networkd-varlink.socket systemd-networkd-varlink-metrics.socket systemd-networkd-resolve-hook.socket systemd-networkd-wait-online.service iwd.service; do
     install -Dm644 systemd-dropins/10-lumna-networkmanager.conf "$pkgdir/usr/lib/systemd/system/$_u.d/10-lumna-networkmanager.conf"
   done
   # o aviso na tela quando a atualização agendada termina (roda dentro da sessão: o servidor de avisos é do barramento da sessão)
