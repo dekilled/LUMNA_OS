@@ -254,6 +254,53 @@ pg = pagina()
 if not pg or pg[0] != 0 or pg[2] < 0:
     falha(f"voltar ao sexto cartão desliza de volta para a página 1 (primeiro cartão visível): {pg}")
 
+# ---------------------------------------------------------------------------------------------------------------------------- 8. o MENU de serviços (assistindo algo) também em páginas: os cartões não encolhem
+for _ in range(12):   # volta ao primeiro cartão (o favorito, o Alfa) e o abre
+    if foco() and foco()[0] == "servicos" and foco()[1] == "0":
+        break
+    tecla(K["esq"])
+tecla(K["enter"])
+if not espera(lambda: cli("--estado").stdout.find('"estado":"servico"') >= 0 and cli("--estado").stdout.find('"ativo":"alfa"') >= 0, 12):
+    falha(f"devia abrir o Alfa para testar o menu: {cli('--estado').stdout}")
+time.sleep(3.0)
+cli("--menu")
+if not espera(lambda: cli("--estado").stdout.find('"estado":"menu"') >= 0, 8):
+    falha(f"--menu devia abrir o menu de serviços: {cli('--estado').stdout}")
+time.sleep(1.5)
+foto("menu-1-primeira-pagina")
+
+
+def pagina_menu():
+    mm = re.findall(r"NAV shell: folha-itens-pagina (\d+)/(\d+) primeiro.x=(-?\d+) ultimo-da-pagina.x=(-?\d+) largura=(\d+)", log())
+    return tuple(int(x) for x in mm[-1]) if mm else None
+
+
+# Início + 8 serviços = 9 cartões; abre no serviço seguinte ao atual (índice 2); quatro setas chegam ao sétimo (índice 6): o segundo grupo
+if foco() != ("folha", "2", "9"):
+    falha(f"o menu tem Início + 8 serviços (9 cartões) e abre no seguinte ao atual: {foco()}")
+for _ in range(3):
+    tecla(K["dir"])
+time.sleep(0.8)
+if foco() != ("folha", "5", "9"):
+    falha(f"três setas chegam ao sexto cartão: {foco()}")
+pm = pagina_menu()
+if pm and pm[0] != 0:
+    falha(f"até o sexto cartão o menu NÃO desliza: {pm}")
+tecla(K["dir"])
+espera(lambda: pagina_menu() and pagina_menu()[0] == 1, 4)
+pm = pagina_menu()
+if not pm or pm[0] != 1 or pm[1] != 2:
+    falha(f"passar do sexto cartão do menu devia deslizar para a página 2 de 2: {pm}")
+elif pm[2] >= 0 or not (0 <= pm[3] < pm[4]):
+    falha(f"os 6 primeiros saem da tela e o sétimo entra (primeiro.x={pm[2]}, último.x={pm[3]}, largura={pm[4]})")
+foto("menu-2-segunda-pagina")
+tecla(K["esq"])
+espera(lambda: pagina_menu() and pagina_menu()[0] == 0, 4)
+pm = pagina_menu()
+if not pm or pm[0] != 0 or pm[2] < 0:
+    falha(f"voltar ao sexto cartão do menu desliza de volta: {pm}")
+tecla(K["esc"])
+
 for p in procs:
     p.kill()
 if os.environ.get("SERVICOS_PRINTS"):

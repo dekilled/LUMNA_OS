@@ -50,7 +50,7 @@ function desenhar() {
   mais.onclick = () => { zona = 'servicos'; idx = t.children.length; ativar(); };
   t.appendChild(mais);
   if (!zonaItens('continuar').length && zona === 'continuar') zona = 'servicos';
-  mostrarPagina(zona === 'servicos' ? Math.floor(idx / POR_PAGINA) : Math.min(pagSvc, Math.ceil(t.children.length / POR_PAGINA) - 1));
+  mostrarPagina('servicos', 'pontos', zona === 'servicos' ? Math.floor(idx / POR_PAGINA) : Math.min(paginas.servicos || 0, Math.ceil(t.children.length / POR_PAGINA) - 1));
   marcar();
 }
 
@@ -67,6 +67,7 @@ function desenharFolha(ativo) {
   }
   idx = Math.max(0, itens.findIndex((s) => s.id === ativo) + 1);  // começa no serviço seguinte ao atual
   if (idx >= itens.length) idx = 0;
+  mostrarPagina('folha-itens', 'folha-pontos', Math.floor(idx / POR_PAGINA), true);   // abre já na página do serviço seguinte (sem deslizar)
   marcar();
 }
 
@@ -270,26 +271,30 @@ function zonaItens(z) {
   if (z === 'acoes') return [...$('acoes-itens').children];
   return [...$(z).children];
 }
-// A fila de streamings: POR_PAGINA por tela. Ao passar do último, a fila desliza (a transição é do CSS: --pg) e entram os seguintes; os pontos mostram a página.
+// As filas de streamings (a do início e o menu de serviços): POR_PAGINA por tela. Ao passar do último, a fila desliza (a transição é do CSS: --pg) e entram os seguintes;
+// os pontos mostram a página. Sem isto os cartões iam encolhendo a cada serviço novo, até ficarem minúsculos.
 const POR_PAGINA = 6;
-let pagSvc = 0;
-function mostrarPagina(p) {
-  const t = $('servicos'), total = Math.max(1, Math.ceil(t.children.length / POR_PAGINA));
+const paginas = {};   // trilho → página atual
+function mostrarPagina(trilho, pontos, p, semAnim) {
+  const t = $(trilho), total = Math.max(1, Math.ceil(t.children.length / POR_PAGINA));
   p = Math.max(0, Math.min(total - 1, p));
-  const pt = $('pontos');
+  const pt = $(pontos);
   if (pt.children.length !== total) { pt.innerHTML = ''; if (total > 1) for (let i = 0; i < total; i++) pt.appendChild(el('i')); }
   [...pt.children].forEach((d, i) => d.classList.toggle('on', i === p));
-  if (p === pagSvc && t.style.getPropertyValue('--pg') === String(p)) return;
-  pagSvc = p;
-  t.style.setProperty('--pg', p);
+  if (p === paginas[trilho] && t.style.getPropertyValue('--pg') === String(p)) return;
+  paginas[trilho] = p;
+  if (semAnim) { t.style.transition = 'none'; t.style.setProperty('--pg', p); void t.offsetWidth; t.style.transition = ''; }
+  else t.style.setProperty('--pg', p);
   setTimeout(() => {   // para o teste: onde estão o primeiro e o último cartões depois de deslizar (x < 0 = fora da tela, à esquerda)
-    const k = [...t.children], r0 = k[0].getBoundingClientRect(), rf = k[Math.min(k.length, (p + 1) * POR_PAGINA) - 1].getBoundingClientRect();
-    console.log(`pagina ${p}/${total} primeiro.x=${Math.round(r0.left)} ultimo-da-pagina.x=${Math.round(rf.left)} largura=${innerWidth}`);
+    const k = [...t.children]; if (!k.length) return;
+    const r0 = k[0].getBoundingClientRect(), rf = k[Math.min(k.length, (p + 1) * POR_PAGINA) - 1].getBoundingClientRect();
+    console.log(`${trilho === 'servicos' ? '' : trilho + '-'}pagina ${p}/${total} primeiro.x=${Math.round(r0.left)} ultimo-da-pagina.x=${Math.round(rf.left)} largura=${innerWidth}`);
   }, 700);
 }
 function marcar() {
   document.querySelectorAll('.foco').forEach((e) => e.classList.remove('foco'));
-  if (zona === 'servicos') mostrarPagina(Math.floor(idx / POR_PAGINA));
+  if (zona === 'servicos') mostrarPagina('servicos', 'pontos', Math.floor(idx / POR_PAGINA));
+  else if (zona === 'folha') mostrarPagina('folha-itens', 'folha-pontos', Math.floor(idx / POR_PAGINA));
   const it = zonaItens(zona)[idx]; if (it) { it.classList.add('foco'); if (zona === 'grade') it.scrollIntoView({ block: 'nearest' }); }
   if (zona === 'form') { const f = zonaItens('form')[idx]; if (f && f.tagName === 'INPUT') f.focus(); else if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur(); }
   console.log(`foco zona=${zona} idx=${idx}/${zonaItens(zona).length}`);
