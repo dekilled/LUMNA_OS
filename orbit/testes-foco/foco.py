@@ -136,6 +136,37 @@ fecha(E)
 if com_foco() != C:
     falha(f"fechei a E (com foco): o foco devia ir para a C (a próxima na ordem de uso): {com_foco()}")
 
+# 4. o cenário do Eric: um navegador MAXIMIZADO (o mais antigo), o Atlas no meio e o Signals por cima. Fechar OU minimizar o Signals leva o foco (e a frente) ao Atlas,
+# que estava logo atrás, e NÃO ao navegador (antes o Firefox ia para a frente e o Atlas ficava escondido atrás dele).
+fecha(C)   # a única que sobrava: limpa para o cenário ficar claro
+NAV, ATLAS, SIGNALS = "navegador-max", "atlas", "signals"
+abre(NAV); time.sleep(0.5)
+msg("maximizar", id_de(NAV)); time.sleep(0.5)
+abre(ATLAS); time.sleep(0.5)
+abre(SIGNALS); time.sleep(0.5)
+if com_foco() != SIGNALS:
+    falha(f"o Signals (o último a abrir) devia ter o foco: {com_foco()}")
+def minimiza(nome):
+    r = subprocess.run(["xdotool", "search", "--name", f"^{nome}$"], env=dict(env, DISPLAY=display), capture_output=True, text=True).stdout.split()
+    if not r:
+        falha(f"não achei a janela {nome} para minimizar")
+        return
+    subprocess.run(["xdotool", "windowminimize", r[0]], env=dict(env, DISPLAY=display), capture_output=True)
+    time.sleep(1.0)
+minimiza(SIGNALS)
+if com_foco() != ATLAS:
+    falha(f"minimizei o Signals: o foco devia ir para o Atlas (o que estava logo atrás), não para o navegador: {com_foco()}")
+# o Atlas tem de estar VISÍVEL (não escondido atrás do navegador maximizado): é a janela com foco e não está minimizada
+j = {x["titulo"]: x for x in janelas()}
+if j.get(ATLAS, {}).get("minimizada"):
+    falha("o Atlas não pode ter sido minimizado junto")
+msg("foco", id_de(SIGNALS)); time.sleep(0.5)       # traz o Signals de volta (minimizada → volta)
+if com_foco() != SIGNALS:
+    falha(f"dar o foco a uma janela minimizada a traz de volta: {com_foco()}")
+fecha(SIGNALS)
+if com_foco() != ATLAS:
+    falha(f"fechei o Signals: o foco devia ir para o Atlas, não para o navegador: {com_foco()}")
+
 sai()
 shutil.rmtree(run, ignore_errors=True) if not falhas else print(f"(log em {run})", file=sys.stderr)
 if falhas:
