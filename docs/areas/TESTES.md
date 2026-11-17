@@ -53,9 +53,12 @@ adivinhadas podem estar erradas. Mais 26 testes novos (ids G-, M-, P-, H-, D-) d
 - Registro criado em 2026-11-17: 610 testes (18 já com resultado). Página "LUMNA OS, testes" publicada.
 - "Onde estamos" está desatualizada desde 2026-11-14 (o `HOJE` do `gera.py` ainda diz 9 de novembro).
 
+- 2026-11-17: os 44 "A classificar" foram distribuídos (38 Desktop, 5 Painel; sobrou o T2.458c, AUR pela Loja de apps, que está fora das áreas). Pulse/terminal ficou no Desktop (nenhum arquivo de área o citava: decisão da Claudia, a confirmar com o Eric).
+- Atenção: as áreas "adivinhadas" dos vizinhos estão claramente erradas em vários (ex.: T2.34 e T2.44 do Pulse em Hardware; T2.390 a T2.399 do Gerenciador em Gaming; T2.468c/d do carrossel em Gaming/Hardware). Próximo passo: revisar área por área.
+
 ## Pendências
 
-1. A filtragem inteira (passo 1), começando pelos 44 "A classificar".
+1. A filtragem inteira (passo 1): os "A classificar" estão feitos; falta corrigir as áreas erradas, marcar obsoletos e juntar repetidos (começar pelo Desktop).
 2. Pôr na "Onde estamos" um bloco com a contagem do registro por área (ler o `registro.tsv` no `gera.py`) e o link da página de testes.
 
 ## Recebido de outras áreas
