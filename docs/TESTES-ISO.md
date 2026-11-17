@@ -1,5 +1,8 @@
 # Roteiro de testes da ISO nova (Orbit + Gravity)
 
+> **Desde 2026-11-17 o trabalho é dividido por áreas** (`docs/areas/`). A lista viva do que conferir em cada área é a seção "Para o Eric conferir" do arquivo dela; este roteiro tem itens desatualizados e vai sendo revisto área por área (ver `docs/areas/LEIAME.md`).
+
+
 Para você ir marcando **passou / falhou** e me mandar o que falhou. Tudo aqui foi testado antes só com programas de
 mentira e com o Orbit sem tela (headless): **na sua máquina é a primeira vez**, então falhar é esperado em algumas coisas.
 

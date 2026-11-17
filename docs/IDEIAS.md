@@ -2,6 +2,8 @@
 
 Onde o Eric e a Claudia anotam o que lembrar para depois. Quando o Eric tiver uma ideia, é só falar: a Claudia põe aqui (com a data) e, quando virar trabalho, passa para "Feito" com o commit.
 
+Desde 2026-11-17 o trabalho é por áreas: o estado e as pendências de cada uma ficam em `docs/areas/` (este arquivo continua para ideias soltas).
+
 Regras de sempre: perguntar antes de decisão estrutural; app novo começa por esboço do Eric; só o que foi pedido.
 
 ## Em andamento
