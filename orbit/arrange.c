@@ -422,6 +422,19 @@ void orbit_arrange(struct orbit_server *server) {
 		bool kiosk = output->mode != ORBIT_MODE_DESKTOP && !output_is_phone(output->wlr);
 		struct wlr_box usable = orbit_layer_usable(output, &box);
 
+		/* as divisas dos encaixes só valem enquanto há janela encaixada nesta tela (em qualquer espaço): sem elas, voltam ao meio */
+		bool ha_encaixe = false;
+		struct orbit_view *enc;
+		wl_list_for_each(enc, &server->views, link) {
+			if (enc->mapped && enc->output == output && enc->snap) {
+				ha_encaixe = true;
+				break;
+			}
+		}
+		if (!ha_encaixe) {
+			output->snap_x = output->snap_yl = output->snap_yr = 0;
+		}
+
 		struct orbit_view *tiled[ORBIT_MAX_VIEWS];
 		struct orbit_view *maxed[ORBIT_MAX_VIEWS];
 		struct orbit_view *full = NULL;

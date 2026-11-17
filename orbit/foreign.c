@@ -115,7 +115,8 @@ void orbit_foreign_sync(struct orbit_view *view) {
 	}
 	wlr_foreign_toplevel_handle_v1_set_activated(view->foreign, view->server->focused == view);
 	wlr_foreign_toplevel_handle_v1_set_fullscreen(view->foreign, view->fullscreen);
-	wlr_foreign_toplevel_handle_v1_set_maximized(view->foreign, view->maximized && !view->fullscreen);
+	/* a janela encaixada também "maximiza" para a dock: ela se esconde, e as janelas vão até a borda de baixo da tela, sem a faixa vazia da dock */
+	wlr_foreign_toplevel_handle_v1_set_maximized(view->foreign, (view->maximized || view->snap) && !view->fullscreen);
 	wlr_foreign_toplevel_handle_v1_set_minimized(view->foreign, view->minimized);
 	/* a saída só enquanto se vê nela (o espaço dela é o visível) */
 	struct wlr_output *output = view->output && view->tag == view->output->tag ? view->output->wlr : NULL;

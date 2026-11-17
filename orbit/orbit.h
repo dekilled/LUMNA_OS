@@ -294,7 +294,9 @@ struct orbit_server {
 	int grab_gx, grab_gy;
 	int grab_w, grab_h;     /* o tamanho ao começar a mudá-lo */
 	uint32_t resize_edges;
-	int snap_pending;       /* a arrastar, na borda: 1 esquerda, 2 direita, 3 maximizar */
+	int snap_pending;       /* a arrastar, perto da borda: um ORBIT_SNAP_* (a janela vai para esse encaixe ao soltar) ou ORBIT_SNAP_MAXIMIZAR */
+	bool snap_resizing;     /* mudando o tamanho de janelas encaixadas: arrastar a divisa entre elas mexe nas proporções da tela */
+	uint32_t snap_resize_edges; /* a(s) borda(s) da divisa que se arrasta (WLR_EDGE_*) */
 	struct wlr_scene_rect *snap_rects[10]; /* a prévia do encaixe: as duas metades (a do alvo cheia, a outra só no contorno) */
 	int master_pct;
 	int gap;
@@ -368,8 +370,24 @@ struct orbit_server {
 	bool virtual_touch;
 };
 
+/* Os encaixes de uma janela livre: as metades (altura inteira) e os quatro cantos (um quarto da tela). */
+enum {
+	ORBIT_SNAP_NONE = 0,
+	ORBIT_SNAP_E = 1,  /* metade da esquerda */
+	ORBIT_SNAP_D = 2,  /* metade da direita */
+	ORBIT_SNAP_NE = 3, /* canto de cima, à esquerda */
+	ORBIT_SNAP_SE = 4, /* canto de baixo, à esquerda */
+	ORBIT_SNAP_ND = 5, /* canto de cima, à direita */
+	ORBIT_SNAP_SD = 6, /* canto de baixo, à direita */
+	ORBIT_SNAP_MAXIMIZAR = 7, /* só no arrasto: soltar aqui maximiza */
+};
+
 struct orbit_output {
 	struct wl_list link;
+	/* onde ficam as divisas dos encaixes desta tela (fração da área útil; 0: o meio). Voltam ao meio quando não há janela encaixada */
+	float snap_x;  /* a divisa vertical entre a coluna da esquerda e a da direita */
+	float snap_yl; /* a divisa horizontal da coluna da esquerda (o canto de cima e o de baixo) */
+	float snap_yr; /* a mesma, na da direita */
 	bool off; /* desligada pelo Painel: está em server->off_outputs */
 	struct orbit_server *server;
 	struct wlr_output *wlr;
@@ -415,7 +433,7 @@ struct orbit_view {
 	bool floating;
 	bool fullscreen;
 	uint32_t focus_seq; /* quando teve o foco por último (o Alt+Tab vai por esta ordem) */
-	int snap;        /* encaixada: 1 na metade esquerda, 2 na direita (0: livre) */
+	int snap;        /* encaixada (ORBIT_SNAP_*), 0: livre */
 	int fx, fy, fw, fh; /* onde e de que tamanho estava livre (para voltar ao soltar o encaixe) */
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
@@ -742,6 +760,8 @@ void orbit_float_show(struct orbit_view *view);
 void orbit_float_fit(struct orbit_server *server);
 void orbit_view_set_output(struct orbit_view *view, struct orbit_output *dest, bool carry);
 struct wlr_box orbit_snap_box(struct orbit_view *view, int snap);
+struct wlr_box orbit_snap_box_output(struct orbit_output *output, int snap);
+uint32_t orbit_snap_inner_edges(int snap);
 void orbit_view_snap(struct orbit_view *view, int snap);
 void orbit_snap_key(struct orbit_server *server, int dir);
 void orbit_move_begin(struct orbit_server *server, struct orbit_view *view);

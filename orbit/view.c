@@ -696,6 +696,13 @@ static void popup_unconstrain(struct orbit_popup *popup) {
 	if (box.width > 0 && box.height > 0) {
 		wlr_xdg_popup_unconstrain_from_box(popup->xdg_popup, &box);
 	}
+	/* onde o menu vai nascer (em relação à janela) e o limite usado: quando um menu de contexto aparece no monitor errado, o log diz de quem foi a conta */
+	if (view) {
+		const struct wlr_box *g = &popup->xdg_popup->scheduled.geometry;
+		wlr_log(WLR_INFO, "menu da janela %s: em (%d,%d) %dx%d, limite (%d,%d) %dx%d, janela em (%d,%d) na saída %s%s", orbit_view_app_id(view),
+			g->x, g->y, g->width, g->height, box.x, box.y, box.width, box.height, view->x, view->y,
+			view->output ? view->output->wlr->name : "(nenhuma)", view->snap ? " (encaixada)" : "");
+	}
 }
 
 static void xdg_popup_commit(struct wl_listener *listener, void *data) {

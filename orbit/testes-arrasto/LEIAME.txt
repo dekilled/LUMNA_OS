@@ -11,3 +11,5 @@ depois, passa para o outro monitor com o tamanho de antes. Uso: sh teste_alt.sh 
 teste_borda.sh: como teste_alt.sh, com X de destino do cursor, DY, quanto fica parado antes de soltar (ms) e OFF= (onde agarra a janela, a partir da borda
 esquerda dela). Casos: zona da lateral (encaixa ao soltar), atravessar para o outro monitor (não encaixa), borda da janela encostando com o cursor longe
 (OFF=150, X=150), meio da tela (nada) e cima (maximiza). Uso: OFF=150 sh teste_borda.sh PASTA 150 0 100.
+Desde 2026-11-17 o encaixe vem só do cursor (faixa de 24 px) e a borda da janela encostando NÃO encaixa mais; as metades e os cantos estão em
+../testes-encaixe/ (teste_encaixe.py). Estes scripts pedem coordenadas antigas (zona de 56 px) e valem como roteiro, não como regressão.

@@ -10,15 +10,17 @@
  * As janelas livres do desktop (arranjo = livre, o de fábrica): abrem no meio da área útil, com
  * o tamanho que pedem, e movem-se pela barra de título (xdg move), com Alt+arrastar, e mudam de
  * tamanho pelas bordas (xdg resize) ou com Alt+botão direito. O encaixe só vem de um gatilho:
- * largar a janela na borda esquerda/direita da tela (metade) ou em cima (maximizar), ou
- * Super+setas. Uma janela encaixada ou maximizada volta ao tamanho livre de antes ao arrastá-la.
+ * largar a janela com o CURSOR perto da lateral da tela (a posição dele na altura escolhe o encaixe: no meio, a metade com a altura
+ * inteira; perto do topo ou do fim, o canto, com um quarto da tela) ou em cima (maximizar), ou Super+setas. Uma janela encaixada ou
+ * maximizada volta ao tamanho livre de antes ao arrastá-la. As janelas encaixadas se redimensionam juntas, pela divisa entre elas.
  * O telemóvel continua em mosaico.
  */
 
 #define ORBIT_MIN_W 240
 #define ORBIT_MIN_H 160
-#define ORBIT_SNAP_ZONE 56 /* px, nas laterais de cada monitor: a zona de encaixe. Só vale se SOLTAR a janela com o cursor nela; passar por ela atravessa */
-#define ORBIT_SNAP_WINDOW 12 /* px: a janela arrastada "chegou" à lateral quando a borda dela fica a menos disto da do monitor (ou passa dela) */
+#define ORBIT_SNAP_ZONE 24 /* px, nas laterais de cada monitor: a zona de encaixe, em volta do CURSOR (a borda da janela encostando não conta). Só vale se SOLTAR com o cursor nela; passar por ela atravessa */
+#define ORBIT_SNAP_CORNER 0.30 /* a fração da altura útil, a partir do topo e a partir do fim, onde a lateral dá um canto (um quarto da tela) em vez da metade */
+#define ORBIT_SNAP_MIN_FRAC 0.15 /* a menor fração de uma divisa de encaixe */
 #define ORBIT_SNAP_TOP 4   /* em cima (maximizar): fina, porque quem arrasta pela barra de título anda sempre perto do topo */
 
 /* o tamanho da janela que o cliente diz (no 0.19 passou a um campo) */
@@ -219,16 +221,75 @@ void orbit_float_show(struct orbit_view *view) {
 	orbit_deco_update(view);
 }
 
-/* a metade da área útil de um encaixe (1 esquerda, 2 direita) */
-struct wlr_box orbit_snap_box(struct orbit_view *view, int snap) {
-	struct orbit_server *server = view->server;
+/* o encaixe fica na coluna da esquerda (1) ou da direita (2); 0 se não é encaixe */
+static int snap_coluna(int snap) {
+	switch (snap) {
+	case ORBIT_SNAP_E: case ORBIT_SNAP_NE: case ORBIT_SNAP_SE: return 1;
+	case ORBIT_SNAP_D: case ORBIT_SNAP_ND: case ORBIT_SNAP_SD: return 2;
+	default: return 0;
+	}
+}
+
+/* a linha do encaixe: 0 a altura inteira (metade da tela), 1 o canto de cima, 2 o de baixo */
+static int snap_linha(int snap) {
+	switch (snap) {
+	case ORBIT_SNAP_NE: case ORBIT_SNAP_ND: return 1;
+	case ORBIT_SNAP_SE: case ORBIT_SNAP_SD: return 2;
+	default: return 0;
+	}
+}
+
+static float frac(float f) {
+	return f > 0 ? f : 0.5f;
+}
+
+/* O retângulo (de fora, com a barra de título) de um encaixe nesta tela: a área útil dividida pelas divisas da tela, com o espaço (gap) em volta
+ * de cada janela. Sem janelas encaixadas, as divisas estão no meio. */
+struct wlr_box orbit_snap_box_output(struct orbit_output *output, int snap) {
+	struct orbit_server *server = output->server;
 	struct wlr_box full = { 0 };
-	wlr_output_layout_get_box(server->layout, view->output->wlr, &full);
-	struct wlr_box u = orbit_layer_usable(view->output, &full);
+	wlr_output_layout_get_box(server->layout, output->wlr, &full);
+	struct wlr_box u = orbit_layer_usable(output, &full);
 	int gap = server->gap;
-	int half = (u.width - 3 * gap) / 2;
-	struct wlr_box box = { snap == 1 ? u.x + gap : u.x + 2 * gap + half, u.y + gap, half, u.height - 2 * gap };
+	int col = snap_coluna(snap), lin = snap_linha(snap);
+	int wl = (int)((u.width - 3 * gap) * frac(output->snap_x));
+	int wr = u.width - 3 * gap - wl;
+	struct wlr_box box = { 0 };
+	box.x = col == 1 ? u.x + gap : u.x + 2 * gap + wl;
+	box.width = col == 1 ? wl : wr;
+	if (lin == 0) {
+		box.y = u.y + gap;
+		box.height = u.height - 2 * gap;
+	} else {
+		int cima = (int)((u.height - 3 * gap) * frac(col == 1 ? output->snap_yl : output->snap_yr));
+		if (lin == 1) {
+			box.y = u.y + gap;
+			box.height = cima;
+		} else {
+			box.y = u.y + 2 * gap + cima;
+			box.height = u.height - 3 * gap - cima;
+		}
+	}
 	return box;
+}
+
+struct wlr_box orbit_snap_box(struct orbit_view *view, int snap) {
+	return orbit_snap_box_output(view->output, snap);
+}
+
+/* as bordas de uma janela encaixada que dão para a divisa com as vizinhas (as outras encostam na tela e não se mexem) */
+uint32_t orbit_snap_inner_edges(int snap) {
+	int col = snap_coluna(snap), lin = snap_linha(snap);
+	if (!col) {
+		return 0;
+	}
+	uint32_t e = col == 1 ? WLR_EDGE_RIGHT : WLR_EDGE_LEFT;
+	if (lin == 1) {
+		e |= WLR_EDGE_BOTTOM;
+	} else if (lin == 2) {
+		e |= WLR_EDGE_TOP;
+	}
+	return e;
 }
 
 void orbit_view_snap(struct orbit_view *view, int snap) {
@@ -392,39 +453,37 @@ void orbit_move_motion(struct orbit_server *server) {
 	struct wlr_box full;
 	wlr_output_layout_get_box(server->layout, output->wlr, &full);
 	double x = server->cursor->x, y = server->cursor->y;
-	/* As laterais do monitor são uma zona (ORBIT_SNAP_ZONE): a janela passa por ela direto para o monitor do lado, e só entra no arranjo
-	 * (metade da tela) se for SOLTA com o cursor dentro dela. Em cima, uma faixa fina maximiza. */
-	/* A zona aparece também quando é a JANELA que chega à lateral (a borda dela encosta na do monitor), mesmo com o cursor mais para dentro:
-	 * uma janela larga agarrada pelo meio chega à borda muito antes do cursor. Só conta se a janela está na maior parte neste monitor
-	 * (senão é uma travessia: a janela passando para o outro lado) e o cursor está na metade daquela lateral. */
-	struct wlr_box g = geometry(view);
-	int gw = g.width > 0 ? g.width : view->w, gh = g.height > 0 ? g.height : view->h;
-	struct wlr_box win = { view->x, view->y, gw > 0 ? gw : 1, gh > 0 ? gh : 1 }, inter;
-	bool mostly_here = wlr_box_intersection(&inter, &win, &full) && (long)inter.width * inter.height * 2 >= (long)win.width * win.height;
-	bool left_half = x < full.x + full.width / 2.0;
-	if (x <= full.x + ORBIT_SNAP_ZONE || (mostly_here && left_half && view->x <= full.x + ORBIT_SNAP_WINDOW)) {
-		server->snap_pending = 1;
-	} else if (x >= full.x + full.width - 1 - ORBIT_SNAP_ZONE || (mostly_here && !left_half && view->x + win.width >= full.x + full.width - ORBIT_SNAP_WINDOW)) {
-		server->snap_pending = 2;
+	/* O encaixe depende só do CURSOR (a borda da janela encostando na da tela não conta: uma janela larga agarrada pelo meio chegava à lateral
+	 * muito antes do cursor e encaixava sem querer). As laterais do monitor são uma faixa fina (ORBIT_SNAP_ZONE): a janela passa por ela direto
+	 * para o monitor do lado, e só entra no arranjo se for SOLTA com o cursor dentro dela. A altura do cursor escolhe o encaixe: perto do topo
+	 * ou do fim da lateral, o canto (um quarto da tela); no meio, a metade com a altura inteira. Em cima, uma faixa fina maximiza. */
+	bool esq = x <= full.x + ORBIT_SNAP_ZONE, dir = x >= full.x + full.width - 1 - ORBIT_SNAP_ZONE;
+	if (esq || dir) {
+		struct wlr_box u = orbit_layer_usable(output, &full);
+		double fy = u.height > 0 ? (y - u.y) / (double)u.height : 0.5;
+		int lin = fy < ORBIT_SNAP_CORNER ? 1 : fy > 1 - ORBIT_SNAP_CORNER ? 2 : 0;
+		static const int codigo[2][3] = { { ORBIT_SNAP_E, ORBIT_SNAP_NE, ORBIT_SNAP_SE }, { ORBIT_SNAP_D, ORBIT_SNAP_ND, ORBIT_SNAP_SD } };
+		server->snap_pending = codigo[esq ? 0 : 1][lin];
 	} else if (y <= full.y + ORBIT_SNAP_TOP) {
-		server->snap_pending = 3;
+		server->snap_pending = ORBIT_SNAP_MAXIMIZAR;
 	}
 	if (!server->snap_pending) {
 		preview(server, NULL, NULL);
 		return;
 	}
-	struct orbit_output *old = view->output;
-	view->output = output;
 	struct wlr_box box, other;
 	struct wlr_box *other_ptr = NULL;
-	if (server->snap_pending == 3) {
+	if (server->snap_pending == ORBIT_SNAP_MAXIMIZAR) {
 		box = orbit_layer_usable(output, &full);
 	} else {
-		box = orbit_snap_box(view, server->snap_pending);
-		other = orbit_snap_box(view, server->snap_pending == 1 ? 2 : 1);
+		/* o alvo cheio e, no contorno, o que sobra para a outra janela: a outra metade, ou o outro canto da mesma coluna */
+		int s = server->snap_pending;
+		int outro = snap_linha(s) == 0 ? (snap_coluna(s) == 1 ? ORBIT_SNAP_D : ORBIT_SNAP_E)
+			: snap_linha(s) == 1 ? s + 1 : s - 1;
+		box = orbit_snap_box_output(output, s);
+		other = orbit_snap_box_output(output, outro);
 		other_ptr = &other;
 	}
-	view->output = old;
 	preview(server, &box, other_ptr);
 }
 
@@ -473,7 +532,7 @@ void orbit_move_end(struct orbit_server *server) {
 		view->fx = view->x;
 		view->fy = view->y;
 	}
-	if (snap == 3) {
+	if (snap == ORBIT_SNAP_MAXIMIZAR) {
 		orbit_view_set_maximized(view, true);
 		return;
 	}
@@ -491,14 +550,17 @@ void orbit_move_end(struct orbit_server *server) {
 /* as bordas de uma janela livre debaixo deste ponto (0: no meio dela) */
 /* O quanto, por dentro da borda de uma janela livre, o cursor já está na faixa de mudar o tamanho (a janela não o vê ali): o ponteiro confinado fica de fora dela. */
 int orbit_float_edge_margin(struct orbit_view *view) {
-	if (!view || !view->floating || view->maximized || view->snap || view->fullscreen) {
+	if (!view || !view->floating || view->maximized || view->fullscreen) {
+		return 0;
+	}
+	if (view->snap && !orbit_snap_inner_edges(view->snap)) {
 		return 0;
 	}
 	return ORBIT_EDGE_GRAB + 1;
 }
 
 uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly) {
-	if (!view || !view->floating || view->maximized || view->snap || view->fullscreen) {
+	if (!view || !view->floating || view->maximized || view->fullscreen) {
 		return 0;
 	}
 	struct wlr_box g = geometry(view);
@@ -515,6 +577,9 @@ uint32_t orbit_float_edges_at(struct orbit_view *view, double lx, double ly) {
 		edges |= WLR_EDGE_TOP;
 	} else if (y > altura - ORBIT_EDGE_GRAB) {
 		edges |= WLR_EDGE_BOTTOM;
+	}
+	if (view->snap) {
+		edges &= orbit_snap_inner_edges(view->snap); /* encaixada: só a divisa com as vizinhas se mexe */
 	}
 	return edges;
 }
@@ -533,6 +598,83 @@ const char *orbit_edges_cursor(uint32_t edges) {
 	}
 }
 
+/* ---- mudar o tamanho de janelas encaixadas: a divisa entre elas ---- */
+
+static int min_largura(struct orbit_view *view);
+static int min_altura(struct orbit_view *view);
+
+/* o menor tamanho que uma janela encaixada nesta coluna (ou linha) aceita: o do Orbit, ou o que o app pediu */
+static int snap_min_dim(struct orbit_output *output, int coluna, int linha, bool largura) {
+	int m = largura ? ORBIT_MIN_W : ORBIT_MIN_H;
+	struct orbit_view *v;
+	wl_list_for_each(v, &output->server->views, link) {
+		if (!v->mapped || v->output != output || !v->snap || snap_coluna(v->snap) != coluna || (linha && snap_linha(v->snap) != linha)) {
+			continue;
+		}
+		int pedido = largura ? min_largura(v) : min_altura(v);
+		if (pedido > m) {
+			m = pedido;
+		}
+	}
+	return m;
+}
+
+static float limita(float f, int min_a, int min_b, int total) {
+	float lo = total > 0 ? (float)min_a / total : ORBIT_SNAP_MIN_FRAC, hi = total > 0 ? 1.0f - (float)min_b / total : 1 - ORBIT_SNAP_MIN_FRAC;
+	if (lo < ORBIT_SNAP_MIN_FRAC) {
+		lo = ORBIT_SNAP_MIN_FRAC;
+	}
+	if (hi > 1 - ORBIT_SNAP_MIN_FRAC) {
+		hi = 1 - ORBIT_SNAP_MIN_FRAC;
+	}
+	if (lo > hi) {
+		return 0.5f;
+	}
+	return f < lo ? lo : f > hi ? hi : f;
+}
+
+static void snap_resize_begin(struct orbit_server *server, struct orbit_view *view, uint32_t edges) {
+	server->cursor_mode = ORBIT_CURSOR_RESIZE;
+	server->snap_resizing = true;
+	server->snap_resize_edges = edges;
+	server->grabbed = view;
+	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, orbit_edges_cursor(edges & 15));
+	orbit_focus(view);
+}
+
+/* o cursor arrasta a divisa: a fração da tela vira a posição dele, e todas as janelas encaixadas desta tela se refazem de uma vez */
+static void snap_resize_motion(struct orbit_server *server) {
+	struct orbit_view *view = server->grabbed;
+	if (!view || !view->mapped || !view->output || !view->snap) {
+		return;
+	}
+	struct orbit_output *output = view->output;
+	struct wlr_box full = { 0 };
+	wlr_output_layout_get_box(server->layout, output->wlr, &full);
+	struct wlr_box u = orbit_layer_usable(output, &full);
+	int gap = server->gap;
+	int col = snap_coluna(view->snap), lin = snap_linha(view->snap);
+	uint32_t e = server->snap_resize_edges;
+	if (e & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) {
+		int total = u.width - 3 * gap;
+		/* o cursor no meio do espaço entre as duas colunas: a largura da coluna da esquerda é o que fica à esquerda dele */
+		int esq = (int)(server->cursor->x - (u.x + gap) - gap / 2.0);
+		output->snap_x = limita((float)esq / (total > 0 ? total : 1), snap_min_dim(output, 1, 0, true), snap_min_dim(output, 2, 0, true), total);
+	}
+	if ((e & (WLR_EDGE_TOP | WLR_EDGE_BOTTOM)) && lin) {
+		int total = u.height - 3 * gap;
+		int cima = (int)(server->cursor->y - (u.y + gap) - gap / 2.0);
+		/* a divisa vale para o canto de cima e o de baixo da coluna: os mínimos são dos dois */
+		float f = limita((float)cima / (total > 0 ? total : 1), snap_min_dim(output, col, 1, false), snap_min_dim(output, col, 2, false), total);
+		if (col == 1) {
+			output->snap_yl = f;
+		} else {
+			output->snap_yr = f;
+		}
+	}
+	orbit_arrange(server);
+}
+
 void orbit_resize_begin(struct orbit_server *server, struct orbit_view *view, uint32_t edges) {
 	if (!view || !view->mapped || view->fullscreen || server->session_locked) {
 		return;
@@ -541,6 +683,10 @@ void orbit_resize_begin(struct orbit_server *server, struct orbit_view *view, ui
 		view->floating = true;
 	}
 	if (!view->floating) {
+		return;
+	}
+	if (view->snap && !view->maximized && edges && !(edges & ~orbit_snap_inner_edges(view->snap))) {
+		snap_resize_begin(server, view, edges); /* a divisa entre janelas encaixadas: elas se redimensionam juntas */
 		return;
 	}
 	if (view->maximized || view->snap) {
@@ -592,6 +738,10 @@ static int min_altura(struct orbit_view *view) {
 }
 
 void orbit_resize_motion(struct orbit_server *server) {
+	if (server->snap_resizing) {
+		snap_resize_motion(server);
+		return;
+	}
 	struct orbit_view *view = server->grabbed;
 	int dx = (int)(server->cursor->x - server->grab_x);
 	int dy = (int)(server->cursor->y - server->grab_y);
@@ -636,6 +786,7 @@ void orbit_resize_motion(struct orbit_server *server) {
 }
 
 void orbit_resize_end(struct orbit_server *server) {
+	server->snap_resizing = false;
 	struct orbit_view *view = server->grabbed;
 	server->cursor_mode = ORBIT_CURSOR_PASSTHROUGH;
 	server->grabbed = NULL;

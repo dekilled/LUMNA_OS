@@ -1,0 +1,14 @@
+Encaixe de janelas (float.c) e dock escondida. Tudo num Orbit headless (WLR_BACKENDS=headless), sem tela de verdade.
+Precisam de: o Orbit compilado, o menu_gtk (menu_gtk.c: uma janela GTK3 com menu de clique direito; gcc menu_gtk.c $(pkg-config --cflags --libs gtk+-3.0)),
+grim e, para o X11, xterm e xdotool. O mouse é o do próprio Orbit (orbit-msg mouse mover/botao).
+
+  python3 teste_encaixe.py PASTA_DO_ORBIT PASTA_COM_menu_gtk
+      cursor na lateral: no meio, metade; perto do topo ou do fim, o canto de cima ou de baixo; a borda da janela encostando não encaixa; meio da tela
+      nada, topo maximiza; arrastar a divisa vertical e a horizontal entre janelas encaixadas redimensiona as duas e respeita o mínimo; sem
+      janela encaixada as divisas voltam ao meio.
+  python3 teste_dock.py PASTA_DO_ORBIT PASTA_COM_menu_gtk CAMINHO_DO_dock
+      com a dock de verdade: a janela encaixada esconde a dock (a área útil vira a tela toda) e vai até a borda de baixo; ao soltar, a dock volta.
+  sh teste_menu.sh PASTA_DO_ORBIT PASTA_COM_menu_gtk      (comum.sh: o ambiente)
+  sh teste_menu_x11.sh ...                                 o menu de contexto de uma janela encaixada nasce junto do cursor, no monitor dela.
+      O do GTK3 sai certo. O do xterm (Ctrl+botão direito) não abriu menu aqui: sem conclusão.
+Controle negativo feito: sem o redimensionamento pela divisa, ou sem a dock saber do encaixe (foreign.c), os testes falham.
