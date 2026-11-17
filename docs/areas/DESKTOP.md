@@ -55,4 +55,7 @@ No registro de testes: `python3 docs/testes/teste.py lista Desktop` (pendentes) 
 
 ## Recebido de outras áreas
 
-(vazio)
+- **Atlas, Ctrl+L: o Tab não completa** (teste T2.83, falhou, Eric no PC, 2026-11-17). O campo abre e dá para digitar, mas o Tab só tira o foco do campo.
+  O doc (`docs/ATLAS.md`, "O caminho digitado") e o código (`atlas.c`: `editar_caminho_completar` ~l.1607 e o tratamento do Tab ~l.4587, com
+  `gv_teclado_cru()`) dizem que Tab completa e entra na pasta. Possíveis causas a olhar: o Tab chegando ao foco do Gravity antes do ramo do
+  `editando_caminho`; ou a lista `sug` vazia no momento do Tab (o `return` silencioso). Falta saber se a lista de sugestões aparecia abaixo do campo.
