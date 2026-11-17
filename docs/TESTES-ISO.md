@@ -1,6 +1,6 @@
 # Roteiro de testes da ISO nova (Orbit + Gravity)
 
-> **Desde 2026-11-17 o trabalho é dividido por áreas** (`docs/areas/`). A lista viva do que conferir em cada área é a seção "Para o Eric conferir" do arquivo dela; este roteiro tem itens desatualizados e vai sendo revisto área por área (ver `docs/areas/LEIAME.md`).
+> **Desde 2026-11-17 o trabalho é dividido por áreas** (`docs/areas/`). Todos os itens deste roteiro foram importados para o **registro de testes** (`docs/testes/registro.tsv`, ids `T<número>`), que é a lista viva com o resultado de cada um (`python3 docs/testes/teste.py`); este arquivo fica só como histórico. Ver `docs/areas/TESTES.md`.
 
 
 Para você ir marcando **passou / falhou** e me mandar o que falhou. Tudo aqui foi testado antes só com programas de

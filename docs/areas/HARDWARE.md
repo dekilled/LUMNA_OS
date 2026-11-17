@@ -42,6 +42,8 @@ O que conversa com o hardware e com o sistema por baixo: **discos** (montagem, `
 
 ## Para o Eric conferir
 
+No registro de testes: `python3 docs/testes/teste.py lista Hardware` (pendentes) e `lista Hardware falhou`. Os itens recentes:
+
 - [ ] No próximo update de **kernel**: o menu do GRUB continua com a entrada do LUMNA (`cat /var/log/lumna-boot.log`).
 - [ ] `coredumpctl list orbit` depois de sair da sessão: não deve aparecer queda nova (o abort ao sair foi corrigido em `31fb1d4`).
 

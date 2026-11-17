@@ -35,6 +35,8 @@ Quando uma página só mostra o que outra área faz (ex.: a montagem de discos),
 
 ## Para o Eric conferir
 
+No registro de testes: `python3 docs/testes/teste.py lista Painel` (pendentes) e `lista Painel falhou`. Os itens recentes:
+
 - [ ] O aviso do agendado às 21 h apareceu?
 - [ ] O que falta na página Bluetooth para o uso do dia a dia (lista do que ele quer).
 

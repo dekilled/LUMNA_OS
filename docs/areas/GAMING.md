@@ -38,6 +38,8 @@ O modo Gaming inteiro: a biblioteca `lumna-jogos` (Início, Biblioteca, Detalhes
 
 ## Para o Eric conferir
 
+No registro de testes: `python3 docs/testes/teste.py lista Gaming` (pendentes) e `lista Gaming falhou`. Os itens recentes:
+
 - [ ] Capas da Loja que não carregavam ("just volleyball", "Morrowind", "Upgrade para Estatuto Prime"): carregam depois do update?
 - [ ] Os dados do controle (item 1 das pendências).
 

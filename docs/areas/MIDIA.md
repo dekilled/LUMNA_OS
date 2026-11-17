@@ -34,6 +34,8 @@ vídeos, splash e animações), os streamings (Netflix, YouTube TV, Prime, HBO, 
 
 ## Para o Eric conferir
 
+No registro de testes: `python3 docs/testes/teste.py lista Mídia` (pendentes) e `lista Mídia falhou`. Os itens recentes:
+
 - [ ] Em quais sites/telas o destaque do controle se perde (print ajuda).
 - [ ] Netflix e Disney+ com o controle (o YouTube era o ruim antes do modo TV).
 

@@ -10,9 +10,10 @@ e o **seu arquivo aqui**. O arquivo é a memória da área: o chat novo começa 
 | Painel de controle | [PAINEL.md](PAINEL.md) | todas as páginas do Painel, Atualizações (lumna-pkg), Animações, Aparência, Inicialização |
 | Hardware, drivers e kernel | [HARDWARE.md](HARDWARE.md) | discos e montagem, rede, Wi-Fi, áudio, Bluetooth, GPU, drivers e kernels, boot/GRUB, ISO e instalador |
 | Desktop e Orbit | [DESKTOP.md](DESKTOP.md) | o compositor (janelas, encaixe, foco, multi-monitor, XWayland), dock, barra, lançador e os apps do dia a dia (Atlas, Música, Galeria, Signals, Captura) |
+| Testes | [TESTES.md](TESTES.md) | não programa: filtra e conduz os testes com o Eric, registra o resultado de cada um e atualiza a página "Onde estamos" |
 
-As quatro primeiras são as que o Eric pediu. **Desktop e Orbit** é sugestão da Claudia: o multitarefa (o resize das janelas encaixadas) e os apps
-do dia a dia não cabem bem em nenhuma das quatro. Se o Eric preferir, ela some e os itens vão para a área mais perto.
+As quatro primeiras são as que o Eric pediu; **Desktop e Orbit** foi sugerida pela Claudia e o Eric aprovou (2026-11-17); **Testes** é a área de
+filtragem e acompanhamento dos testes, pedida pelo Eric no mesmo dia.
 
 ## Como abrir o chat de uma área
 
@@ -26,8 +27,10 @@ Mensagem de abertura (trocando a área):
 - **Cada chat mexe na sua área.** Se aparecer algo de outra área, anota no arquivo dela (seção "Recebido de outras áreas") e não resolve ali.
   Mudança em código compartilhado (Orbit, `gravity/src`, `servicos/`, `session/`) é permitida quando a área precisa, mas fica dito no commit e no
   arquivo da área.
-- **Fim de cada rodada de trabalho:** atualizar o arquivo da área: o "Estado", as "Pendências" e, principalmente, o **"Para o Eric conferir"**
-  (o que ele precisa testar no PC, com o comando de diagnóstico quando houver). Item confirmado pelo Eric sai da lista e vai para "Confirmado no PC".
+- **Fim de cada rodada de trabalho:** atualizar o "Estado" e as "Pendências" do arquivo da área e **registrar no registro de testes** o que o Eric
+  precisa conferir no PC: `python3 docs/testes/teste.py novo AREA "Grupo" "O que fazer" "O que deve acontecer"` (um teste por coisa, com o
+  comando de diagnóstico quando houver). O que o Eric disser que funcionou ou falhou: `teste.py marcar ID passou|falhou|parcial "nota"`.
+  O registro (`docs/testes/registro.tsv`) é a **única lista** do que conferir; ver `docs/areas/TESTES.md`.
 - **Git:** os chats rodam em paralelo e empurram para os mesmos branches. Antes de empurrar: `git fetch origin lumna-mobile && git merge --no-edit FETCH_HEAD`
   (nunca rebase nem force). Empurrar para **os dois**: `git push origin HEAD:lumna-mobile` e `git push origin HEAD:iso-orbit` (o push no
   `iso-orbit` faz o CI republicar os pacotes do repositório `[lumna]`). Commits pequenos, com a área no começo da mensagem.
@@ -48,9 +51,9 @@ Mensagem de abertura (trocando a área):
 
 ## O roteiro de testes antigo (docs/TESTES-ISO.md)
 
-O `TESTES-ISO.md` tem ~580 itens e muitos estão **desatualizados**. A partir de agora, a lista viva de cada área é o **"Para o Eric conferir"**
-do arquivo dela. Quando o Eric fizer a bateria de testes, cada chat revisa as seções antigas da sua área (abaixo) e: apaga o que não vale mais,
-reescreve o que mudou, e marca o que passou.
+O `TESTES-ISO.md` tem 584 itens e muitos estão **desatualizados**. Todos foram importados para o registro (`docs/testes/registro.tsv`, ids
+`T<seção>.<n>`), e daqui em diante o registro é a lista viva; o `TESTES-ISO.md` fica só como histórico. A filtragem (o que não vale mais, o
+repetido, a área certa) é trabalho da área **Testes**. As seções antigas e as áreas (a importação usou isto):
 
 | Seções do TESTES-ISO.md | Área |
 |---|---|

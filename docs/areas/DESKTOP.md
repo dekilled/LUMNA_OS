@@ -1,6 +1,6 @@
 # Área: Desktop e Orbit
 
-Leia antes o [LEIAME.md](LEIAME.md). Área sugerida pela Claudia (não estava na lista do Eric): o compositor e o dia a dia do Desktop.
+Leia antes o [LEIAME.md](LEIAME.md). Área sugerida pela Claudia e aprovada pelo Eric (2026-11-17): o compositor e o dia a dia do Desktop.
 
 ## Escopo
 
@@ -38,6 +38,8 @@ espaços), a **dock**, a **barra** de cima, o **lançador**, a área de trabalho
    estreitos, captura "última área".
 
 ## Para o Eric conferir
+
+No registro de testes: `python3 docs/testes/teste.py lista Desktop` (pendentes) e `lista Desktop falhou`. Os itens recentes:
 
 - [ ] Descrever a inconsistência do resize (pendência 1).
 - [ ] A faixa de 24 px do encaixe está boa de acertar?

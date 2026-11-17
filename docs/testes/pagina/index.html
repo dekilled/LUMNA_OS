@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUMNA OS, testes</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--linha:#262a33;--txt:#e7e9ee;--sub:#9aa1ad;--pend:#5b6270;--ok:#3fb37f;--erro:#e5534b;--parc:#d8a33a;--obs:#7c6fd6;--pul:#4a90c2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}h1{font-size:26px;margin:0 0 4px}.sub{color:var(--sub);font-size:13px}
+.areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:22px 0}
+.area{background:var(--card);border:1px solid var(--linha);border-radius:12px;padding:14px;cursor:pointer}
+.area.sel{border-color:#8f86ff}.area h3{margin:0 0 6px;font-size:15px}.area .n{font-size:12px;color:var(--sub)}
+.barra{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--linha);margin:8px 0}
+.barra span{display:block;height:100%}
+.leg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--sub)}.leg b{color:var(--txt);font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 14px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
+.chip{border:1px solid var(--linha);background:var(--card);color:var(--txt);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
+.chip.sel{background:#2b2850;border-color:#8f86ff}
+input[type=search]{flex:1;min-width:180px;background:var(--card);border:1px solid var(--linha);color:var(--txt);border-radius:8px;padding:7px 10px;font-size:14px}
+.grupo{margin:18px 0 6px;font-size:13px;color:var(--sub);text-transform:uppercase;letter-spacing:.04em}
+.t{background:var(--card);border:1px solid var(--linha);border-left:4px solid var(--pend);border-radius:8px;padding:10px 12px;margin:6px 0}
+.t .topo{display:flex;gap:8px;align-items:baseline}.t .id{font:12px ui-monospace,monospace;color:var(--sub);min-width:62px}
+.t .faz{flex:1}.t .esp{color:var(--sub);font-size:13.5px;margin:4px 0 0 70px}.t .nota{font-size:13px;margin:6px 0 0 70px;padding:6px 8px;background:#0f1115;border-radius:6px}
+.badge{font-size:11.5px;border-radius:6px;padding:2px 7px;color:#0f1115;font-weight:600;white-space:nowrap}
+code{background:#0f1115;border-radius:4px;padding:0 4px;font-size:13px}.vazio{color:var(--sub);padding:30px;text-align:center}
+.conta{color:var(--sub);font-size:13px;margin-left:auto}
+</style></head><body><div class="wrap">
+<h1>LUMNA OS, testes</h1>
+<div class="sub" id="gerado"></div>
+<div class="areas" id="areas"></div>
+<div class="filtros" id="filtros"><input type="search" id="busca" placeholder="Buscar (texto ou número do teste)"><span class="conta" id="conta"></span></div>
+<div id="lista"></div>
+</div>
+<script>
+const COR={pendente:"var(--pend)",passou:"var(--ok)",falhou:"var(--erro)",parcial:"var(--parc)",obsoleto:"var(--obs)",pulado:"var(--pul)"};
+const NOME={pendente:"Falta testar",passou:"Passou",falhou:"Falhou",parcial:"Com ressalva",obsoleto:"Não vale mais",pulado:"Pulado"};
+let D, filtro={area:"todas",estado:"pendente",busca:""};
+try{const s=JSON.parse(localStorage.getItem("lumna-testes-filtro")||"null"); if(s) filtro=Object.assign(filtro,s,{busca:""});}catch(e){}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>");
+function guarda(){try{localStorage.setItem("lumna-testes-filtro",JSON.stringify({area:filtro.area,estado:filtro.estado}))}catch(e){}}
+function conta(lista){const c={};D.estados.forEach(e=>c[e]=0);lista.forEach(t=>c[t.estado]++);return c}
+function barra(c,total){return '<div class="barra">'+D.estados.map(e=>c[e]?`<span style="width:${100*c[e]/total}%;background:${COR[e]}" title="${NOME[e]}: ${c[e]}"></span>`:"").join("")+"</div>"}
+function legenda(c){return '<div class="leg">'+D.estados.filter(e=>c[e]).map(e=>`<span><i class="dot" style="background:${COR[e]}"></i>${NOME[e]} <b>${c[e]}</b></span>`).join("")+"</div>"}
+function areas(){
+  const blocos=[["todas","Todas as áreas",D.testes]].concat(D.areas.map(a=>[a,a,D.testes.filter(t=>t.area===a)]).filter(x=>x[2].length));
+  document.getElementById("areas").innerHTML=blocos.map(([k,nome,l])=>{const c=conta(l);const feitos=l.length-c.pendente;
+    return `<div class="area ${filtro.area===k?"sel":""}" data-a="${esc(k)}"><h3>${esc(nome)}</h3><div class="n">${feitos} de ${l.length} já testados</div>${barra(c,l.length)}${legenda(c)}</div>`}).join("");
+  document.querySelectorAll(".area").forEach(el=>el.onclick=()=>{filtro.area=el.dataset.a;guarda();tudo()});
+}
+function chips(){
+  const f=document.getElementById("filtros");f.querySelectorAll(".chip").forEach(x=>x.remove());
+  const busca=document.getElementById("busca");
+  ["todos"].concat(D.estados).forEach(e=>{const b=document.createElement("button");b.className="chip"+(filtro.estado===e?" sel":"");
+    b.innerHTML=e==="todos"?"Todos":`<i class="dot" style="background:${COR[e]}"></i>${NOME[e]}`;b.onclick=()=>{filtro.estado=e;guarda();tudo()};f.insertBefore(b,busca)});
+}
+function lista(){
+  const q=filtro.busca.toLowerCase();
+  const l=D.testes.filter(t=>(filtro.area==="todas"||t.area===filtro.area)&&(filtro.estado==="todos"||t.estado===filtro.estado)&&
+    (!q||(t.id+" "+t.fazer+" "+t.esperado+" "+t.nota+" "+t.grupo).toLowerCase().includes(q)));
+  document.getElementById("conta").textContent=l.length+" teste"+(l.length===1?"":"s");
+  if(!l.length){document.getElementById("lista").innerHTML='<div class="vazio">Nenhum teste com esse filtro.</div>';return}
+  let h="",g=null;
+  l.forEach(t=>{const grupo=(filtro.area==="todas"?t.area+" · ":"")+t.grupo;if(grupo!==g){g=grupo;h+=`<div class="grupo">${esc(grupo)}</div>`}
+    h+=`<div class="t" style="border-left-color:${COR[t.estado]}"><div class="topo"><span class="id">${esc(t.id)}</span><span class="faz">${md(t.fazer)}</span>
+    <span class="badge" style="background:${COR[t.estado]}">${NOME[t.estado]}${t.data?" · "+esc(t.data):""}</span></div>
+    <div class="esp">${md(t.esperado)}</div>${t.nota?`<div class="nota">${md(t.nota)}</div>`:""}</div>`});
+  document.getElementById("lista").innerHTML=h;
+}
+function tudo(){areas();chips();lista()}
+document.getElementById("busca").oninput=e=>{filtro.busca=e.target.value;lista()};
+fetch("testes.json").then(r=>r.json()).then(d=>{D=d;document.getElementById("gerado").textContent=
+  `Atualizada em ${d.gerado}. Cada área tem o seu chat; o resultado de cada teste vem do registro docs/testes/registro.tsv.`;tudo()})
+ .catch(()=>{document.getElementById("lista").innerHTML='<div class="vazio">Não consegui ler os dados (testes.json).</div>'});
+</script></body></html>
