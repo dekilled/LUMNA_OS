@@ -79,6 +79,8 @@ void orbit_view_set_output(struct orbit_view *view, struct orbit_output *dest, b
 	view->sliding = false;
 	view->slide_x = view->x;
 	view->slide_y = view->y;
+	view->slide_to_x = view->x; /* o set_size abaixo conta ao X11 daqui */
+	view->slide_to_y = view->y;
 }
 
 bool orbit_free_desktop(struct orbit_server *server, struct orbit_output *output) {
@@ -143,6 +145,8 @@ void orbit_float_place_new(struct orbit_view *view) {
 	view->sliding = false;
 	view->slide_x = view->x;
 	view->slide_y = view->y;
+	view->slide_to_x = view->x; /* o set_size abaixo conta ao X11 daqui */
+	view->slide_to_y = view->y;
 	if (resize) {
 		orbit_view_set_size(view, w, h);
 	}
@@ -190,9 +194,6 @@ void orbit_float_show(struct orbit_view *view) {
 	orbit_slide_unclip(view);
 	view->leaving = false;
 	view->sliding = false;
-	view->placed = true;
-	view->slide_x = view->x;
-	view->slide_y = view->y;
 	wlr_scene_node_set_enabled(&view->scene_tree->node, true);
 	if (view->border) {
 		wlr_scene_node_set_enabled(&view->border->node, false);
@@ -200,7 +201,7 @@ void orbit_float_show(struct orbit_view *view) {
 	if (view->scene_tree->node.parent != view->server->tile_tree) {
 		wlr_scene_node_reparent(&view->scene_tree->node, view->server->tile_tree);
 	}
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	orbit_view_move_now(view, view->x, view->y);
 	if (view->fw > 0 && view->fh > 0) {
 		view->w = view->fw;
 		view->h = view->fh;
@@ -439,11 +440,7 @@ void orbit_move_motion(struct orbit_server *server) {
 	}
 	view->x = server->grab_gx + (int)(server->cursor->x - server->grab_x);
 	view->y = server->grab_gy + (int)(server->cursor->y - server->grab_y);
-	view->sliding = false;
-	view->placed = true;
-	view->slide_x = view->x;
-	view->slide_y = view->y;
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	orbit_view_move_now(view, view->x, view->y); /* e a janela X11 fica sabendo onde está */
 	struct orbit_output *output = output_at(server, server->cursor->x, server->cursor->y);
 	server->snap_pending = 0;
 	if (!orbit_free_desktop(server, output)) {
@@ -776,9 +773,7 @@ void orbit_resize_motion(struct orbit_server *server) {
 	view->fy = t;
 	view->fw = view->w = r - l;
 	view->fh = view->h = b - t;
-	view->slide_x = l;
-	view->slide_y = t;
-	wlr_scene_node_set_position(&view->scene_tree->node, l, t);
+	orbit_view_move_now(view, l, t);
 	orbit_view_set_resizing(view, true);
 	orbit_view_set_size(view, r - l, b - t);
 	view->cfg_w = r - l;

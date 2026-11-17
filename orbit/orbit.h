@@ -690,6 +690,7 @@ void orbit_deco_hover(struct orbit_server *server, struct orbit_view *view, enum
 /* o aperto do botão esquerdo na barra: fecha, minimiza, maximiza, ou começa a arrastar */
 void orbit_deco_press(struct orbit_server *server, struct orbit_view *view, enum orbit_deco_zone zone, uint32_t time);
 void orbit_slide(struct orbit_view *view, int x, int y);
+void orbit_view_move_now(struct orbit_view *view, int x, int y); /* no lugar, sem deslizar, e a janela X11 fica sabendo onde está */
 void orbit_slide_stop(struct orbit_view *view);
 void orbit_slide_unclip(struct orbit_view *view); /* tira o recorte de uma animação (a janela inteira volta a aparecer) */
 void orbit_slide_leave(struct orbit_view *view, int dx);

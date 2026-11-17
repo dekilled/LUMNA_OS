@@ -8,7 +8,10 @@ grim e, para o X11, xterm e xdotool. O mouse é o do próprio Orbit (orbit-msg m
       janela encaixada as divisas voltam ao meio.
   python3 teste_dock.py PASTA_DO_ORBIT PASTA_COM_menu_gtk CAMINHO_DO_dock
       com a dock de verdade: a janela encaixada esconde a dock (a área útil vira a tela toda) e vai até a borda de baixo; ao soltar, a dock volta.
-  sh teste_menu.sh PASTA_DO_ORBIT PASTA_COM_menu_gtk      (comum.sh: o ambiente)
-  sh teste_menu_x11.sh ...                                 o menu de contexto de uma janela encaixada nasce junto do cursor, no monitor dela.
-      O do GTK3 sai certo. O do xterm (Ctrl+botão direito) não abriu menu aqui: sem conclusão.
-Controle negativo feito: sem o redimensionamento pela divisa, ou sem a dock saber do encaixe (foreign.c), os testes falham.
+  python3 teste_menu_x11.py PASTA_DO_ORBIT PASTA_COM_menu_gtk
+      o menu de clique direito de uma janela X11 (XWayland: o Firefox) nasce junto do cursor: como abriu, depois de arrastar para o segundo monitor,
+      encaixada e solta do encaixe. Era o bug do menu "no outro monitor": o Orbit não contava ao X11 a nova posição da janela (abrir, arrastar,
+      redimensionar e voltar de maximizada/encaixada), e o app X11 calcula o menu da posição que acha que tem. Sem a correção o menu nascia em
+      (351,251) com o cursor em (1940,487).
+  sh teste_menu.sh PASTA_DO_ORBIT PASTA_COM_menu_gtk      (comum.sh: o ambiente) o mesmo com o GTK3 Wayland (xdg_popup): sempre saiu certo.
+Controle negativo feito: sem o redimensionamento pela divisa, sem a dock saber do encaixe (foreign.c) ou sem a posição do X11, os testes falham.

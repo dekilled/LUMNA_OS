@@ -110,6 +110,16 @@ static int slide_tick(void *data) {
 	return 0;
 }
 
+/* Põe a janela JÁ neste lugar (sem deslizar) e conta ao X11: a janela X (Firefox, os apps antigos) tira daí as coordenadas dos próprios menus, e com a
+ * posição velha o menu de clique direito nascia longe da janela (no outro monitor). Quem mexe no x/y de uma janela livre usa isto. */
+void orbit_view_move_now(struct orbit_view *view, int x, int y) {
+	view->placed = true;
+	view->sliding = false;
+	view->slide_to_x = x;
+	view->slide_to_y = y;
+	apply_visual(view, x, y);
+}
+
 void orbit_slide(struct orbit_view *view, int x, int y) {
 	struct orbit_server *server = view->server;
 	if (!view->placed || orbit_anim_ms(server) <= 0) {
