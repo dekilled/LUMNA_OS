@@ -57,6 +57,12 @@ Sem ela a Loja funciona, mas só marca "Na biblioteca" o que já está instalado
 4. No perfil da Steam, **Detalhes do jogo** precisa estar **Público** (senão a lista vem vazia).
 5. Configurações > Steam > cole a chave (e o id, se ele não achar sozinho). Fica em `~/.config/lumna/jogos/steam.ini` (permissão 600), nunca aparece na tela nem na linha de comando.
 
+## Capas (miniaturas)
+
+- **Steam**: o jogo traz o endereço da própria capa na resposta da loja (`store_item_assets/.../<hash>/capsule_616x353.jpg?t=...`). Jogos novos só existem nesse caminho com hash; o caminho antigo (`/steam/apps/<id>/capsule_616x353.jpg`) vira 404 para eles. A Loja usa o endereço da API e só cai no caminho antigo quando a API não informa nenhum. O fundo (`library_hero.jpg`) sai da mesma pasta.
+- **Falha passageira não deixa a capa em branco**: erro de rede, timeout, 408/429 e 5xx são tentados de novo (3, 8 e 20 segundos depois). Só um 4xx definitivo (404, por exemplo) vai direto para a arte alternativa. Imagens grandes (as capas da GOG têm 2 a 3 MB) entram nessa regra.
+- Testado com servidor falso (`testes/jogos/teste_loja.sh`, `testes/loja_steam.sh`); **ainda não foi visto com a Steam/GOG de verdade no PC do Eric**.
+
 ## Limites que já sabemos
 
 - A **lista de desejos** da Steam só se altera logado no site: a nossa será **local**.

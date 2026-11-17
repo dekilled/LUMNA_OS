@@ -25,6 +25,25 @@ int main(void) {
 	CONFERE(n > 0 && l[0].appid > 0 && l[0].nome[0] && l[0].preco[0] && l[0].capa[0], "as ofertas trazem jogos com nome, preço e capa");
 	CONFERE(l[0].desconto > 0 && l[0].preco_antes[0] && strncmp(l[0].preco, "R$ ", 3) == 0, "a oferta tem desconto e o preço de antes, em reais");
 	CONFERE(strstr(l[0].fundo, "library_hero") != NULL, "o fundo largo vem do library_hero");
+	CONFERE(strstr(l[0].capa, "/store_item_assets/") != NULL && strstr(l[0].capa, "?t=") != NULL, "os destaques usam a imagem que a API informou (com o ?t=), e não o endereço montado");
+	/* as imagens: a API da Steam (2026-11-17: just volleyball, GTA Trilogy, Dungeonbound...) dá um caminho com hash que o endereço antigo não tem */
+	{
+		char capa[400], fundo[400];
+		const char *hash = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/5037200/93d72ca0a5d52cd4a87fe5d11884cf8bab419b59/capsule_616x353.jpg?t=1794852941";
+		ls_steam_imagens(5037200, hash, capa, sizeof(capa), fundo, sizeof(fundo));
+		/* nos testes o servidor é o falso ($LUMNA_LOJA_IMG_URL); o resto do caminho e o ?t= ficam */
+		CONFERE(strstr(capa, "/store_item_assets/steam/apps/5037200/93d72ca0a5d52cd4a87fe5d11884cf8bab419b59/capsule_616x353.jpg?t=1794852941") != NULL, "a cápsula da API é usada como veio (com o hash e o ?t=)");
+		CONFERE(strstr(fundo, "/93d72ca0a5d52cd4a87fe5d11884cf8bab419b59/library_hero.jpg?t=1794852941") != NULL, "o fundo largo sai do mesmo diretório com hash");
+		const char *cab = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/12345/abcdef/header.jpg?t=9";
+		ls_steam_imagens(12345, cab, capa, sizeof(capa), fundo, sizeof(fundo));
+		CONFERE(strstr(capa, "/12345/abcdef/capsule_616x353.jpg?t=9") != NULL, "de uma imagem que não é a cápsula grande, a cápsula do mesmo diretório");
+		ls_steam_imagens(42, "", capa, sizeof(capa), fundo, sizeof(fundo));
+		CONFERE(strstr(capa, "/steam/apps/42/capsule_616x353.jpg") != NULL && strstr(capa, "store_item_assets") == NULL && strstr(fundo, "/steam/apps/42/library_hero.jpg") != NULL, "sem imagem da API, o endereço antigo");
+		ls_steam_imagens(42, NULL, capa, sizeof(capa), fundo, sizeof(fundo));
+		CONFERE(strstr(capa, "/steam/apps/42/capsule_616x353.jpg") != NULL, "NULL também cai no endereço antigo");
+		ls_steam_imagens(42, "https://exemplo.com/steam/apps/42/capsule_231x87.jpg", capa, sizeof(capa), fundo, sizeof(fundo));
+		CONFERE(strstr(capa, "exemplo.com") == NULL, "um endereço que não é do store_item_assets não é usado (o antigo é montado)");
+	}
 	CONFERE(ls_mais_vendidos(l, LS_MAX, erro, sizeof(erro)) > 0 && ls_lancamentos(l, LS_MAX, erro, sizeof(erro)) > 0, "mais vendidos e lançamentos");
 	/* o cache: a segunda chamada não vai à rede */
 	char *antes = le(log);
@@ -124,6 +143,23 @@ int main(void) {
 	CONFERE(img2 && !strcmp(img, img2), "e a segunda vez é o mesmo arquivo");
 	g_free(img);
 	g_free(img2);
+	/* falha para sempre (a loja não tem a imagem: 404) x passageira (sem conexão, 5xx): só a passageira merece outra tentativa */
+	bool def = false;
+	char *x = ls_imagem_ex("http://127.0.0.1:1/x/capa.jpg", &def);
+	CONFERE(x == NULL && !def, "sem conexão é falha PASSAGEIRA (tenta de novo depois)");
+	g_snprintf(url, sizeof(url), "%s/steam/apps/620/capsule_616x353.jpg" /* par: o servidor falso dá 404 */, g_getenv("LUMNA_LOJA_STEAM_URL"));
+	def = false;
+	x = ls_imagem_ex(url, &def);
+	CONFERE(x == NULL && def, "404 é falha DEFINITIVA (a loja não tem essa arte)");
+	g_snprintf(url, sizeof(url), "%s/x/erro503.jpg", g_getenv("LUMNA_LOJA_STEAM_URL"));
+	def = true;
+	x = ls_imagem_ex(url, &def);
+	CONFERE(x == NULL && !def, "503 é falha PASSAGEIRA");
+	g_snprintf(url, sizeof(url), "%s/steam/apps/621/capsule_616x353.jpg", g_getenv("LUMNA_LOJA_STEAM_URL"));
+	def = true;
+	x = ls_imagem_ex(url, &def);
+	CONFERE(x != NULL, "e a imagem que existe continua vindo");
+	g_free(x);
 
 	if (falhas) {
 		fprintf(stderr, "%d falha(s)\n", falhas);

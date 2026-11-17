@@ -240,4 +240,12 @@ confere(lambda: est("tela") == "2" and est("det", "") == "epic:Sugar", "'Ver na 
 toca("det-continuar", 2.0)
 confere(lambda: "legendary launch Sugar" in falso() and "epic jogo rodou" in falso(), "Continuar abre pelo legendary launch", 8)
 
+# uma falha passageira (503 na primeira vez, na cápsula do app 730) NÃO deixa a capa em branco: o carregador tenta de novo (3 s depois). O card dele só é pedido
+# no meio do roteiro, então a conferência fica para o fim (o servidor falso responde 503 só na primeira vez)
+def _pedidos_730():
+    return len([l for l in pedidos().splitlines() if "/apps/730/" in l and "capsule_616x353.jpg" in l])
+
+
+confere(lambda: _pedidos_730() >= 2, "uma falha passageira da imagem é tentada de novo, e não deixada em branco", 10)
+
 sys.exit(1 if falhas else 0)

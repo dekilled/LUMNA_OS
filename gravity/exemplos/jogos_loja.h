@@ -83,22 +83,45 @@ static void l_em_segundo_plano(void (*trabalho)(void *), void (*pronto)(void *),
 	g_thread_unref(g_thread_new("loja", l_tarefa_linha, t));
 }
 
-static GHashTable *l_imgs; /* url → arquivo local ("" : baixando, "!" : não deu) */
+static GHashTable *l_imgs; /* url → arquivo local ("" : baixando, "!" : não tem essa imagem, "~" : falhou agora e tenta de novo depois) */
+static GHashTable *l_img_tent; /* url → quantas vezes falhou (passageira) */
+static GHashTable *l_img_prox; /* url → quando (tempo monotônico, µs) tentar de novo */
 static int l_img_ativas;
 
 struct l_img_job {
 	char url[400], *arq;
+	bool definitivo;
 };
 
 static void l_img_trabalho(void *d) {
 	struct l_img_job *j = d;
-	j->arq = ls_imagem(j->url);
+	j->arq = ls_imagem_ex(j->url, &j->definitivo);
 }
 
+/* uma falha passageira (sem rede, tempo esgotado, 5xx) NÃO é para sempre: tenta de novo 3 s, 8 s e 20 s depois; só então desiste */
 static void l_img_pronto(void *d) {
 	struct l_img_job *j = d;
 	l_img_ativas--;
-	g_hash_table_insert(l_imgs, g_strdup(j->url), g_strdup(j->arq ? j->arq : "!"));
+	if (j->arq || j->definitivo) {
+		g_hash_table_insert(l_imgs, g_strdup(j->url), g_strdup(j->arq ? j->arq : "!"));
+	} else {
+		if (!l_img_tent) {
+			l_img_tent = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+			l_img_prox = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		}
+		int n = GPOINTER_TO_INT(g_hash_table_lookup(l_img_tent, j->url)) + 1;
+		g_hash_table_insert(l_img_tent, g_strdup(j->url), GINT_TO_POINTER(n));
+		static const int espera_s[] = { 3, 8, 20 };
+		if (n > 3) {
+			g_hash_table_insert(l_imgs, g_strdup(j->url), g_strdup("!"));
+		} else {
+			gint64 *quando = g_new(gint64, 1);
+			*quando = g_get_monotonic_time() + (gint64)espera_s[n - 1] * G_USEC_PER_SEC;
+			g_hash_table_insert(l_img_prox, g_strdup(j->url), quando);
+			g_hash_table_insert(l_imgs, g_strdup(j->url), g_strdup("~"));
+			gv_acordar_em((double)espera_s[n - 1] + 0.2); /* acorda o app na hora de tentar de novo (parado, ele só desenha quando algo acontece) */
+		}
+	}
 	g_free(j->arq);
 	g_free(j);
 }
@@ -112,6 +135,15 @@ static const char *l_img_um(const char *url) {
 		l_imgs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 	}
 	const char *v = g_hash_table_lookup(l_imgs, url);
+	if (v && !strcmp(v, "~")) {
+		/* falhou há pouco: espera a hora de tentar de novo (o aplicativo acorda a cada poucos segundos) */
+		gint64 *quando = l_img_prox ? g_hash_table_lookup(l_img_prox, url) : NULL;
+		if (quando && g_get_monotonic_time() < *quando) {
+			return NULL;
+		}
+		g_hash_table_remove(l_imgs, url);
+		v = NULL;
+	}
 	if (v) {
 		return v[0] && strcmp(v, "!") ? v : NULL;
 	}
@@ -141,8 +173,16 @@ static const char *l_img_ex(const char *url, int *indice) {
 		*indice = 0;
 	}
 	const char *p = url ? strstr(url, "/steam/apps/") : NULL;
-	const char *nome = p ? strrchr(url, '/') : NULL;
-	if (!p || !nome || strchr(nome, '?')) {
+	/* o nome do arquivo é o último pedaço do CAMINHO (o "?t=..." das imagens que a API da Steam informa fica de fora e volta no fim) */
+	const char *q = url ? strchr(url, '?') : NULL;
+	const char *fim = q ? q : (url ? url + strlen(url) : NULL);
+	const char *nome = NULL;
+	for (const char *c = p; p && c < fim; c++) {
+		if (*c == '/') {
+			nome = c;
+		}
+	}
+	if (!p || !nome) {
 		return l_img_um(url);
 	}
 	static const char *const alt[] = { "header.jpg", "capsule_616x353.jpg", "capsule_231x87.jpg", "library_600x900.jpg", NULL };
@@ -151,10 +191,10 @@ static const char *l_img_ex(const char *url, int *indice) {
 		return a;
 	}
 	for (int i = 0; alt[i]; i++) {
-		if (!strcmp(nome + 1, alt[i])) {
+		if (!strncmp(nome + 1, alt[i], (size_t)(fim - (nome + 1))) && strlen(alt[i]) == (size_t)(fim - (nome + 1))) {
 			continue;
 		}
-		char *u = g_strdup_printf("%.*s%s", (int)(nome + 1 - url), url, alt[i]);
+		char *u = g_strdup_printf("%.*s%s%s", (int)(nome + 1 - url), url, alt[i], q ? q : "");
 		a = l_img_um(u);
 		bool falhou = l_img_falhou(u);
 		g_free(u);

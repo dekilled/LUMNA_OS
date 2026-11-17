@@ -22,6 +22,9 @@
 
 enum { LS_LOJA_STEAM, LS_LOJA_GOG, LS_LOJA_EPIC };
 
+/* as imagens de um jogo (cápsula e fundo largo) a partir de uma imagem que a API da Steam deu (ou "" / NULL: o endereço antigo) */
+void ls_steam_imagens(int appid, const char *url_api, char *capa, size_t tc, char *fundo, size_t tf);
+
 struct ls_item {
 	int loja;             /* LS_LOJA_* */
 	int appid;            /* o id na loja (Steam: appid; GOG: o id numérico do produto; Epic: um número tirado do id de texto) */
@@ -104,6 +107,8 @@ void ls_sem_html(const char *src, char *dest, size_t tam);
 
 /* baixa uma imagem para o cache e devolve o caminho local (g_free); NULL se falhar. Bloqueia: linha à parte. */
 char *ls_imagem(const char *url);
+/* como ls_imagem, e *definitivo diz se uma falha é para sempre (4xx: não tem essa imagem) ou passageira (sem rede, tempo esgotado, 5xx: tentar de novo) */
+char *ls_imagem_ex(const char *url, bool *definitivo);
 /* o nome de um gênero para mostrar */
 const char *ls_gen_nome(int g);
 

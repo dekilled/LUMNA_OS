@@ -142,9 +142,41 @@ static void preco_txt(int centavos, char *dest, size_t tam) {
 	g_snprintf(dest, tam, "R$ %d,%02d", centavos / 100, centavos % 100);
 }
 
-static void imagens(int appid, struct ls_item *it) {
-	g_snprintf(it->capa, sizeof(it->capa), "%s/steam/apps/%d/capsule_616x353.jpg", base_img(), appid);
-	g_snprintf(it->fundo, sizeof(it->fundo), "%s/steam/apps/%d/library_hero.jpg", base_img(), appid);
+/* As imagens de um jogo. O endereço antigo (/steam/apps/ID/capsule_616x353.jpg) só existe para os jogos mais velhos: os novos (e os pacotes "subs") ficam num caminho com
+ * hash (store_item_assets/steam/apps/ID/HASH/...) que só a API informa (medido em 2026-11-17: just volleyball, GTA Trilogy e Dungeonbound davam 404 no endereço antigo e 200
+ * no da API; eram as capas em branco da Loja). Com uma imagem da API, a cápsula é ela (ou a cápsula grande do mesmo diretório) e o fundo largo sai do mesmo diretório;
+ * sem ela, o endereço antigo de sempre. */
+void ls_steam_imagens(int appid, const char *url_api, char *capa, size_t tc, char *fundo, size_t tf) {
+	const char *pos = url_api ? strstr(url_api, "/store_item_assets/") : NULL;
+	const char *q = pos ? strchr(pos, '?') : NULL;
+	size_t fim = pos ? (q ? (size_t)(q - pos) : strlen(pos)) : 0;   /* o caminho, sem o "?t=..." */
+	const char *barra = NULL;
+	for (size_t i = 0; pos && i < fim; i++) {
+		if (pos[i] == '/') {
+			barra = pos + i;
+		}
+	}
+	if (pos && barra) {
+		/* o servidor é o que a API disse (só ele tem esse caminho); nos testes ($LUMNA_LOJA_IMG_URL) é o servidor falso */
+		char *servidor = g_getenv("LUMNA_LOJA_IMG_URL") ? g_strdup(base_img()) : g_strndup(url_api, (gsize)(pos - url_api));
+		size_t dir = (size_t)(barra - pos) + 1;
+		const char *consulta = q ? q : "";
+		static const char grande[] = "/capsule_616x353.jpg";
+		if (fim >= sizeof(grande) - 1 && !strncmp(pos + fim - (sizeof(grande) - 1), grande, sizeof(grande) - 1)) {
+			g_snprintf(capa, tc, "%s%.*s%s", servidor, (int)fim, pos, consulta);
+		} else {
+			g_snprintf(capa, tc, "%s%.*scapsule_616x353.jpg%s", servidor, (int)dir, pos, consulta);
+		}
+		g_snprintf(fundo, tf, "%s%.*slibrary_hero.jpg%s", servidor, (int)dir, pos, consulta);
+		g_free(servidor);
+		return;
+	}
+	g_snprintf(capa, tc, "%s/steam/apps/%d/capsule_616x353.jpg", base_img(), appid);
+	g_snprintf(fundo, tf, "%s/steam/apps/%d/library_hero.jpg", base_img(), appid);
+}
+
+static void imagens(int appid, const char *url_api, struct ls_item *it) {
+	ls_steam_imagens(appid, url_api, it->capa, sizeof(it->capa), it->fundo, sizeof(it->fundo));
 }
 
 /* o que a Loja da GOG (loja_gog.c) reaproveita */
@@ -171,7 +203,11 @@ static int lista_featured(const char *chave, struct ls_item *l, int max, char *e
 		memset(it, 0, sizeof(*it));
 		it->appid = id;
 		g_strlcpy(it->nome, json_chave_texto(x, "name"), sizeof(it->nome));
-		imagens(id, it);
+		const char *api = json_chave_texto(x, "large_capsule_image");
+		if (!*api) {
+			api = json_chave_texto(x, "header_image");
+		}
+		imagens(id, api, it);
 		int final_ = (int)json_numero(json_chave(x, "final_price"), 0), orig = (int)json_numero(json_chave(x, "original_price"), 0);
 		it->desconto = (int)json_numero(json_chave(x, "discount_percent"), 0);
 		it->gratis = final_ == 0;
@@ -282,7 +318,16 @@ int ls_buscar(const struct ls_filtro *f, struct ls_item *l, int max, int *total,
 		memset(it, 0, sizeof(*it));
 		it->appid = id;
 		entre(bloco, "<span class=\"title\">", "</span>", it->nome, sizeof(it->nome));
-		imagens(id, it);
+		char img_api[400] = "";
+		const char *pi = strstr(bloco, "<img src=\"");
+		if (pi) {
+			pi += strlen("<img src=\"");
+			const char *fi = strchr(pi, '"');
+			if (fi && fi - pi < (long)sizeof(img_api)) {
+				g_strlcpy(img_api, pi, (gsize)(fi - pi) + 1);
+			}
+		}
+		imagens(id, img_api, it);
 		const char *pf = strstr(bloco, "data-price-final=\"");
 		int final_ = pf ? atoi(pf + strlen("data-price-final=\"")) : 0;
 		const char *dd = strstr(bloco, "data-discount=\"");
@@ -331,8 +376,7 @@ bool ls_detalhes(int appid, struct ls_detalhe *d, char *erro, size_t tam) {
 	sem_html(json_chave_texto(x, "about_the_game"), d->sobre, sizeof(d->sobre));
 	g_strlcpy(d->desenvolvedor, json_item(json_chave(x, "developers"), 0) ? json_texto(json_item(json_chave(x, "developers"), 0)) : "", sizeof(d->desenvolvedor));
 	g_strlcpy(d->lancamento, json_chave_texto(json_chave(x, "release_date"), "date"), sizeof(d->lancamento));
-	g_snprintf(d->capa, sizeof(d->capa), "%s/steam/apps/%d/capsule_616x353.jpg", base_img(), appid);
-	g_snprintf(d->fundo, sizeof(d->fundo), "%s/steam/apps/%d/library_hero.jpg", base_img(), appid);
+	ls_steam_imagens(appid, json_chave_texto(x, "header_image"), d->capa, sizeof(d->capa), d->fundo, sizeof(d->fundo));
 	GString *g = g_string_new(NULL);
 	const struct json *gs = json_chave(x, "genres");
 	for (int i = 0; gs && i < gs->nfilhos && i < 3; i++) {
@@ -557,7 +601,13 @@ int ls_possuidos(int *appids, int max, char *erro, size_t tam) {
 
 /* ---------------- imagens ---------------- */
 
-char *ls_imagem(const char *url) {
+/* A imagem de uma URL (em cache, ou baixada). Devolve NULL se não deu; *definitivo diz se a falha é para sempre (a Steam respondeu 404: o jogo não tem essa arte) ou
+ * passageira (sem conexão, tempo esgotado, resposta 5xx ou 429: vale tentar de novo daqui a pouco). Uma falha passageira tratada como definitiva deixava capas em branco
+ * até fechar o app (o Morrowind da GOG, numa rede que oscilava). */
+char *ls_imagem_ex(const char *url, bool *definitivo) {
+	if (definitivo) {
+		*definitivo = true;
+	}
 	if (!url || !g_str_has_prefix(url, "http")) {
 		return NULL;
 	}
@@ -570,13 +620,21 @@ char *ls_imagem(const char *url) {
 	g_free(dir);
 	char *tmp = g_strconcat(arq, ".tmp", NULL);
 	GError *ge = NULL;
-	const char *argv[] = { "curl", "-sS", "-L", "-m", "30", "--fail", "-A", "LUMNA-Gaming/1.0", "-o", tmp, "-K", "-", NULL };
-	GSubprocess *p = g_subprocess_newv(argv, G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_SILENCE | G_SUBPROCESS_FLAGS_STDERR_SILENCE, &ge);
+	const char *argv[] = { "curl", "-sS", "-L", "-m", "30", "--fail", "-w", "%{http_code}", "-A", "LUMNA-Gaming/1.0", "-o", tmp, "-K", "-", NULL };
+	GSubprocess *p = g_subprocess_newv(argv, G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE, &ge);
 	bool ok = false;
+	int http = 0;
 	if (p) {
 		char *conf = g_strdup_printf("url = \"%s\"\n", url);
 		GBytes *in = g_bytes_new_take(conf, strlen(conf));
-		ok = g_subprocess_communicate(p, in, NULL, NULL, NULL, NULL) && g_subprocess_get_if_exited(p) && g_subprocess_get_exit_status(p) == 0;
+		GBytes *saida = NULL;
+		ok = g_subprocess_communicate(p, in, NULL, &saida, NULL, NULL) && g_subprocess_get_if_exited(p) && g_subprocess_get_exit_status(p) == 0;
+		if (saida) {
+			gsize n = 0;
+			const char *t = g_bytes_get_data(saida, &n);
+			http = t ? atoi(t) : 0;
+			g_bytes_unref(saida);
+		}
 		g_bytes_unref(in);
 		g_object_unref(p);
 	}
@@ -588,7 +646,15 @@ char *ls_imagem(const char *url) {
 	g_free(tmp);
 	if (!ok) {
 		g_free(arq);
+		/* 4xx (menos 408 e 429): a Steam/GOG não tem essa imagem. O resto (sem resposta, 5xx, tempo esgotado) vale tentar de novo */
+		if (definitivo) {
+			*definitivo = http >= 400 && http < 500 && http != 408 && http != 429;
+		}
 		return NULL;
 	}
 	return arq;
+}
+
+char *ls_imagem(const char *url) {
+	return ls_imagem_ex(url, NULL);
 }

@@ -64,8 +64,16 @@ class H(http.server.BaseHTTPRequestHandler):
             if q.get("key", [""])[0] != CHAVE:
                 return self.resp("Forbidden", 403, "text/plain")
             return self.resp(json.dumps({"response": {"game_count": 2, "games": [{"appid": 620}, {"appid": 730}]}}))
+        if u.path.endswith("/erro503.jpg"):
+            return self.resp("indisponivel", 503, "text/plain")   # uma falha passageira
+        # o app 730 falha UMA vez na cápsula (503) e depois responde: o carregador tem de tentar de novo
         import re as _re
-        _m = _re.search(r"/steam/apps/(\d+)/capsule_616x353\.jpg$", u.path)
+        if _re.search(r"/apps/730/.*capsule_616x353\.jpg$", u.path):
+            global _flaky_730
+            if not globals().get("_flaky_730"):
+                _flaky_730 = True
+                return self.resp("indisponivel", 503, "text/plain")
+        _m = _re.search(r"/steam/apps/(\d+)/(?:[0-9a-f]{40}/)?capsule_616x353\.jpg$", u.path)   # (o caminho antigo e o novo, com hash)
         if _m and int(_m.group(1)) % 2 == 0:
             return self.resp("nao", 404, "text/plain")  # uns jogos não têm a cápsula: o app tem de cair no header
         if u.path.endswith(".jpg") or u.path.endswith(".png") or "spt-assets" in u.path or u.path.endswith(".jpeg") or "/images" in u.path or "_" in u.path.split("/")[-1]:
