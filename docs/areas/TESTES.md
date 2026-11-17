@@ -55,6 +55,7 @@ adivinhadas podem estar erradas. Mais 26 testes novos (ids G-, M-, P-, H-, D-) d
 
 - 2026-11-17: os 44 "A classificar" foram distribuídos (38 Desktop, 5 Painel; sobrou o T2.458c, AUR pela Loja de apps, que está fora das áreas). Pulse/terminal ficou no Desktop (nenhum arquivo de área o citava: decisão da Claudia, a confirmar com o Eric).
 - Atenção: as áreas "adivinhadas" dos vizinhos estão claramente erradas em vários (ex.: T2.34 e T2.44 do Pulse em Hardware; T2.390 a T2.399 do Gerenciador em Gaming; T2.468c/d do carrossel em Gaming/Hardware). Próximo passo: revisar área por área.
+- 2026-11-17 (Desktop, 1ª passada): T2.458c (AUR) e o Pulse ficam no Desktop (Eric). Obsoletos: T2.82 (virou "Enviar para dispositivo", = T2.469e) e T2.18 (regra do Firefox mudou, = T2.483b/484b). Para Hardware: T2.121-124 (pendrive). Para Painel: T2.127-128 (Emma sem SSE4.2). Faltam do Desktop: Atlas (T2.61-135), Galeria/vídeo, Music, Loja de apps, Signals, Calculadora (conferir o que o código ainda não tem).
 
 ## Pendências
 
