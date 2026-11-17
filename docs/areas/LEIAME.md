@@ -10,6 +10,7 @@ e o **seu arquivo aqui**. O arquivo é a memória da área: o chat novo começa 
 | Painel de controle | [PAINEL.md](PAINEL.md) | todas as páginas do Painel, Atualizações (lumna-pkg), Animações, Aparência, Inicialização |
 | Hardware, drivers e kernel | [HARDWARE.md](HARDWARE.md) | discos e montagem, rede, Wi-Fi, áudio, Bluetooth, GPU, drivers e kernels, boot/GRUB, ISO e instalador |
 | Desktop e Orbit | [DESKTOP.md](DESKTOP.md) | o compositor (janelas, encaixe, foco, multi-monitor, XWayland), dock, barra, lançador e os apps do dia a dia (Atlas, Música, Galeria, Signals, Captura) |
+| Atualização | [ATUALIZACAO.md](ATUALIZACAO.md) | não programa funcionalidade: junta o que as áreas fizeram, acha inconsistência entre elas e confere o release (CI, pacotes, o que exige sair e entrar) antes do Eric atualizar |
 | Testes | [TESTES.md](TESTES.md) | não programa: filtra e conduz os testes com o Eric, registra o resultado de cada um e atualiza a página "Onde estamos" |
 
 As quatro primeiras são as que o Eric pediu; **Desktop e Orbit** foi sugerida pela Claudia e o Eric aprovou (2026-11-17); **Testes** é a área de

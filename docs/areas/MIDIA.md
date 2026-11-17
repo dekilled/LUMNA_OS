@@ -22,6 +22,8 @@ vídeos, splash e animações), os streamings (Netflix, YouTube TV, Prime, HBO, 
 
 ## Pendências
 
+0. **A Mídia nova não vai no update**: o navegador CEF não está em nenhum pacote (o Eric compila à mão com um CEF local). Decisão do Eric: empacotar no CI, ou baixar o CEF na primeira vez como o Widevine? (achado da área Atualização, 2026-11-17)
+
 1. **Destaque (highlight) do controle se perde em partes de algumas páginas** (relato 2026-11-17): pedir ao Eric quais sites e telas. O `nav.js` é
    heurístico (o item clicável mais perto na direção); carrosséis virtualizados são o suspeito.
 2. Trocar o `seletor_midia` do `orbit.ini` para `lumna-navegador --menu` quando a nova substituir a antiga na sessão (decisão do Eric).
