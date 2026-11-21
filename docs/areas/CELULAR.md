@@ -37,15 +37,15 @@ A interface é independente do aparelho; o porte de cada aparelho é um projeto 
 | Aparelho | SoC | Linux mainline? | Papel |
 |---|---|---|---|
 | OnePlus 6T | SDM845 | sim (sdm845-mainline), já roda | laboratório |
-| Samsung Galaxy Note 10+ **Exynos** (SM-N975F, o internacional) | Exynos 9825 | **praticamente não**: sem o SoC no kernel oficial (clocks, pinctrl, PMIC, UFS, GPU Mali-G76 só pela Panfrost sem a base do SoC), modem Shannon fechado | meta do Eric; projeto grande e incerto |
-| Samsung Galaxy Note 10+ **Snapdragon** (SM-N975U/U1, EUA e Canadá) | SM8150 (855) | sim (a mesma família do Z5 Pro GT pausado e de vários aparelhos) | muito mais viável |
+| **Galaxy Note 10+ do Eric: hardware SM-N975F (Exynos 9825)**, hoje com uma **ROM portada do S22 Ultra** (por isso o Android diz `SM-S908B/DS`; o S22 Ultra tem Exynos 2200, que NÃO é o chip do aparelho) | Exynos 9825 | **praticamente não**: sem o SoC no kernel oficial (clocks, pinctrl, PMIC, UFS), GPU Mali-G76 (a Panfrost cobre o G76, mas sem a base do SoC não há como usá-la), modem Shannon fechado | meta do Eric; projeto grande e incerto, **o Eric quer construir o suporte** preenchendo lacunas e trazendo correções de aparelhos compatíveis |
+| (referência) Note 10+ Snapdragon, SM-N975U/U1 | SM8150 (855) | sim | só para comparar |
 
-**Pergunta que decide tudo no Note 10+:** qual é o modelo exato do aparelho (Configurações > Sobre o telefone > Número do modelo)? Se for Exynos, a UI
-funciona igual, mas o porte do aparelho é pesquisa de longo prazo (ou rodar o LUMNA por cima de um Android, que perde o "Linux nativo").
+**Atenção:** para saber o hardware verdadeiro, não confiar no que o Android diz (a ROM portada mente o modelo). Conferir pela etiqueta do aparelho ou no
+recovery/bootloader (`fastboot getvar product`, ou o modo Download da Samsung).
 
 ## Pendências
 
-1. Decisão do Eric sobre o caminho (item 1 acima) e o modelo do Note 10+.
+1. ~~Decisão do Eric sobre o caminho~~ **decidido (2026-11-21): Orbit + Gravity + todos os apps, um a um**; o Vue/Hyprland antigo é abandonado (o Eric já o refez em C justamente por isso). A UI antiga reiniciava ao carregar o Hyprland (o cursor aparecia, depois reiniciava): não será consertada.
 2. Saber por que a versão antiga não inicia **(só se o Eric quiser reviver; se for substituída, não importa)**: do 6T pela USB (`ssh alarm@lumna`):
    `journalctl -b -p warning --no-pager | tail -80`, `systemctl --failed`, `pacman -Q hyprland lumna-shell lumna-mobile`, `ls ~/.local/state/lumna`.
 3. Compilar Orbit + Gravity em aarch64 e rodar no 6T.
