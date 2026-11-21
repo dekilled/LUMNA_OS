@@ -60,6 +60,20 @@ recovery/bootloader (`fastboot getvar product`, ou o modo Download da Samsung).
 - O **modo mídia no celular muda**: vira **controle total do PC** (além do modo mídia simples). Detalhes a definir com esboço do Eric.
 - Foco de aparelhos: **OnePlus 6T** e **Galaxy Note 10+**.
 
+## Esboço: tela inicial (Eric, 2026-11-21)
+
+Imagem: [celular/esboco-inicio.webp](celular/esboco-inicio.webp). De cima para baixo: barra de status (hora, Wi-Fi, sinal, bateria); cabeçalho com
+logo LUMNA e seletor de modo ("Desktop ▾"); relógio grande e data; barra "Pergunte à Emma" (microfone + seta); barra de navegação (Início, Arquivos,
+Apps, Ajustes, Emma) e a pílula de gesto. Fundo: planeta roxo.
+
+Decisões do Eric:
+- **Cabeçalho (LUMNA + modo) é opcional no celular**: módulo que pode ser desativado, e os textos podem até sair. No PC não há essa opção, nem precisa.
+- **O seletor "Desktop ▾" não abre lista de modos**: no celular só existe o modo mídia (o celular vira controle do desktop). **A confirmar com o Eric**:
+  como se alterna entre celular, desktop e mídia, já que o seletor não faz isso.
+- **A barra de navegação só aparece no Início.** Dentro dos apps ela vira uma **barra de opções** (do app).
+- **Emma:** está ligada ao núcleo do sistema e presente em todas as telas (no LUMNA antigo: deslizar da borda de baixo e "Oi Emma"). Por ora a barra
+  "Pergunte à Emma" e a aba Emma ficam **só como botões, sem função**, até entendermos por que a Emma não entrou em nenhuma área.
+
 ## Possibilidades (NÃO são pendência; sem promessa de sucesso)
 
 Ideias que o Eric quer explorar **se der**. Dependem de hardware e drivers próprios de cada fabricante, então a chance de não funcionar é real.
