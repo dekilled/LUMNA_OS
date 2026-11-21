@@ -56,20 +56,22 @@ recovery/bootloader (`fastboot getvar product`, ou o modo Download da Samsung).
 
 - O objetivo da área é **trazer a UI do PC para o celular**: tudo o que existe lá (apps, configurações, tela de bloqueio, animação de boot e o
   navegador em construção) vem para cá.
-- Os **modos do celular** continuam como hoje: modo celular, **modo desktop** e **modo mídia**.
+- O celular tem **dois modos: celular e mídia** (correção do Eric: "desktop" era um engano, ele queria dizer "celular"). Um **modo gaming** talvez
+  entre depois, mas o Eric acha difícil um jogo de Linux rodar num smartphone (não é pendência).
 - O **modo mídia no celular muda**: vira **controle total do PC** (além do modo mídia simples). Detalhes a definir com esboço do Eric.
 - Foco de aparelhos: **OnePlus 6T** e **Galaxy Note 10+**.
 
 ## Esboço: tela inicial (Eric, 2026-11-21)
 
 Imagem: [celular/esboco-inicio.webp](celular/esboco-inicio.webp). De cima para baixo: barra de status (hora, Wi-Fi, sinal, bateria); cabeçalho com
-logo LUMNA e seletor de modo ("Desktop ▾"); relógio grande e data; barra "Pergunte à Emma" (microfone + seta); barra de navegação (Início, Arquivos,
+logo LUMNA e seletor de modo (no esboço aparece "Desktop ▾", mas o certo é o nome do modo atual: **Celular** ou **Mídia**); relógio grande e data; barra "Pergunte à Emma" (microfone + seta); barra de navegação (Início, Arquivos,
 Apps, Ajustes, Emma) e a pílula de gesto. Fundo: planeta roxo.
 
 Decisões do Eric:
 - **Cabeçalho (LUMNA + modo) é opcional no celular**: módulo que pode ser desativado, e os textos podem até sair. No PC não há essa opção, nem precisa.
-- **O seletor "Desktop ▾" não abre lista de modos**: no celular só existe o modo mídia (o celular vira controle do desktop). **A confirmar com o Eric**:
-  como se alterna entre celular, desktop e mídia, já que o seletor não faz isso.
+- **O seletor do cabeçalho não abre lista de modos.** A troca de modo é por **gesto de pinça**, com um **toggle On/Off** nos Ajustes:
+  - **On:** a pinça troca o modo na hora, com o mode switcher igual ao do desktop: Zoom In, desliza para o próximo, Zoom Out.
+  - **Off:** a pinça abre o mode switcher (Zoom In) e **para**, para o usuário escolher; depois de escolhido, Zoom Out.
 - **A barra de navegação só aparece no Início.** Dentro dos apps ela vira uma **barra de opções** (do app).
 - **Emma:** está ligada ao núcleo do sistema e presente em todas as telas (no LUMNA antigo: deslizar da borda de baixo e "Oi Emma"). Por ora a barra
   "Pergunte à Emma" e a aba Emma ficam **só como botões, sem função**, até entendermos por que a Emma não entrou em nenhuma área.
