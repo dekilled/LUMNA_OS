@@ -97,10 +97,11 @@ Imagem: [celular/esboco-apps.webp](celular/esboco-apps.webp).
 - Grade de 3 colunas: Arquivos, Navegador, Terminal, Notas, Música, Vídeos, Loja, Ajustes, Emma. Abaixo, **Recentes** (Notas, Arquivos).
 - Rodapé: só a aba **Apps** (selecionada) e o botão de **desligar** à direita; sem a barra de 5 itens do Início.
 - **Apps próprios do LUMNA (lista do Eric):** Loja de apps, Calculadora, Atlas (explorador de arquivos), Galeria, Signals, Captura de tela, Música,
-  Painel de configurações, Emma (AI harness) e Processos. O celular leva estes, em modo estreito.
-- **Para conferir quando o Eric atualizar:** o esboço mostra Navegador, Terminal, Notas e Vídeos, que **não estão** na lista acima (o Navegador é o que
-  está em construção; Terminal, Notas e Vídeos não sei se vão existir); e a grade ainda não tem Calculadora, Galeria, Signals, Captura e Processos.
-  A Loja e a Emma seguem "fora das áreas".
+  Painel de configurações, Emma (AI harness) e Processos (mais o **Pulse**, o terminal). O celular leva estes, em modo estreito.
+- **Nomes no esboço x apps reais (Eric):** "Terminal" é o **Pulse**; "Notas" são os **Signals**; "Vídeos" **não existe como app**: hoje o vídeo só toca
+  a partir da Galeria (não dá para abrir de fora e não há player próprio ainda). Então "Vídeos" sai da grade (ou vira player no futuro, decisão do Eric).
+- **Para conferir quando o Eric atualizar:** a grade ainda não tem Calculadora, Galeria, Captura e Processos (Signals e Pulse entram com os nomes certos).
+  O Navegador é o que está em construção. A Loja e a Emma seguem "fora das áreas".
 
 ## Possibilidades (NÃO são pendência; sem promessa de sucesso)
 
