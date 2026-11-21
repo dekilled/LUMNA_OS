@@ -10,6 +10,7 @@ e o **seu arquivo aqui**. O arquivo é a memória da área: o chat novo começa 
 | Painel de controle | [PAINEL.md](PAINEL.md) | todas as páginas do Painel, Atualizações (lumna-pkg), Animações, Aparência, Inicialização |
 | Hardware, drivers e kernel | [HARDWARE.md](HARDWARE.md) | discos e montagem, rede, Wi-Fi, áudio, Bluetooth, GPU, drivers e kernels, boot/GRUB, ISO e instalador |
 | Desktop e Orbit | [DESKTOP.md](DESKTOP.md) | o compositor (janelas, encaixe, foco, multi-monitor, XWayland), dock, barra, lançador e os apps do dia a dia (Atlas, Música, Galeria, Signals, Captura) |
+| Celular | [CELULAR.md](CELULAR.md) | a UI do celular (Orbit + Gravity em modo telefone) e o porte para os aparelhos (OnePlus 6T, Note 10+) |
 | Atualização | [ATUALIZACAO.md](ATUALIZACAO.md) | não programa funcionalidade: junta o que as áreas fizeram, acha inconsistência entre elas e confere o release (CI, pacotes, o que exige sair e entrar) antes do Eric atualizar |
 | Testes | [TESTES.md](TESTES.md) | não programa: filtra e conduz os testes com o Eric, registra o resultado de cada um e atualiza a página "Onde estamos" |
 
@@ -66,5 +67,5 @@ repetido, a área certa) é trabalho da área **Testes**. As seções antigas e 
 
 ## Fora das áreas (por enquanto)
 
-Emma, Connect (celular), Loja de apps, mobile, navegador completo do Desktop. Seguem anotados no `docs/IDEIAS.md` e `docs/PROXIMOS.md`. Se o Eric
+Emma, Connect (celular), Loja de apps, navegador completo do Desktop. Seguem anotados no `docs/IDEIAS.md` e `docs/PROXIMOS.md`. Se o Eric
 quiser trabalhar neles, vira uma área nova com o mesmo formato.
