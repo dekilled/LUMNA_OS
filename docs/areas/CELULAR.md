@@ -93,11 +93,14 @@ Imagens: [bloqueio](celular/esboco-bloqueio.webp), [com música](celular/esboco-
 
 Imagem: [celular/esboco-apps.webp](celular/esboco-apps.webp).
 
-- Título "Aplicativos", botão **Loja** no canto, busca ("Buscar aplicativos") e abas **Todos / Trabalho / Mídia / Jogos**.
+- Título "Aplicativos", botão **Loja** no canto, busca ("Buscar aplicativos") e abas **Todos / Trabalho / Mídia** (a aba Jogos saiu: era resquício do lançador do desktop, decisão do Eric).
 - Grade de 3 colunas: Arquivos, Navegador, Terminal, Notas, Música, Vídeos, Loja, Ajustes, Emma. Abaixo, **Recentes** (Notas, Arquivos).
 - Rodapé: só a aba **Apps** (selecionada) e o botão de **desligar** à direita; sem a barra de 5 itens do Início.
-- **Para conferir quando o Eric atualizar:** a Loja de apps e a Emma estão "fora das áreas"; Terminal, Notas e Vídeos precisam existir como apps no
-  desktop (não verifiquei); a aba Jogos aparece mesmo com o gaming no celular em dúvida.
+- **Apps próprios do LUMNA (lista do Eric):** Loja de apps, Calculadora, Atlas (explorador de arquivos), Galeria, Signals, Captura de tela, Música,
+  Painel de configurações, Emma (AI harness) e Processos. O celular leva estes, em modo estreito.
+- **Para conferir quando o Eric atualizar:** o esboço mostra Navegador, Terminal, Notas e Vídeos, que **não estão** na lista acima (o Navegador é o que
+  está em construção; Terminal, Notas e Vídeos não sei se vão existir); e a grade ainda não tem Calculadora, Galeria, Signals, Captura e Processos.
+  A Loja e a Emma seguem "fora das áreas".
 
 ## Possibilidades (NÃO são pendência; sem promessa de sucesso)
 
