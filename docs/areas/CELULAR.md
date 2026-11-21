@@ -52,6 +52,25 @@ recovery/bootloader (`fastboot getvar product`, ou o modo Download da Samsung).
 4. Esboços do Eric da UI do celular.
 5. Conserto do CI "Celular" (token expirado) para o `[lumna-celular]` voltar a ser publicado.
 
+## Visão do Eric para o celular (2026-11-21)
+
+- O objetivo da área é **trazer a UI do PC para o celular**: tudo o que existe lá (apps, configurações, tela de bloqueio, animação de boot e o
+  navegador em construção) vem para cá.
+- Os **modos do celular** continuam como hoje: modo celular, **modo desktop** e **modo mídia**.
+- O **modo mídia no celular muda**: vira **controle total do PC** (além do modo mídia simples). Detalhes a definir com esboço do Eric.
+- Foco de aparelhos: **OnePlus 6T** e **Galaxy Note 10+**.
+
+## Possibilidades (NÃO são pendência; sem promessa de sucesso)
+
+Ideias que o Eric quer explorar **se der**. Dependem de hardware e drivers próprios de cada fabricante, então a chance de não funcionar é real.
+Não entram no planejamento nem bloqueiam nada.
+
+- **Modo "projetor"/estilo DEX no modo mídia:** ligar o celular num projetor ou TV e usá-lo como uma smart TV, parecido com o Samsung DEX.
+  O Note 10+ tem suporte a saída de vídeo desse tipo no Android, mas a implementação em Linux dependeria de drivers próprios da Samsung (Exynos),
+  o que é o ponto crítico. No OnePlus 6T não se sabe se a saída de vídeo (DisplayPort sobre USB-C) funciona no kernel mainline.
+- **Trocar o Android do projetor do Eric pelo LUMNA:** o projetor dele roda Android; rodar o LUMNA direto nele fica para bem depois, só se
+  houver base de hardware. Aparelho e SoC ainda não levantados.
+
 ## Recebido de outras áreas
 
 (vazio)
