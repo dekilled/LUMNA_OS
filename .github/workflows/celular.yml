@@ -1,6 +1,6 @@
 name: Celular
 
-# Os pacotes do celular (lumna-shell, lumna-mobile e lumna-emma, aarch64) compilados num Arch
+# Os pacotes do celular (lumna-shell, lumna-mobile, lumna-emma e, a UI nova, lumna-orbit e lumna-gravity; aarch64) compilados num Arch
 # Linux ARM, numa máquina ARM do GitHub, e publicados como o repositório [lumna-celular] na
 # release "celular". O celular vê as novidades na Loja → Atualizações (e só atualiza com um toque).
 on:
@@ -32,10 +32,12 @@ jobs:
           EMMA_REPO_TOKEN: ${{ secrets.EMMA_REPO_TOKEN }}
           EMMA_REF: ${{ vars.EMMA_REF || 'main' }}
         run: |
-          if [ -n "$EMMA_REPO_TOKEN" ]; then
-            git clone --branch "$EMMA_REF" \
-              "https://x-access-token:${EMMA_REPO_TOKEN}@github.com/dekilled/NewHarnessV2.git" "$RUNNER_TEMP/emma"
+          # token ausente OU expirado/inválido: não derruba o build (Orbit, Gravity e o resto compilam do mesmo jeito)
+          if [ -n "$EMMA_REPO_TOKEN" ] && git clone --branch "$EMMA_REF" \
+              "https://x-access-token:${EMMA_REPO_TOKEN}@github.com/dekilled/NewHarnessV2.git" "$RUNNER_TEMP/emma"; then
             echo "EMMA_SRC=$RUNNER_TEMP/emma" >> "$GITHUB_ENV"
+          elif [ -n "$EMMA_REPO_TOKEN" ]; then
+            echo "::warning::EMMA_REPO_TOKEN não conseguiu clonar o NewHarnessV2 (expirado?): a Emma fica com o pacote já publicado."
           else
             echo "::notice::Sem EMMA_REPO_TOKEN: a Emma fica com o pacote já publicado."
           fi
