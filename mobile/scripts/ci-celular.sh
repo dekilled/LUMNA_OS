@@ -130,7 +130,7 @@ if [ -n "$FAZ" ]; then
     fumaca=ok
     case " $FAZ " in *" lumna-orbit "*)
         echo "==> fumaça: o Orbit arranca em aarch64 (headless, 2 saídas) e responde ao orbit-msg"
-        dentro pacman -U --noconfirm --needed --nodeps /home/alarm/out/lumna-orbit-*.pkg.tar.zst
+        dentro sh -c 'pacman -U --noconfirm --needed --nodeps /home/alarm/out/lumna-orbit-*.pkg.tar.zst'
         dentro sh -c '
             run=$(mktemp -d); chmod 700 "$run"
             file /usr/bin/orbit 2>/dev/null || true
@@ -149,7 +149,7 @@ if [ -n "$FAZ" ]; then
     esac
     case " $FAZ " in *" lumna-gravity "*)
         echo "==> fumaça: os binários do Gravity (aarch64) e as bibliotecas que pedem"
-        dentro pacman -U --noconfirm --needed --nodeps /home/alarm/out/lumna-gravity-*.pkg.tar.zst
+        dentro sh -c 'pacman -U --noconfirm --needed --nodeps /home/alarm/out/lumna-gravity-*.pkg.tar.zst'
         dentro sh -c '
             n=0; falta=0
             for b in /usr/bin/lumna-*; do
