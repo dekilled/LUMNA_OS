@@ -69,7 +69,7 @@ Apps, Ajustes, Emma) e a pílula de gesto. Fundo: planeta roxo.
 
 Decisões do Eric:
 - **Cabeçalho (LUMNA + modo) é opcional no celular**: módulo que pode ser desativado, e os textos podem até sair. No PC não há essa opção, nem precisa.
-- **O seletor do cabeçalho não abre lista de modos.** A troca de modo é por **gesto de pinça**, com um **toggle On/Off** nos Ajustes:
+- **O seletor do cabeçalho não abre lista de modos.** A troca de modo é por **gesto de pinça**, com um **toggle On/Off** nas configurações (o Eric pensou em pôr o toggle dentro do próprio mode switcher; ver a viabilidade depois):
   - **On:** a pinça troca o modo na hora, com o mode switcher igual ao do desktop: Zoom In, desliza para o próximo, Zoom Out.
   - **Off:** a pinça abre o mode switcher (Zoom In) e **para**, para o usuário escolher; depois de escolhido, Zoom Out.
 - **A barra de navegação só aparece no Início.** Dentro dos apps ela vira uma **barra de opções** (do app).
