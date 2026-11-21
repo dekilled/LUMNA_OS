@@ -48,9 +48,22 @@ recovery/bootloader (`fastboot getvar product`, ou o modo Download da Samsung).
 1. ~~Decisão do Eric sobre o caminho~~ **decidido (2026-11-21): Orbit + Gravity + todos os apps, um a um**; o Vue/Hyprland antigo é abandonado (o Eric já o refez em C justamente por isso). A UI antiga reiniciava ao carregar o Hyprland (o cursor aparecia, depois reiniciava): não será consertada.
 2. Saber por que a versão antiga não inicia **(só se o Eric quiser reviver; se for substituída, não importa)**: do 6T pela USB (`ssh alarm@lumna`):
    `journalctl -b -p warning --no-pager | tail -80`, `systemctl --failed`, `pacman -Q hyprland lumna-shell lumna-mobile`, `ls ~/.local/state/lumna`.
-3. Compilar Orbit + Gravity em aarch64 e rodar no 6T.
+3. Compilar Orbit + Gravity em aarch64 e rodar no 6T. **Compilar: feito (2026-11-21)**, ver "Build aarch64" abaixo. **Rodar no 6T: pendente** (precisa do aparelho).
 4. Esboços do Eric da UI do celular.
-5. Conserto do CI "Celular" (token expirado) para o `[lumna-celular]` voltar a ser publicado.
+5. ~~Conserto do CI "Celular"~~ **feito (2026-11-21)**: o `git clone` da Emma com o `EMMA_REPO_TOKEN` expirado derrubava o job em ~10 s; agora só avisa e a Emma fica com o pacote já publicado, e o `[lumna-celular]` voltou a ser publicado. **O token continua expirado** (só o Eric renova: Settings > Secrets > `EMMA_REPO_TOKEN`); enquanto isso a Emma do celular não atualiza.
+
+## Build aarch64 do Orbit e do Gravity (2026-11-21)
+
+- O CI "Celular" (`mobile/scripts/ci-celular.sh`, Arch Linux ARM numa máquina ARM do GitHub, sem emulação) agora compila **`lumna-orbit`** (com o
+  `wlroots0.20`, igual ao desktop) e **`lumna-gravity`** (46 binários) em **aarch64** e publica os dois no `[lumna-celular]`, junto com os pacotes antigos.
+  Versões pelo git (`mobile/scripts/versao.sh`). Primeira publicação: `lumna-orbit 0.1.r55`, `lumna-gravity 0.1.r283` (run 393 do Celular).
+- **Provado só no CI (aarch64, sem tela):** os dois compilam; o Orbit arranca em headless com 2 saídas e responde ao `orbit-msg`; os binários do Gravity
+  não têm biblioteca faltando (`ldd`). Se o teste falhar, nada é publicado.
+- **NÃO provado (só o 6T prova):** tela, toque, GPU (freedreno/Adreno 630), a barra e o lançador num celular de verdade, escala/`phone_scale` no painel DSI.
+- **Para instalar no 6T** (`ssh alarm@lumna`, com o repositório `[lumna-celular]` já configurado): `sudo pacman -Syu lumna-orbit lumna-gravity`.
+  Atenção: o Gravity puxa dependências pesadas (firefox, ffmpeg, mpv...). Ainda **não existe** um `primeira-tela` para o Orbit (o atual sobe o Hyprland):
+  o próximo passo é um script parecido que suba `orbit -s 'lumna-barra & lumna-lancador'` no tty1 do 6T, com log em arquivo.
+- O registro de testes (`teste.py`) **não tem a área Celular**, então esses testes ainda não estão lá; falta o Eric decidir se criamos a área no registro.
 
 ## Visão do Eric para o celular (2026-11-21)
 
