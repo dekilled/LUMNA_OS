@@ -76,6 +76,29 @@ Decisões do Eric:
 - **Emma:** está ligada ao núcleo do sistema e presente em todas as telas (no LUMNA antigo: deslizar da borda de baixo e "Oi Emma"). Por ora a barra
   "Pergunte à Emma" e a aba Emma ficam **só como botões, sem função**, até entendermos por que a Emma não entrou em nenhuma área.
 
+## Esboço: tela de bloqueio (Eric, 2026-11-21)
+
+Imagens: [bloqueio](celular/esboco-bloqueio.webp), [com música](celular/esboco-bloqueio-midia.webp), [com Emma](celular/esboco-bloqueio-emma.webp),
+[senha + teclado](celular/esboco-bloqueio-senha.webp). O Eric avisou que vai **atualizar** o bloqueio e os apps depois: tratar como base, não como final.
+
+- **Bloqueio simples:** barra de status (com % da bateria), logo LUMNA no canto, cadeado, relógio grande e data; embaixo, o leitor de digital
+  ("Deslize para desbloquear"), **lanterna** no canto esquerdo e **câmera** no direito.
+- **Com música tocando:** o logo vai para o centro e aparece um cartão de mídia (capa, título, artista/álbum, estado, barra de progresso, aleatório,
+  anterior, pausa/play, próxima, repetir, e a saída de áudio "Neste dispositivo >").
+- **Com a Emma:** cartão no rodapé ("Emma / Como posso ajudar?", onda de voz e botão de microfone), acima do leitor de digital.
+- **Senha:** "Desbloquear LUMNA", campo com pontos, olho (mostrar a senha), seta de confirmar, digital, link **Emergência** e o teclado completo
+  (linha de números, QWERTY pt-BR com ç, ?123, espaço "Português (BR)", enter roxo). É o `lumna-teclado`.
+
+## Esboço: tela de aplicativos (Eric, 2026-11-21)
+
+Imagem: [celular/esboco-apps.webp](celular/esboco-apps.webp).
+
+- Título "Aplicativos", botão **Loja** no canto, busca ("Buscar aplicativos") e abas **Todos / Trabalho / Mídia / Jogos**.
+- Grade de 3 colunas: Arquivos, Navegador, Terminal, Notas, Música, Vídeos, Loja, Ajustes, Emma. Abaixo, **Recentes** (Notas, Arquivos).
+- Rodapé: só a aba **Apps** (selecionada) e o botão de **desligar** à direita; sem a barra de 5 itens do Início.
+- **Para conferir quando o Eric atualizar:** a Loja de apps e a Emma estão "fora das áreas"; Terminal, Notas e Vídeos precisam existir como apps no
+  desktop (não verifiquei); a aba Jogos aparece mesmo com o gaming no celular em dúvida.
+
 ## Possibilidades (NÃO são pendência; sem promessa de sucesso)
 
 Ideias que o Eric quer explorar **se der**. Dependem de hardware e drivers próprios de cada fabricante, então a chance de não funcionar é real.
