@@ -15,3 +15,6 @@ grim e, para o X11, xterm e xdotool. O mouse é o do próprio Orbit (orbit-msg m
       (351,251) com o cursor em (1940,487).
   sh teste_menu.sh PASTA_DO_ORBIT PASTA_COM_menu_gtk      (comum.sh: o ambiente) o mesmo com o GTK3 Wayland (xdg_popup): sempre saiu certo.
 Controle negativo feito: sem o redimensionamento pela divisa, sem a dock saber do encaixe (foreign.c) ou sem a posição do X11, os testes falham.
+  combo_gtk.c (cliente de investigação, ainda sem teste automatizado): uma janela GTK3 com 4 dropdowns (GtkComboBoxText) encostados na borda direita, como a
+      barra lateral do Creality Print; escreve "abriu/fechou/escolheu N" no arquivo dado. No Orbit headless com GTK3 Wayland os dropdowns abrem e o item
+      chega ao app; o problema real do Creality Print (wxWidgets) NÃO foi reproduzido, falta o log do PC do Eric (ver docs/areas/DESKTOP.md).

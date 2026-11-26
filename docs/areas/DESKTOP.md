@@ -41,6 +41,9 @@ espaços), a **dock**, a **barra** de cima, o **lançador**, a área de trabalho
    estreitos, captura "última área".
 7. **Janela-filha (xdg_toplevel `parent`, inclusive a importada pelo xdg-foreign):** hoje o diálogo não fica sobre a janela-pai nem acompanha ela. Perguntar ao Eric
    o comportamento que quer (sempre por cima, centralizar sobre a pai, modal) antes de mexer.
+8. **Creality Print: dropdowns da barra lateral direita não funcionam** (em Wayland, XWayland e X11; alguns funcionam, os mais usados não). Não é o xdg-foreign.
+   GTK3 puro (`testes-encaixe/combo_gtk.c`) funciona no Orbit headless, então não reproduzido. Falta do Eric: `tail -40 ~/.local/state/lumna/orbit.log` logo após
+   falhar, `WAYLAND_DEBUG=1 CrealityPrint 2>&1 | grep -i "popup\|grab"`, se o dropdown não abre/fecha na hora/não pega o clique, e se funciona em outro compositor.
 
 ## Para o Eric conferir
 
