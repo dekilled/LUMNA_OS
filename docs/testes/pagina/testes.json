@@ -1,5 +1,5 @@
 {
-"gerado": "17/11/2026",
+"gerado": "26/11/2026",
 "areas": ["Gaming", "Mídia", "Painel", "Hardware", "Desktop", "A classificar"],
 "estados": ["pendente", "passou", "falhou", "parcial", "obsoleto", "pulado"],
 "testes": [
@@ -612,5 +612,6 @@
 {"id": "H-2", "area": "Hardware", "grupo": "Boot (2026-11-16)", "fazer": "Depois de um update de kernel: reiniciar e ver o menu do GRUB; cat /var/log/lumna-boot.log", "esperado": "O menu tem a entrada do LUMNA e o registro mostra o gancho rodando depois do mkinitcpio", "estado": "pendente", "data": "", "nota": ""},
 {"id": "H-3", "area": "Hardware", "grupo": "Rede (2026-11-16)", "fazer": "systemctl is-active systemd-networkd iwd", "esperado": "inactive (só o NetworkManager cuida da rede)", "estado": "passou", "data": "2026-11-17", "nota": "Eric (2026-11-16)"},
 {"id": "H-4", "area": "Hardware", "grupo": "Rede (2026-11-16)", "fazer": "Abrir um vídeo do YouTube no LUMNA e no BigLinux, na mesma máquina", "esperado": "Carrega tão rápido quanto no BigLinux", "estado": "falhou", "data": "2026-11-17", "nota": "Eric (2026-11-16): carrega ~3x menos que no BigLinux; estacionado pelo Eric"},
-{"id": "H-5", "area": "Hardware", "grupo": "Bluetooth", "fazer": "Ligar o PC com o fone Bluetooth pareado", "esperado": "O fone conecta sozinho", "estado": "passou", "data": "2026-11-17", "nota": "Eric (2026-11-16)"}
+{"id": "H-5", "area": "Hardware", "grupo": "Bluetooth", "fazer": "Ligar o PC com o fone Bluetooth pareado", "esperado": "O fone conecta sozinho", "estado": "passou", "data": "2026-11-17", "nota": "Eric (2026-11-16)"},
+{"id": "D-10", "area": "Desktop", "grupo": "Protocolos", "fazer": "Atualizar o lumna-orbit, sair e entrar na sessão. Rodar: wayland-info | grep -o \"zxdg_[a-z_0-9]*\" | sort -u. Depois abrir o app que precisava do xdg-foreign e usar o que antes falhava (seletor de arquivos do portal, diálogos de Electron/Qt/Flatpak...)", "esperado": "A lista mostra zxdg_exporter_v1, zxdg_exporter_v2, zxdg_importer_v1 e zxdg_importer_v2, e o app passa a funcionar. Se o diálogo ainda não ficar por cima da janela do app, é a pendência 7 (o Orbit ainda não trata janela-filha), não o protocolo", "estado": "pendente", "data": "", "nota": ""}
 ]}

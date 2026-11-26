@@ -372,7 +372,8 @@ Barra de título (deco.c)
 Protocolos para os apps de fora (protocolos.c)
   primary-selection (colar com o botão do meio), wlr-data-control (wl-clipboard; ext-data-control no wlroots 0.19+), cursor-shape,
   xdg-activation (um aviso focar a janela: traz o espaço dela e tira do minimizado), single-pixel-buffer, alpha-modifier,
-  relative-pointer e pointer-constraints. A trava (lock) segura o cursor e só manda o movimento relativo; o confinamento (confine) o
+  xdg-foreign (v1 e v2, um registro só: um app exporta a janela e outro, como o portal do seletor de arquivos, a importa como pai; o Orbit só
+  guarda o vínculo no wlroots, ainda não usa o pai para empilhar o diálogo sobre a janela), relative-pointer e pointer-constraints. A trava (lock) segura o cursor e só manda o movimento relativo; o confinamento (confine) o
   prende na janela (fora da faixa de 6 px de mudar o tamanho, que a janela não enxerga). A restrição só vale com o foco do ponteiro E do
   teclado na mesma janela, e solta com o cursor_hint onde o jogo pediu.
   Testes: testes-protocolos/teste_globais.sh PASTA_DO_BUILD (os globais e wl-copy/wl-paste) e

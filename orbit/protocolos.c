@@ -13,6 +13,9 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
 #include <wlr/types/wlr_xdg_activation_v1.h>
+#include <wlr/types/wlr_xdg_foreign_registry.h>
+#include <wlr/types/wlr_xdg_foreign_v1.h>
+#include <wlr/types/wlr_xdg_foreign_v2.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
@@ -32,6 +35,8 @@
  *   xdg-activation           um aviso (ou outro app) que pede para focar uma janela: traz a janela e o espaço dela
  *   single-pixel-buffer      uma cor sólida sem alocar imagem (o Firefox, o GTK4 usam)
  *   alpha-modifier           a transparência de uma superfície
+ *   xdg-foreign (v1 e v2)    um app exporta uma janela e outro (o portal do seletor de arquivos, um diálogo) a importa como pai: o app
+ *                            que abre um diálogo por outro processo consegue dizer "este diálogo é filho daquela janela"
  *   relative-pointer         o movimento cru do mouse, sem o limite da tela
  *   pointer-constraints      travar (lock) o ponteiro numa janela, ou confiná-lo (confine) dentro dela
  */
@@ -273,6 +278,13 @@ bool orbit_protocols_bind(struct orbit_server *server) {
 
 	wlr_single_pixel_buffer_manager_v1_create(display);
 	wlr_alpha_modifier_v1_create(display);
+
+	/* o registro é um só: um handle exportado pelo v1 pode ser importado pelo v2 e vice-versa */
+	struct wlr_xdg_foreign_registry *foreign = wlr_xdg_foreign_registry_create(display);
+	if (!foreign || !wlr_xdg_foreign_v1_create(display, foreign) || !wlr_xdg_foreign_v2_create(display, foreign)) {
+		wlr_log(WLR_ERROR, "falha ao criar o xdg-foreign (exportar e importar janelas)");
+		return false;
+	}
 
 	protocols.relative = wlr_relative_pointer_manager_v1_create(display);
 	protocols.constraints = wlr_pointer_constraints_v1_create(display);

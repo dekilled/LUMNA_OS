@@ -23,6 +23,9 @@ espaços), a **dock**, a **barra** de cima, o **lançador**, a área de trabalho
   janela encaixada esconde a dock e vai até a borda de baixo; arrastar a divisa redimensiona as janelas encaixadas juntas. O Eric testou:
   **funciona, com uma pequena inconsistência no resize** (ainda não descrita).
 - **Menu de clique direito no outro monitor:** corrigido (`e73bed0`, a janela X11 não sabia a própria posição) e **confirmado pelo Eric**.
+- **xdg-foreign v1 e v2** (2026-11-26, `orbit/protocolos.c`): o Orbit anuncia exporter/importer nas duas versões (registro único do wlroots). Testado só aqui,
+  headless, com `orbit/testes-protocolos/teste_foreign.sh` (app + portal de mentira; controle negativo feito). **Não faz** ainda o diálogo ficar por cima da
+  janela-pai: o Orbit não trata janela-filha (`set_parent`) em lugar nenhum; isso é decisão de produto (ver pendência 7).
 - Foco (a janela usada mais recentemente recebe o foco) e o Orbit não abortar mais ao sair: corrigidos; foco confirmado no PC.
 
 ## Pendências
@@ -36,6 +39,8 @@ espaços), a **dock**, a **barra** de cima, o **lançador**, a área de trabalho
 5. Música: crash logo depois de tocar com HDD recém-montado (pedir o log); letra sem sincronia.
 6. Itens antigos sem confirmação no PC (TESTES-ISO 2.469 a 2.483): menu de contexto de arquivos, animações de janela e do lançador, Atlas e Música
    estreitos, captura "última área".
+7. **Janela-filha (xdg_toplevel `parent`, inclusive a importada pelo xdg-foreign):** hoje o diálogo não fica sobre a janela-pai nem acompanha ela. Perguntar ao Eric
+   o comportamento que quer (sempre por cima, centralizar sobre a pai, modal) antes de mexer.
 
 ## Para o Eric conferir
 
@@ -43,6 +48,7 @@ No registro de testes: `python3 docs/testes/teste.py lista Desktop` (pendentes) 
 
 - [ ] Descrever a inconsistência do resize (pendência 1).
 - [ ] A faixa de 24 px do encaixe está boa de acertar?
+- [ ] xdg-foreign: depois de atualizar o `lumna-orbit` e sair/entrar na sessão, `wayland-info | grep xdg_` mostra os 4 globais, e o app que precisava dele funciona (D-10).
 
 ## Confirmado no PC
 
