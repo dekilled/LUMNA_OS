@@ -48,7 +48,7 @@ No registro de testes: `python3 docs/testes/teste.py lista Desktop` (pendentes) 
 
 - [ ] Descrever a inconsistência do resize (pendência 1).
 - [ ] A faixa de 24 px do encaixe está boa de acertar?
-- [ ] xdg-foreign: depois de atualizar o `lumna-orbit` e sair/entrar na sessão, `wayland-info | grep xdg_` mostra os 4 globais, e o app que precisava dele funciona (D-10).
+- [ ] xdg-foreign: depois de atualizar o `lumna-orbit` e sair/entrar na sessão, `wayland-info | grep xdg_` mostra os 4 globais, e o app que precisava dele funciona (D-11).
 
 ## Confirmado no PC
 
@@ -61,4 +61,10 @@ No registro de testes: `python3 docs/testes/teste.py lista Desktop` (pendentes) 
 
 ## Recebido de outras áreas
 
-(vazio)
+- **Atlas, Ctrl+L: o Tab não completa** (teste T2.83, falhou, Eric no PC, 2026-11-17). O campo abre e dá para digitar, mas o Tab só tira o foco do campo.
+  O doc (`docs/ATLAS.md`, "O caminho digitado") e o código (`atlas.c`: `editar_caminho_completar` ~l.1607 e o tratamento do Tab ~l.4587, com
+  `gv_teclado_cru()`) dizem que Tab completa e entra na pasta. Possíveis causas a olhar: o Tab chegando ao foco do Gravity antes do ramo do
+  `editando_caminho`; ou a lista `sug` vazia no momento do Tab (o `return` silencioso). **Confirmado pelo Eric (com captura):** a lista de sugestões APARECE (ex.: digitando `/usr/in` mostra "include /usr/include" e a legenda "Tab Completar"), então `sug` não está vazia: o defeito é o Tab não chegar ao ramo `editar_caminho_completar` (o foco do Gravity o consome antes).
+- **Atlas, abas: o anel de foco não acompanha a aba ativa** (teste T2.95, visual; Eric, com capturas, 2026-11-17). Tudo funciona, mas ao trocar de aba com
+  Ctrl+Tab o destaque violeta vai para a aba nova e o contorno de foco do teclado (o do Tab) continua no botão X de outra aba. O foco do Tab e a aba ativa
+  andam separados; o Eric pediu um ajuste para ficarem juntos (ou ao menos o anel não ficar parado num X que não é o da aba ativa). Detalhe estético, sem pressa.

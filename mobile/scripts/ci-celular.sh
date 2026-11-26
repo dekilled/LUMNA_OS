@@ -25,9 +25,11 @@ die() { echo "erro: $*" >&2; exit 1; }
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
 V_SHELL=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-shell)
 V_MOBILE=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-mobile)
+V_ORBIT=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-orbit)
+V_GRAVITY=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-gravity)
 V_EMMA=
 [ -z "${EMMA_SRC:-}" ] || V_EMMA=$(sh "$ROOT/mobile/scripts/versao.sh" lumna-emma "$EMMA_SRC")
-echo "lumna-shell $V_SHELL · lumna-mobile $V_MOBILE · lumna-emma ${V_EMMA:-(a publicada)}"
+echo "lumna-shell $V_SHELL · lumna-mobile $V_MOBILE · lumna-orbit $V_ORBIT · lumna-gravity $V_GRAVITY · lumna-emma ${V_EMMA:-(a publicada)}"
 
 mkdir -p "$OUT"
 rm -f "$OUT"/*
@@ -42,6 +44,9 @@ baixa() { # baixa NOME VERSÃO → 0 se veio da release
 FAZ=
 baixa lumna-shell "$V_SHELL" || FAZ="$FAZ lumna-shell"
 baixa lumna-mobile "$V_MOBILE" || FAZ="$FAZ lumna-mobile"
+# a UI nova (a mesma do desktop: Orbit + Gravity), compilada em aarch64
+baixa lumna-orbit "$V_ORBIT" || FAZ="$FAZ lumna-orbit"
+baixa lumna-gravity "$V_GRAVITY" || FAZ="$FAZ lumna-gravity"
 if [ -n "$V_EMMA" ]; then
     baixa lumna-emma "$V_EMMA" || FAZ="$FAZ lumna-emma"
 else
@@ -109,10 +114,56 @@ if [ -n "$FAZ" ]; then
             lumna-shell) pacote lumna-shell "$V_SHELL" -s ;;
             # depende do lumna-shell, que não está nos repositórios do Arch: só as de compilar
             lumna-mobile) dentro pacman -S --noconfirm --needed git && pacote lumna-mobile "$V_MOBILE" -d ;;
+            # só as bibliotecas de compilar (os depends de execução, como o firefox, ficam pro celular instalar); wlroots0.20 como no desktop
+            lumna-orbit)
+                dentro pacman -S --noconfirm --needed wlroots0.20 wayland wayland-protocols libxcb libxkbcommon libinput pixman cairo pango libdrm
+                pacote lumna-orbit "$V_ORBIT" -d ;;
+            lumna-gravity)
+                dentro pacman -S --noconfirm --needed wayland wayland-protocols libxkbcommon cairo pango glib2 gdk-pixbuf2 libpulse libsoup3 mpv sqlite libvterm zip
+                pacote lumna-gravity "$V_GRAVITY" -d ;;
             lumna-emma) dentro pacman -S --noconfirm --needed python python-pip curl && pacote lumna-emma "$V_EMMA" -d ;;
         esac
     done
     cp "$CH"/home/alarm/out/*.pkg.tar.zst "$OUT/"
+
+    # ---- teste de fumaça em aarch64 (o que dá pra provar sem tela: arranca, responde, e as bibliotecas existem) ----
+    fumaca=ok
+    case " $FAZ " in *" lumna-orbit "*)
+        echo "==> fumaça: o Orbit arranca em aarch64 (headless, 2 saídas) e responde ao orbit-msg"
+        dentro sh -c 'pacman -U --noconfirm --needed --nodeps /home/alarm/out/lumna-orbit-*.pkg.tar.zst'
+        dentro sh -c '
+            run=$(mktemp -d); chmod 700 "$run"
+            file /usr/bin/orbit 2>/dev/null || true
+            XDG_RUNTIME_DIR=$run WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=2 WLR_RENDERER=pixman /usr/bin/orbit >"$run/log" 2>&1 &
+            pid=$!; sock=
+            for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+                sock=$(ls "$run"/orbit.*.sock 2>/dev/null | head -n1); [ -n "$sock" ] && break; sleep 0.4
+            done
+            r=0
+            if [ -z "$sock" ]; then echo "FUMAÇA FALHOU: o orbit não abriu o socket"; r=1
+            else /usr/bin/orbit-msg -s "$sock" saidas | tee "$run/saidas"; grep -q "\"ok\":true" "$run/saidas" || r=1; fi
+            kill $pid 2>/dev/null; wait $pid 2>/dev/null
+            echo "--- log do orbit ---"; tail -20 "$run/log"
+            exit $r' || fumaca=falhou
+        ;;
+    esac
+    case " $FAZ " in *" lumna-gravity "*)
+        echo "==> fumaça: os binários do Gravity (aarch64) e as bibliotecas que pedem"
+        dentro sh -c 'pacman -U --noconfirm --needed --nodeps /home/alarm/out/lumna-gravity-*.pkg.tar.zst'
+        dentro sh -c '
+            n=0; falta=0
+            for b in /usr/bin/lumna-*; do
+                n=$((n+1))
+                m=$(ldd "$b" 2>&1 | grep "not found" || true)
+                [ -z "$m" ] || { echo "$b: $m"; falta=$((falta+1)); }
+            done
+            echo "$n binários do Gravity; $falta com biblioteca faltando"
+            [ "$n" -gt 0 ] && [ "$falta" -eq 0 ]' || fumaca=falhou
+        ;;
+    esac
+    echo "FUMAÇA: $fumaca"
+    # o repositório só sai com o que passou
+    [ "$fumaca" = ok ] || die "o teste de fumaça do Orbit/Gravity falhou (veja acima); nada é publicado"
 fi
 
 # ---- o repositório ----

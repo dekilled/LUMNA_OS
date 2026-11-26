@@ -2,7 +2,7 @@
 # A versão de um pacote do celular, pelo git: 0.1.r<commits que mexeram nele>.g<o último deles>.
 # Um pacote que não mudou mantém a versão (a Loja não oferece "atualização" à toa) e cada
 # mudança sobe o número. Rode na raiz do LUMNA_OS:
-#   sh mobile/scripts/versao.sh lumna-shell|lumna-mobile
+#   sh mobile/scripts/versao.sh lumna-shell|lumna-mobile|lumna-orbit|lumna-gravity
 #   sh mobile/scripts/versao.sh lumna-emma CAMINHO_DO_NEWHARNESSV2
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -20,6 +20,14 @@ lumna-mobile)
     set -- "$ROOT" mobile/session session/lumna-pkg session/os.lumna.pkg.policy packages/lumna-mobile
     echo "0.1.r$(conta "$@").g$(ultimo "$@")"
     ;;
+lumna-orbit)
+    set -- "$ROOT" orbit packages/lumna-orbit
+    echo "0.1.r$(conta "$@").g$(ultimo "$@")"
+    ;;
+lumna-gravity)
+    set -- "$ROOT" gravity packages/lumna-gravity iso/branding/abertura
+    echo "0.1.r$(conta "$@").g$(ultimo "$@")"
+    ;;
 lumna-emma)
     emma=${2:?"falta o caminho do NewHarnessV2"}
     a=$(conta "$emma" backend)
@@ -27,7 +35,7 @@ lumna-emma)
     echo "0.1.r$((a + b)).g$(ultimo "$emma" backend)"
     ;;
 *)
-    echo "uso: $0 lumna-shell|lumna-mobile|lumna-emma [NewHarnessV2]" >&2
+    echo "uso: $0 lumna-shell|lumna-mobile|lumna-orbit|lumna-gravity|lumna-emma [NewHarnessV2]" >&2
     exit 2
     ;;
 esac
