@@ -20,7 +20,7 @@ sessões de teste com o Eric (um por um ou em blocos curtos), registra o resulta
   - `python3 docs/testes/teste.py lista Gaming` (só os pendentes) ou `lista Gaming falhou` / `lista Gaming todos`.
   - `python3 docs/testes/teste.py ver T2.270`.
   - `python3 docs/testes/teste.py marcar T2.270 passou "nota opcional"` (a data é a de hoje).
-  - `python3 docs/testes/teste.py novo Desktop "Grupo" "O que fazer" "O que deve acontecer"` (ids novos: G-, M-, P-, H-, D-).
+  - `python3 docs/testes/teste.py novo Desktop "Grupo" "O que fazer" "O que deve acontecer"` (ids novos: G-, M-, P-, H-, D-, C-).
   - `python3 docs/testes/teste.py area T2.12 Desktop` (mudar de área).
   - `python3 docs/testes/teste.py pagina`: gera `docs/testes/pagina/` (index.html + testes.json).
 - **A página de acompanhamento:** artefato **"LUMNA OS, testes"** (slug `bf953a49-8f5a-4784-90d1-2ab965c8799e`): um cartão por área com a barra

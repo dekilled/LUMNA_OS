@@ -1,7 +1,7 @@
 """O registro de testes (registro.tsv): um teste por linha, colunas separadas por TAB. Ler e gravar."""
 COLUNAS = ["id", "area", "grupo", "fazer", "esperado", "estado", "data", "nota", "origem"]
 ESTADOS = ["pendente", "passou", "falhou", "parcial", "obsoleto", "pulado"]
-AREAS = ["Gaming", "Mídia", "Painel", "Hardware", "Desktop", "A classificar"]
+AREAS = ["Gaming", "Mídia", "Painel", "Hardware", "Desktop", "Celular", "A classificar"]
 
 
 def limpa(v):

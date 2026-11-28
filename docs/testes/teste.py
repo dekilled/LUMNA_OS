@@ -20,7 +20,7 @@ sys.path.insert(0, AQUI)
 from registro import AREAS, ESTADOS, grava, le
 
 ARQ = os.path.join(AQUI, "registro.tsv")
-PREFIXO = {"Gaming": "G", "Mídia": "M", "Painel": "P", "Hardware": "H", "Desktop": "D", "A classificar": "X"}
+PREFIXO = {"Gaming": "G", "Mídia": "M", "Painel": "P", "Hardware": "H", "Desktop": "D", "Celular": "C", "A classificar": "X"}
 
 
 def area_ok(a):
